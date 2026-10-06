@@ -27,7 +27,7 @@ import SwiftUI
         IOSSettingsPage(model: model).tabItem {
           Label("nav_settings", systemImage: "gearshape")
         }
-      }.task { await model.open() }
+      }.tint(DuckColors.action).task { await model.open() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake

@@ -61,7 +61,7 @@ impl Sender {
         } else {
             after_value.ok_or_else(|| Error::Invalid("sort cursor".into()))?
         };
-        let sql = format!("SELECT id,{value} FROM jobs WHERE (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) AND (?6 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?6) AND (?1=0 OR ({value},id){compare}(?5,?1)) ORDER BY {value} {direction},id {direction} LIMIT ?2");
+        let sql = format!("SELECT id,{value} FROM jobs WHERE (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4 OR (?4='active' AND state IN ('queued','running','waiting','paused')) OR (?4='attention' AND (state='failed' OR (state='received' AND id IN (SELECT job_id FROM processing_observations WHERE state='failed')))) OR (?4='saved' AND state='received' AND id IN (SELECT job_id FROM processing_observations WHERE state='complete'))) AND (?6 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?6) AND (?1=0 OR ({value},id){compare}(?5,?1)) ORDER BY {value} {direction},id {direction} LIMIT ?2");
         let mut stmt = self.conn.prepare(&sql).map_err(db)?;
         let rows = stmt
             .query_map(
@@ -170,6 +170,23 @@ mod tests {
                 ..query
             })
             .is_err());
+        s.conn.execute("INSERT INTO processing_observations(job_id,state) VALUES(1,'complete'),(205,'failed')", []).unwrap();
+        for (filter, expected) in [("saved", 1), ("attention", 205), ("active", 206)] {
+            let rows = s
+                .browse(JobQuery {
+                    state: Some(filter),
+                    sort: "added",
+                    descending: true,
+                    after: 0,
+                    after_value: None,
+                    ..query
+                })
+                .unwrap();
+            assert_eq!(
+                rows.iter().map(|j| j.id).collect::<Vec<_>>(),
+                vec![expected]
+            );
+        }
         // Direction/state filters are applied before pagination; legacy ID order is unchanged.
         assert_eq!(s.list_filtered(0, 1, Some("r"), None).unwrap()[0].id, 1);
         drop(s);

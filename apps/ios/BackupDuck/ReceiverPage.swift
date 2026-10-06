@@ -8,7 +8,7 @@ struct IOSReceiverPage: View {
       List {
         Section {
           VStack(alignment: .leading, spacing: 16) {
-            Image(systemName: "externaldrive.badge.wifi").font(.largeTitle).foregroundStyle(.tint)
+            DuckBrandMark(size: 64)
             if let peer = model.peerDevice { Text(peer.name).font(.title2) }
             ReceiverStatusIndicator(model: model)
             Text(
@@ -36,6 +36,8 @@ struct IOSReceiverPage: View {
         }
         Section { Text("receipt_explanation").foregroundStyle(.secondary) }
       }
+      .scrollContentBackground(.hidden)
+      .background(DuckColors.canvas)
       .navigationTitle("nav_receiver")
       .sheet(isPresented: $scanner) {
         PairingScanner { payload in

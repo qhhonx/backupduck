@@ -21,6 +21,23 @@ class ReceiverInstrumentation : Instrumentation() {
             val result = runCatching { checkReceiverWifi(arguments) }
             finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
                 putString("result", result.getOrElse { "FAIL: ${it.javaClass.simpleName}: ${it.message}" })
+
+            })
+            return
+        }
+        if(arguments.getString("mode")=="full_replica") {
+            val result=runCatching {checkFullReplica(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "component_flow") {
+            val result=runCatching {checkComponentFlow(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})})
+            return
+        }
+        if (arguments.getString("mode") == "design_review") {
+            val result = runCatching { checkDesignReview(arguments) }
+            finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
+                putString("result", result.getOrElse { "FAIL: ${it.stackTraceToString()}" })
             })
             return
         }

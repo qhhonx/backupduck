@@ -1,0 +1,13 @@
+<resources>
+    <string name="design_connect_device">连接新设备</string>
+    <string name="design_not_provided">未提供</string>
+    <string name="design_device_readings">电池温度 %1$s · 可用 %2$s · 电量 %3$s</string>
+    <string name="design_capture_unknown">拍摄时间未提供</string>
+    <string name="design_recent_transfers">最近传输</string>
+    <string name="design_transfer_detail">状态：%1$s\n拍摄时间：%2$s\n大小：%3$s\n来源设备：%4$s</string>
+    <string name="design_originals_note">原件保留状态与 Google 相册云端备份无关。</string>
+    <string name="design_open_gallery">查看相册副本</string>
+    <string name="design_retry_requested">已请求重试，处理结果稍后更新。</string>
+    <string name="design_retry_file">重试此文件</string>
+<string name="filter_burst">连拍</string>
+</resources>

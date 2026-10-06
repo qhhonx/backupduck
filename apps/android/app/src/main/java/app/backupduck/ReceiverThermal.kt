@@ -51,7 +51,7 @@ internal object ReceiverHolds {
 
     @Synchronized fun sync(context: Context) {
         NativeBridge.request(JSONObject().put("op", "receiver_transfer_hold")
-            .put("held", thermalHeld || PhotosCleanup(context).held))
+            .put("held", thermalHeld || ReceiverPreferences.paused(context) || PhotosCleanup(context).held))
     }
 
     @Synchronized fun reset() { thermalHeld = false }

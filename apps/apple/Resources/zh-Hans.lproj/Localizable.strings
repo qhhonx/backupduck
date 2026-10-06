@@ -605,3 +605,42 @@
 "receiver_connection_authentication" = "接收端拒绝了已保存的认证信息，请重新配对此设备。";
 "receiver_connection_network" = "暂时无法连接接收端。请检查是否在同一局域网、接收服务是否运行，以及 VPN 是否允许局域网连接。仅凭超时不能确定具体原因。";
 "receiver_connection_unavailable_note" = "连接检查未能完成，请重试或查看运行记录。";
+
+/* Design v1.1 */
+"design_saved_of" = "/ %d 个文件已保存到 Pixel 相册";
+"design_in_progress" = "%d 个进行中 · %d 个失败";
+"design_source_media" = "照片、实况、视频与连拍";
+"design_recent_transfers" = "最近传输";
+"design_backup_sources" = "备份来源";
+"design_backup_title" = "让回忆安心抵达。";
+"design_gallery_boundary" = "保存到 Pixel 相册与 Google 相册云端上传是两个阶段。云端备份请到 Google 相册确认。";
+"design_file_type" = "类型";
+"design_capture_time" = "拍摄时间";
+"design_file_size" = "大小";
+"design_original_retained" = "接收端已确认接收；原件保留情况请在 Pixel 查看。";
+"design_receipt_pending" = "原件尚未接收完成。";
+
+"state_active" = "进行中";
+"state_attention" = "失败";
+"state_saved" = "已保存到相册";
+"task_explanation_active" = "包括等待传输、传输中、等待重试和已暂停的文件。";
+"task_explanation_attention" = "传输或相册处理失败。打开文件查看原因和恢复方式。";
+"task_explanation_saved" = "已保存到 Pixel 相册；Google 相册云端上传需另行确认。";
+"design_retry_on_pixel" = "请在 Pixel 应用或浏览器管理页重试相册处理。原件按接收端保留策略管理。";
+
+"close" = "关闭";
+
+"design_saved_count" = "%d / %d 个文件已保存到 Pixel 相册";
+
+"error_conversion_required" = "此文件需要兼容转换。可在 Pixel 设置中开启后重试；转换可能重新编码媒体。";
+
+"design_advanced_tasks" = "更多状态";
+"design_status_failed" = "处理失败";
+"design_status_pending" = "等待处理";
+"design_capture_unknown" = "拍摄时间未提供";
+"design_filter_all" = "全部";
+"design_filter_active" = "进行中";
+"design_filter_attention" = "需处理";
+"design_filter_saved" = "已保存";
+"design_status_guide" = "状态说明";
+"design_manage_folders" = "管理文件夹";

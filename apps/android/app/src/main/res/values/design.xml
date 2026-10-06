@@ -1,0 +1,13 @@
+<resources>
+    <string name="design_connect_device">Connect a device</string>
+    <string name="design_not_provided">Not provided</string>
+    <string name="design_device_readings">Battery %1$s · Free %2$s · Charge %3$s</string>
+    <string name="design_capture_unknown">Capture time not provided</string>
+    <string name="design_recent_transfers">Recent transfers</string>
+    <string name="design_transfer_detail">Status: %1$s\nCaptured: %2$s\nSize: %3$s\nSender: %4$s</string>
+    <string name="design_originals_note">Original-retention status is independent of Google Photos cloud backup.</string>
+    <string name="design_open_gallery">Open gallery copy</string>
+    <string name="design_retry_requested">Retry requested. Processing results will update later.</string>
+    <string name="design_retry_file">Retry this file</string>
+<string name="filter_burst">Burst</string>
+</resources>

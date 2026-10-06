@@ -50,7 +50,8 @@ targets:
             *) exit 1;;
           esac
           cd "$SRCROOT/../.."
-          cargo build --locked --release -p backupduck-native --target "$rust_target"
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          cargo build --locked --release -p backupduck-native --no-default-features --target "$rust_target"
           cp "target/$rust_target/release/libbackupduck_native.a" "$BUILT_PRODUCTS_DIR/"
   BackupDuckTests:
     type: bundle.unit-test

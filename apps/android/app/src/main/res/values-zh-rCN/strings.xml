@@ -79,7 +79,7 @@
 <string name="receiver_resume_notice">打开 备份鸭 继续接收</string>
 <string name="nav_receive">接收</string>
 <string name="nav_transfers">传输</string>
-<string name="nav_storage">空间</string>
+<string name="nav_storage">存储</string>
 <string name="nav_settings">设置</string>
 <string name="receiver_pair_section">连接设备</string>
 <string name="receiver_behavior">接收行为</string>
@@ -101,9 +101,9 @@
 <string name="receiver_thermal_threshold">暂停温度</string>
 <string name="receiver_thermal_threshold_value">暂停温度：%1$d°C</string>
 <string name="receiver_thermal_option">%1$d°C</string>
-<string name="settings_diagnostics">诊断</string>
+<string name="settings_diagnostics">诊断与实验</string>
 <string name="logs_retention_settings">日志保留</string>
-<string name="storage_limits">空间预算</string>
+<string name="storage_limits">空间限制</string>
 <string name="originals_section">管理原始文件</string>
 <string name="settings_version">版本 %1$s</string>
 <string name="history_status">状态</string>
@@ -297,7 +297,7 @@
     <string name="cleanup_result_stopped">已停止；结果不明的清理仍需核对。</string>
     <string name="cleanup_result_reviewed">已按你的手动核对结束等待。</string>
     <string name="cleanup_result_unavailable">Google 相册暂不可用，请检查安装情况和无障碍权限。</string>
-    <string name="photos_diagnostics_title">兼容性与诊断</string>
+    <string name="photos_diagnostics_title">Google 相册页面检查</string>
     <string name="photos_diagnostics_description">遇到问题时，可运行不删除文件的页面识别检查，或导出诊断报告。</string>
     <string name="cleanup_check_pending">检查清理结果</string>
     <string name="cleanup_stop">停止检查</string>

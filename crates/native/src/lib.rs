@@ -777,7 +777,9 @@ enum Command {
         state: String,
         kind: String,
     },
-    RetryProcessing,
+    RetryProcessing {
+        id: Option<String>,
+    },
     Publications {
         #[serde(default)]
         after: String,
@@ -1536,10 +1538,14 @@ fn dispatch(command: Command) -> Result<Value> {
             .as_ref()
             .ok_or(Error::NotFound)?
             .dashboard_info(),
-        Command::RetryProcessing => {
+        Command::RetryProcessing { id } => {
             let h = HOSTS.lock().map_err(lock)?;
             let host = h.receiver.as_ref().ok_or(Error::NotFound)?;
-            let count = host.receiver.lock().map_err(lock)?.retry_processing()?;
+            let count = host
+                .receiver
+                .lock()
+                .map_err(lock)?
+                .retry_processing_item(id.as_deref())?;
             Ok(json!({"count":count}))
         }
         Command::ReceiverLogs { root } => {

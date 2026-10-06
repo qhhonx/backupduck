@@ -17,6 +17,7 @@ cp assets/BackupDuck.icns "$app/Contents/Resources/"
 cp LICENSE "$app/Contents/Resources/"
 cp build/dependencies/sparkle/LICENSE "$app/Contents/Resources/Sparkle-LICENSE.txt"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
+cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
 xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \
  -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos14.0 -parse-as-library \
  -debug-prefix-map "$PWD=/backupduck" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \

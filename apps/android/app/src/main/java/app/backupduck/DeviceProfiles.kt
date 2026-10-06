@@ -3,13 +3,9 @@ package app.backupduck
 import android.content.Context
 import android.text.format.DateUtils
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.util.Locale
@@ -22,108 +18,108 @@ internal object DeviceProfiles {
         return NativeBridge.request(request) as JSONObject
     }
 }
-
-internal class DevicePanels(private val activity: MainActivity) {
-    private val nameLabels = mutableListOf<TextView>()
-    private var peersLabel: TextView? = null
-    private var peersButton: Button? = null
-    private var state: JSONObject? = null
-    private var work: Job? = null
-    val name: String? get() = state?.optJSONObject("device")?.optString("name")
-
-    fun receiver(parent: LinearLayout) = activity.card(parent) { body ->
-        nameLabels += activity.label(body, activity.getString(R.string.device_loading), 20)
-        activity.label(body, activity.getString(R.string.device_known_senders), 14, activity.secondaryColor())
-        peersLabel = activity.label(body, activity.getString(R.string.device_no_senders), 15)
-        peersButton = activity.action(body, R.string.device_all_senders) { showPeers() }.apply {
-            visibility = View.GONE
-        }
-    }
-    fun settings(parent: LinearLayout) = activity.card(parent) { body ->
-        activity.label(body, activity.getString(R.string.device_this_device), 14, activity.secondaryColor())
-        nameLabels += activity.label(body, activity.getString(R.string.device_loading), 20)
-        activity.action(body, R.string.device_rename) { rename() }
-        activity.label(body, activity.getString(R.string.device_name_note), 14, activity.secondaryColor())
+internal class DevicePanels(private val activity:MainActivity,private val changed:()->Unit={}) {
+    private val nameLabels=mutableListOf<TextView>()
+    private var state:JSONObject?=null
+    private var work:Job?=null
+    val name:String? get()=state?.optJSONObject("device")?.optString("name")
+    fun compactSettings(parent:LinearLayout) {
+        val value=activity.duckText(name ?: android.os.Build.MODEL,13,true);nameLabels+=value
+        activity.duckSetting(parent,activity.getString(R.string.duck_device_name),control=value) {rename()}
+        activity.duckSetting(parent,activity.getString(R.string.device_known_senders),activity.getString(R.string.duck_sender_settings_note)) {showPeers()}
     }
     fun refresh() {
-        if (work?.isActive == true) return
-        work = activity.lifecycleScope.launch {
-            runCatching { withContext(Dispatchers.IO) { DeviceProfiles.read(activity) } }
-                .onSuccess { render(it) }
-                .onFailure { if (state == null) nameLabels.forEach { it.setText(R.string.device_load_failed) } }
+        if(work?.isActive==true)return
+        work=activity.lifecycleScope.launch {
+            runCatching {withContext(Dispatchers.IO) {DeviceProfiles.read(activity)}}.onSuccess(::render)
+                .onFailure {if(state==null) nameLabels.forEach {it.setText(R.string.device_load_failed)}}
         }
     }
-    private fun render(next: JSONObject) {
-        state = next
-        val name = next.getJSONObject("device").getString("name")
-        nameLabels.forEach { if (it.text.toString() != name) it.text = name }
-        val peers = next.getJSONArray("peers")
-        peersButton?.visibility = if (peers.length() == 0) View.GONE else View.VISIBLE
-        val text = if (peers.length() == 0) activity.getString(R.string.device_no_senders)
-            else (0 until minOf(3, peers.length())).joinToString("\n") {
-                peerSummary(peers.getJSONObject(it))
-            }
-        if (peersLabel?.text?.toString() != text) peersLabel?.text = text
+    private fun render(next:JSONObject) {
+        state=next;changed();val name=next.getJSONObject("device").getString("name")
+        nameLabels.forEach {if(it.text.toString()!=name) it.text=name}
     }
-    private fun peerSummary(peer: JSONObject): String {
-        val profile = peer.getJSONObject("profile")
-        val kind = peer.optString("device_type").takeIf { it.isNotBlank() && it != "null" }
-        val ip = peer.optString("ip").takeIf { it.isNotBlank() && it != "null" }
-        return listOfNotNull(profile.getString("name"), kind, ip?.let { activity.getString(R.string.device_last_ip, it) },
-            if (!peer.optBoolean("enabled", true)) activity.getString(R.string.device_disabled) else null).joinToString(" · ")
-    }
-    private fun showPeers() {
-        val peers = state?.optJSONArray("peers") ?: return
-        val rows = (0 until peers.length()).map { index ->
-            val peer = peers.getJSONObject(index)
-            peerSummary(peer) + "\n" + DateUtils.getRelativeTimeSpanString(peer.getLong("last_seen") * 1000)
-        }.toTypedArray()
-        MaterialAlertDialogBuilder(activity).setTitle(R.string.device_known_senders).setItems(rows) { _, which ->
-            val peer = peers.getJSONObject(which)
-            val enabled = peer.optBoolean("enabled", true)
-            MaterialAlertDialogBuilder(activity).setTitle(peer.getJSONObject("profile").getString("name"))
-                .setMessage(R.string.device_disable_help)
-                .setNegativeButton(R.string.device_cancel, null)
-                .setPositiveButton(if (enabled) R.string.device_disable else R.string.device_enable) { _, _ ->
-                    activity.lifecycleScope.launch {
-                        runCatching { withContext(Dispatchers.IO) {
-                            NativeBridge.request(JSONObject().put("op", "set_sender_enabled")
-                                .put("root", "${activity.filesDir}/receiver/store")
-                                .put("id", peer.getJSONObject("profile").getString("id")).put("enabled", !enabled))
-                        } }.onSuccess { refresh() }.onFailure {
-                            android.widget.Toast.makeText(activity,R.string.device_save_failed,android.widget.Toast.LENGTH_LONG).show()
+    fun showPeers():DuckPage {
+        val page=DuckPage(activity,activity.getString(R.string.device_known_senders));page.show()
+        fun load() {
+            page.body.removeAllViews();activity.duckNotice(page.body,activity.getString(R.string.device_loading))
+            activity.lifecycleScope.launch {
+                val result=withContext(Dispatchers.IO) {runCatching {DeviceProfiles.read(activity)}}
+                if(!page.isShowing)return@launch
+                page.body.removeAllViews()
+                result.onSuccess {data ->
+                    render(data);val peers=data.getJSONArray("peers")
+                    if(peers.length()==0) {
+                        activity.duckNotice(page.body,activity.getString(R.string.device_no_senders),activity.getString(R.string.duck_devices_empty))
+                        page.body.addView(activity.duckButton(activity.getString(R.string.design_connect_device),true) {page.dismiss();activity.openConnection()})
+                    } else {
+                        val group=activity.duckGroup(page.body)
+                        for(i in 0 until peers.length()) {
+                            val peer=peers.getJSONObject(i)
+                            val seen=DateUtils.getRelativeTimeSpanString(peer.getLong("last_seen")*1000).toString()
+                            activity.duckSetting(group,peer.getJSONObject("profile").getString("name"),listOfNotNull(peer.optString("device_type").takeUnless {it.isBlank()||it=="null"},seen).joinToString(" · "),
+                                activity.duckPill(activity.getString(if(peer.optBoolean("enabled",true)) R.string.device_enable else R.string.device_disabled))) {showPeer(peer,page.body) {load()}}
                         }
                     }
-                }.show()
-        }.setPositiveButton(R.string.receiver_close, null).show()
-    }
-    private fun rename() {
-        val current = name ?: run { refresh(); return }
-        val panel = TextInputLayout(activity).apply {
-            hint = activity.getString(R.string.device_name)
-            setPadding(activity.dp(24), activity.dp(12), activity.dp(24), 0)
-        }
-        val input = TextInputEditText(panel.context).apply { setText(current); isSingleLine = true; selectAll() }
-        panel.addView(input)
-        val dialog = MaterialAlertDialogBuilder(activity).setTitle(R.string.device_rename).setView(panel)
-            .setNegativeButton(R.string.device_cancel, null).setPositiveButton(R.string.device_save, null).create()
-        dialog.setOnShowListener {
-            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val value = input.text.toString()
-                panel.error = null
-                input.isEnabled = false
-                val save = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
-                val cancel = dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE)
-                save.isEnabled = false; cancel.isEnabled = false; dialog.setCancelable(false)
-                activity.lifecycleScope.launch {
-                    val result = withContext(Dispatchers.IO) { runCatching { DeviceProfiles.read(activity, value) } }
-                    input.isEnabled = true; save.isEnabled = true; cancel.isEnabled = true; dialog.setCancelable(true)
-                    result.onSuccess { render(it); dialog.dismiss() }.onFailure {
-                        panel.error = activity.getString(if (it.message == "invalid_input") R.string.device_name_invalid else R.string.device_save_failed)
-                    }
+                }.onFailure {
+                    activity.duckProblem(page.body,activity.getString(R.string.device_load_failed))
+                    page.body.addView(activity.duckButton(activity.getString(R.string.duck_retry)) {load()})
                 }
             }
         }
-        dialog.show()
+        load();return page
+    }
+    private fun showPeer(peer:JSONObject,host:View,changed:()->Unit) {
+        val sheet=DuckSheet(activity,peer.getJSONObject("profile").getString("name"))
+        val group=activity.duckGroup(sheet.body)
+        fun datum(title:Int,value:String) {activity.duckSetting(group,activity.getString(title),value,activity.duckText("",13))}
+        datum(R.string.duck_device_name,peer.getJSONObject("profile").getString("name"))
+        datum(R.string.duck_type,peer.optString("device_type").takeUnless {it.isBlank()||it=="null"} ?: "—")
+        datum(R.string.duck_device_address,peer.optString("ip").takeUnless {it.isBlank()||it=="null"} ?: "—")
+        datum(R.string.duck_device_last_seen,java.text.DateFormat.getDateTimeInstance().format(java.util.Date(peer.getLong("last_seen")*1000)))
+        activity.duckNotice(sheet.body,activity.getString(R.string.device_disable_help),activity.getString(R.string.duck_reset_unchanged))
+        val enabled=peer.optBoolean("enabled",true)
+        sheet.body.addView(activity.duckButton(activity.getString(if(enabled) R.string.device_disable else R.string.device_enable)) {
+            sheet.hide();var saved=false
+            val confirmation=activity.duckConfirm(R.string.device_known_senders,R.string.duck_device_permission,R.string.device_save,busyNotice=R.string.duck_saving) {dialog ->
+                dialog.busy(true)
+                activity.lifecycleScope.launch {
+                    val result=withContext(Dispatchers.IO) {runCatching {
+                        NativeBridge.request(JSONObject().put("op","set_sender_enabled").put("root","${activity.filesDir}/receiver/store")
+                            .put("id",peer.getJSONObject("profile").getString("id")).put("enabled",!enabled))
+                    }}
+                    dialog.busy(false)
+                    result.onSuccess {saved=true;dialog.dismiss();sheet.dismiss();refresh();changed();activity.duckAcknowledge(activity.getString(R.string.device_save),host)}
+                        .onFailure {dialog.showFailure(R.string.device_save_failed)}
+                }
+            }
+            confirmation.setOnDismissListener {if(!saved) sheet.show()}
+        },LinearLayout.LayoutParams(-1,-2));sheet.show()
+    }
+    internal fun rename():DuckSheet {
+        val sheet=DuckSheet(activity,activity.getString(R.string.duck_device_name))
+        sheet.body.addView(activity.duckParagraph(activity.getString(R.string.duck_name_intro)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=activity.dp(20)})
+        val field=DuckField(activity,activity.getString(R.string.device_name),name ?: android.os.Build.MODEL,maxLength=80)
+        field.input.addTextChangedListener(object:android.text.TextWatcher {
+            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int)=Unit
+            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {field.box.error=null}
+            override fun afterTextChanged(s:android.text.Editable?)=Unit
+        })
+        sheet.body.addView(field.view);activity.duckNotice(sheet.body,activity.getString(R.string.duck_code_tasks_unchanged))
+        val failure=activity.duckFailure(sheet.body,activity.getString(R.string.device_save_failed))
+        val cancel=sheet.addAction(activity.getString(R.string.device_cancel)) {sheet.dismiss()}
+        val save=sheet.addAction(activity.getString(R.string.device_save),true) {
+            val value=field.input.text.toString().trim();field.box.error=null
+            if(value.isBlank()||value.codePointCount(0,value.length)>40||value.any {Character.isISOControl(it)||it in '\u2028'..'\u202e'||it in '\u2066'..'\u2069'}) {field.box.error=activity.getString(R.string.device_name_invalid);return@addAction}
+            field.input.isEnabled=false;cancel.isEnabled=false;sheet.setCancelable(false);failure.visibility=View.GONE
+            sheet.footer.getChildAt(1).isEnabled=false
+            activity.lifecycleScope.launch {
+                val result=withContext(Dispatchers.IO) {runCatching {DeviceProfiles.read(activity,value)}}
+                field.input.isEnabled=true;cancel.isEnabled=true;sheet.footer.getChildAt(1).isEnabled=true;sheet.setCancelable(true)
+                result.onSuccess {render(it);sheet.dismiss();activity.duckAcknowledge(activity.getString(R.string.device_save))}
+                    .onFailure {if(it.message=="invalid_input") field.box.error=activity.getString(R.string.device_name_invalid) else failure.visibility=View.VISIBLE}
+            }
+        }
+        save.tag="device.save";sheet.show();return sheet
     }
 }

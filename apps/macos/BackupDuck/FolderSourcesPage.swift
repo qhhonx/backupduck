@@ -22,7 +22,7 @@ struct FolderSourcesPage: View {
           Button("mac_resume_all") { Task { await backup.setPaused(false) } }
             .disabled(!backup.ready || backup.pairing == nil)
         }.font(.callout).padding(12)
-          .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+          .background(DuckColors.subtle, in: RoundedRectangle(cornerRadius: 10))
       }
       if let selection, let source = folders.sources.first(where: { $0.id == selection }) {
         Button { if issuesPage { issuesPage = false } else { self.selection = nil } } label: {

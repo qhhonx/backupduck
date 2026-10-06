@@ -46,7 +46,9 @@ struct IOSSettingsPage: View {
         } header: {
           Text("brand_name")
         }
-      }.navigationTitle("nav_settings")
+      }.scrollContentBackground(.hidden)
+      .background(DuckColors.canvas)
+      .navigationTitle("nav_settings")
     }.sheet(isPresented: $logs) { ActivityLogView() }
   }
 }

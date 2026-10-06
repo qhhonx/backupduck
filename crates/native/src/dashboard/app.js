@@ -101,6 +101,15 @@ function processingNote(item) {
 }
 function kind(item) { return item.burst_primary == null || item.kind === "motion" ? item.kind : "burst"; }
 function showDetails(item) {
+  const retry = $("detail-retry");
+  retry.hidden = item.processing !== "failed";
+  retry.onclick = async () => {
+    retry.disabled = true;
+    try { const result = await api(`/api/retry?id=${encodeURIComponent(item.id)}`, {method:"POST"});
+      $("details-dialog").close(); await refreshAll(); message(w.retried(result.count));
+    } catch { message(w.connectionError); }
+    finally { retry.disabled = false; }
+  };
   $("details-title").textContent = item.filename;
   $("detail-status").textContent = status(item).label;
   $("detail-kind").textContent = item.kind === "motion" && item.burst_primary != null ? `${w.motion} · ${w.burst}` : w[kind(item)] || w.unknown;
@@ -165,7 +174,7 @@ async function loadHistory(targetPage = currentPage) {
   const version = ++historyVersion;
   historyLoading = true;
   const perPage = Number($("per-page").value);
-  const params = new URLSearchParams({state:$("state-filter").value,kind:$("kind-filter").value,page:String(targetPage),per_page:String(perPage)});
+  const params = new URLSearchParams({search:$("search-files").value.trim(),state:$("state-filter").value,kind:$("kind-filter").value,page:String(targetPage),per_page:String(perPage)});
   try {
     const result = await api(`/api/history?${params}`);
     if (version !== historyVersion) return;
@@ -198,7 +207,16 @@ async function overview() {
     $("reserved-detail").textContent = w.originalsDetail;
     $("free").textContent = size(value.free_bytes);
     $("free-detail").textContent = w.spaceDetail(value.total_space_bytes,value.min_free_bytes);
+    $("storage-free").textContent = size(value.free_bytes);
+    $("storage-total").textContent = size(value.total_space_bytes);
+    $("storage-originals").textContent = size(value.reserved_bytes);
+    $("storage-minimum").textContent = size(value.min_free_bytes);
+    const meter = $("storage-meter");
+    meter.value = value.total_space_bytes > 0 ? Math.max(0,Math.min(1,1-value.free_bytes/value.total_space_bytes)) : 0;
+    meter.hidden = !(value.total_space_bytes > 0);
     const device = value.device;
+    $("settings-thermal").textContent = !device ? w.waitingReading : device.thermal_enabled ? (en ? "Enabled" : "已开启") : w.thermalOff;
+    $("settings-threshold").textContent = device ? `${device.thermal_threshold_celsius} °C` : w.unknown;
     $("temperature").textContent = device?.temperature_deci_celsius == null ? w.unknown : `${(device.temperature_deci_celsius / 10).toFixed(1)} °C`;
     $("thermal-state").textContent = !device ? w.waitingReading : device.thermal_held ? w.thermalPaused : device.thermal_enabled ? w.threshold(device.thermal_threshold_celsius) : w.thermalOff;
     $("thermal-state").classList.toggle("held",Boolean(device?.thermal_held));
@@ -210,8 +228,16 @@ async function overview() {
     if (error.message !== "login") { message(w.connectionError); $("live-text").textContent = w.connectionError; $("live-text").parentElement.classList.add("offline"); }
   } finally { overviewLoading = false; }
 }
-async function refreshAll() { await Promise.all([overview(),loadHistory()]); }
-async function show() { $("login-panel").hidden = true; $("dashboard").hidden = false; await refreshAll(); }
+async function refreshAll() { await Promise.all([overview(),loadHistory(),loadRecent()]); }
+async function loadRecent() {
+  if (!token) return;
+  try {
+    const result = await api("/api/history?page=1&per_page=20&state=all&kind=all");
+    $("recent-items").replaceChildren(...result.items.slice(0,4).map(row));
+    if (!result.items.length) { const tr = document.createElement("tr"); const td = cell("",w.noItems); td.colSpan = 4; tr.append(td); $("recent-items").append(tr); }
+  } catch(error) { if(error.message !== "login") message(w.connectionError); }
+}
+async function show() { $("login-panel").hidden = true; $("dashboard").hidden = false; selectPage(); await refreshAll(); }
 $("login-form").addEventListener("submit",async event => {
   event.preventDefault();
   const code = $("code").value.trim(); if (!/^[0-9]{10}$/.test(code)) return;
@@ -242,9 +268,54 @@ $("retry").addEventListener("click",async () => {
 });
 $("auto-refresh").checked = localStorage.getItem("backupduck-dashboard-auto-refresh") !== "off";
 $("auto-refresh").addEventListener("change",() => localStorage.setItem("backupduck-dashboard-auto-refresh",$("auto-refresh").checked ? "on" : "off"));
-if (token) show();
+
 setInterval(() => {
   if (!token || !$("auto-refresh").checked || document.visibilityState !== "visible") return;
   overview();
+  if(location.hash === "#overview" || !location.hash) loadRecent();
   if (currentPage === 1 && !historyLoading) loadHistory();
 },8000);
+
+// Navigation keeps filter, page and scroll state rather than rebuilding tables.
+const pageNames = {overview:en?"Overview":"总览",transfers:en?"Transfers":"传输记录",storage:en?"Storage":"存储",settings:en?"Settings":"设置"};
+function selectPage(value = location.hash.slice(1)) {
+  const page = pageNames[value] ? value : "overview";
+  document.querySelectorAll("[data-page-panel]").forEach(panel => panel.hidden = panel.dataset.pagePanel !== page);
+  document.querySelectorAll(".side-link[data-page]").forEach(link => {
+    const active = link.dataset.page === page; link.classList.toggle("active",active);
+    if (active) link.setAttribute("aria-current","page"); else link.removeAttribute("aria-current");
+  });
+  $("page-title").textContent = pageNames[page];
+  $("breadcrumb-current").textContent = pageNames[page];
+  $("page-description").hidden = page !== "overview";
+}
+document.querySelectorAll("[data-page]").forEach(link => link.addEventListener("click",event => {
+  event.preventDefault(); location.hash = link.dataset.page; selectPage(link.dataset.page);
+}));
+window.addEventListener("hashchange",() => selectPage());
+document.querySelectorAll("[data-zh]").forEach(el => el.textContent = en ? el.dataset.en : el.dataset.zh);
+$("search-files").placeholder = en ? "Find a filename" : "查找文件名";
+$("search-files").setAttribute("aria-label",$("search-files").placeholder);
+let searchTimer;
+$("search-files").addEventListener("input",() => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadHistory(1),250); });
+function setAppearance(mode) {
+  const valid = ["system","light","dark"].includes(mode) ? mode : "system";
+  if(valid === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = valid;
+  $("appearance").value = valid; localStorage.setItem("backupduck-dashboard-appearance",valid);
+}
+setAppearance(localStorage.getItem("backupduck-dashboard-appearance") || "system");
+$("appearance").addEventListener("change",event => setAppearance(event.target.value));
+$("theme-toggle").addEventListener("click",() => {
+  const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme:dark)").matches);
+  setAppearance(dark ? "light" : "dark");
+});
+$("settings-auto").checked = $("auto-refresh").checked;
+$("settings-auto").addEventListener("change",event => { $("auto-refresh").checked = event.target.checked; $("auto-refresh").dispatchEvent(new Event("change")); });
+$("auto-refresh").addEventListener("change",event => $("settings-auto").checked = event.target.checked);
+$("logout").addEventListener("click",() => {
+  token = ""; sessionStorage.removeItem("backupduck-dashboard-token"); $("details-dialog").close();
+  $("login-panel").hidden = false; $("dashboard").hidden = true; $("code").focus();
+});
+selectPage();
+
+if (token) show();

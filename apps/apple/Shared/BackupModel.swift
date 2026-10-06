@@ -862,6 +862,9 @@ struct SenderSummary: Decodable {
   var confirmed_bytes: Int64 = 0
   func count(for state: String) -> Int {
     switch state {
+    case "active": return queued + running + waiting + paused
+    case "attention": return failed + publication_failed
+    case "saved": return published
     case "received": return received
     case "waiting": return waiting
     case "failed": return failed

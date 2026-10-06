@@ -522,6 +522,11 @@ fn receiver_catalog_filters_before_pagination_and_survives_stop() {
     for index in 0..205 {
         let (mut item, bytes) = asset(index % 2 == 0);
         item.source_id = format!("catalog-{index}");
+        item.resources[0].filename = match index {
+            0 => "Needle_%_original.JPG".into(),
+            17 => "needle-second.jpg".into(),
+            _ => format!("catalog-{index}.jpg"),
+        };
         if index == 1 {
             item.metadata.extend(
                 BurstMetadata::from_identifier("catalog-burst", true)
@@ -568,6 +573,27 @@ fn receiver_catalog_filters_before_pagination_and_survives_stop() {
     assert_eq!(numbered_last.items[0].id, last.items[0].id);
     assert!(catalog.numbered_page("all", "all", 0, 20).is_err());
     assert!(catalog.numbered_page("all", "all", 1, 30).is_err());
+    // Matches on old pages must be included before pagination/counting.
+    let matches = catalog
+        .numbered_page_matching("all", "all", 1, 20, "NEEDLE")
+        .unwrap();
+    assert_eq!(matches.total, 2);
+    assert_eq!(matches.items.len(), 2);
+    let literal = catalog
+        .numbered_page_matching("failed", "motion", 1, 20, "_%")
+        .unwrap();
+    assert_eq!(literal.total, 1);
+    assert_eq!(literal.items[0].id, failed_id);
+    assert_eq!(
+        catalog
+            .numbered_page_matching("all", "all", 1, 20, "' OR 1=1 --")
+            .unwrap()
+            .total,
+        0
+    );
+    assert!(catalog
+        .numbered_page_matching("all", "all", 1, 20, &"x".repeat(201))
+        .is_err());
     let failed = catalog.page(None, "failed", "motion", 100).unwrap();
     assert_eq!(failed.total, 1);
     assert_eq!(failed.items[0].id, failed_id);
@@ -883,4 +909,87 @@ fn relay_scope_snapshots_received_ids_survives_restart_and_estimates_shared_blob
             .unwrap(),
         bytes[0].len() as u64
     );
+}
+
+#[test]
+fn single_item_processing_retry_preserves_other_failures_and_receipts() {
+    let root = Scratch::new();
+    let mut receiver = Receiver::open(&root.0, 100000).unwrap();
+    let mut ids = Vec::new();
+    for i in 0..2 {
+        let (mut asset, bytes) = asset(false);
+        asset.source_id = format!("scoped-retry-{i}");
+        let id = receiver.register(asset.clone()).unwrap().asset_id;
+        receiver
+            .append(
+                &id,
+                &asset.resources[0].sha256,
+                0,
+                &bytes[0],
+                &digest(&bytes[0]),
+            )
+            .unwrap();
+        receiver.commit(&id).unwrap();
+        receiver
+            .set_processing(&id, ProcessingState::Pending)
+            .unwrap();
+        receiver
+            .set_processing_result(&id, ProcessingState::Failed, Some("unsupported"))
+            .unwrap();
+        ids.push(id);
+    }
+    assert_eq!(receiver.retry_processing_item(Some(&ids[0])).unwrap(), 1);
+    assert_eq!(
+        receiver.status(&ids[0]).unwrap().processing,
+        ProcessingState::Pending
+    );
+    assert_eq!(
+        receiver.status(&ids[1]).unwrap().processing,
+        ProcessingState::Failed
+    );
+    assert_eq!(
+        receiver.status(&ids[0]).unwrap().receipt,
+        ReceiptState::Received
+    );
+    assert_eq!(receiver.retry_processing_item(Some(&ids[0])).unwrap(), 0);
+    assert!(receiver.retry_processing_item(Some("missing")).is_err());
+}
+
+#[test]
+fn active_receiver_history_includes_receiving_and_pending_but_not_final_results() {
+    use backupduck_store::catalog::Catalog;
+    let root = Scratch::new();
+    let mut receiver = Receiver::open(&root.0, 1 << 20).unwrap();
+    let mut ids = Vec::new();
+    for index in 0..4 {
+        let (mut item, bytes) = asset(false);
+        item.source_id = format!("active-history-{index}");
+        let id = receiver.register(item.clone()).unwrap().asset_id;
+        if index > 0 {
+            receive(&mut receiver, &item, &bytes);
+            receiver
+                .set_processing(&id, ProcessingState::Pending)
+                .unwrap();
+            if index == 2 {
+                receiver
+                    .set_processing(&id, ProcessingState::Failed)
+                    .unwrap();
+            }
+            if index == 3 {
+                receiver
+                    .set_processing(&id, ProcessingState::Complete)
+                    .unwrap();
+            }
+        }
+        ids.push(id);
+    }
+    let catalog = Catalog::open(&root.0).unwrap();
+    let first = catalog.page(None, "active", "all", 1).unwrap();
+    assert_eq!(first.total, 2);
+    assert_eq!(first.items[0].id, ids[1]);
+    let second = catalog.page(first.next_cursor, "active", "all", 1).unwrap();
+    assert_eq!(second.items[0].id, ids[0]);
+    assert!(second.next_cursor.is_none());
+    assert_eq!(catalog.counts().unwrap()["failed"], 1);
+    assert_eq!(catalog.counts().unwrap()["published"], 1);
 }

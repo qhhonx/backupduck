@@ -15,6 +15,7 @@
     </queries>
     <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:label="${appLabel}" android:theme="@style/AppTheme" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
         <activity android:name=".CleanupUnlockActivity" android:exported="false" android:excludeFromRecents="true" android:taskAffinity="" />
+        <activity android:name=".BrowserManagementActivity" android:exported="false" />
         <activity android:name=".UpdatesActivity" android:exported="false" />
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />

@@ -15,6 +15,8 @@ use serde::Serialize;
 
 const HTML: &str = include_str!("dashboard/index.html");
 const CSS: &str = include_str!("dashboard/style.css");
+const TOKENS: &str = include_str!("dashboard/tokens.css");
+const DUCK: &[u8] = include_bytes!("../../../assets/AppIcon.png");
 const JS: &str = include_str!("dashboard/app.js");
 
 #[derive(Clone, Serialize)]
@@ -98,7 +100,7 @@ async fn security(State(state): State<WebState>, request: Request, next: Next) -
         HeaderValue::from_static("no-referrer"),
     );
     headers.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(
-        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'",
     ));
     response
 }
@@ -116,6 +118,12 @@ async fn index() -> Html<&'static str> {
 }
 async fn css() -> ([(header::HeaderName, &'static str); 1], &'static str) {
     ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], CSS)
+}
+async fn tokens() -> ([(header::HeaderName, &'static str); 1], &'static str) {
+    ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], TOKENS)
+}
+async fn duck() -> ([(header::HeaderName, &'static str); 1], &'static [u8]) {
+    ([(header::CONTENT_TYPE, "image/png")], DUCK)
 }
 async fn js() -> ([(header::HeaderName, &'static str); 1], &'static str) {
     (
@@ -190,6 +198,7 @@ async fn overview(State(state): State<WebState>, headers: HeaderMap) -> Response
 
 #[derive(Deserialize)]
 struct HistoryQuery {
+    search: Option<String>,
     state: Option<String>,
     kind: Option<String>,
     before: Option<i64>,
@@ -216,7 +225,13 @@ async fn history(
         let state = query.state.as_deref().unwrap_or("all");
         let kind = query.kind.as_deref().unwrap_or("all");
         if numbered {
-            catalog.numbered_page(state, kind, page, per_page)
+            catalog.numbered_page_matching(
+                state,
+                kind,
+                page,
+                per_page,
+                query.search.as_deref().unwrap_or(""),
+            )
         } else {
             catalog.page(query.before, state, kind, 50)
         }
@@ -250,13 +265,26 @@ async fn history(
     }
 }
 
-async fn retry(State(state): State<WebState>, headers: HeaderMap) -> Response {
+#[derive(Deserialize)]
+struct RetryQuery {
+    id: Option<String>,
+}
+async fn retry(
+    State(state): State<WebState>,
+    headers: HeaderMap,
+    Query(query): Query<RetryQuery>,
+) -> Response {
     if !authorized(&headers, &state) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let receiver = state.receiver.clone();
-    match tokio::task::spawn_blocking(move || receiver.lock().map_err(lock)?.retry_processing())
-        .await
+    match tokio::task::spawn_blocking(move || {
+        receiver
+            .lock()
+            .map_err(lock)?
+            .retry_processing_item(query.id.as_deref())
+    })
+    .await
     {
         Ok(Ok(count)) => Json(json!({"count":count})).into_response(),
         _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -267,6 +295,8 @@ fn router(state: WebState) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/style.css", get(css))
+        .route("/tokens.css", get(tokens))
+        .route("/duck.png", get(duck))
         .route("/app.js", get(js))
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))

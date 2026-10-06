@@ -3,7 +3,7 @@ package app.backupduck
 import android.content.Context
 import android.text.format.Formatter
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -136,64 +136,67 @@ internal suspend fun reclaimRelay(context: Context, root: String, plan: RelayPla
     return released to bytes
 }
 
-internal fun MainActivity.checkHistoricalOriginals(completed: () -> Unit) {
-    if (!RelayMaintenance.manualActive.compareAndSet(false, true)) return
-    lateinit var observer: androidx.lifecycle.DefaultLifecycleObserver
-    fun finishManual() {
-        RelayMaintenance.manualActive.set(false)
-        lifecycle.removeObserver(observer)
+internal fun MainActivity.checkHistoricalOriginals(completed:()->Unit) {
+    if(!RelayMaintenance.manualActive.compareAndSet(false,true))return
+    val root="$filesDir/receiver"
+    val page=DuckPage(this,getString(R.string.relay_check_history));page.show()
+    var task:Job?=null
+    var scanning=true
+    fun releaseGuard() {RelayMaintenance.manualActive.set(false)}
+    fun cancel() {
+        task?.cancel()
+        // Cancelling a coroutine makes isActive false before its file IO has
+        // unwound. Keep the guard until that job's finally block completes.
+        if(task?.isCompleted!=false)releaseGuard()
     }
-    observer = object : androidx.lifecycle.DefaultLifecycleObserver {
-        override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) { finishManual() }
+    page.setOnDismissListener {cancel()}
+    val cancel=page.addAction(getString(R.string.relay_cancel)) {cancel();page.body.removeAllViews();duckNotice(page.body,getString(R.string.duck_relay_cancelled))}
+    val status=duckNotice(page.body,getString(R.string.relay_scanning))
+    fun update(row:android.view.View,message:String) {
+        val words=(row as android.widget.LinearLayout).getChildAt(1) as android.widget.LinearLayout
+        (words.getChildAt(0) as android.widget.TextView).text=message
     }
-    lifecycle.addObserver(observer)
-    var previewShown = false
-    var reclaimStarted = false
-    val root = "$filesDir/receiver"
-    var job: Job? = null
-    val progress = MaterialAlertDialogBuilder(this).setTitle(R.string.relay_check_history)
-        .setMessage(R.string.relay_scanning).setNegativeButton(R.string.relay_cancel) { _, _ -> job?.cancel() }.create()
-    progress.setOnCancelListener { job?.cancel() }
-    progress.show()
-    job = lifecycleScope.launch {
+    task=lifecycleScope.launch {
         try {
-            val plan = withContext(Dispatchers.IO) { inspectRelay(this@checkHistoricalOriginals, root) { count ->
-                withContext(Dispatchers.Main) { progress.setMessage(if (count == null) getString(R.string.relay_waiting) else getString(R.string.relay_checked_count, count)) }
-            } }
-            progress.dismiss()
-            val reasons = plan.retained.entries.joinToString("\n") { (reason, count) -> getString(when (reason) {
-                "evidence" -> R.string.relay_kept_evidence; "missing" -> R.string.relay_kept_missing
-                "changed" -> R.string.relay_kept_changed; else -> R.string.relay_kept_unverified
-            }, count) }
-            val dialog = MaterialAlertDialogBuilder(this@checkHistoricalOriginals).setTitle(R.string.relay_check_history)
-                .setMessage(getString(R.string.relay_preview, plan.candidates.size, Formatter.formatFileSize(this@checkHistoricalOriginals, plan.bytes)) + "\n\n" + reasons + "\n\n" + getString(R.string.relay_manual_note))
-                .setNegativeButton(R.string.receiver_close, null)
-            if (plan.candidates.isNotEmpty()) dialog.setPositiveButton(R.string.relay_reclaim_confirm) { _, _ ->
-                reclaimStarted = true
-                var releaseJob: Job? = null
-                val running = MaterialAlertDialogBuilder(this@checkHistoricalOriginals).setTitle(R.string.relay_check_history)
-                    .setMessage(R.string.relay_reclaiming).setNegativeButton(R.string.relay_cancel) { _, _ -> releaseJob?.cancel() }.create()
-                running.setOnCancelListener { releaseJob?.cancel() }; running.show()
-                releaseJob = lifecycleScope.launch {
-                    try {
-                        val result = withContext(Dispatchers.IO) { reclaimRelay(this@checkHistoricalOriginals, root, plan) { count ->
-                            withContext(Dispatchers.Main) { running.setMessage(if (count == null) getString(R.string.relay_waiting) else getString(R.string.relay_reclaimed_count, count)) }
-                        } }
-                        running.dismiss(); completed()
-                        MaterialAlertDialogBuilder(this@checkHistoricalOriginals).setTitle(R.string.relay_check_history)
-                            .setMessage(getString(R.string.relay_result, result.first, Formatter.formatFileSize(this@checkHistoricalOriginals, result.second), plan.candidates.size - result.first))
-                            .setPositiveButton(R.string.receiver_close, null).show()
-                    } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (_: Exception) { android.widget.Toast.makeText(this@checkHistoricalOriginals, R.string.relay_scan_failed, android.widget.Toast.LENGTH_LONG).show() }
-                    finally { finishManual(); running.dismiss(); completed() }
+            val plan=withContext(Dispatchers.IO) {inspectRelay(this@checkHistoricalOriginals,root) {count ->
+                withContext(Dispatchers.Main) {update(status,if(count==null)getString(R.string.relay_waiting) else getString(R.string.relay_checked_count,count))}
+            }}
+            scanning=false;cancel.visibility=android.view.View.GONE;page.hide()
+            val preview=DuckSheet(this@checkHistoricalOriginals,getString(R.string.relay_check_history))
+            preview.body.addView(duckText(getString(R.string.relay_preview,plan.candidates.size,Formatter.formatFileSize(this@checkHistoricalOriginals,plan.bytes)),20,bold=true))
+            val reasons=duckGroup(preview.body)
+            plan.retained.forEach {(reason,count)->duckSetting(reasons,getString(when(reason) {"evidence"->R.string.relay_kept_evidence;"missing"->R.string.relay_kept_missing;"changed"->R.string.relay_kept_changed;else->R.string.relay_kept_unverified},count),control=duckText("",13))}
+            duckWarning(preview.body,getString(R.string.duck_keep_source),getString(R.string.relay_manual_note))
+            var reclaimStarted=false
+            preview.setOnDismissListener {if(!reclaimStarted) {releaseGuard();page.dismiss()}}
+            if(plan.candidates.isNotEmpty()) preview.body.addView(duckButton(getString(R.string.relay_reclaim_confirm),true) {
+                preview.hide()
+                val confirmation=duckConfirm(R.string.relay_reclaim_confirm,R.string.relay_manual_note,R.string.relay_reclaim_confirm,true,notice=R.string.duck_scope_history_note,
+                    messageText=getString(R.string.relay_preview,plan.candidates.size,Formatter.formatFileSize(this@checkHistoricalOriginals,plan.bytes))+"\n\n"+getString(R.string.relay_manual_note)) {confirm ->
+                    reclaimStarted=true;confirm.dismiss();preview.dismiss();page.body.removeAllViews();page.show();cancel.visibility=android.view.View.VISIBLE
+                    val progress=duckNotice(page.body,getString(R.string.relay_reclaiming))
+                    task=lifecycleScope.launch {
+                        try {
+                            val result=withContext(Dispatchers.IO) {reclaimRelay(this@checkHistoricalOriginals,root,plan) {count ->
+                                withContext(Dispatchers.Main) {update(progress,if(count==null)getString(R.string.relay_waiting) else getString(R.string.relay_reclaimed_count,count))}
+                            }}
+                            page.setOnDismissListener(null);page.dismiss()
+                            val resultSheet=DuckSheet(this@checkHistoricalOriginals,getString(R.string.relay_reclaim_confirm))
+                            duckNotice(resultSheet.body,getString(R.string.relay_result,result.first,Formatter.formatFileSize(this@checkHistoricalOriginals,result.second),plan.candidates.size-result.first))
+                            resultSheet.body.addView(duckButton(getString(R.string.nav_storage)) {resultSheet.dismiss()});resultSheet.show()
+                        } catch(cancelled:CancellationException) {throw cancelled}
+                        catch(_:Exception) {page.body.removeAllViews();duckProblem(page.body,getString(R.string.relay_scan_failed))}
+                        finally {cancel.visibility=android.view.View.GONE;releaseGuard();completed()}
+                    }
                 }
-            }
-            val preview = dialog.create()
-            preview.setOnDismissListener { if (!reclaimStarted) finishManual() }
-            previewShown = true
+                confirmation.setOnDismissListener {if(!reclaimStarted)preview.show()}
+            },android.widget.LinearLayout.LayoutParams(-1,-2))
+            preview.body.addView(duckButton(getString(R.string.nav_storage)) {preview.dismiss()},android.widget.LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16)})
             preview.show()
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { android.widget.Toast.makeText(this@checkHistoricalOriginals, R.string.relay_scan_failed, android.widget.Toast.LENGTH_LONG).show() }
-        finally { if (!previewShown) finishManual(); progress.dismiss() }
+        } catch(cancelled:CancellationException) {throw cancelled}
+        catch(_:Exception) {
+            page.body.removeAllViews();duckProblem(page.body,getString(R.string.relay_scan_failed))
+            page.body.addView(duckButton(getString(R.string.duck_retry)) {page.dismiss();checkHistoricalOriginals(completed)})
+        } finally {if(scanning) {cancel.visibility=android.view.View.GONE;releaseGuard()}}
     }
 }

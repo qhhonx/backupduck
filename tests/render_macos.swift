@@ -1,6 +1,7 @@
 // Render production SwiftUI views with synthetic presentation state and a
 // temporary Rust store. No Keychain, Photos authorization or network is opened.
 import AppKit
+import ScreenCaptureKit
 import SwiftUI
 
 @main struct MacLayoutCheck {
@@ -338,6 +339,31 @@ import SwiftUI
           print("Interactive fixture window ready. Store: \(store.path)")
           return
         }
+        if CommandLine.arguments.contains("--design-review") {
+          model.pairing = paired; model.paused = false; model.ready = true
+          model.summary.total = 120; model.summary.received = 93; model.summary.published = 91
+          model.summary.publication_failed = 2; model.summary.queued = 20; model.summary.waiting = 7
+          for dark in [false, true] {
+            try await capture("overview-" + (dark ? "dark" : "light"), view: AnyView(MacBackupPage(model: model,
+              pair: {}, library: {}, sources: {}, showTransfers: { _ in })), output: output,
+              size: NSSize(width: 880, height: 800), dark: dark)
+            try await capture("workspace-" + (dark ? "dark" : "light"), view: AnyView(MacWorkspace(model: model,
+              library: PhotoLibraryModel(), initialDestination: .backup)), output: output,
+              size: NSSize(width: 1180, height: 840), dark: dark)
+          }
+          let asset = BackupJob.Asset(metadata: ["source_type": "folder", "source_name": "SD Card", "created_at_ms": "1790906400000"],
+            kind: "motion", source_id: "layout-transfer", revision: "1", resources: [.init(filename: "旅行_实况.heic", size: 8500000)])
+          let job = BackupJob(id: 1, asset: asset, state: "received", confirmedBytes: 8500000,
+            errorCode: nil, processing: "failed", processingError: "conversion_required", nextAttemptAt: nil)
+          for dark in [false, true] {
+            try await capture("transfer-detail-" + (dark ? "dark" : "light"),
+              view: AnyView(DuckTransferDetail(job: job, status: NSLocalizedString("state_publication_failed", comment: ""),
+                symbol: "exclamationmark.triangle", tone: .failure, retry: {})), output: output,
+              size: NSSize(width: 560, height: 650), dark: dark)
+          }
+          try FileManager.default.removeItem(at: store)
+          app.terminate(nil); return
+        }
         let overview = { AnyView(MacBackupPage(model: model, pair: {}, library: {}, sources: {}, showTransfers: { _ in })) }
         try await capture("backup-unpaired", view: overview(), output: output)
         model.pairing = paired
@@ -438,7 +464,11 @@ import SwiftUI
     window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     window.contentView = host
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
-    window.orderBack(nil)
+    if CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() {
+      window.setFrameOrigin(NSPoint(x: 80, y: 80))
+      window.makeKeyAndOrderFront(nil)
+      NSApplication.shared.activate(ignoringOtherApps: true)
+    } else { window.orderBack(nil) }
     defer { window.orderOut(nil); window.contentView = nil }
     try await Task.sleep(nanoseconds: 500_000_000)
     if let action {
@@ -446,6 +476,20 @@ import SwiftUI
       try await Task.sleep(nanoseconds: 200_000_000)
     }
     host.layoutSubtreeIfNeeded()
+    if CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() {
+      let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+      if let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) {
+        let config = SCStreamConfiguration()
+        config.width = Int(size.width * window.backingScaleFactor)
+        config.height = Int(size.height * window.backingScaleFactor)
+        config.showsCursor = false
+        let cg = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: target), configuration: config)
+        let bitmap = NSBitmapImageRep(cgImage: cg)
+        if let data = bitmap.representation(using: .png, properties: [:]) {
+          try data.write(to: output.appendingPathComponent(name + ".png")); return
+        }
+      }
+    }
     guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
       throw CocoaError(.coderInvalidValue)
     }

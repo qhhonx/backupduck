@@ -1,82 +1,67 @@
 import SwiftUI
 
-/// An overview of the durable queue. Full history is queried on its own page.
+/// Overview uses verified gallery results; full queue stays on its own page.
 struct IOSBackupPage: View {
   @ObservedObject var model: BackupModel
   @State private var picker = false
+  @State private var transfers = false
   var body: some View {
     NavigationStack {
-      List {
-        Section {
-          VStack(alignment: .leading, spacing: 16) {
-            if let peer = model.peerDevice {
-              Text(String(format: NSLocalizedString("device_sending_to", comment: ""), peer.name))
-                .font(.headline)
-            }
-            HStack {
-              BackupStatusIndicator(model: model)
-              Spacer()
-              if model.pairing != nil {
-                Button { Task { await model.setPaused(!model.paused) } } label: {
-                  Label(model.paused ? "resume_backup" : "pause_backup",
-                    systemImage: model.paused ? "play" : "pause")
-                }.buttonStyle(.bordered).disabled(!model.ready)
+      ScrollView {
+        VStack(alignment: .leading, spacing: 24) {
+          if model.pairing == nil {
+            DuckSurface {
+              VStack(alignment: .leading, spacing: 16) {
+                DuckBrandMark()
+                BackupStatusIndicator(model: model)
+                Text("design_backup_title").font(.title2.weight(.semibold))
+                Text("backup_pair_first").foregroundStyle(DuckColors.textSecondary)
+                NavigationLink { IOSReceiverPage(model: model) } label: {
+                  Label("pair_receiver", systemImage: "qrcode.viewfinder")
+                }.buttonStyle(.borderedProminent)
               }
             }
-            if model.summary.total > 0 {
-              Text(
-                String(
-                  format: NSLocalizedString("transfer_summary", comment: ""),
-                  model.summary.received, model.summary.total)
-              ).foregroundStyle(.secondary)
-
-            } else {
-              Text(model.pairing == nil ? "backup_pair_first" : "tasks_empty").foregroundStyle(
-                .secondary)
-            }
-          }.padding(.vertical, 8)
-        }
-        Section {
-          NavigationLink {
-            TransferList(model: model).padding(.horizontal, 20).padding(.top, 12)
-              .navigationTitle("transfer_tasks").navigationBarTitleDisplayMode(.inline)
-          } label: {
-            Label("backup_all_tasks", systemImage: "list.bullet")
-          }.accessibilityIdentifier("backup.all_tasks")
-          ForEach(["preparing", "running", "queued", "waiting", "paused", "failed", "received", "scanned"], id: \.self) { state in
-            NavigationLink {
-              TransferList(model: model, filter: state).padding(.horizontal, 20).padding(.top, 12)
-                .navigationTitle(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state))
-                .navigationBarTitleDisplayMode(.inline)
-            } label: {
-              HStack {
-                Label(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state), systemImage: taskSymbol(state))
-                Spacer()
-                Text(model.transferCount(for: state).formatted()).monospacedDigit().foregroundStyle(.secondary)
-              }
-            }.accessibilityIdentifier("backup.filter.\(state)")
+          } else {
+            if let peer = model.peerDevice { Text(peer.name).font(.headline) }
+            DuckBackupProgress(model: model, showTransfers: { transfers = true })
           }
-        } header: {
-          Text("transfer_tasks")
-        }
-      }
-      .safeAreaPadding(.bottom, 12)
+          Text("design_backup_sources").font(.headline)
+          DuckSurface { DuckLibrarySource(model: model) }
+          DuckRecentTransfers(model: model, showTransfers: { transfers = true })
+          DisclosureGroup("design_advanced_tasks") {
+            VStack(spacing: 0) {
+              ForEach(["preparing", "running", "queued", "waiting", "paused", "failed", "received", "scanned"], id: \.self) { state in
+                NavigationLink {
+                  TransferList(model: model, filter: state).padding(20)
+                    .navigationTitle(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state))
+                    .navigationBarTitleDisplayMode(.inline)
+                } label: {
+                  HStack {
+                    Label(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state), systemImage: taskSymbol(state))
+                    Spacer()
+                    Text(model.transferCount(for: state).formatted()).monospacedDigit()
+                  }.padding(.vertical, 12)
+                }.accessibilityIdentifier("backup.filter.\(state)")
+                Divider()
+              }
+            }
+          }
+        }.padding(20)
+      }.background(DuckColors.canvas)
       .navigationTitle("nav_backup")
+      .navigationDestination(isPresented: $transfers) {
+        TransferList(model: model).padding(.horizontal, 20).padding(.top, 12)
+          .navigationTitle("transfer_tasks").navigationBarTitleDisplayMode(.inline)
+      }
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
-          Button {
-            Task { if await model.authorizePhotos() { picker = true } }
-          } label: {
+          Button { Task { if await model.authorizePhotos() { picker = true } } } label: {
             Label("choose_photos", systemImage: "plus")
-          }
-          .disabled(model.pairing == nil || model.importing)
+          }.disabled(model.pairing == nil || model.importing)
         }
       }
       .sheet(isPresented: $picker) {
-        LibraryPicker { identifiers in
-          picker = false
-          Task { await model.importAssets(identifiers) }
-        }
+        LibraryPicker { identifiers in picker = false; Task { await model.importAssets(identifiers) } }
       }
     }
   }

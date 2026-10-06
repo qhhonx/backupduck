@@ -72,11 +72,11 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
             run {
                 root = currentPage(null)
                 onMain {
-                    val button = views(root.window.decorView).filterIsInstance<Button>().single { it.text.toString() == root.getString(topic.title) }
+                    val button = views(root.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == root.getString(topic.title) }
                     // Bring the actual control into the native viewport before activating it.
                     button.requestRectangleOnScreen(Rect(0, 0, button.width, button.height), true)
                     check(button.isEnabled)
-                    button.performClick()
+                    (button.parent.parent as View).performClick()
                 }
                 detail = currentPage(topic.key)
                 waitForIdleSync()

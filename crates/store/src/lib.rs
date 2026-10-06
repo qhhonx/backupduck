@@ -593,12 +593,17 @@ impl Receiver {
     }
     /// Local user action: retry target work without touching original receipts.
     pub fn retry_processing(&mut self) -> Result<usize> {
-        self.conn
-            .execute(
-                "UPDATE assets SET processing='pending',processing_error=NULL WHERE received=1 AND processing='failed'",
-                [],
-            )
-            .map_err(db)
+        self.retry_processing_item(None)
+    }
+    /// An individual retry is scoped to the selected received, failed item.
+    pub fn retry_processing_item(&mut self, id: Option<&str>) -> Result<usize> {
+        if let Some(id) = id {
+            self.status(id)?;
+        }
+        self.conn.execute(
+            "UPDATE assets SET processing='pending',processing_error=NULL WHERE received=1 AND processing='failed' AND (?1 IS NULL OR id=?1)",
+            [id],
+        ).map_err(db)
     }
     /// Target work has its own state. Failure never rolls back the receipt.
     pub fn set_processing(&mut self, id: &str, next: ProcessingState) -> Result<AssetStatus> {

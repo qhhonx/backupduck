@@ -10,6 +10,8 @@ internal object ReceiverPreferences {
     private fun prefs(context: Context) = context.getSharedPreferences("receiver_lifecycle", Context.MODE_PRIVATE)
     fun enabled(context: Context) = prefs(context).getBoolean("enabled", false)
     fun setEnabled(context: Context, enabled: Boolean) { prefs(context).edit().putBoolean("enabled", enabled).commit() }
+    fun paused(context: Context) = prefs(context).getBoolean("manual_pause", false)
+    fun setPaused(context: Context, paused: Boolean) { prefs(context).edit().putBoolean("manual_pause", paused).commit() }
     fun restore(context: Context) = prefs(context).getBoolean("restore", true)
     fun setRestore(context: Context, enabled: Boolean) { prefs(context).edit().putBoolean("restore", enabled).apply() }
 }

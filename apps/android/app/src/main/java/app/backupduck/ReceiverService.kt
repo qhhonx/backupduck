@@ -32,6 +32,7 @@ internal object ReceiverState {
 class ReceiverService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var started = false
+    private val retryStartup = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
     private var cursor = ""
     private var spaceBlocked = false
     private val retention = GalleryRetention()
@@ -50,13 +51,16 @@ class ReceiverService : Service() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!ReceiverPreferences.enabled(this)) { stopSelf(); return START_NOT_STICKY }
-        if (started) return START_STICKY
+        if (started) {
+            if(ReceiverState.snapshot.value.phase=="waiting") retryStartup.trySend(Unit)
+            return START_STICKY
+        }
         started = true
         scope.launch {
             // A replacement service waits for the previous receiver to stop.
             ReceiverState.lifecycle.withLock {
                 while (isActive) {
-                    ReceiverState.mutable.update { it.copy(phase = "starting") }
+                    ReceiverState.mutable.update { it.copy(phase = "starting", error = null) }
                     var opened = false
                     var dashboard: Job? = null
                     var thermalMonitor: Job? = null
@@ -64,11 +68,12 @@ class ReceiverService : Service() {
                     var wifiLease: WifiManager.WifiLock? = null
                     try {
                         val address = wifiAddress()
+                        val port = if(packageName=="app.backupduck.validation") 48484 else 8484
                         // Create a locale-appropriate stable name even after boot,
                         // before a sender's first optional profile exchange.
                         runCatching { DeviceProfiles.read(this@ReceiverService) }
                         val pairing = NativeBridge.request(JSONObject().put("op", "start_receiver")
-                            .put("root", "$filesDir/receiver").put("listen", "$address:8484")
+                            .put("root", "$filesDir/receiver").put("listen", "$address:$port")
                             .put("capacity", 6L * 1024 * 1024 * 1024)) as JSONObject
                         opened = true
                         // A foreground service alone does not keep the Wi-Fi radio awake
@@ -88,7 +93,7 @@ class ReceiverService : Service() {
                                     .put("receiver", true).put("code", "dashboard_unavailable")) } }
                         }
                         publishDashboardDeviceStatus(initialThermal, initialDecision.held)
-                        advertisement = runCatching { ReceiverAdvertisement(this@ReceiverService, pairing.getString("receiver_id"), 8484) }.getOrNull()
+                        advertisement = runCatching { ReceiverAdvertisement(this@ReceiverService, pairing.getString("receiver_id"), port) }.getOrNull()
                         ReceiverState.mutable.value = ReceiverSnapshot(phase = "ready", thermalHeld = initialDecision.held,
                             temperatureDeciCelsius = initialThermal.deciCelsius)
                         thermalMonitor = scope.launch {
@@ -174,7 +179,7 @@ class ReceiverService : Service() {
                                 processingName = null, thermalHeld = false, temperatureDeciCelsius = null) }
                         }
                     }
-                    delay(5_000)
+                    withTimeoutOrNull(5_000) {retryStartup.receive()}
                 }
             }
         }

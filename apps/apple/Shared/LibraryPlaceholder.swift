@@ -29,8 +29,7 @@ struct LibraryPlaceholder: View {
           ProgressView().controlSize(.large)
           Text("library_loading").foregroundStyle(.secondary)
         case .permission(let access):
-          Image(systemName: access == .restricted ? "lock.shield" : "photo.on.rectangle")
-            .font(.system(size: 40)).foregroundStyle(.secondary).accessibilityHidden(true)
+          DuckBrandMark()
           Text("photos_access_title").font(.title2.weight(.medium))
           Text(permissionDescription(access)).foregroundStyle(.secondary)
           if access == .denied {

@@ -9,6 +9,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: node --test site/tests/*.test.mjs
       - run: node --check site/app.js
+      - run: python3 scripts/export-design-tokens.py --check
+      - run: node --check crates/native/src/dashboard/app.js
       - run: python3 scripts/audit-public.py
   test:
     strategy:

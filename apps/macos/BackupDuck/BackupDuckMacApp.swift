@@ -61,7 +61,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
 struct MacWorkspace: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var library: PhotoLibraryModel
-  @State private var destination: MacDestination? = .library
+  @State private var destination: MacDestination? = .backup
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
   @State private var tileSize: Double = 170
   @State private var pairSheet = false
@@ -70,7 +70,7 @@ struct MacWorkspace: View {
   @State private var transferFilter = "all"
   @StateObject private var activeTransfers = TaskBrowserModel()
   @StateObject private var folders: FolderSources
-  init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .library, folderSources: FolderSources? = nil) {
+  init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil) {
     self.model = model
     self.library = library
     _destination = State(initialValue: initialDestination)
@@ -79,7 +79,7 @@ struct MacWorkspace: View {
   var body: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       VStack(alignment: .leading, spacing: 0) {
-        Label("brand_name", systemImage: "photo.stack").font(.title3.weight(.medium)).padding(
+        HStack(spacing: 10) { DuckBrandMark(size: 36); Text("brand_name").font(.title3.weight(.semibold)) }.padding(
           .horizontal, 20
         ).padding(.vertical, 28)
         List(selection: $destination) {
@@ -100,10 +100,7 @@ struct MacWorkspace: View {
           }
         }.listStyle(.sidebar).font(.body.weight(.medium))
         VStack(alignment: .leading, spacing: 8) {
-          Label(
-            model.pairing == nil
-              ? "receiver_unpaired" : model.paused ? "backup_paused" : "backup_enabled",
-            systemImage: model.paused ? "pause.circle" : "checkmark.shield")
+          BackupStatusIndicator(model: model)
           Text(model.peerDevice?.name ?? NSLocalizedString(model.pairing == nil ? "receiver_unpaired" : "receiver_paired", comment: "")).font(.caption)
             .foregroundStyle(.secondary)
         }.font(.callout).padding(20)
@@ -135,7 +132,7 @@ struct MacWorkspace: View {
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         if destination != .settings && destination != .receiver {
           Divider()
-          footer.padding(.horizontal, 24).padding(.vertical, 14).background(.bar)
+          footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)
             .task(id: "\(model.queueRevision)|\(model.pairing?.receiverID ?? "")") {
               if model.ready, let receiver = model.pairing?.receiverID {
                 await activeTransfers.refresh(filter: "running", receiver: receiver)
@@ -163,6 +160,8 @@ struct MacWorkspace: View {
         }
       }
     }
+    .tint(DuckColors.action)
+    .background(DuckColors.canvas)
     .navigationSplitViewStyle(.balanced)
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowFolders"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
@@ -275,8 +274,23 @@ struct MacBackupFooter: View {
     return model.transferProgress[job.id]?.activeFraction(confirmed: job.confirmedBytes, total: job.totalBytes)
   }
   private var summary: String {
-    model.message ?? String(format: NSLocalizedString("transfer_summary", comment: ""),
-      model.summary.received, model.summary.total)
+    if let message = model.message { return message }
+    if model.summary.failed + model.summary.publication_failed > 0 {
+      return String(format: NSLocalizedString("backup_status_failed_count", comment: ""), model.summary.failed + model.summary.publication_failed)
+    }
+    return String(format: NSLocalizedString("design_saved_count", comment: ""), model.summary.published, model.summary.total)
+  }
+  private var title: String {
+    if model.pairing == nil { return "receiver_unpaired" }
+    if model.paused { return "backup_paused" }
+    if model.importing { return "importing_originals" }
+    if model.summary.failed + model.summary.publication_failed > 0 { return "state_attention" }
+    if model.waitingForNetwork || model.receiverUnavailable { return "waiting_for_wifi" }
+    if model.compactWaitingReason != nil { return "backup_waiting" }
+    if model.summary.running + model.summary.queued > 0 { return "state_active" }
+    if model.summary.received > model.summary.published { return "state_publication_pending" }
+    if model.summary.published > 0 { return "state_published" }
+    return "backup_status_ready"
   }
   var body: some View {
     HStack(spacing: 14) {
@@ -286,15 +300,13 @@ struct MacBackupFooter: View {
         if job.asset.metadata?["source_type"] == "folder" { MacTransferThumbnail(job: job, size: 44) }
         else { AssetThumbnail(sourceID: job.asset.source_id, size: 44) }
       } else {
-        Image(systemName: "checkmark.shield").font(.title2).foregroundStyle(.blue).frame(width: 44, height: 44)
+        Image(systemName: model.summary.failed + model.summary.publication_failed > 0 ? "exclamationmark.triangle" : model.summary.published > 0 ? "checkmark.shield" : "arrow.up.circle")
+          .font(.title2).foregroundStyle(model.summary.failed + model.summary.publication_failed > 0 ? DuckColors.failure : DuckColors.action).frame(width: 44, height: 44)
       }
       VStack(alignment: .leading, spacing: 5) {
         HStack(spacing: 10) {
-          Text(model.importing ? "importing_originals" : model.pairing == nil ? "receiver_unpaired"
-            : model.paused ? "backup_paused" : model.waitingForNetwork ? "waiting_for_wifi"
-            : model.compactWaitingReason != nil ? "backup_waiting" : "backup_enabled")
+          Text(LocalizedStringKey(title))
             .lineLimit(1).layoutPriority(1)
-          if let progress { ProgressView(value: progress).frame(width: 140, height: 8) }
           Spacer(minLength: 0)
         }
         Group {
@@ -308,6 +320,12 @@ struct MacBackupFooter: View {
       }.frame(maxWidth: .infinity, alignment: .leading)
       if model.pairing == nil { Button("pair_receiver_desktop", action: pair) }
       else { Button("nav_transfers", action: showTransfers).buttonStyle(.link) }
+    }.overlay(alignment: .bottom) {
+      if let progress {
+        GeometryReader { geometry in
+          Rectangle().fill(DuckColors.action).frame(width: geometry.size.width * progress)
+        }.frame(height: 2).accessibilityHidden(true)
+      }
     }.accessibilityIdentifier("backup.footer")
   }
 }
@@ -319,7 +337,7 @@ struct ReceiverPage: View {
     VStack(alignment: .leading, spacing: 26) {
       Text("receiver_heading").font(.title2.weight(.medium))
       HStack(spacing: 20) {
-        Image(systemName: "externaldrive.badge.wifi").font(.system(size: 38)).foregroundStyle(.blue)
+        DuckBrandMark(size: 60)
         VStack(alignment: .leading, spacing: 8) {
           ReceiverStatusIndicator(model: model)
           if let pairing = model.pairing {
@@ -331,7 +349,7 @@ struct ReceiverPage: View {
         Spacer()
         Button(
           model.pairing == nil ? "pair_receiver_desktop" : "pair_another_receiver", action: pair)
-      }.padding(24).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14))
+      }.padding(24).background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 16))
       Text("receipt_explanation").font(.callout).foregroundStyle(.secondary)
       Spacer()
     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

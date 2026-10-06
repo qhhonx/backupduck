@@ -101,7 +101,7 @@
 <string name="receiver_thermal_threshold">Pause temperature</string>
 <string name="receiver_thermal_threshold_value">Pause temperature: %1$d°C</string>
 <string name="receiver_thermal_option">%1$d°C</string>
-<string name="settings_diagnostics">Diagnostics</string>
+<string name="settings_diagnostics">Diagnostics and experiments</string>
 <string name="logs_retention_settings">Log retention</string>
 <string name="storage_limits">Storage limits</string>
 <string name="originals_section">Manage originals</string>
@@ -297,7 +297,7 @@
     <string name="cleanup_result_stopped">Stopped. Any uncertain cleanup still needs review.</string>
     <string name="cleanup_result_reviewed">Waiting ended after your manual review.</string>
     <string name="cleanup_result_unavailable">Google Photos is unavailable. Check installation and accessibility permission.</string>
-    <string name="photos_diagnostics_title">Compatibility and diagnostics</string>
+    <string name="photos_diagnostics_title">Google Photos page check</string>
     <string name="photos_diagnostics_description">Having trouble? Check page recognition without deleting files, or export a diagnostic report.</string>
     <string name="cleanup_check_pending">Check cleanup result</string>
     <string name="cleanup_stop">Stop checking</string>

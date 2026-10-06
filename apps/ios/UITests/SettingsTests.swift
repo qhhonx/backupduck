@@ -1,6 +1,35 @@
 import XCTest
 
 final class SettingsTests: XCTestCase {
+  @MainActor private func expandStates(_ app: XCUIApplication) {
+    let more = app.buttons["More states"]
+    for _ in 0..<6 { if more.exists && more.isHittable { break }; app.swipeUp() }
+    if more.exists && more.isHittable { more.tap() }
+  }
+
+  @MainActor func testDesignReviewScreens() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+    app.launch()
+    XCTAssertTrue(app.tabBars.buttons.element(boundBy: 1).waitForExistence(timeout: 20))
+    for (index, name) in [(1, "backup"), (2, "receiver"), (3, "settings"), (0, "library")] {
+      app.tabBars.buttons.element(boundBy: index).tap()
+      Thread.sleep(forTimeInterval: 1) // Capture after the system tab transition finishes.
+      let screen = XCTAttachment(screenshot: app.screenshot())
+      screen.name = "design-review-" + name; screen.lifetime = .keepAlways; add(screen)
+    }
+    app.tabBars.buttons.element(boundBy: 1).tap()
+    let all = app.buttons["全部传输任务"].firstMatch
+    if all.exists && all.isHittable {
+      all.tap()
+      XCTAssertTrue(app.staticTexts["transfers.title"].waitForExistence(timeout: 10))
+      Thread.sleep(forTimeInterval: 1)
+      let screen = XCTAttachment(screenshot: app.screenshot())
+      screen.name = "design-review-transfers"; screen.lifetime = .keepAlways; add(screen)
+    }
+  }
+
   @MainActor func testCompactStatusIndicatorsOpenDetails() {
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -11,6 +40,9 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(backup.waitForExistence(timeout: 10))
     XCTAssertLessThanOrEqual(backup.frame.height, 48)
     backup.tap()
+    let detail = XCTAttachment(screenshot: app.screenshot())
+    detail.name = "design-review-status-detail"; detail.lifetime = .keepAlways; add(detail)
+    print("Isolated status detail: " + app.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " | "))
     XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
     app.buttons["Done"].tap()
     app.tabBars.buttons.element(boundBy: 2).tap()
@@ -31,6 +63,7 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(backup.waitForExistence(timeout: 20))
     backup.tap()
     XCTAssertFalse(app.staticTexts["backup.receipt_explanation"].exists)
+    expandStates(app)
     for state in ["queued", "received"] {
       let entry = app.buttons["backup.filter.\(state)"]
       for _ in 0..<8 {
@@ -40,8 +73,9 @@ final class SettingsTests: XCTestCase {
       XCTAssertTrue(entry.isHittable)
       entry.tap()
       let explanation = app.staticTexts["transfers.explanation"]
+      app.buttons["transfers.guide"].tap()
       XCTAssertTrue(explanation.waitForExistence(timeout: 10))
-      XCTAssertEqual(app.staticTexts["transfers.title"].label, state == "queued" ? "Queued" : "Received")
+      XCTAssertEqual(app.staticTexts["transfers.title"].label, state == "queued" ? "Queued" : "Sent to phone")
       XCTAssertEqual(app.staticTexts["transfers.count"].label, "0 items")
       XCTAssertTrue(explanation.label.contains(state == "queued" ? "Files are ready" : "received and verified"))
       let filter = app.descendants(matching: .any)["transfers.filter"].firstMatch
@@ -63,6 +97,7 @@ final class SettingsTests: XCTestCase {
       let backup = app.tabBars.buttons.element(boundBy: 1)
       XCTAssertTrue(backup.waitForExistence(timeout: 20))
       backup.tap()
+      if !app.buttons["backup.filter.\(state)"].exists { expandStates(app) }
       let entry = app.buttons["backup.filter.\(state)"]
       for _ in 0..<8 {
         if entry.exists && entry.isHittable { break }
@@ -110,6 +145,7 @@ final class SettingsTests: XCTestCase {
     let backup = app.tabBars.buttons.element(boundBy: 1)
     XCTAssertTrue(backup.waitForExistence(timeout: 20))
     backup.tap()
+    expandStates(app)
     for state in ["preparing", "scanned"] {
       let entry = app.buttons["backup.filter.\(state)"]
       for _ in 0..<8 {

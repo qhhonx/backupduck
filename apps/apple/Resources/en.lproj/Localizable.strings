@@ -605,3 +605,42 @@
 "receiver_connection_authentication" = "The saved credentials were rejected. Pair this receiver again.";
 "receiver_connection_network" = "Could not reach the receiver. Check the same local network, its receiving service, and whether the VPN allows local connections. A timeout alone does not identify the cause.";
 "receiver_connection_unavailable_note" = "The connection check could not finish. Try again or review the activity log.";
+
+/* Design v1.1 */
+"design_saved_of" = "/ %d files saved to Pixel gallery";
+"design_in_progress" = "%d in progress · %d failed";
+"design_source_media" = "Photos, Live Photos, videos and bursts";
+"design_recent_transfers" = "Recent transfers";
+"design_backup_sources" = "Backup sources";
+"design_backup_title" = "Your memories, safely delivered.";
+"design_gallery_boundary" = "Pixel gallery saving and Google Photos cloud upload are separate stages. Confirm cloud backup in Google Photos.";
+"design_file_type" = "Type";
+"design_capture_time" = "Captured";
+"design_file_size" = "Size";
+"design_original_retained" = "Receiver receipt confirmed. See the Pixel for original-retention details.";
+"design_receipt_pending" = "Original transfer has not completed.";
+
+"state_active" = "In progress";
+"state_attention" = "Failed";
+"state_saved" = "In Pixel gallery";
+"task_explanation_active" = "Queued, transferring, waiting or paused files.";
+"task_explanation_attention" = "Transfer or gallery processing failed. Open a file for its reason and recovery steps.";
+"task_explanation_saved" = "Saved in the Pixel gallery. Google Photos cloud backup is separate.";
+"design_retry_on_pixel" = "Retry gallery processing in the Pixel app or its browser dashboard. Your originals are retained until the configured cleanup policy allows removal.";
+
+"close" = "Close";
+
+"design_saved_count" = "%d / %d files saved in Pixel gallery";
+
+"error_conversion_required" = "This file needs compatibility conversion. You can enable it in Pixel settings, then retry; conversion may re-encode media.";
+
+"design_advanced_tasks" = "More states";
+"design_status_failed" = "Processing failed";
+"design_status_pending" = "Waiting for gallery";
+"design_capture_unknown" = "Capture time not provided";
+"design_filter_all" = "All";
+"design_filter_active" = "Active";
+"design_filter_attention" = "Attention";
+"design_filter_saved" = "Saved";
+"design_status_guide" = "Status guide";
+"design_manage_folders" = "Manage folders";

@@ -13,6 +13,7 @@ app="build/ios/$platform/BackupDuck.app"
 mkdir -p "$app"
 cp apps/ios/BackupDuck/Info.plist "$app/Info.plist"
 cp -R apps/apple/Resources/*.lproj "$app/"
+cp apps/apple/Resources/DuckBrand.png "$app/"
 set --
 if [ "$platform" = simulator ]; then
     set -- -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker apps/ios/Simulator.entitlements

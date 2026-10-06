@@ -1,0 +1,25 @@
+<resources>
+    <style name="DuckBottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/DuckBottomSheet</item>
+        <item name="elevationOverlayEnabled">false</item>
+    </style>
+    <style name="DuckBottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@color/duck_surface</item>
+        <item name="android:elevation">0dp</item>
+        <item name="shapeAppearanceOverlay">@style/DuckBottomSheetShape</item>
+    </style>
+    <style name="DuckBottomSheetShape">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">20dp</item>
+        <item name="cornerSizeTopRight">20dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+    <style name="DuckFullPage" parent="AppTheme">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:statusBarColor">@color/duck_surface</item>
+        <item name="android:navigationBarColor">@color/duck_surface</item>
+    </style>
+</resources>

@@ -4,23 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BackupDuck · 接收端</title>
+  <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/style.css">
   <script defer src="/app.js"></script>
 </head>
 <body>
   <div class="shell">
     <aside class="sidebar" aria-label="BackupDuck">
-      <div class="brand"><span class="brand-mark">BD</span><div><strong>BackupDuck</strong><small id="brand-subtitle">接收端管理</small></div></div>
+      <div class="brand"><img class="brand-mark" src="/duck.png" alt=""><div><strong>BackupDuck</strong><small id="brand-subtitle">接收端管理</small></div></div>
       <div class="side-section" id="side-section">工作台</div>
-      <a class="side-link active" href="#overview-section"><span class="side-icon">◫</span><span id="nav-overview">概览</span></a>
-      <a class="side-link" href="#transfers-section"><span class="side-icon">⇅</span><span id="nav-transfers">传输记录</span></a>
+      <a class="side-link active" href="#overview" data-page="overview"><span class="side-icon">◫</span><span id="nav-overview">概览</span></a>
+      <a class="side-link" href="#transfers" data-page="transfers"><span class="side-icon">⇅</span><span id="nav-transfers">传输记录</span></a>
+      <a class="side-link" href="#storage" data-page="storage"><span class="side-icon">▱</span><span data-zh="存储" data-en="Storage">存储</span></a>
+      <a class="side-link" href="#settings" data-page="settings"><span class="side-icon">⚙</span><span data-zh="设置" data-en="Settings">设置</span></a>
       <div class="sidebar-bottom"><span class="online-dot"></span><span id="sidebar-local">仅在当前局域网访问</span></div>
     </aside>
     <main>
-      <header class="topbar"><div class="breadcrumb"><span>BackupDuck</span><span class="slash">/</span><strong id="breadcrumb-current">接收端</strong></div><span class="top-local" id="top-local">本地管理页</span></header>
+      <header class="topbar"><div class="breadcrumb"><span>BackupDuck</span><span class="slash">/</span><strong id="breadcrumb-current">接收端</strong></div><div class="top-actions"><button id="theme-toggle" type="button" data-zh="外观" data-en="Appearance">外观</button><span class="top-local" id="top-local">本地管理页</span></div></header>
       <div class="content">
         <section id="login-panel" class="login-card card">
-          <div class="login-symbol">↗</div>
+          <div class="login-symbol"><img src="/duck.png" alt="" width="40" height="40"></div>
           <h1 id="login-title">连接你的 Pixel</h1>
           <p id="login-help">在 Pixel 的 BackupDuck「设置 → 浏览器管理」中查看访问码。重启后保持不变。</p>
           <form id="login-form"><label id="code-label" for="code">10 位访问码</label><input id="code" type="text" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" autocomplete="one-time-code" required><label class="remember-choice"><input id="remember" type="checkbox"><span id="remember-label">记住此浏览器 30 天</span></label><button id="login-button" class="primary" type="submit">进入管理页</button></form>
@@ -28,19 +31,23 @@
         <div id="dashboard" hidden>
           <button id="logout" type="button">退出登录</button>
           <div class="page-heading"><div><p class="eyebrow" id="eyebrow">PIXEL RECEIVER</p><h1 id="page-title">接收概览</h1><p id="page-description">查看接收、加入手机相册和待处理的文件。</p></div><div class="live-chip"><span class="online-dot"></span><span id="live-text">接收端在线</span></div></div>
-          <section id="overview-section" class="overview-grid" aria-label="接收概览">
+          <section data-page-panel="overview" id="overview-section" class="overview-grid" aria-label="接收概览">
             <div class="card metric"><div class="metric-top"><span id="label-received">已接收</span><span class="metric-icon blue">⇩</span></div><strong id="received">—</strong><small id="received-hint">手机已确认收到的文件</small></div>
             <div class="card metric"><div class="metric-top"><span id="label-published">已加入相册</span><span class="metric-icon green">✓</span></div><strong id="published">—</strong><small id="published-hint">手机媒体库处理完成</small></div>
             <div class="card metric"><div class="metric-top"><span id="label-waiting">等待处理</span><span class="metric-icon amber">◷</span></div><strong id="waiting">—</strong><small id="waiting-hint">已接收，尚未加入相册</small></div>
             <div class="card metric"><div class="metric-top"><span id="label-failed">处理失败</span><span class="metric-icon red">!</span></div><strong id="failed">—</strong><small id="failed-hint">可在下方重试</small></div>
           </section>
-          <section class="card device-card" aria-labelledby="device-title"><div class="device-heading"><strong id="device-title">手机状态</strong><small id="device-note">来自接收端的实时读数</small></div><div class="device-grid">
+          <section data-page-panel="overview" class="card device-card" aria-labelledby="device-title"><div class="device-heading"><strong id="device-title">手机状态</strong><small id="device-note">来自接收端的实时读数</small></div><div class="device-grid">
             <div><span id="temperature-label">电池温度</span><strong id="temperature">—</strong><small id="thermal-state">等待读数</small></div>
             <div><span id="battery-label">电量</span><strong id="battery">—</strong><small id="battery-state">等待读数</small></div>
             <div><span id="free-label">可用空间</span><strong id="free">—</strong><small id="free-detail">总容量 — · 最低可用 —</small></div>
             <div><span id="reserved-label">BackupDuck 原件</span><strong id="reserved">—</strong><small id="reserved-detail">不含相册副本</small></div>
           </div></section>
-          <section id="transfers-section" class="card transfers">
+          <section data-page-panel="overview" class="card transfers overview-recent">
+            <div class="section-heading"><div><h2 data-zh="最近接收" data-en="Recent transfers">最近接收</h2><p data-zh="保存到 Pixel 相册，不代表云端已完成。" data-en="Saved to Pixel gallery does not confirm cloud backup.">保存到 Pixel 相册，不代表云端已完成。</p></div><button type="button" data-page="transfers" data-zh="全部记录" data-en="All transfers">全部记录</button></div>
+            <div class="table-scroll"><table><thead><tr><th data-zh="文件" data-en="File">文件</th><th data-zh="状态" data-en="Status">状态</th><th data-zh="拍摄时间" data-en="Captured">拍摄时间</th><th data-zh="大小" data-en="Size">大小</th></tr></thead><tbody id="recent-items"></tbody></table></div>
+          </section>
+          <section data-page-panel="transfers" id="transfers-section" class="card transfers">
             <div class="section-heading"><div><h2 id="transfers-title">传输记录</h2><p id="table-note">点击文件名查看完整信息。</p></div><button id="retry" type="button">重试失败项</button></div>
             <div class="status-guide" aria-labelledby="guide-title"><strong id="guide-title">状态说明</strong><div class="guide-grid">
               <div><span class="status-badge receiving" id="guide-receiving">接收中</span><small id="guide-receiving-help">文件仍在传输</small></div>
@@ -48,13 +55,28 @@
               <div><span class="status-badge published" id="guide-published">已加入相册</span><small id="guide-published-help">已加入 Pixel 相册，云端备份状态未知</small></div>
               <div><span class="status-badge failed" id="guide-failed">处理失败</span><small id="guide-failed-help">原件仍在接收端，可重试</small></div>
             </div></div>
-            <div class="toolbar"><div class="filters"><label class="sr-only" id="state-label" for="state-filter">状态</label><select id="state-filter" aria-labelledby="state-label"><option value="all">全部状态</option><option value="receiving">接收中</option><option value="processing">等待处理</option><option value="published">已加入相册</option><option value="failed">处理失败</option></select><label class="sr-only" id="kind-label" for="kind-filter">类型</label><select id="kind-filter" aria-labelledby="kind-label"><option value="all">全部类型</option><option value="photo">照片</option><option value="video">视频</option><option value="motion">实况</option><option value="burst">连拍</option></select></div><div class="refresh-controls"><label class="auto-control" for="auto-refresh"><input id="auto-refresh" type="checkbox" checked><span id="auto-label">自动刷新</span></label><button id="refresh" type="button" aria-label="立即刷新">↻ <span id="refresh-label">刷新</span></button></div></div>
+            <div class="toolbar"><div class="filters"><input type="search" id="search-files" maxlength="200" data-zh-placeholder="查找文件名" data-en-placeholder="Find a filename" aria-label="查找文件名"><label class="sr-only" id="state-label" for="state-filter">状态</label><select id="state-filter" aria-labelledby="state-label"><option value="all">全部状态</option><option value="receiving">接收中</option><option value="processing">等待处理</option><option value="published">已加入相册</option><option value="failed">处理失败</option></select><label class="sr-only" id="kind-label" for="kind-filter">类型</label><select id="kind-filter" aria-labelledby="kind-label"><option value="all">全部类型</option><option value="photo">照片</option><option value="video">视频</option><option value="motion">实况</option><option value="burst">连拍</option></select></div><div class="refresh-controls"><label class="auto-control" for="auto-refresh"><input id="auto-refresh" type="checkbox" checked><span id="auto-label">自动刷新</span></label><button id="refresh" type="button" aria-label="立即刷新">↻ <span id="refresh-label">刷新</span></button></div></div>
             <div class="list-meta"><span id="result-count">—</span><span id="updated-at">—</span></div>
             <p id="message" role="status" hidden></p>
             <div class="table-scroll"><table><thead><tr><th id="col-file" scope="col">文件</th><th id="col-status" scope="col">状态</th><th id="col-captured" scope="col">拍摄时间</th><th id="col-size" scope="col">大小</th></tr></thead><tbody id="items"></tbody></table></div>
             <div class="table-footer"><div class="page-summary" id="page-summary">—</div><div class="page-controls"><label class="page-size-control" for="per-page"><span id="per-page-label">每页</span><select id="per-page"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></label><nav id="pagination" class="pagination" aria-label="选择页码"></nav><form id="jump-form" class="jump-form"><label id="jump-label" for="jump-page">跳至</label><input id="jump-page" type="number" min="1" step="1" inputmode="numeric" required><button id="jump-button" type="submit">前往</button></form></div></div>
           </section>
-          <dialog id="details-dialog" aria-labelledby="details-title"><div class="details-header"><div><p id="details-eyebrow">传输详情</p><h2 id="details-title">文件</h2></div><button id="details-close" type="button" aria-label="关闭详情">×</button></div><dl class="details-grid"><dt id="dt-status">状态</dt><dd id="detail-status">—</dd><dt id="dt-kind">类型</dt><dd id="detail-kind">—</dd><dt id="dt-burst" hidden>连拍角色</dt><dd id="detail-burst" hidden>—</dd><dt id="dt-senders">发送设备</dt><dd id="detail-senders">—</dd><dt id="dt-captured">拍摄时间</dt><dd id="detail-captured">—</dd><dt id="dt-received">接收完成</dt><dd id="detail-received">—</dd><dt id="dt-published">加入手机相册</dt><dd id="detail-published">—</dd><dt id="dt-progress">接收进度</dt><dd id="detail-progress">—</dd><dt id="dt-originals">原件状态</dt><dd id="detail-originals">—</dd><dt id="dt-error">处理提示</dt><dd id="detail-error">—</dd></dl><p id="details-cloud-note">加入手机相册不代表 Google 相册云端已备份。</p></dialog>
+          <section class="card storage-page" data-page-panel="storage" hidden>
+            <div class="section-heading"><div><h2 data-zh="手机存储" data-en="Phone storage">手机存储</h2><p data-zh="系统空间与备份鸭原件是不同的统计范围。" data-en="System capacity and BackupDuck originals have different scopes.">系统空间与备份鸭原件是不同的统计范围。</p></div></div>
+            <div class="storage-summary"><strong id="storage-free">—</strong><span data-zh="可用空间" data-en="available">可用空间</span><progress id="storage-meter" max="1" value="0" aria-label="手机空间使用"></progress></div>
+            <dl class="details-grid"><dt data-zh="手机总容量" data-en="Total capacity">手机总容量</dt><dd id="storage-total">—</dd><dt data-zh="备份鸭原件" data-en="BackupDuck originals">备份鸭原件</dt><dd id="storage-originals">—</dd><dt data-zh="最低可用空间" data-en="Minimum free space">最低可用空间</dt><dd id="storage-minimum">—</dd></dl>
+            <p class="page-note" data-zh="保留策略和原件导出请在 Pixel 的存储页设置。这里不会删除文件。" data-en="Manage retention and export originals on the Pixel Storage page. No files are deleted here.">保留策略和原件导出请在 Pixel 的存储页设置。这里不会删除文件。</p>
+          </section>
+          <section class="card settings-page" data-page-panel="settings" hidden>
+            <div class="section-heading"><div><h2 data-zh="显示与接收设置" data-en="Display and receiver settings">显示与接收设置</h2><p data-zh="显示设置保存在此浏览器，接收配置来自手机。" data-en="Display preferences stay in this browser; receiver settings come from the phone.">显示设置保存在此浏览器，接收配置来自手机。</p></div></div>
+            <div class="settings-row"><label for="appearance" data-zh="外观" data-en="Appearance">外观</label><select id="appearance"><option value="system" data-zh="跟随系统" data-en="System">跟随系统</option><option value="light" data-zh="浅色" data-en="Light">浅色</option><option value="dark" data-zh="深色" data-en="Dark">深色</option></select></div>
+            <div class="settings-row"><label for="settings-auto" data-zh="自动刷新" data-en="Auto refresh">自动刷新</label><input id="settings-auto" type="checkbox"></div>
+            <div class="settings-row"><span data-zh="手机温度保护" data-en="Phone temperature protection">手机温度保护</span><strong id="settings-thermal">—</strong></div>
+            <div class="settings-row"><span data-zh="电池温度阈值" data-en="Battery temperature threshold">电池温度阈值</span><strong id="settings-threshold">—</strong></div>
+            <p class="page-note" data-zh="温度保护、兼容转换和自动接收请在 Pixel 设置页修改；它们影响手机实际接收。" data-en="Change temperature protection, compatibility conversion and auto reception on the Pixel Settings page; these affect the actual receiver.">温度保护、兼容转换和自动接收请在 Pixel 设置页修改；它们影响手机实际接收。</p>
+            <div class="settings-row"><span data-zh="当前访问" data-en="Current access">当前访问</span><button type="button" id="logout" data-zh="退出管理页" data-en="Sign out">退出管理页</button></div>
+          </section>
+          <dialog id="details-dialog" aria-labelledby="details-title"><div class="details-header"><div><p id="details-eyebrow">传输详情</p><h2 id="details-title">文件</h2></div><button id="details-close" type="button" aria-label="关闭详情">×</button></div><dl class="details-grid"><dt id="dt-status">状态</dt><dd id="detail-status">—</dd><dt id="dt-kind">类型</dt><dd id="detail-kind">—</dd><dt id="dt-burst" hidden>连拍角色</dt><dd id="detail-burst" hidden>—</dd><dt id="dt-senders">发送设备</dt><dd id="detail-senders">—</dd><dt id="dt-captured">拍摄时间</dt><dd id="detail-captured">—</dd><dt id="dt-received">接收完成</dt><dd id="detail-received">—</dd><dt id="dt-published">加入手机相册</dt><dd id="detail-published">—</dd><dt id="dt-progress">接收进度</dt><dd id="detail-progress">—</dd><dt id="dt-originals">原件状态</dt><dd id="detail-originals">—</dd><dt id="dt-error">处理提示</dt><dd id="detail-error">—</dd></dl><p id="details-cloud-note">加入手机相册不代表 Google 相册云端已备份。</p><button id="detail-retry" class="primary" type="button" hidden data-zh="重试此文件" data-en="Retry this file">重试此文件</button></dialog>
         </div>
       </div>
     </main>

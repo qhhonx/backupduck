@@ -90,6 +90,12 @@ The CLI harness remains loopback-only.
 
 ## Validation
 
+The cross-platform design baseline, interactive prototype, tokens, motion guide
+and rendered page references are kept in [design/](design/README.md). The current
+proposal is v1.1; the prototype does not imply that the native redesign has shipped.
+Android's expanded v1.2 implementation and the earlier cross-platform work are
+preserved on `ui-redesign`; see the [handoff and acceptance status](design/ui-redesign-handoff.md).
+
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings

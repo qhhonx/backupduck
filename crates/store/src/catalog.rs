@@ -55,12 +55,14 @@ impl Catalog {
     }
     pub fn counts(&self) -> Result<serde_json::Value> {
         let Some(conn) = &self.conn else {
-            return Ok(serde_json::json!({"total":0,"received":0,"published":0}));
+            return Ok(serde_json::json!({"total":0,"received":0,"published":0,"failed":0}));
         };
-        let (total, received, published): (i64, i64, i64) = conn.query_row(
-            "SELECT COUNT(*),COALESCE(SUM(received),0),COALESCE(SUM(processing='complete'),0) FROM assets", [],
-            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(super::db)?;
-        Ok(serde_json::json!({"total":total,"received":received,"published":published}))
+        let (total, received, published, failed): (i64, i64, i64, i64) = conn.query_row(
+            "SELECT COUNT(*),COALESCE(SUM(received),0),COALESCE(SUM(processing='complete'),0),COALESCE(SUM(processing='failed'),0) FROM assets", [],
+            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(super::db)?;
+        Ok(
+            serde_json::json!({"total":total,"received":received,"published":published,"failed":failed}),
+        )
     }
     pub fn reserved_bytes(&self) -> Result<u64> {
         let Some(conn) = &self.conn else { return Ok(0) };
@@ -97,11 +99,33 @@ impl Catalog {
         page: u32,
         per_page: u32,
     ) -> Result<HistoryPage> {
+        self.numbered_page_matching(state, kind, page, per_page, "")
+    }
+    /// Filename search is applied to the full history before counting/paging.
+    /// The search term is literal (percent/underscore are not SQL wildcards).
+    pub fn numbered_page_matching(
+        &self,
+        state: &str,
+        kind: &str,
+        page: u32,
+        per_page: u32,
+        filename: &str,
+    ) -> Result<HistoryPage> {
+        if filename.chars().count() > 200 {
+            return Err(Error::Invalid("history filename".into()));
+        }
         if page == 0 || page > 100_000 || ![20, 50, 100].contains(&per_page) {
             return Err(Error::Invalid("history page".into()));
         }
         let offset = i64::from(page - 1) * i64::from(per_page);
-        self.page_internal(None, state, kind, per_page, None, Some(offset))
+        self.page_internal(
+            None,
+            state,
+            kind,
+            per_page,
+            None,
+            Some((offset, filename.trim())),
+        )
     }
     fn page_internal(
         &self,
@@ -110,14 +134,17 @@ impl Catalog {
         kind: &str,
         limit: u32,
         sender: Option<&str>,
-        numbered_offset: Option<i64>,
+        numbered: Option<(i64, &str)>,
     ) -> Result<HistoryPage> {
+        let numbered_offset = numbered.map(|(offset, _)| offset);
+        let filename = numbered.map(|(_, filename)| filename).unwrap_or("");
         if sender.is_some_and(|id| id != "unknown" && !backupduck_core::valid_digest(id)) {
             return Err(Error::Invalid("sender filter".into()));
         }
         if ![
             "all",
             "receiving",
+            "active",
             "received",
             "processing",
             "published",
@@ -142,12 +169,12 @@ impl Catalog {
         } else {
             "(?5 IS NULL OR ?5='unknown')"
         };
-        let filter = "(?1='all' OR (?1='receiving' AND received=0) OR (?1='received' AND received=1) OR (?1='published' AND processing='complete') OR (?1='failed' AND processing='failed') OR (?1='processing' AND received=1 AND processing IN ('pending','not_requested'))) AND (?2='all' OR json_extract(manifest,'$.kind')=?2 OR (?2='burst' AND json_extract(manifest,'$.metadata.burst_group_ref') IS NOT NULL))";
-        let filter = format!("({filter}) AND {sender_filter}");
+        let filter = "(?1='all' OR (?1='active' AND (received=0 OR processing IN ('pending','not_requested'))) OR (?1='receiving' AND received=0) OR (?1='received' AND received=1) OR (?1='published' AND processing='complete') OR (?1='failed' AND processing='failed') OR (?1='processing' AND received=1 AND processing IN ('pending','not_requested'))) AND (?2='all' OR json_extract(manifest,'$.kind')=?2 OR (?2='burst' AND json_extract(manifest,'$.metadata.burst_group_ref') IS NOT NULL))";
+        let filter = format!("({filter}) AND {sender_filter} AND (?7='' OR instr(lower(json_extract(manifest,'$.resources[0].filename')), lower(?7))>0)");
         let total = conn
             .query_row(
                 &format!("SELECT COUNT(*) FROM assets WHERE {filter}"),
-                params![state, kind, Option::<i64>::None, 0, sender],
+                params![state, kind, Option::<i64>::None, 0, sender, 0, filename],
                 |r| r.get(0),
             )
             .map_err(super::db)?;
@@ -181,7 +208,8 @@ impl Catalog {
                     before,
                     limit as i64 + i64::from(numbered_offset.is_none()),
                     sender,
-                    numbered_offset.unwrap_or(0)
+                    numbered_offset.unwrap_or(0),
+                    filename
                 ],
                 |r| {
                     Ok((

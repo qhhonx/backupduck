@@ -30,6 +30,7 @@ if [[ ! -d build/dependencies/sparkle/Sparkle.framework ]]; then ./scripts/fetch
 mkdir -p "$app/Contents/Frameworks"
 ditto build/dependencies/sparkle/Sparkle.framework "$app/Contents/Frameworks/Sparkle.framework"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
+cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
 sources=(apps/apple/Shared/*.swift)
 for file in apps/macos/BackupDuck/*.swift; do
   if [[ "$file" != */BackupDuckMacApp.swift ]]; then sources+=("$file"); fi

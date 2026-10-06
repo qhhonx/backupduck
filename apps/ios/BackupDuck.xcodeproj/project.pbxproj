@@ -43,6 +43,9 @@
 		D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		EC71D3762A45B460A3B79DBA /* BackgroundLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */; };
 		F69787C40DFA7D9F1C0FCB75 /* LibraryPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */; };
+		AC7A0386615CDE5D7A6BB073 /* DuckColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B3FB1247793009B2B15729 /* DuckColors.swift */; };
+		A7248D6193F3C3B243F6201D /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */; };
+		55709C23FCD0540ECF192F68 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 2C8194DB525B048022B8F3ED /* DuckBrand.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +107,9 @@
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
+		76B3FB1247793009B2B15729 /* DuckColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckColors.swift; sourceTree = "<group>"; };
+		3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckComponents.swift; sourceTree = "<group>"; };
+		2C8194DB525B048022B8F3ED /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -160,6 +166,7 @@
 		8B1BA4F931D5BD124606C855 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				2C8194DB525B048022B8F3ED /* DuckBrand.png */,
 				FC24582406B7B42FD52AC817 /* InfoPlist.strings */,
 				D54CA1F1DA8164B463AAC43D /* Localizable.strings */,
 			);
@@ -170,6 +177,8 @@
 		E1F0E283D93E21E408019AB0 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */,
+				76B3FB1247793009B2B15729 /* DuckColors.swift */,
 				B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */,
 				B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */,
 				3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */,
@@ -307,6 +316,7 @@
 				358ABB1546C3819108BD6BFB /* Assets.xcassets in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
+				55709C23FCD0540ECF192F68 /* DuckBrand.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -330,7 +340,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\ncargo build --locked --release -p backupduck-native --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -386,6 +396,8 @@
 				81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */,
 				C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */,
 				2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */,
+				A7248D6193F3C3B243F6201D /* DuckComponents.swift in Sources */,
+				AC7A0386615CDE5D7A6BB073 /* DuckColors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

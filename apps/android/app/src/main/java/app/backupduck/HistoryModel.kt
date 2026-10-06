@@ -11,7 +11,7 @@ import org.json.JSONObject
 
 internal data class HistoryItem(val cursor: Long, val id: String, val filename: String, val kind: String,
     val totalBytes: Long, val confirmedBytes: Long, val receipt: String, val processing: String,
-    val processingError: String?, val originalsReleased: Boolean, val releaseReason: String? = null, val senderNames: String = "") {
+    val processingError: String?, val originalsReleased: Boolean, val releaseReason: String? = null, val senderNames: String = "", val capturedAtMs: Long? = null, val burstPrimary: Boolean? = null, val receivedAtMs: Long? = null, val publishedAtMs: Long? = null) {
     val statusLabel: Int get() = when {
         receipt != "received" -> R.string.receiver_item_receiving
         processing == "complete" -> R.string.receiver_item_published
@@ -66,7 +66,7 @@ internal class HistoryModel : ViewModel() {
                     HistoryItem(row.getLong("cursor"), row.getString("id"), row.getString("filename"), row.getString("kind"),
                         row.getLong("total_bytes"), row.getLong("confirmed_bytes"), row.getString("receipt"),
                         row.getString("processing"), if (row.isNull("processing_error")) null else row.getString("processing_error"),
-                        row.getBoolean("originals_released"), row.optString("release_reason").takeIf { it == "gallery" || it == "archive" }, names)
+                        row.getBoolean("originals_released"), row.optString("release_reason").takeIf { it == "gallery" || it == "archive" }, names, row.optLong("captured_at_ms").takeIf { it > 0 }, if (row.isNull("burst_primary")) null else row.getBoolean("burst_primary"),row.optLong("received_at_ms").takeIf {it>0},row.optLong("published_at_ms").takeIf {it>0})
                 }
                 Triple(items, data.getInt("total"), if (data.isNull("next_cursor")) null else data.getLong("next_cursor"))
             } }

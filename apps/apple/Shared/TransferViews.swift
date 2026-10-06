@@ -84,58 +84,122 @@ struct TransferRow: View {
     }
     return text
   }
+  private var compactStatus: String {
+    if job.state == "received" && job.processing == "failed" { return NSLocalizedString("design_status_failed", comment: "") }
+    if job.state == "received" && job.processing != "complete" { return NSLocalizedString("design_status_pending", comment: "") }
+    if job.state == "waiting" { return NSLocalizedString("state_waiting", comment: "") }
+    return statusText
+  }
   var activityLabel: String? = nil
   var retry: () -> Void
+  @State private var details = false
+  private var tone: DuckTone {
+    if job.state == "received" {
+      if job.processing == "complete" { return .saved }
+      if job.processing == "failed" { return .failure }
+      return .attention
+    }
+    if job.state == "failed" { return .failure }
+    if job.state == "waiting" { return .attention }
+    return job.state == "running" ? .action : .neutral
+  }
+  private var symbol: String {
+    if job.state == "received" {
+      return job.processing == "complete" ? "checkmark" : job.processing == "failed" ? "exclamationmark.triangle" : "clock"
+    }
+    return taskSymbol(job.state)
+  }
   var body: some View {
-    HStack(spacing: 14) {
+    HStack(spacing: 12) {
       #if os(macOS)
-        if job.asset.metadata?["source_type"] == "folder" { MacTransferThumbnail(job: job) }
-        else { AssetThumbnail(sourceID: job.asset.source_id) }
+        if job.asset.metadata?["source_type"] == "folder" { MacTransferThumbnail(job: job, size: 44) }
+        else { AssetThumbnail(sourceID: job.asset.source_id, size: 44) }
       #else
-        AssetThumbnail(sourceID: job.asset.source_id)
+        AssetThumbnail(sourceID: job.asset.source_id, size: 44)
       #endif
-      VStack(alignment: .leading, spacing: 7) {
-        HStack {
-          Text(job.asset.resources.first?.filename ?? "").lineLimit(1)
-          Spacer()
-          Image(systemName: job.state == "received" && job.processing == "failed" ? "exclamationmark.circle" : taskSymbol(job.state)).foregroundStyle(
-            job.state == "received" && job.processing == "failed" ? .orange : job.state == "received" ? .blue : job.state == "failed" ? .orange : .secondary)
-        }
-        HStack(spacing: 8) {
+      VStack(alignment: .leading, spacing: 5) {
+        Text(job.asset.resources.first?.filename ?? "").font(.body.weight(.medium)).lineLimit(1)
+        HStack(spacing: 6) {
           Label(LocalizedStringKey("library_filter_" + (job.asset.metadata?["burst_group_ref"] != nil ? "burst" : job.asset.kind)),
             systemImage: job.asset.metadata?["burst_group_ref"] != nil ? "square.stack" : job.asset.kind == "motion" ? "livephoto" : job.asset.kind == "video" ? "video" : "photo")
           if let milliseconds = job.asset.metadata?["created_at_ms"].flatMap(Double.init) {
             Text(Date(timeIntervalSince1970: milliseconds / 1000).formatted(date: .abbreviated, time: .shortened))
-              .lineLimit(1)
-          }
-        }.font(.caption).foregroundStyle(.secondary)
-        if let source = job.asset.metadata?["source_name"] {
-          Label(source, systemImage: "folder").font(.caption).foregroundStyle(.secondary)
-        }
+          } else { Text("design_capture_unknown") }
+        }.font(.caption).foregroundStyle(DuckColors.textSecondary).lineLimit(1)
         if let activityLabel {
           Text(NSLocalizedString(activityLabel, comment: "") + " · " + (job.stateChangedAt.map {
             Date(timeIntervalSince1970: Double($0) / 1000).formatted(date: .abbreviated, time: .standard)
           } ?? NSLocalizedString("task_order_unknown", comment: "")))
-            .font(.caption).foregroundStyle(.secondary)
+            .font(.caption).foregroundStyle(DuckColors.textSecondary).lineLimit(1)
         }
-        HStack(spacing: 8) {
-          Text(statusText).lineLimit(1).help(statusText)
-          if job.state == "running", let fraction = progress?.activeFraction(
-            confirmed: job.confirmedBytes, total: job.totalBytes) {
-            ProgressView(value: fraction)
-              .frame(width: 100, height: 8)
-          }
-          Spacer(minLength: 0)
-          Text(ByteCountFormatter.string(fromByteCount: Int64(displayedBytes), countStyle: .file)
-            + " / " + ByteCountFormatter.string(fromByteCount: Int64(job.totalBytes), countStyle: .file))
-            .monospacedDigit().lineLimit(1).layoutPriority(1)
-          if job.errorCode != nil {
-            Button("retry_task", action: retry).buttonStyle(.plain).foregroundStyle(.tint)
-          }
-        }.font(.caption).foregroundStyle(.secondary)
-
+      }.frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .trailing, spacing: 5) {
+        DuckStatusBadge(text: compactStatus, symbol: symbol, tone: tone).lineLimit(1).help(statusText)
+        Text(ByteCountFormatter.string(fromByteCount: Int64(job.totalBytes), countStyle: .file))
+          .font(.caption).foregroundStyle(DuckColors.textSecondary).monospacedDigit()
+      }.fixedSize(horizontal: false, vertical: true)
+    }.frame(minHeight: 64).padding(.vertical, 4)
+      .contentShape(Rectangle()).onTapGesture { details = true }
+      .accessibilityAddTraits(.isButton).accessibilityAction { details = true }
+      .overlay(alignment: .bottom) {
+        if job.state == "running", let fraction = progress?.activeFraction(confirmed: job.confirmedBytes, total: job.totalBytes) {
+          GeometryReader { geometry in
+            Rectangle().fill(DuckColors.action).frame(width: geometry.size.width * fraction)
+          }.frame(height: 2).accessibilityHidden(true)
+        }
       }
-    }.padding(.vertical, 10)
+      .sheet(isPresented: $details) {
+        DuckTransferDetail(job: job, status: statusText, symbol: symbol, tone: tone, retry: retry)
+      }
+  }
+}
+
+struct DuckTransferDetail: View {
+  let job: BackupJob
+  let status: String
+  let symbol: String
+  let tone: DuckTone
+  var retry: () -> Void
+  @Environment(\.dismiss) private var dismiss
+  var body: some View {
+    VStack(alignment: .leading, spacing: 18) {
+      HStack {
+        Text(job.asset.resources.first?.filename ?? "").font(.title2.weight(.semibold)).textSelection(.enabled)
+        Spacer()
+        Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel(Text("close"))
+      }
+      DuckStatusBadge(text: status, symbol: symbol, tone: tone)
+      ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+          #if os(macOS)
+            if job.asset.metadata?["source_type"] == "folder" { MacTransferThumbnail(job: job, size: 140) }
+            else { AssetThumbnail(sourceID: job.asset.source_id, size: 140) }
+          #else
+            AssetThumbnail(sourceID: job.asset.source_id, size: 140)
+          #endif
+          LabeledContent("design_file_type", value: NSLocalizedString("library_filter_" + job.asset.kind, comment: ""))
+          LabeledContent("design_capture_time", value: job.asset.metadata?["created_at_ms"].flatMap(Double.init).map {
+            Date(timeIntervalSince1970: $0 / 1000).formatted(date: .abbreviated, time: .shortened)
+          } ?? NSLocalizedString("task_order_unknown", comment: ""))
+          LabeledContent("design_file_size", value: ByteCountFormatter.string(fromByteCount: Int64(job.totalBytes), countStyle: .file))
+          if let source = job.asset.metadata?["source_name"] { LabeledContent("task_source_filter", value: source) }
+          Text(job.asset.metadata?["relative_path"] ?? job.asset.source_id).font(.caption).foregroundStyle(DuckColors.textSecondary).textSelection(.enabled)
+          Divider()
+          Label(job.state == "received" ? "design_original_retained" : "design_receipt_pending", systemImage: "archivebox")
+          Text("design_gallery_boundary").font(.callout).foregroundStyle(DuckColors.textSecondary)
+          if job.processing == "failed" {
+            Text("design_retry_on_pixel").font(.callout).foregroundStyle(DuckColors.failure)
+          }
+          if let error = job.processingError ?? job.errorCode {
+            Text(NSLocalizedString("error_" + error, comment: "")).foregroundStyle(DuckColors.failure).textSelection(.enabled)
+          }
+        }
+      }
+      if job.state == "failed" || job.state == "waiting" {
+        Button("retry_task") { retry(); dismiss() }.buttonStyle(.borderedProminent)
+      }
+    }.padding(24).frame(minWidth: 300, idealWidth: 500, minHeight: 400)
+      .background(DuckColors.surface).tint(DuckColors.action)
   }
 }
 
@@ -163,11 +227,11 @@ struct TransferList: View {
     "\(sourceFilter)|\(filter)|\(ordering.sort)|\(ordering.descending)|\(model.queueRevision)|\(model.pairing?.receiverID ?? "")"
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
+    VStack(alignment: .leading, spacing: 14) {
       HStack {
         VStack(alignment: .leading, spacing: 6) {
           Text(LocalizedStringKey(filter == "all" ? "transfer_tasks" : filter == "scanned" ? "task_title_scanned" : "state_" + filter))
-            .font(.title2.weight(.medium)).accessibilityIdentifier("transfers.title")
+            .font(.headline).accessibilityIdentifier("transfers.title")
           Text(String(format: NSLocalizedString("task_status_count", comment: ""), (sourceFilter.isEmpty || filter == "preparing" || filter == "scanned") ? model.transferCount(for: filter) : (browser.summary?.count(for: filter) ?? 0)))
             .font(.callout).foregroundStyle(.secondary).monospacedDigit()
             .accessibilityIdentifier("transfers.count")
@@ -175,12 +239,19 @@ struct TransferList: View {
         Spacer()
         Picker("task_filter", selection: $filter) {
           Text("backup_all_tasks").tag("all")
-          ForEach(["preparing", "running", "queued", "waiting", "paused", "failed", "received", "scanned"], id: \.self) {
+          ForEach(["active", "attention", "saved", "preparing", "running", "queued", "waiting", "paused", "failed", "received", "scanned"], id: \.self) {
             Text(LocalizedStringKey($0 == "scanned" ? "task_title_scanned" : "state_" + $0)).tag($0)
           }
         }.pickerStyle(.menu).labelsHidden().fixedSize()
           .accessibilityIdentifier("transfers.filter")
       }.frame(maxWidth: .infinity, alignment: .leading)
+      Picker("task_filter", selection: Binding(get: { ["all", "active", "attention", "saved"].contains(filter) ? filter : "advanced" }, set: { filter = $0 })) {
+        Text("design_filter_all").tag("all")
+        Text("design_filter_active").tag("active")
+        Text("design_filter_attention").tag("attention")
+        Text("design_filter_saved").tag("saved")
+        if !["all", "active", "attention", "saved"].contains(filter) { Text(LocalizedStringKey("state_" + filter)).tag("advanced") }
+      }.pickerStyle(.segmented)
       if !sourceOptions.isEmpty, filter != "preparing", filter != "scanned" {
         HStack {
           Text("task_source_filter").font(.callout).foregroundStyle(.secondary)
@@ -191,10 +262,15 @@ struct TransferList: View {
           }.labelsHidden().pickerStyle(.menu).fixedSize()
         }
       }
-      Text(LocalizedStringKey("task_explanation_" + filter))
-        .font(.callout).foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("transfers.explanation")
+      DisclosureGroup {
+        VStack(alignment: .leading, spacing: 8) {
+          Text(LocalizedStringKey("task_explanation_" + filter))
+            .accessibilityIdentifier("transfers.explanation")
+          Text(LocalizedStringKey("task_order_hint_" + filter)).font(.caption)
+        }.foregroundStyle(DuckColors.textSecondary).padding(.top, 8)
+      } label: {
+        Text("design_status_guide").accessibilityIdentifier("transfers.guide")
+      }.font(.callout)
       TransferSortControl(ordering: Binding(get: { ordering }, set: { ordering = $0 }), filter: filter)
       if filter == "preparing" || filter == "scanned" {
         SourceBrowser(model: model, history: filter == "scanned", descending: ordering.descending, sort: ordering.sort)
@@ -341,19 +417,19 @@ struct BackupStatusIndicator: View {
   private var status: (key: String, symbol: String, color: Color) {
     if !model.ready { return model.message == nil
       ? ("backup_indicator_starting", "clock", .secondary)
-      : ("backup_indicator_attention", "exclamationmark.circle", .orange) }
+      : ("backup_indicator_attention", "exclamationmark.circle", DuckColors.attention) }
     if model.pairing == nil { return ("backup_indicator_unpaired", "link", .secondary) }
     if model.paused { return ("backup_indicator_paused", "pause.circle", .secondary) }
     if model.message != nil || model.summary.failed + model.summary.publication_failed > 0 {
-      return ("backup_indicator_attention", "exclamationmark.circle", .orange)
+      return ("backup_indicator_attention", "exclamationmark.circle", DuckColors.attention)
     }
     if model.waitingForNetwork || model.receiverUnavailable {
-      return ("backup_indicator_network", "wifi.exclamationmark", .orange)
+      return ("backup_indicator_network", "wifi.exclamationmark", DuckColors.attention)
     }
     if model.summary.running > 0 || model.importing {
-      return ("backup_indicator_active", "arrow.up.circle", .accentColor)
+      return ("backup_indicator_active", "arrow.up.circle", DuckColors.action)
     }
-    if model.waitingReason != nil { return ("backup_indicator_retry", "clock", .orange) }
+    if model.waitingReason != nil { return ("backup_indicator_retry", "clock", DuckColors.attention) }
     if model.pendingImports > 0 || model.summary.queued > 0 {
       return ("backup_indicator_waiting", "clock", .secondary)
     }
@@ -361,9 +437,9 @@ struct BackupStatusIndicator: View {
       return ("backup_indicator_publication_pending", "clock", .secondary)
     }
     if model.summary.received > 0 {
-      return ("backup_indicator_gallery_complete", "photo.on.rectangle", .accentColor)
+      return ("backup_indicator_gallery_complete", "photo.on.rectangle", DuckColors.action)
     }
-    return ("backup_indicator_ready", "checkmark.circle", .green)
+    return ("backup_indicator_ready", "checkmark.circle", DuckColors.saved)
   }
   var body: some View {
     Button { details = true } label: {
@@ -408,15 +484,16 @@ struct ReceiverStatusIndicator: View {
   @ObservedObject var model: BackupModel
   @State private var details = false
   var status: (key: String, symbol: String, color: Color) {
-    if model.pairingInProgress { return ("receiver_indicator_pairing", "link", .accentColor) }
+    if model.pairingInProgress { return ("receiver_indicator_pairing", "link", DuckColors.action) }
+    if model.pairingError != nil { return ("receiver_indicator_attention", "exclamationmark.circle", DuckColors.attention) }
     if model.pairing == nil { return ("backup_indicator_unpaired", "link", .secondary) }
     if model.checkingConnection { return ("receiver_connection_checking", "arrow.triangle.2.circlepath", .secondary) }
     if model.receiverConnection == .authentication { return ("receiver_indicator_attention", "exclamationmark.circle", .orange) }
     if model.receiverConnection == .unavailable { return ("receiver_connection_unavailable", "exclamationmark.circle", .orange) }
     if model.receiverUnavailable || model.waitingForNetwork {
-      return ("receiver_indicator_waiting", "wifi.exclamationmark", .orange)
+      return ("receiver_indicator_waiting", "wifi.exclamationmark", DuckColors.attention)
     }
-    return ("receiver_indicator_paired", "link", .accentColor)
+    return ("receiver_indicator_paired", "link", DuckColors.action)
   }
   var body: some View {
     Button { details = true } label: {
@@ -514,7 +591,6 @@ struct TransferSortControl: View {
           Label("task_order_button", systemImage: "arrow.up.arrow.down")
         }.fixedSize().accessibilityIdentifier("transfers.sort")
       }
-      Text(LocalizedStringKey("task_order_hint_" + filter)).font(.caption).foregroundStyle(.secondary)
     }.frame(maxWidth: .infinity, alignment: .leading)
   }
 }
