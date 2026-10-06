@@ -18,6 +18,14 @@
 
 先定位现有仓库，读取 `AGENTS.md`，确认没有会被覆盖的本地工作。若已有修改，先独立保存；不要使用强制重置、强制切换或清空操作。
 
+先看 `git config --get-all remote.origin.fetch`。如果只同步 `main`，需要额外登记新分支，否则普通 fetch 不会发现它（Mac mini 的原配置就是如此）：
+
+```sh
+git config --add remote.origin.fetch '+refs/heads/ui-redesign:refs/remotes/origin/ui-redesign'
+```
+
+已有 `+refs/heads/*:refs/remotes/origin/*` 或上面的 UI 分支规则时，跳过这一步。
+
 ```sh
 git fetch origin
 git switch --track origin/ui-redesign
