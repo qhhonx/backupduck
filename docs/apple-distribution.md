@@ -37,10 +37,11 @@ build-local Python environment, supporting Xcode images with Python 3.9 as well
 as newer images. Xcode's build phase compiles the native
 library; Xcode Cloud manages distribution signing and TestFlight delivery.
 
-Use separate iOS and Mac workflows. Start with manual release builds, an iOS
-unit-test action and a Release archive action; add TestFlight delivery to the
-existing test groups. Enable branch-triggered testing only after a successful
-first run, to avoid repeatedly spending compute hours on a broken configuration.
+Use separate iOS and Mac workflows with manual start, one Release archive action
+and TestFlight delivery to the existing test groups. Keep Cloud test actions,
+scheduled builds and branch/pull-request triggers disabled to limit compute use.
+Run the existing tests locally or in GitHub Actions before starting a release;
+Cloud is reserved for distribution signing, archive and upload.
 The Mac workflow must select `BackupDuckStore`, not the direct-download scheme.
 
 Xcode Cloud assigns its own monotonically increasing build counter. Set the next
