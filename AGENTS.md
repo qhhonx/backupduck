@@ -84,6 +84,11 @@ the Mac store target sandboxed and free of Sparkle, inject the signing team via
 local/Cloud configuration, and distinguish upload from tester availability.
 GitHub `Checks` gates new `testflight/v<version>` markers on current `main`.
 Cloud archives/uploads only; keep ordinary push, scheduled and test actions off.
+Release workflows also attach source-controlled testing notes and deliver their
+own archive through the external TestFlight post-action. Verify the intended
+platform/build is awaiting beta review or available, not merely uploaded. Handle
+superseded review submissions as part of release work without waiting for a user
+to discover a stale build. Apple approval remains a separate external outcome.
 Never move an existing release marker to force a retry; start Cloud manually.
 A push to `main` may publish apps and deploy the website: do not merge, tag or
 publish without explicit authorization.

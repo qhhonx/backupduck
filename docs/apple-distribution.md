@@ -40,8 +40,10 @@ The Cloud checkout uses a directory override for the installed Rust version so
 archive phases do not install development-only formatter/linter components.
 
 Use separate iOS and Mac workflows with manual start and a tag-change condition
-matching `testflight/*`, one Release archive action and TestFlight delivery to the
-existing test groups. Keep Cloud test actions, scheduled builds and
+matching `testflight/*`, one clean Release archive action and TestFlight internal
+and external testing post-actions for the existing test groups. External testing
+requires a clean archive; enable no-cache mode for these release-only workflows.
+Keep Cloud test actions, scheduled builds and
 branch/pull-request triggers disabled to limit compute use.
 Run the existing tests locally or in GitHub Actions before starting a release;
 Cloud is reserved for distribution signing, archive and upload.
@@ -56,8 +58,18 @@ already uploaded before enabling Cloud tag triggers, to avoid a duplicate upload
 For a new version, update all version metadata and testing notes, then push to
 `main`. To retry checks from a terminal, use `gh workflow run ci.yml --ref main`.
 Retry an already marked Cloud version manually after fixing a distribution error;
-do not delete and recreate its marker. External TestFlight review and App Store
-submission remain separate from a successful upload.
+do not delete and recreate its marker. The external testing post-action submits
+that workflow's archive to the configured external group and Beta App Review
+when required. It must use the new archive rather than select an older uploaded
+build by marketing version alone. Apple approval and App Store submission remain
+separate from a successful upload.
+
+If a previous build of the same platform/version is still under beta review,
+Apple may block a replacement. Release acceptance includes checking the exact
+build number in the external group and its review state. Withdraw the superseded
+submission and submit the intended successful build; do not mark the release
+complete merely because Cloud uploaded it. Report a review conflict or failed
+post-action as a release failure instead of leaving testers on an older build.
 
 Xcode Cloud assigns its own monotonically increasing build counter. Set the next
 number above existing uploaded Mac builds before starting distribution. When a
@@ -82,6 +94,8 @@ website and privacy page; do not retain old RC pairing/migration instructions.
 Each Apple project keeps English testing notes in
 `TestFlight/WhatToTest.en-US.txt`; Cloud attaches these to uploaded builds.
 Update these files with the release instead of relying on manual console edits.
+The attachment is automatic; writing release-specific testing instructions is
+part of the source change, not an automatically generated summary of commits.
 
 ## Acceptance
 
