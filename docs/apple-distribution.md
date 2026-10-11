@@ -32,7 +32,9 @@ Configure the first workflow through Xcode with the public distribution
 repository. Grant access only to that repository. Each project's
 `ci_scripts/ci_post_clone.sh` invokes `scripts/xcode-cloud-setup.sh`, which installs
 the pinned Rust toolchain/Apple targets and writes its selected `CI_TEAM_ID` into
-the ignored signing configuration. Xcode's build phase compiles the native
+the ignored signing configuration. It isolates the TOML parser dependency in a
+build-local Python environment, supporting Xcode images with Python 3.9 as well
+as newer images. Xcode's build phase compiles the native
 library; Xcode Cloud manages distribution signing and TestFlight delivery.
 
 Use separate iOS and Mac workflows. Start with manual release builds, an iOS
@@ -61,6 +63,9 @@ Revisit the declaration before changing cryptography or distribution geography.
 Keep the English and Chinese Beta descriptions, marketing/privacy links, review
 instructions and per-build testing notes current together. Use the custom-domain
 website and privacy page; do not retain old RC pairing/migration instructions.
+Each Apple project keeps English testing notes in
+`TestFlight/WhatToTest.en-US.txt`; Cloud attaches these to uploaded builds.
+Update these files with the release instead of relying on manual console edits.
 
 ## Acceptance
 

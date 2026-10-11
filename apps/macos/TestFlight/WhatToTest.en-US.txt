@@ -1,0 +1,7 @@
+BackupDuck 0.3.0 introduces the native Mac sender in TestFlight.
+
+Test pairing with the current Android / Pixel receiver, selecting a few photos or videos, and backing up a user-selected folder. Check settings, transfer history, pause/resume, reconnection, and light/dark appearance. Confirm that source files are retained.
+
+This Mac build is sandboxed and uses TestFlight for updates. Access folders through the system picker; direct-download Mac data may live in a separate container. Google Photos cloud backup is independent of device receipt. Receiver download: https://backupduck.app/.
+
+When reporting a problem, include the app version, device model, steps and error message. Do not include private photos or pairing codes.

@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Check release metadata and embedded trust before publishing."""
 from pathlib import Path
-import json,plistlib,re,sys,tomllib,urllib.request
+import json,plistlib,re,sys,urllib.request
+try:
+ import tomllib
+except ModuleNotFoundError:
+ import tomli as tomllib
 r=Path(__file__).resolve().parent.parent
 i=json.loads((r/'release.json').read_text())
 assert re.fullmatch(r'\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?',i['version'])
