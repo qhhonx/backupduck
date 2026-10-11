@@ -4,6 +4,11 @@ The website is static HTML, CSS and JavaScript. GitHub Pages can serve the
 primary site at `https://backupduck.app`; no Vercel functions are required by
 new clients. Build-time release selection replaces the request-time API.
 
+The legacy Vercel compatibility deployment serves the `site` directory directly
+and retains its serverless update endpoints. Its explicit empty build command
+and `.` output directory prevent the Pages build script from changing the
+existing compatibility deployment behavior.
+
 Run `node --test site/tests/*.test.mjs` and `node site/build.mjs build/site`.
 The build reads published GitHub releases, selects a complete release and writes
 `releases.json` plus the exact signed `appcast.xml`. Application binaries stay
