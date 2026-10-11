@@ -31,10 +31,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   let releases;
   if (fixture) releases = JSON.parse(await readFile(fixture, 'utf8'));
   else {
+    const headers = {Accept: 'application/vnd.github+json', 'User-Agent': 'BackupDuck'};
+    // Authenticate only the GitHub API request; never forward credentials to assets.
+    if (process.env.GH_TOKEN) headers.Authorization = `Bearer ${process.env.GH_TOKEN}`;
     const response = await fetch('https://api.github.com/repos/qhhonx/backupduck/releases?per_page=30', {
-      headers: {Accept: 'application/vnd.github+json', 'User-Agent': 'BackupDuck'}, signal: AbortSignal.timeout(10000)
+      headers, signal: AbortSignal.timeout(10000)
     });
-    if (!response.ok) throw Error('Cannot read published releases.');
+    if (!response.ok) throw Error(`Cannot read published releases (HTTP ${response.status}).`);
     releases = await response.json();
   }
   console.log(JSON.stringify(await buildSite(output, releases)));

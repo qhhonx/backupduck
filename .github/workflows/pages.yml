@@ -28,6 +28,8 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: node --test site/tests/*.test.mjs
       - run: node site/build.mjs build/site
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/upload-pages-artifact@v4
         with:
           path: build/site
