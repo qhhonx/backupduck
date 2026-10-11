@@ -36,6 +36,8 @@ the ignored signing configuration. It isolates the TOML parser dependency in a
 build-local Python environment, supporting Xcode images with Python 3.9 as well
 as newer images. Xcode's build phase compiles the native
 library; Xcode Cloud manages distribution signing and TestFlight delivery.
+The Cloud checkout uses a directory override for the installed Rust version so
+archive phases do not install development-only formatter/linter components.
 
 Use separate iOS and Mac workflows with manual start, one Release archive action
 and TestFlight delivery to the existing test groups. Keep Cloud test actions,
