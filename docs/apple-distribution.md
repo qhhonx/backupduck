@@ -39,12 +39,25 @@ library; Xcode Cloud manages distribution signing and TestFlight delivery.
 The Cloud checkout uses a directory override for the installed Rust version so
 archive phases do not install development-only formatter/linter components.
 
-Use separate iOS and Mac workflows with manual start, one Release archive action
-and TestFlight delivery to the existing test groups. Keep Cloud test actions,
-scheduled builds and branch/pull-request triggers disabled to limit compute use.
+Use separate iOS and Mac workflows with manual start and a tag-change condition
+matching `testflight/*`, one Release archive action and TestFlight delivery to the
+existing test groups. Keep Cloud test actions, scheduled builds and
+branch/pull-request triggers disabled to limit compute use.
 Run the existing tests locally or in GitHub Actions before starting a release;
 Cloud is reserved for distribution signing, archive and upload.
 The Mac workflow must select `BackupDuckStore`, not the direct-download scheme.
+
+The `Start TestFlight release` GitHub workflow runs only after successful `Checks`
+on the current public `main` commit. It creates `testflight/v<version>` once per
+version from `release.json`; existing markers are never moved. Ordinary commits
+and failed or superseded checks do not trigger another Cloud build. PR code never
+runs with the release workflow's write token. Set an initial marker for a version
+already uploaded before enabling Cloud tag triggers, to avoid a duplicate upload.
+For a new version, update all version metadata and testing notes, then push to
+`main`. To retry checks from a terminal, use `gh workflow run ci.yml --ref main`.
+Retry an already marked Cloud version manually after fixing a distribution error;
+do not delete and recreate its marker. External TestFlight review and App Store
+submission remain separate from a successful upload.
 
 Xcode Cloud assigns its own monotonically increasing build counter. Set the next
 number above existing uploaded Mac builds before starting distribution. When a
@@ -80,12 +93,32 @@ different Application Support locations; do not assume existing direct-download
 state migrates into the container. Do not overwrite or clear an installed app's
 state to validate the store build.
 
-Cloud tests complement physical-device acceptance. They do not prove real
+## Automated checks
+
+The `Checks` GitHub Actions workflow runs on standard hosted runners. Standard
+macOS runners are free for public repositories; do not select paid larger runners
+for this workflow. Superseded checks on the same branch are cancelled.
+
+- iOS: `scripts/test-ios-ci.sh` builds the shared `BackupDuck` scheme and runs
+  portable XCTest checks on a fresh simulator. It removes only the simulator it
+  created, including on failure. These cover presentation, discovery boundaries,
+  task state, diagnostics, local state events and preparation-loop control.
+  `LibraryTests`, `BackgroundTests`, the video-original transfer acceptance test
+  and `BackupDuckUITests` remain separate integration/visual acceptance suites;
+  they require maintained Photos, receiver and OS background-session fixtures.
+  CI does not claim to cover those suites or their physical-device behavior.
+- macOS: cross-platform Rust tests, native folder tests, the direct-download build
+  and an unsigned compilation of `BackupDuckStore`. GitHub receives no Apple
+  distribution certificates or account credentials.
+- Android, website and other Rust hosts retain their existing checks.
+
+Run `scripts/test-ios-ci.sh` locally with an installed iOS simulator runtime to
+reproduce the iOS job. Results remain in the ignored `build/ios-tests` directory.
+Automated tests complement physical-device acceptance. They do not prove real
 Google Photos cleanup, background execution duration or slow iCloud preparation.
-GitHub Actions continues to cover cross-platform Rust, Android, direct-download
-artifacts and the static website.
 
 References: [Xcode Cloud setup](https://developer.apple.com/documentation/xcode/configuring-your-first-xcode-cloud-workflow),
 [custom scripts](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts),
 [build counters](https://developer.apple.com/documentation/xcode/setting-the-next-build-number-for-xcode-cloud-builds),
-[cloud signing](https://developer.apple.com/help/account/certificates/cloud-managed-certificates).
+[cloud signing](https://developer.apple.com/help/account/certificates/cloud-managed-certificates),
+[standard GitHub runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).

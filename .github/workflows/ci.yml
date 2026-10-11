@@ -1,7 +1,14 @@
-name: Rust checks
-on: [push, pull_request, workflow_dispatch]
+name: Checks
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   website:
     runs-on: ubuntu-latest
@@ -10,8 +17,10 @@ jobs:
       - run: node --test site/tests/*.test.mjs
       - run: node --check site/app.js
       - run: python3 scripts/export-design-tokens.py --check
+      - run: python3 scripts/check-release.py
       - run: node --check crates/native/src/dashboard/app.js
       - run: python3 scripts/audit-public.py --documentation
+      - run: python3 -m unittest discover -s scripts/tests -p 'test_testflight_trigger.py'
   test:
     strategy:
       fail-fast: false
@@ -32,17 +41,26 @@ jobs:
 
   ios:
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: rustup target add aarch64-apple-ios-sim
-      - run: scripts/build-ios.sh simulator
+      - run: scripts/test-ios-ci.sh
   macos:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: rustup target add aarch64-apple-darwin
       - run: scripts/build-macos.sh
       - run: scripts/test-folder-native.sh
+      - name: Compile the sandboxed TestFlight target without distribution credentials
+        run: >-
+          xcodebuild -project apps/macos/BackupDuck.xcodeproj
+          -scheme BackupDuckStore -configuration Release
+          -destination 'generic/platform=macOS'
+          -derivedDataPath build/macos-store-ci
+          CODE_SIGNING_ALLOWED=NO build
   android:
     runs-on: ubuntu-latest
     steps:

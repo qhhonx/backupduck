@@ -145,19 +145,24 @@ import Network
       certificate: "test", token: "test")
   }
 
-  func testFailedNewPairingDoesNotLabelTheSavedReceiverAsAuthenticationFailed() {
+  func testFailedPairingKeepsSavedTrustAndConnectionRecoverySeparate() {
     let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
     model.pairing = pairing
     model.pairingError = "A different pairing attempt failed"
     model.receiverConnection = .ready
     let view = ReceiverStatusIndicator(model: model)
-    XCTAssertEqual(view.status.key, "receiver_indicator_paired")
+    XCTAssertEqual(view.status.key, "receiver_indicator_attention")
+    XCTAssertEqual(model.pairing?.receiverID, "test", "Failed pairing must retain saved trust")
+    model.pairingError = nil
+    XCTAssertEqual(view.status.key, "receiver_indicator_connected")
     model.receiverConnection = .authentication
     XCTAssertEqual(view.status.key, "receiver_indicator_attention")
     model.receiverConnection = .network; model.receiverUnavailable = true
     XCTAssertEqual(view.status.key, "receiver_indicator_waiting")
     model.receiverConnection = .ready; model.receiverUnavailable = false
-    XCTAssertEqual(view.status.key, "receiver_indicator_paired")
+    XCTAssertEqual(view.status.key, "receiver_indicator_connected")
+    model.receiverConnection = .unknown
+    XCTAssertEqual(view.status.key, "receiver_indicator_paired", "Saved trust alone does not prove connectivity")
   }
 
   func testDiagnosticsKeepAuthenticationSeparateAndForceBypassesFailureCache() async {
@@ -509,8 +514,8 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(TransferUserCategories.keys, ["all", "active", "attention", "saved"])
     XCTAssertEqual(TransferUserCategories.initial("queued"), "active")
     XCTAssertEqual(TransferUserCategories.initial("failed"), "attention")
-    XCTAssertEqual(TransferUserCategories.initial("preparing"), "preparing")
-    XCTAssertEqual(TransferUserCategories.initial("scanned"), "scanned")
+    XCTAssertEqual(TransferUserCategories.initial("preparing"), "active")
+    XCTAssertEqual(TransferUserCategories.initial("scanned"), "all")
     XCTAssertFalse(TransferUserCategories.keys.contains("preparing"))
     XCTAssertFalse(TransferUserCategories.keys.contains("received"))
   }

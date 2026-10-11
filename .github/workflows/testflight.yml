@@ -1,0 +1,33 @@
+name: Start TestFlight release
+on:
+  workflow_run:
+    workflows: [Checks]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: backupduck-testflight-trigger
+  cancel-in-progress: false
+jobs:
+  release-marker:
+    # Never execute pull-request code with the write-enabled release token.
+    if: >-
+      github.event.repository.private == false &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Mark the tested version for Xcode Cloud
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python3 scripts/trigger-testflight.py

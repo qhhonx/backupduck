@@ -82,6 +82,9 @@ Preserve installed-client trust anchors and legacy update endpoints; consult
 For Apple store/test distribution, follow `docs/apple-distribution.md`. Keep
 the Mac store target sandboxed and free of Sparkle, inject the signing team via
 local/Cloud configuration, and distinguish upload from tester availability.
+GitHub `Checks` gates new `testflight/v<version>` markers on current `main`.
+Cloud archives/uploads only; keep ordinary push, scheduled and test actions off.
+Never move an existing release marker to force a retry; start Cloud manually.
 A push to `main` may publish apps and deploy the website: do not merge, tag or
 publish without explicit authorization.
 Do not rewrite published history as part of routine source cleanup.
