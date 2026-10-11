@@ -1,7 +1,6 @@
 # Upgrade compatibility
 
-0.3.0 is a source release candidate until its signed artifacts and distribution
-channels are published. Discovering a release and installing it are separate
+0.3.0 uses build 47. Discovering a release and installing it are separate
 compatibility questions. Automatic checking is not unattended installation.
 
 ## Release discovery
@@ -11,12 +10,11 @@ compatibility questions. Automatic checking is not unattended installation.
 | BackupDuck 0.2.0-rc.1 / rc.2 / rc.3 | Supports discovering 0.3.0 through the retained signed feed | Supports the stable 0.3.0 tag and BackupDuck metadata; RC.1's certificate difference affects installation, not discovery | No built-in updater; TestFlight controls availability |
 | PhotoBridge 0.1.x | Supports discovery through the retained PhotoBridge feed and public key | The old updater requires PhotoBridge repository URLs and APK names; ordinary BackupDuck metadata is rejected | No built-in updater; the application identity changed |
 
-The macOS 0.1.x and 0.2.x release tags retain compatible feed keys. An isolated,
-informational Sparkle probe using the 0.1.x feed configuration discovered the
-currently published 0.2.0-rc.3 (build 46), without downloading or installing it.
-This verifies legacy-feed discovery, not a 0.3.0 release or an in-place migration.
-0.3.0 becomes discoverable only after a valid signed feed and complete release
-metadata advertise its higher build number.
+The macOS 0.1.x and 0.2.x release tags retain compatible feed keys. A valid
+signed feed and complete release metadata must advertise the higher build
+number for discovery to succeed. An informational update check verifies
+availability; it does not prove a successful installation or an in-place
+migration across application identities.
 
 The Android 0.1.x updater also rejects RC tags. Although it accepts a stable
 0.3.0 tag, it requires `qhhonx/photobridge` download URLs and

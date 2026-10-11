@@ -64,7 +64,7 @@
   "release_loading": "正在检查最新版本…",
   "mac_role": "备份系统图库或文件夹",
   "download_releases": "查看发布版本",
-  "mac_install": "移到“应用程序”。此测试版尚未经过 Apple 公证，首次打开可能需要在“隐私与安全性”中允许。后续通过 Sparkle 更新。",
+  "mac_install": "移到“应用程序”。此版本尚未经过 Apple 公证，首次打开可能需要在“隐私与安全性”中允许。后续通过 Sparkle 更新。",
   "android_role": "照片的接收端",
   "android_install": "安装 APK，并按 Android 提示允许安装。后续可在应用内检查更新，由你确认安装。",
   "ios_role": "从手机直接发送",

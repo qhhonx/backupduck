@@ -18,9 +18,10 @@
 - Provide English contributor documentation and maintained design/component
   contracts. Android and Windows sender applications remain outside this release.
 
-Release metadata: version 0.3.0, build 47. Availability on distribution channels
-is independent of this source change. Real iCloud slow-download behavior and a
-complete physical-device Google Photos cleanup require separate verification.
+Release metadata: version 0.3.0, build 47. iOS TestFlight availability is separate
+from the Mac and Android release. Real slow iCloud-original preparation,
+automatic low-space cleanup and interrupted-cleanup recovery remain separate
+verification scenarios.
 
 Official Mac 0.2.x and Android RC.2/RC.3 installations retain their update
 identities. Android RC.1 and PhotoBridge 0.1.x need the separate transition
