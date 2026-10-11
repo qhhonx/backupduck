@@ -112,7 +112,7 @@ struct MacWorkspace: View {
           }
         }.listStyle(.sidebar).font(.body.weight(.medium))
         VStack(alignment: .leading, spacing: 8) {
-          BackupStatusIndicator(model: model)
+          ReceiverStatusIndicator(model: model)
           Text(model.peerDevice?.name ?? NSLocalizedString(model.pairing == nil ? "receiver_unpaired" : "receiver_paired", comment: "")).font(.caption)
             .foregroundStyle(.secondary)
         }.font(.callout).padding(20)

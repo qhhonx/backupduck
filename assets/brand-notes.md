@@ -9,3 +9,5 @@ Prompt: one square native app icon; simple friendly yellow duck in profile; tiny
 The website sample memories contain generated scenery, not user-library photos. The demonstration video illustrates an earlier version of the same application.
 
 Menu-bar/system-chrome icons derive their mark from `assets/AppIcon.png`. Remove the ivory background, merge the original warm body and bill into one system tint, and preserve the original blue wing and eye as transparent negative space. Never redraw or substitute a similar duck. `scripts/export-menu-bar-icon.swift` exports the same alpha mask to the Mac 20pt PDF, the prototype PNG/SVG, and the Android monochrome bitmap. The PDF embeds the high-resolution mask; it is not a newly drawn vector logo. Full-color launch icons remain unchanged. Re-run the exporter after an approved source change, and inspect the small mark beside neighboring system symbols in light/dark appearances.
+
+Android notifications use density-specific 24 dp PNG alpha masks with a 21 dp mark, exported from the same original pixels. Do not reuse theme-dependent outline drawables as notification small icons.

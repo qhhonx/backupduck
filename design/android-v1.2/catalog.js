@@ -858,5 +858,25 @@ const catalog = [
     ],
     "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
     "path": "实验功能 → Google 相册页面检查 → 导出检查报告"
+  },
+  {
+    "id": "system-notification",
+    "title": "接收通知",
+    "kind": "review",
+    "source": "apps/android/app/src/main/java/app/backupduck/ReceiverNotifications.kt",
+    "symbol": "content/build/resume",
+    "states": [
+      "接收已就绪",
+      "正在启动接收",
+      "正在恢复连接",
+      "接收尚未启动",
+      "正在接收照片",
+      "正在保存到手机相册",
+      "新传输已暂停",
+      "等待手机降温",
+      "等待释放空间",
+      "部分文件需要处理"
+    ],
+    "native": "Native system notification template; inspect actual lock-screen and shade rendering. Synthetic content only."
   }
 ];

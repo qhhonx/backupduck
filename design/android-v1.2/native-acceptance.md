@@ -20,3 +20,8 @@ Generated evidence remains local. A passing build, text lookup or non-overlappin
 view rectangle does not prove that the rendered content is complete and aligned.
 Do not inject fixture histories or perform cleanup tests in a real installation.
 Extend existing checks for new states and shared component defects.
+
+For notification changes, inspect the actual system shade and lock screen.
+Verify the original-brand alpha mark at small size, state title without a
+repeated app name, useful supporting text, and distinct readiness/transfer/
+saving/recovery states. System templates own typography and placement.

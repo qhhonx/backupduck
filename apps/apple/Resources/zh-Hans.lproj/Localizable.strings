@@ -1110,3 +1110,5 @@
 "mac_folder_operation_incomplete" = "操作未完成，请重试";
 
 "apple_selected_submitting" = "正在加入备份任务…";
+
+"receiver_indicator_connected" = "已连接";

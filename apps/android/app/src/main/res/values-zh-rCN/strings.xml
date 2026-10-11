@@ -345,4 +345,23 @@
 <string name="dashboard_access_saved">已保存，浏览器需要重新登录。</string>
 <string name="recovery_port">接收端口被占用。请停止这台手机上其他正在接收的应用，再重新开始接收。</string>
 <string name="recovery_interface">当前 Wi-Fi 地址不可用。请重新连接 Wi-Fi，再开始接收。</string>
+    <string name="notification_ready">接收已就绪</string>
+    <string name="notification_ready_body">可在已连接的设备上开始备份。</string>
+    <string name="notification_starting">正在启动接收</string>
+    <string name="notification_starting_body">正在准备连接。</string>
+    <string name="notification_recovering">正在恢复连接</string>
+    <string name="notification_recovering_body">将自动重试，已接收文件保留。</string>
+    <string name="notification_stopped">接收尚未启动</string>
+    <string name="notification_receiving">正在接收照片</string>
+    <string name="notification_receiving_body">接收完成后将保存到手机相册。</string>
+    <string name="notification_saving">正在保存到手机相册</string>
+    <string name="notification_saving_body">正在处理已接收的文件。</string>
+    <string name="notification_paused">新传输已暂停</string>
+    <string name="notification_paused_body">已接收文件继续保存，打开备份鸭可继续接收。</string>
+    <string name="notification_cooling">等待手机降温</string>
+    <string name="notification_cooling_body">降温后将自动继续接收和保存。</string>
+    <string name="notification_space">等待释放空间</string>
+    <string name="notification_space_body">释放手机空间后将继续处理。</string>
+    <string name="notification_attention">部分文件需要处理</string>
+    <string name="notification_attention_body">打开传输记录查看原因并重试。</string>
 </resources>

@@ -11,7 +11,15 @@ async fn readings_require_pairing_and_expire_temperature_without_inventing_free_
     let router = shared_router_with_readings(receiver, &token, None, readings.clone()).unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/v2/device-status", listener.local_addr().unwrap());
-    let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let (stop, stopped) = tokio::sync::oneshot::channel();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router)
+            .with_graceful_shutdown(async {
+                let _ = stopped.await;
+            })
+            .await
+            .unwrap()
+    });
     let http = reqwest::Client::new();
     assert_eq!(http.get(&url).send().await.unwrap().status(), 401);
     let request = || http.get(&url).bearer_auth(&token);
@@ -32,6 +40,10 @@ async fn readings_require_pairing_and_expire_temperature_without_inventing_free_
     let stale: DeviceReadings = request().send().await.unwrap().json().await.unwrap();
     assert!(stale.temperature_deci_celsius.is_none());
     assert!(stale.temperature_observed_at_ms.is_none());
-    server.abort();
+    // Await connection shutdown before deleting SQLite files. Aborting the
+    // listener leaves connection tasks alive and locks the directory on Windows.
+    drop(http);
+    stop.send(()).unwrap();
+    server.await.unwrap();
     std::fs::remove_dir_all(root).unwrap();
 }

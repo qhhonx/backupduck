@@ -112,17 +112,22 @@ internal fun Instrumentation.checkReceiverSurface(args: Bundle): String {
             check(paintedBackground() != activeColor) { "Disabled action still looks active" }
             screenshot("disabled", button)
         }
-        check(ReceiverNotifications.text(activity, waiting) == activity.getString(R.string.receiver_waiting))
+        check(ReceiverNotifications.content(activity, waiting).title == activity.getString(R.string.notification_recovering))
         val ready = ReceiverSnapshot(phase = "ready")
-        check(ReceiverNotifications.text(activity, ready) == activity.getString(R.string.duck_wait_receive))
-        check(ReceiverNotifications.text(activity, ready.copy(received = 1, total = 1)) == activity.getString(R.string.receiver_notification_processing))
+        check(ReceiverNotifications.content(activity, ready).title == activity.getString(R.string.notification_ready))
+        check(ReceiverNotifications.content(activity, ready.copy(received = 1, total = 1)).title == activity.getString(R.string.notification_saving))
         val receipt = RecentTransfer("synthetic", "synthetic.jpg", "photo", 100, 50, "receiving", "pending")
-        check(ReceiverNotifications.text(activity, ready.copy(recent = listOf(receipt))) == activity.getString(R.string.receiver_notification))
+        check(ReceiverNotifications.content(activity, ready.copy(recent = listOf(receipt))).title == activity.getString(R.string.notification_receiving))
         ReceiverPreferences.setPaused(activity, true)
-        check(ReceiverNotifications.text(activity, ready) == activity.getString(R.string.duck_reception_paused))
+        check(ReceiverNotifications.content(activity, ready).title == activity.getString(R.string.notification_paused))
         ReceiverPreferences.setPaused(activity, false)
         val notification = ReceiverNotifications.build(activity, waiting)
-        check(notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() == activity.getString(R.string.receiver_waiting))
+        check(notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() == activity.getString(R.string.notification_recovering_body))
+        check(notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() != activity.getString(R.string.app_name))
+        check(notification.smallIcon.resId == R.drawable.ic_notification_duck)
+        val resume = ReceiverNotifications.resume(activity)
+        check(resume.smallIcon.resId == notification.smallIcon.resId)
+        check(resume.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() == activity.getString(R.string.notification_stopped))
         check(notification.extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0) == 0)
         check(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
         val builder = Notification.Builder.recoverBuilder(activity, notification)
@@ -134,7 +139,10 @@ internal fun Instrumentation.checkReceiverSurface(args: Bundle): String {
             view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(activity.dp(400), View.MeasureSpec.AT_MOST))
             view.layout(0, 0, width, view.measuredHeight)
             templateHeight = view.measuredHeight
-            check(templateHeight in activity.dp(40)..activity.dp(240)) { "Notification template reserves a large blank area: ${templateHeight}px" }
+            // Native templates grow with accessibility text; a fixed-height
+            // bound wrongly rejects valid wrapped titles at 2x font scale.
+            val maximum = activity.dp((240 * activity.resources.configuration.fontScale).toInt())
+            check(templateHeight in activity.dp(40)..maximum) { "Notification template reserves a large blank area: ${templateHeight}px" }
             screenshot("notification", view)
         }
         return "PASS: stable recovery across 12 polls; unchanged surface identity; icon-label gap ${largestGap / activity.resources.displayMetrics.density}dp (ink ${largestInkGap / activity.resources.displayMetrics.density}dp); actual short notification template ${templateHeight / activity.resources.displayMetrics.density}dp; honest waiting/receiving/processing/pause; no fake progress"

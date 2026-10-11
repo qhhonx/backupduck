@@ -860,6 +860,9 @@ struct ReceiverStatusIndicator: View {
     if model.receiverUnavailable || model.waitingForNetwork {
       return ("receiver_indicator_waiting", "wifi.exclamationmark", DuckColors.attention)
     }
+    if model.receiverConnection == .ready {
+      return ("receiver_indicator_connected", "wifi", DuckColors.action)
+    }
     return ("receiver_indicator_paired", "link", DuckColors.action)
   }
   var body: some View {

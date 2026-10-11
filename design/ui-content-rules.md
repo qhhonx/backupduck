@@ -20,6 +20,22 @@ use neutral busy feedback, not warnings. Only an unfinished operation after
 execution ends exposes recovery. Do not permanently stack a submitted message
 under an existing status. Label file totals as totals, not current-run progress.
 
+## Connection and system notifications
+
+Device identity areas show pairing or verified connection state, never the last
+backup result. Saved pairing alone is not an online signal. Show transfer and
+phone-gallery outcomes with tasks and backup progress.
+
+System notifications use the native template and an original-brand monochrome
+alpha icon, with no theme-dependent strokes or launch-tile background. Android
+uses a 24 dp canvas with a 21 dp mark, exported for each density. The system
+already displays the application name: the content title names the current
+state, and the body gives one useful next step or consequence. Apply the same
+contract to ongoing reception and restart reminders. Never include account
+identifiers or filenames on the lock screen, imply cloud backup, or describe
+idle readiness as an active transfer. Check actual system rendering in light
+and dark notification surfaces.
+
 ## Feature discovery
 
 A quiet 8-unit duck-yellow dot indicates an unseen feature, not an error,

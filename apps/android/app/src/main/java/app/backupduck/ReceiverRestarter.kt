@@ -31,9 +31,7 @@ class ReceiverRestarter : BroadcastReceiver() {
             // Android 15 prohibits dataSync FGS launches from BOOT_COMPLETED.
             val notifications = context.getSystemService(NotificationManager::class.java)
             notifications.createNotificationChannel(NotificationChannel("receiver", context.getString(R.string.app_name), NotificationManager.IMPORTANCE_LOW))
-            val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-            runCatching { notifications.notify(2, Notification.Builder(context, "receiver").setSmallIcon(android.R.drawable.stat_sys_upload)
-                .setContentTitle(context.getString(R.string.app_name)).setContentText(context.getString(R.string.receiver_resume_notice)).setContentIntent(open).setAutoCancel(true).build()) }
+            runCatching { notifications.notify(2, ReceiverNotifications.resume(context)) }
         }
     }
 }

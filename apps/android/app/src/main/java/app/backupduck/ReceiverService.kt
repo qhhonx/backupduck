@@ -51,11 +51,11 @@ class ReceiverService : Service() {
         )
         startForeground(1, ReceiverNotifications.build(this, ReceiverState.snapshot.value))
         scope.launch {
-            var previous: String? = null
+            var previous: ReceiverNotifications.Content? = null
             ReceiverState.snapshot.collect { state ->
-                val text = ReceiverNotifications.text(this@ReceiverService, state)
-                if (text != previous) {
-                    previous = text
+                val content = ReceiverNotifications.content(this@ReceiverService, state)
+                if (content != previous) {
+                    previous = content
                     getSystemService(NotificationManager::class.java).notify(1,
                         ReceiverNotifications.build(this@ReceiverService, state))
                 }

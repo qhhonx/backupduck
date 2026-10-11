@@ -27,3 +27,5 @@
 /* Unseen-feature discovery is quiet and separate from operational status. */
 .discovery-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--brand-accent);margin-inline-start:8px;vertical-align:middle;flex-shrink:0}
 .nav .symbol{position:relative}.nav .symbol .discovery-dot{position:absolute;top:0;inset-inline-end:-5px;margin:0}
+
+.notification-reference{padding:16px;background:var(--surface,#fff);color:var(--text,#222);border:1px solid #8886;border-radius:12px}.notification-reference header{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px}.notification-reference p{margin:6px 0 0}.notification-reference img{opacity:.85}

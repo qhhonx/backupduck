@@ -56,4 +56,13 @@ let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\"><imag
 try svg.write(to: root.appendingPathComponent("assets/BackupDuckMonochrome.svg"), atomically: true, encoding: .utf8)
 let android = template(canvas: 432, markSize: 248).representation(using: .png, properties: [:])!
 try android.write(to: root.appendingPathComponent("apps/android/app/src/main/res/drawable-nodpi/ic_launcher_duck_monochrome.png"))
+// Notification icons use opaque alpha geometry; theme-dependent strokes can
+// disappear in system chrome. Keep the original mark on a compact 24 dp canvas.
+for (density, pixels) in [("mdpi", 24), ("hdpi", 36), ("xhdpi", 48), ("xxhdpi", 72), ("xxxhdpi", 96)] {
+  let directory = root.appendingPathComponent("apps/android/app/src/main/res/drawable-\(density)")
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  let notification = template(canvas: pixels, markSize: CGFloat(pixels) * 0.875)
+  try notification.representation(using: .png, properties: [:])!
+    .write(to: directory.appendingPathComponent("ic_notification_duck.png"))
+}
 print("Exported original AppIcon mark: \(Int(bounds.width))x\(Int(bounds.height)); source SHA256 \(SHA256.hash(data: source).map { String(format: "%02x", $0) }.joined())")

@@ -345,4 +345,23 @@
 <string name="dashboard_access_saved">Saved. Browsers need to sign in again.</string>
 <string name="recovery_port">The receiving port is in use. Stop other receiving apps on this phone, then try again.</string>
 <string name="recovery_interface">The Wi-Fi address is no longer available. Reconnect Wi-Fi and start receiving again.</string>
+    <string name="notification_ready">Ready to receive</string>
+    <string name="notification_ready_body">Start a backup on your connected device.</string>
+    <string name="notification_starting">Starting receiver</string>
+    <string name="notification_starting_body">Preparing the connection.</string>
+    <string name="notification_recovering">Restoring connection</string>
+    <string name="notification_recovering_body">Retrying automatically. Your files are kept.</string>
+    <string name="notification_stopped">Receiving not started</string>
+    <string name="notification_receiving">Receiving photos</string>
+    <string name="notification_receiving_body">Files save to the phone gallery after receiving.</string>
+    <string name="notification_saving">Saving to phone gallery</string>
+    <string name="notification_saving_body">Received files are being processed.</string>
+    <string name="notification_paused">New transfers paused</string>
+    <string name="notification_paused_body">Received files continue saving. Open BackupDuck to resume.</string>
+    <string name="notification_cooling">Waiting for phone to cool</string>
+    <string name="notification_cooling_body">Receiving and saving resume after cooling.</string>
+    <string name="notification_space">Waiting for free space</string>
+    <string name="notification_space_body">Free up phone storage to continue.</string>
+    <string name="notification_attention">Some files need attention</string>
+    <string name="notification_attention_body">Open Transfers to view the reason and retry.</string>
 </resources>
