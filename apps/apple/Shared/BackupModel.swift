@@ -467,13 +467,13 @@ private struct ProcessingEventsResult: Decodable {
     await refresh()
   }
   func stopProcessingEvents() { processingEventsTask?.cancel(); processingEventsTask = nil }
-  func startProcessingEvents() {
+  func startProcessingEvents(pollingAllowed: @escaping @MainActor () -> Bool = { BackupModel.canPoll }) {
     processingEventsTask?.cancel()
     processingEventsTask = Task {
       var revision: UInt64 = 0
       var route: String?
       while !Task.isCancelled {
-        guard Self.canPoll, let target = pairing else {
+        guard pollingAllowed(), let target = pairing else {
           try? await Task.sleep(for: .seconds(1)); continue
         }
         let currentRoute = target.receiverID + "|" + target.endpoint

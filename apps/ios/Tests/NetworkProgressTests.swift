@@ -13,19 +13,22 @@ import Network
     let data = try await Bridge.call(["op": "start_receiver", "root": root.appendingPathComponent("receiver").path,
       "listen": "127.0.0.1:18496", "capacity": 32 * 1024 * 1024])
     let target = try JSONDecoder().decode(Pairing.self, from: data)
-    let model = BackupModel.shared
-    await model.open()
-    let previousPairing = model.pairing, previousImporting = model.importing, previousPause = model.paused
-    model.stopProcessingEvents()
+    let shared = BackupModel.shared
+    await shared.open()
+    let previousPause = shared.paused
+    shared.stopProcessingEvents()
+    // The hosted test runner may background its application after synthetic
+    // window captures. Keep this result-stream fixture independent of scene
+    // activation and of the shared model's discovery/lifecycle workers.
+    let model = BackupModel(root: root)
     model.pairing = target; model.importing = true; model.paused = true
     addTeardownBlock { @MainActor in
       model.stopProcessingEvents()
       _ = try? await Bridge.call(["op": "stop_receiver"])
       _ = try? await Bridge.call(["op": "pause_sender", "paused": previousPause])
-      model.pairing = previousPairing; model.importing = previousImporting; model.paused = previousPause
-      model.queueRevision = -1
-      await model.refresh(includeStorage: false)
-      model.startProcessingEvents()
+      shared.queueRevision = -1
+      await shared.refresh(includeStorage: false)
+      shared.startProcessingEvents()
     }
     _ = try await Bridge.call(["op": "pause_sender", "paused": false])
     let file = root.appendingPathComponent("generated.jpg")
@@ -44,7 +47,7 @@ import Network
     let asset = try XCTUnwrap(publication["asset"] as? [String: Any])
     let resources = try XCTUnwrap(asset["resources"] as? [[String: Any]])
     let hash = try XCTUnwrap(resources.first?["sha256"] as? String)
-    model.startProcessingEvents()
+    model.startProcessingEvents(pollingAllowed: { true })
     try await Task.sleep(for: .milliseconds(150))
     _ = try await Bridge.call(["op": "gallery_publication", "id": id,
       "copy": ["locator": "content://generated/fixture/1", "sha256": hash, "size": 4096]])
