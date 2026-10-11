@@ -30,10 +30,21 @@ internal fun Instrumentation.checkReceiverSurface(args: Bundle): String {
         (0 until view.childCount).flatMap { all(view.getChildAt(it)) } else emptyList()
     fun screenshot(name: String, view: View) {
         var bitmap: Bitmap? = null
-        val draw = { bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also {
-            it.eraseColor(android.graphics.Color.WHITE)
-            view.draw(android.graphics.Canvas(it))
-        } }
+        val draw = {
+            // System notification templates may decode hardware-backed icons.
+            // Copy those pixels before drawing this isolated view to a software canvas.
+            all(view).filterIsInstance<android.widget.ImageView>().forEach { image ->
+                val drawable = image.drawable as? android.graphics.drawable.BitmapDrawable
+                if (drawable?.bitmap?.config == Bitmap.Config.HARDWARE) {
+                    image.setImageDrawable(android.graphics.drawable.BitmapDrawable(
+                        image.resources, drawable.bitmap.copy(Bitmap.Config.ARGB_8888, false)))
+                }
+            }
+            bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also {
+                it.eraseColor(android.graphics.Color.WHITE)
+                view.draw(android.graphics.Canvas(it))
+            }
+        }
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) draw() else runOnMainSync { draw() }
         File(targetContext.cacheDir, "receiver-surface-$name.png").outputStream().use { bitmap!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap!!.recycle()
