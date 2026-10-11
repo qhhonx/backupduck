@@ -347,7 +347,7 @@
 "backup_indicator_retry" = "Waiting to retry";
 "backup_indicator_waiting" = "Waiting";
 "backup_indicator_publication_pending" = "Waiting for gallery";
-"backup_indicator_gallery_complete" = "Added to phone gallery";
+"backup_indicator_gallery_complete" = "Transfer complete";
 "backup_indicator_ready" = "Ready";
 
 "receiver_indicator_pairing" = "Pairing";

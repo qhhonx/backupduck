@@ -275,22 +275,12 @@ struct MacBackupFooter: View {
     }
     return String(format: NSLocalizedString("design_saved_count", comment: ""), model.summary.published, model.summary.total)
   }
-  private var title: String {
-    if model.pairing == nil { return "receiver_unpaired" }
-    if model.paused { return "backup_paused" }
-    if model.importing { return "importing_originals" }
-    if model.summary.failed + model.summary.publication_failed > 0 { return "state_attention" }
-    if model.waitingForNetwork || model.receiverUnavailable { return "waiting_for_wifi" }
-    if model.compactWaitingReason != nil { return "backup_waiting" }
-    if model.summary.running + model.summary.queued > 0 { return "state_active" }
-    if model.summary.received > model.summary.published { return "state_publication_pending" }
-    if model.summary.published > 0 { return "state_published" }
-    return "backup_status_ready"
-  }
+  private var aggregate: (key: String, symbol: String, color: Color) { backupAggregateStatus(model) }
+  private var title: String { aggregate.key }
   var body: some View {
     HStack(spacing: 12) {
-      Image(systemName: model.summary.failed + model.summary.publication_failed > 0 ? "exclamationmark.triangle" : model.summary.published > 0 ? "checkmark.shield" : "arrow.up.arrow.down")
-        .font(.system(size: 20)).foregroundStyle(model.summary.failed + model.summary.publication_failed > 0 ? DuckColors.failure : DuckColors.action)
+      Image(systemName: aggregate.symbol)
+        .font(.system(size: 20)).foregroundStyle(aggregate.color)
         .frame(width: 20, height: 20)
       VStack(alignment: .leading, spacing: 5) {
         HStack(spacing: 10) {

@@ -24,7 +24,12 @@ under an existing status. Label file totals as totals, not current-run progress.
 
 Device identity areas show pairing or verified connection state, never the last
 backup result. Saved pairing alone is not an online signal. Show transfer and
-phone-gallery outcomes with tasks and backup progress.
+phone-gallery outcomes with tasks and backup progress. Completed aggregate
+progress says "Transfer complete" only after all queued work and gallery
+publication have finished; individual tasks retain their specific gallery
+result. An aggregate completion label must not sound like local sender storage
+or imply Google Photos cloud backup. Apple aggregate headings and footers share
+one state projection, including preparation, waiting and failure priority.
 
 System notifications use the native template and an original-brand monochrome
 alpha icon, with no theme-dependent strokes or launch-tile background. Android

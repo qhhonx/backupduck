@@ -196,16 +196,7 @@ struct DuckBackupProgress: View {
   }
   #endif
   #if os(macOS)
-  private var macPhase: LocalizedStringKey {
-    if model.paused { return "backup_paused" }
-    if model.summary.publication_failed > 0 { return "mac_fidelity_gallery_failure_short" }
-    if model.summary.failed > 0 { return "state_failed" }
-    if model.importing || model.summary.running > 0 { return "state_running" }
-    if model.waitingForNetwork || model.receiverUnavailable { return "waiting_for_wifi" }
-    if model.summary.queued + model.pendingImports > 0 { return "state_queued" }
-    if model.summary.received > model.summary.published { return "state_publication_pending" }
-    return model.summary.total > 0 ? "state_published" : "backup_status_ready"
-  }
+  private var macPhase: LocalizedStringKey { LocalizedStringKey(backupAggregateStatus(model).key) }
   private var macProgress: some View {
     DuckSurface {
       VStack(alignment: .leading, spacing: 0) {

@@ -727,6 +727,36 @@ struct BackupTaskRow: View {
   }
 }
 
+/// One aggregate presentation for progress headings and desktop footers.
+/// Individual task results and receiver connection state remain separate.
+@MainActor func backupAggregateStatus(_ model: BackupModel) -> (key: String, symbol: String, color: Color) {
+    if !model.ready { return model.message == nil
+      ? ("backup_indicator_starting", "clock", .secondary)
+      : ("backup_indicator_attention", "exclamationmark.circle", DuckColors.attention) }
+    if model.pairing == nil { return ("backup_indicator_unpaired", "link", .secondary) }
+    if model.paused { return ("backup_indicator_paused", "pause.circle", .secondary) }
+    if model.message != nil || model.summary.failed + model.summary.publication_failed > 0 {
+      return ("backup_indicator_attention", "exclamationmark.circle", DuckColors.attention)
+    }
+    if model.waitingForNetwork || model.receiverUnavailable {
+      return ("backup_indicator_network", "wifi.exclamationmark", DuckColors.attention)
+    }
+    if model.summary.running > 0 || model.importing {
+      return ("backup_indicator_active", "arrow.up.circle", DuckColors.action)
+    }
+    if model.waitingReason != nil { return ("backup_indicator_retry", "clock", DuckColors.attention) }
+    if model.pendingImports > 0 || model.summary.queued > 0 {
+      return ("backup_indicator_waiting", "clock", .secondary)
+    }
+    if model.summary.received > model.summary.published + model.summary.publication_failed {
+      return ("backup_indicator_publication_pending", "clock", .secondary)
+    }
+    if model.summary.received > 0 {
+      return ("backup_indicator_gallery_complete", "checkmark.circle", DuckColors.saved)
+    }
+    return ("backup_indicator_ready", "checkmark.circle", DuckColors.saved)
+  }
+
 /// Compact, always-present status; full messages belong in the detail sheet.
 struct BackupStatusIndicator: View {
   @ObservedObject var model: BackupModel
@@ -757,33 +787,7 @@ struct BackupStatusIndicator: View {
     }
     return NSLocalizedString(model.paused ? "backup_paused" : "backup_status_ready", comment: "")
   }
-  private var status: (key: String, symbol: String, color: Color) {
-    if !model.ready { return model.message == nil
-      ? ("backup_indicator_starting", "clock", .secondary)
-      : ("backup_indicator_attention", "exclamationmark.circle", DuckColors.attention) }
-    if model.pairing == nil { return ("backup_indicator_unpaired", "link", .secondary) }
-    if model.paused { return ("backup_indicator_paused", "pause.circle", .secondary) }
-    if model.message != nil || model.summary.failed + model.summary.publication_failed > 0 {
-      return ("backup_indicator_attention", "exclamationmark.circle", DuckColors.attention)
-    }
-    if model.waitingForNetwork || model.receiverUnavailable {
-      return ("backup_indicator_network", "wifi.exclamationmark", DuckColors.attention)
-    }
-    if model.summary.running > 0 || model.importing {
-      return ("backup_indicator_active", "arrow.up.circle", DuckColors.action)
-    }
-    if model.waitingReason != nil { return ("backup_indicator_retry", "clock", DuckColors.attention) }
-    if model.pendingImports > 0 || model.summary.queued > 0 {
-      return ("backup_indicator_waiting", "clock", .secondary)
-    }
-    if model.summary.received > model.summary.published + model.summary.publication_failed {
-      return ("backup_indicator_publication_pending", "clock", .secondary)
-    }
-    if model.summary.received > 0 {
-      return ("backup_indicator_gallery_complete", "photo.on.rectangle", DuckColors.action)
-    }
-    return ("backup_indicator_ready", "checkmark.circle", DuckColors.saved)
-  }
+  private var status: (key: String, symbol: String, color: Color) { backupAggregateStatus(model) }
   var body: some View {
     Button { details = true } label: {
       if let actionTitle, !compactMac { Text(actionTitle).font(.system(size: 14)).foregroundStyle(DuckColors.action).frame(minHeight: controlHeight) }
