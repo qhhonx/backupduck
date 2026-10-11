@@ -1,6 +1,16 @@
 import Foundation
 import Photos
 
+/// Each drag is applied to its starting snapshot, so reversing the finger
+/// restores items outside the current range rather than toggling them again.
+struct LibraryRangeSelection {
+  let baseline: Set<String>
+  let adding: Bool
+  func applying(_ identifiers: [String]) -> Set<String> {
+    adding ? baseline.union(identifiers) : baseline.subtracting(identifiers)
+  }
+}
+
 /// Incremental metadata index. Presentation groups never change transfer identities.
 struct LibraryPresentationIndex: Sendable {
   struct Metadata {

@@ -122,6 +122,15 @@ fn gallery_failure_stays_visible_and_retry_never_requeues_original_bytes() {
     );
     assert_eq!(s.summary("receiver-1").unwrap()["publication_failed"], 1);
     assert!(s.processing_due("receiver-1", 20, 10).unwrap().is_empty());
+    assert_eq!(
+        s.processing_event_jobs("receiver-1").unwrap().len(),
+        1,
+        "Foreground events must not inherit the 60-second failure delay"
+    );
+    assert!(s
+        .processing_event_jobs("different-receiver")
+        .unwrap()
+        .is_empty());
 
     receipt.processing = ProcessingState::Complete;
     receipt.processing_error = None;
@@ -135,6 +144,7 @@ fn gallery_failure_stays_visible_and_retry_never_requeues_original_bytes() {
     );
     assert_eq!(s.summary("receiver-1").unwrap()["published"], 1);
     assert!(s.processing_due("receiver-1", 1000, 10).unwrap().is_empty());
+    assert!(s.processing_event_jobs("receiver-1").unwrap().is_empty());
     assert!(s.claim("receiver-1", 1000).unwrap().is_none());
 }
 
@@ -561,4 +571,103 @@ fn verified_connection_recovers_only_its_network_errors_without_resuming_pause()
         assert_eq!(s.job(old.id).unwrap().state, old.state);
     }
     assert_eq!(s.recover_connection("receiver-1").unwrap(), 0);
+}
+
+#[test]
+fn four_user_categories_cover_pending_gallery_before_pagination() {
+    let t = Temp::new();
+    let mut sender = Sender::open(&t.0).unwrap();
+    let mut received_ids = Vec::new();
+    for (index, processing) in [
+        ProcessingState::Pending,
+        ProcessingState::Complete,
+        ProcessingState::Failed,
+        ProcessingState::NotRequested,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut a = asset();
+        a.source_id = format!("category-{index}");
+        if index < 3 {
+            a.metadata
+                .insert("source_ref".into(), "folder:synthetic".into());
+        }
+        let sources = BTreeMap::from([(
+            a.resources[0].sha256.clone(),
+            "opaque-native-resource-reference".into(),
+        )]);
+        let job = sender.enqueue("receiver-1", a, sources).unwrap();
+        let claimed = sender.claim("receiver-1", 0).unwrap().unwrap();
+        assert_eq!(claimed.id, job.id);
+        let mut receipt = status(&claimed, true);
+        receipt.processing = processing;
+        sender.acknowledge(&claimed.attempt(), &receipt).unwrap();
+        received_ids.push(job.id);
+    }
+    let mut a = asset();
+    a.source_id = "queued-category".into();
+    let queued = sender
+        .enqueue(
+            "receiver-1",
+            a,
+            BTreeMap::from([(
+                digest(b"0123456789"),
+                "opaque-native-resource-reference".into(),
+            )]),
+        )
+        .unwrap();
+    let query = |state| JobQuery {
+        after: 0,
+        after_value: None,
+        limit: 1,
+        receiver: Some("receiver-1"),
+        state: Some(state),
+        sort: "added",
+        descending: true,
+    };
+    let first = sender.browse(query("active")).unwrap();
+    assert_eq!(
+        first.iter().map(|j| j.id).collect::<Vec<_>>(),
+        vec![queued.id]
+    );
+    let mut continuation = query("active");
+    continuation.after = first[0].id;
+    continuation.after_value = first[0].sort_value;
+    let second = sender.browse(continuation).unwrap();
+    assert_eq!(
+        second.iter().map(|j| j.id).collect::<Vec<_>>(),
+        vec![received_ids[3]],
+        "Unconfirmed legacy gallery rows are unfinished, not saved"
+    );
+    continuation.after = second[0].id;
+    continuation.after_value = second[0].sort_value;
+    assert_eq!(
+        sender.browse(continuation).unwrap()[0].id,
+        received_ids[0],
+        "Filtering precedes pagination across complete and failed rows"
+    );
+    assert_eq!(
+        sender.browse(query("attention")).unwrap()[0].id,
+        received_ids[2]
+    );
+    assert_eq!(
+        sender.browse(query("saved")).unwrap()[0].id,
+        received_ids[1]
+    );
+    assert_eq!(
+        sender
+            .browse_source(query("active"), Some("folder:synthetic"))
+            .unwrap()[0]
+            .id,
+        received_ids[0]
+    );
+    let summary = sender.summary("receiver-1").unwrap();
+    assert_eq!(summary["total"], 5);
+    assert_eq!(summary["received"], 4);
+    assert_eq!(summary["published"], 1);
+    assert_eq!(summary["publication_failed"], 1);
+    drop(sender);
+    let sender = Sender::open(&t.0).unwrap();
+    assert_eq!(sender.browse(continuation).unwrap()[0].id, received_ids[0]);
 }

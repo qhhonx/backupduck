@@ -21,6 +21,10 @@ internal object MediaDates {
 
     /** Return a temporary date-enriched copy only when EXIF has no capture date. */
     fun prepare(context: Context, source: File, mime: String, metadata: JSONObject?): File {
+        // Stream-only senders can supply a trustworthy MediaStore capture date
+        // separately while explicitly retaining the original container bytes.
+        // DATE_TAKEN/file timestamps are still published by values/stampPending.
+        if (metadata?.optString("backupduck_preserve_container_bytes") == "true") return source
         val captured = captured(metadata) ?: return source
         val extension = when (mime) {
             "image/jpeg" -> "jpg"
@@ -72,7 +76,21 @@ internal object MediaDates {
     fun stampPending(context: Context, uri: Uri, captured: Long?) {
         if (captured == null) return
         checkNotNull(context.contentResolver.openFileDescriptor(uri, "rw")).use { descriptor ->
-            check(File("/proc/self/fd/${descriptor.fd}").setLastModified(captured)) { "publication_date_failed" }
+            if (!File("/proc/self/fd/${descriptor.fd}").setLastModified(captured)) {
+                // Newer MediaProvider/FUSE implementations may reject the
+                // /proc alias even for an owned, writable pending item. A
+                // provider fd may refer to the lower filesystem while DATA
+                // uses FUSE, so their inode/device numbers can legitimately
+                // differ. Resolve only this authoritative, owned pending row.
+                val path = context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA,
+                    MediaStore.MediaColumns.OWNER_PACKAGE_NAME, MediaStore.MediaColumns.IS_PENDING), null, null, null)?.use {
+                    if (it.moveToFirst()) {
+                        check(it.getString(1) == context.packageName && it.getInt(2) == 1) { "publication_date_failed" }
+                        it.getString(0)
+                    } else null
+                } ?: error("publication_date_failed")
+                check(File(path).setLastModified(captured)) { "publication_date_failed" }
+            }
             check(Os.fstat(descriptor.fileDescriptor).st_mtime == captured / 1000) { "publication_date_failed" }
         }
     }

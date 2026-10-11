@@ -8,17 +8,20 @@ struct MacLibraryGrid: NSViewRepresentable {
   var queueRevision: Int64
   var receiverID: String?
   var itemSize: CGFloat
+  var selecting = true
+  var preview: (PHAsset) -> Void = { _ in }
+  var enterSelection: () -> Void = {}
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeNSView(context: Context) -> NSScrollView {
     let layout = NSCollectionViewFlowLayout()
-    layout.minimumInteritemSpacing = 4
-    layout.minimumLineSpacing = 4
-    layout.sectionInset = NSEdgeInsets(top: 12, left: 16, bottom: 20, right: 16)
+    layout.minimumInteritemSpacing = 10
+    layout.minimumLineSpacing = 10
+    layout.sectionInset = NSEdgeInsets(top: 20, left: 28, bottom: 28, right: 28)
     let collection = LibraryCollectionView()
     collection.collectionViewLayout = layout
     collection.autoresizingMask = [.width]
     collection.backgroundColors = [.clear]
-    collection.isSelectable = true
+    collection.isSelectable = selecting
     collection.allowsMultipleSelection = true
     collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
     collection.dataSource = context.coordinator
@@ -26,6 +29,15 @@ struct MacLibraryGrid: NSViewRepresentable {
     collection.toggleSelection = { [weak coordinator = context.coordinator] path in
       coordinator?.toggleSelection(at: path)
     }
+    collection.enterSelection = { [weak coordinator = context.coordinator] path in coordinator?.beginSelection(at: path) }
+    collection.preview = { [weak coordinator = context.coordinator] path in
+      guard let coordinator, let asset = coordinator.parent.library.asset(at: path.item) else { return }
+      coordinator.parent.preview(asset)
+    }
+    let press = NSPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
+    press.minimumPressDuration = 0.4
+    press.delaysPrimaryMouseButtonEvents = true
+    collection.addGestureRecognizer(press)
     let scroll = LibraryScrollView()
     scroll.hasVerticalScroller = true
     scroll.drawsBackground = false
@@ -45,6 +57,10 @@ struct MacLibraryGrid: NSViewRepresentable {
     guard let collection = c.collection,
       let layout = collection.collectionViewLayout as? NSCollectionViewFlowLayout
     else { return }
+    collection.isSelectable = selecting
+    for path in collection.indexPathsForVisibleItems() {
+      (collection.item(at: path) as? PhotoCell)?.setSelectionVisible(selecting)
+    }
     if layout.itemSize.width != itemSize {
       layout.itemSize = NSSize(width: itemSize, height: itemSize)
       layout.invalidateLayout()
@@ -146,6 +162,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       let item =
         collectionView.makeItem(withIdentifier: .init("photo"), for: indexPath) as! PhotoCell
       if let asset = parent.library.asset(at: indexPath.item) {
+        item.setSelectionVisible(parent.selecting)
         item.configure(
           asset, pipeline: parent.library.thumbnails,
           pixels: parent.itemSize * (collectionView.window?.backingScaleFactor ?? 2),
@@ -159,6 +176,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       forRepresentedObjectAt indexPath: IndexPath
     ) {
       if let cell = item as? PhotoCell, let asset = parent.library.asset(at: indexPath.item) {
+        cell.setSelectionVisible(parent.selecting)
         cell.configure(
           asset, pipeline: parent.library.thumbnails,
           pixels: parent.itemSize * (collectionView.window?.backingScaleFactor ?? 2),
@@ -181,14 +199,29 @@ struct MacLibraryGrid: NSViewRepresentable {
       _ collectionView: NSCollectionView, didDeselectItemsAt indexPaths: Set<IndexPath>
     ) { changeSelection(indexPaths, selected: false) }
     private func changeSelection(_ paths: Set<IndexPath>, selected: Bool) {
-      guard !applyingSelection else { return }
+      guard !applyingSelection, parent.selecting else { return }
       let ids = paths.compactMap { parent.library.identifier(at: $0.item) }
       if selected { parent.library.selection.formUnion(ids) }
       else { parent.library.selection.subtract(ids) }
       appliedSelection = parent.library.selection
     }
-    func toggleSelection(at path: IndexPath) {
+    @objc func longPress(_ recognizer: NSPressGestureRecognizer) {
+      guard recognizer.state == .began, !parent.selecting, let collection,
+        let path = collection.indexPathForItem(at: recognizer.location(in: collection)) else { return }
+      beginSelection(at: path)
+    }
+    func beginSelection(at path: IndexPath) {
       guard let collection, let id = parent.library.identifier(at: path.item) else { return }
+      parent.library.selection.insert(id)
+      applyingSelection = true
+      collection.isSelectable = true
+      collection.selectionIndexPaths = parent.library.selectedIndexPaths()
+      appliedSelection = parent.library.selection
+      applyingSelection = false
+      parent.enterSelection()
+    }
+    func toggleSelection(at path: IndexPath) {
+      guard parent.selecting, let collection, let id = parent.library.identifier(at: path.item) else { return }
       if parent.library.selection.contains(id) { parent.library.selection.remove(id) }
       else { parent.library.selection.insert(id) }
       applyingSelection = true
@@ -265,10 +298,17 @@ struct MacLibraryGrid: NSViewRepresentable {
 
 @MainActor private final class LibraryCollectionView: NSCollectionView {
   var toggleSelection: ((IndexPath) -> Void)?
+  var preview: ((IndexPath) -> Void)?
+  var enterSelection: ((IndexPath) -> Void)?
 
   override func mouseDown(with event: NSEvent) {
     let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
     let point = convert(event.locationInWindow, from: nil)
+    if !isSelectable, let path = indexPathForItem(at: point) {
+      if modifiers.contains(.command) || modifiers.contains(.shift) { enterSelection?(path) }
+      else { preview?(path) }
+      return
+    }
     if modifiers.isEmpty, let path = indexPathForItem(at: point) {
       toggleSelection?(path)
       return
@@ -288,6 +328,9 @@ struct MacLibraryGrid: NSViewRepresentable {
   private let media = NSImageView()
   private let status = NSImageView()
   private let cloud = NSImageView()
+  private let selectionMark = NSImageView()
+  private var selectionVisible = true
+  private var statusState: String?
   private let burstCount = NSTextField(labelWithString: "")
   private let duration = NSTextField(labelWithString: "")
   private var groupDescription = ""
@@ -300,7 +343,7 @@ struct MacLibraryGrid: NSViewRepresentable {
     photoLayer.contentsGravity = .resizeAspectFill
     photoLayer.masksToBounds = true
     view.layer?.addSublayer(photoLayer)
-    for badge in [media, status, cloud] {
+    for badge in [media, status, cloud, selectionMark] {
       badge.wantsLayer = true
       badge.contentTintColor = .white
       badge.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.38).cgColor
@@ -344,11 +387,13 @@ struct MacLibraryGrid: NSViewRepresentable {
       y: view.bounds.height - 30, width: durationWidth, height: 20)
     cloud.frame = NSRect(x: 8, y: 8, width: 24, height: 24)
     status.frame = NSRect(x: view.bounds.width - 32, y: 8, width: 24, height: 24)
+    selectionMark.frame = status.frame
   }
   override var isSelected: Bool {
     didSet {
-      view.layer?.borderWidth = isSelected ? 3 : 0
+      view.layer?.borderWidth = selectionVisible && isSelected ? 3 : 0
       view.layer?.borderColor = NSColor.controlAccentColor.cgColor
+      updateSelectionMark()
     }
   }
   func configure(_ asset: PHAsset, pipeline: ThumbnailPipeline, pixels: CGFloat, identifier: String? = nil) {
@@ -399,11 +444,24 @@ struct MacLibraryGrid: NSViewRepresentable {
     setState(state)
   }
   func setState(_ state: String?) {
+    statusState = state
     status.image = NSImage(systemSymbolName: taskSymbol(state), accessibilityDescription: nil)
     status.contentTintColor = state == "failed" ? .systemOrange : .white
     status.toolTip = groupDescription + NSLocalizedString(
       state == "received" ? "state_received_detail" : state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
     view.setAccessibilityValue(status.toolTip)
+    status.isHidden = selectionVisible || state == nil
+  }
+  func setSelectionVisible(_ value: Bool) {
+    selectionVisible = value
+    view.layer?.borderWidth = value && isSelected ? 3 : 0
+    status.isHidden = value || statusState == nil
+    updateSelectionMark()
+  }
+  private func updateSelectionMark() {
+    selectionMark.isHidden = !selectionVisible
+    selectionMark.image = NSImage(systemSymbolName: isSelected ? "checkmark.circle.fill" : "circle", accessibilityDescription: nil)
+    selectionMark.contentTintColor = isSelected ? .controlAccentColor : .white
   }
   func cancel() {
     pipeline?.cancel(request)

@@ -72,11 +72,11 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
             run {
                 root = currentPage(null)
                 onMain {
-                    val button = views(root.window.decorView).filterIsInstance<Button>().single { it.text.toString() == root.getString(topic.title) }
+                    val button = views(root.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == root.getString(topic.title) }
                     // Bring the actual control into the native viewport before activating it.
                     button.requestRectangleOnScreen(Rect(0, 0, button.width, button.height), true)
                     check(button.isEnabled)
-                    button.performClick()
+                    (button.parent.parent as View).performClick()
                 }
                 detail = currentPage(topic.key)
                 waitForIdleSync()
@@ -85,6 +85,9 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
                     check(detail!!.intent.getStringExtra("topic") == topic.key) { "wrong_help_topic" }
                     val content = views(detail!!.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }
                     topic.sections.forEach { (_, body) -> check(detail!!.getString(body) in content) { "missing_help_body:${topic.key}" } }
+                    val reading = views(detail!!.window.decorView).filterIsInstance<ScrollView>().single()
+                    check(views(reading).none { it is Button || it is android.widget.EditText || it is android.widget.Spinner }) { "Help contains a business control:${topic.key}" }
+                    check(views(reading).none { it.isClickable }) { "Help contains a workflow shortcut:${topic.key}" }
                 }
                 waitForIdleSync()
                 var bottomVisible = false
@@ -113,7 +116,7 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
             check(receiverProblem(ReceiverSnapshot(phase = "waiting", error = error))?.recovery == expected)
         }
         check(receiverProblem(ReceiverSnapshot()) == null)
-        return "PASS: five help destinations, full final-paragraph visibility, native back navigation and fixed recovery routes ($language, dark=$dark)"
+        return "PASS: five read-only help topics without business controls/workflow shortcuts; full final-paragraph visibility, native back navigation and separate recovery categories ($language, dark=$dark)"
     } finally {
         runOnMainSync { detail?.finish(); root.finish(); AppCompatDelegate.setApplicationLocales(oldLocales) }
         app.unregisterActivityLifecycleCallbacks(callbacks)

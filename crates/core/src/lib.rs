@@ -196,6 +196,10 @@ pub struct Capabilities {
     pub target_processing: Vec<String>,
     #[serde(default)]
     pub bundle_upload: bool,
+    /// Gallery publishers honor backupduck_preserve_container_bytes metadata.
+    /// Missing on older peers: native senders must not assume support.
+    #[serde(default)]
+    pub preserve_container_bytes: bool,
 }
 impl Default for Capabilities {
     fn default() -> Self {
@@ -205,6 +209,7 @@ impl Default for Capabilities {
             motion_assets: true,
             target_processing: vec![],
             bundle_upload: true,
+            preserve_container_bytes: true,
         }
     }
 }
@@ -272,4 +277,21 @@ pub enum TargetPlan {
 }
 pub trait TargetProcessor {
     fn plan(&self, asset: &Asset) -> Result<TargetPlan>;
+}
+
+#[cfg(test)]
+mod capability_compatibility_tests {
+    use super::*;
+    #[test]
+    fn legacy_receiver_does_not_implicitly_promise_container_preservation() {
+        let legacy: Capabilities = serde_json::from_value(serde_json::json!({
+            "version": PROTOCOL_VERSION, "max_chunk_bytes": MAX_CHUNK_BYTES,
+            "motion_assets": true, "target_processing": [], "bundle_upload": true
+        }))
+        .unwrap();
+        assert!(!legacy.preserve_container_bytes);
+        assert!(legacy.bundle_upload);
+        let current = serde_json::to_value(Capabilities::default()).unwrap();
+        assert_eq!(current["preserve_container_bytes"], true);
+    }
 }

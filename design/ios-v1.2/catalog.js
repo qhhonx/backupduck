@@ -1,0 +1,677 @@
+const catalog = [
+  {
+    "id": "library",
+    "title": "图库",
+    "titleEn": "Library",
+    "kind": "page",
+    "source": "apps/ios/BackupDuck/LibraryGrid.swift",
+    "symbol": "IOSLibraryPage / IOSLibraryGrid",
+    "path": "图库",
+    "states": [
+      "正常",
+      "加载中",
+      "照片权限",
+      "图库为空",
+      "筛选为空",
+      "多选",
+      "长列表"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "library-filter",
+    "title": "图库类型",
+    "titleEn": "Library type",
+    "kind": "popover",
+    "source": "apps/ios/BackupDuck/LibraryGrid.swift",
+    "symbol": "IOSLibraryPage.Menu",
+    "path": "图库 → 类型",
+    "states": [
+      "正常"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "selected-backup",
+    "title": "备份所选",
+    "titleEn": "Back up selected",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/DuckComponents.swift",
+    "symbol": "DuckSelectedBackup",
+    "path": "图库 → 选中 → 备份所选",
+    "states": [
+      "正常",
+      "强制重传",
+      "提交中",
+      "提交失败"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "system-photos",
+    "title": "照片权限",
+    "titleEn": "Photo permission",
+    "kind": "system",
+    "source": "apps/apple/Shared/LibraryPlaceholder.swift",
+    "symbol": "LibraryPlaceholder / PhotoLibraryModel.open",
+    "path": "图库 → 允许访问照片",
+    "states": [
+      "未决定",
+      "已拒绝",
+      "访问受限",
+      "部分照片",
+      "允许访问"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "photo-picker",
+    "title": "系统选择照片",
+    "titleEn": "System photo picker",
+    "kind": "system",
+    "source": "apps/ios/BackupDuck/LibraryPicker.swift",
+    "symbol": "PHPickerViewController / preferredAssetRepresentationMode.current",
+    "path": "备份 → 选择照片",
+    "states": [
+      "进入说明",
+      "返回已选",
+      "取消"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "backup",
+    "title": "备份概览",
+    "titleEn": "Backup overview",
+    "kind": "page",
+    "source": "apps/ios/BackupDuck/BackupPage.swift",
+    "symbol": "IOSBackupPage",
+    "path": "备份",
+    "states": [
+      "首次连接",
+      "正常",
+      "加载中",
+      "传输中",
+      "手动暂停",
+      "等待连接",
+      "高温暂停",
+      "相册处理失败",
+      "已保存"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "backup-status",
+    "title": "备份状态详情",
+    "titleEn": "Backup status details",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/TransferViews.swift",
+    "symbol": "BackupStatusIndicator",
+    "path": "备份 → 状态标签",
+    "states": [
+      "正常",
+      "初始化",
+      "等待连接",
+      "高温暂停",
+      "失败",
+      "已接收待处理",
+      "已保存"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "transfers",
+    "title": "传输任务",
+    "titleEn": "Transfers",
+    "kind": "page",
+    "source": "apps/apple/Shared/TransferViews.swift",
+    "symbol": "TransferList / TaskBrowserModel",
+    "path": "备份 → 全部传输任务",
+    "states": [
+      "正常",
+      "空列表",
+      "加载中",
+      "加载失败",
+      "传输中",
+      "暂停",
+      "长列表"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "transfer-filter",
+    "title": "全部状态筛选",
+    "titleEn": "All transfer states",
+    "kind": "popover",
+    "source": "apps/apple/Shared/TransferViews.swift",
+    "symbol": "TransferList.Picker",
+    "path": "传输任务 → 状态筛选",
+    "states": [
+      "正常"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "transfer-sort",
+    "title": "传输排序",
+    "titleEn": "Transfer ordering",
+    "kind": "popover",
+    "source": "apps/apple/Shared/TransferViews.swift",
+    "symbol": "TransferSortControl / TransferOrdering",
+    "path": "传输任务 → 排序",
+    "states": [
+      "正常",
+      "已接收",
+      "失败",
+      "准备原件",
+      "历史扫描"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "transfer-guide",
+    "title": "状态说明",
+    "titleEn": "State meanings",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/TransferViews.swift",
+    "symbol": "TransferStatusGuide",
+    "path": "传输任务 → 状态说明",
+    "states": [
+      "正常"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "transfer-detail",
+    "title": "文件详情",
+    "titleEn": "File details",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/DuckComponents.swift",
+    "symbol": "DuckTransferDetail",
+    "path": "传输任务 → 文件",
+    "states": [
+      "等待调度",
+      "传输中",
+      "已接收待处理",
+      "已保存",
+      "相册处理失败",
+      "发送失败",
+      "重试中",
+      "重试失败",
+      "日期缺失",
+      "接收设备未知"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "receiver",
+    "title": "接收设备",
+    "titleEn": "Receiver",
+    "kind": "page",
+    "source": "apps/ios/BackupDuck/ReceiverPage.swift",
+    "symbol": "IOSReceiverPage / DuckReceiverSummary",
+    "path": "接收设备",
+    "states": [
+      "首次连接",
+      "已配对",
+      "等待连接",
+      "认证失效",
+      "本地网络不可用"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "receiver-status",
+    "title": "连接状态详情",
+    "titleEn": "Connection status details",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/TransferViews.swift",
+    "symbol": "ReceiverStatusIndicator",
+    "path": "接收设备 → 状态标签",
+    "states": [
+      "未配对",
+      "已配对",
+      "检查中",
+      "无法连接",
+      "认证失效",
+      "等待Wi-Fi"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "pair-scan",
+    "title": "扫描与配对",
+    "titleEn": "Scan and pair",
+    "kind": "sheet",
+    "source": "apps/ios/BackupDuck/ReceiverPage.swift",
+    "symbol": "IOSPairingFlow / PairingScanner",
+    "path": "接收设备 → 扫描 Pixel 配对码",
+    "states": [
+      "扫描中",
+      "相机权限被拒绝",
+      "相机不可用",
+      "校验中",
+      "无效二维码",
+      "连接失败",
+      "配对成功"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "system-camera",
+    "title": "相机权限",
+    "titleEn": "Camera permission",
+    "kind": "system",
+    "source": "apps/ios/BackupDuck/PairingScanner.swift",
+    "symbol": "AVCaptureDevice.requestAccess",
+    "path": "配对 → 相机系统授权",
+    "states": [
+      "进入说明",
+      "允许",
+      "拒绝"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "system-settings",
+    "title": "系统隐私设置",
+    "titleEn": "System privacy settings",
+    "kind": "system",
+    "source": "apps/apple/Shared/LibraryPlaceholder.swift",
+    "symbol": "UIApplication.openSettingsURLString",
+    "path": "照片/相机/语言 → 系统设置",
+    "states": [
+      "进入说明",
+      "打开失败",
+      "返回"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "settings",
+    "title": "设置",
+    "titleEn": "Settings",
+    "kind": "page",
+    "source": "apps/ios/BackupDuck/SettingsPage.swift",
+    "symbol": "IOSSettingsPage",
+    "path": "设置",
+    "states": [
+      "正常",
+      "初始化失败"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "backup-settings",
+    "title": "图库备份设置",
+    "titleEn": "Library backup settings",
+    "kind": "page",
+    "source": "apps/ios/BackupDuck/SettingsPage.swift",
+    "symbol": "IOSBackupPreferences",
+    "path": "备份 → 备份设置",
+    "states": [
+      "正常",
+      "未配对",
+      "保存中",
+      "保存失败",
+      "历史扫描中",
+      "历史已暂停"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "history",
+    "title": "已有照片扫描",
+    "titleEn": "Existing photo scan",
+    "kind": "inline",
+    "source": "apps/apple/Shared/HistoricalImport.swift",
+    "symbol": "HistoricalImportSettings",
+    "path": "图库备份设置 → 导入已有照片",
+    "states": [
+      "未开始",
+      "扫描中",
+      "已暂停",
+      "已完成",
+      "启动失败",
+      "快照不可用",
+      "权限不完整"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "concurrency",
+    "title": "传输并发",
+    "titleEn": "Transfer concurrency",
+    "kind": "popover",
+    "source": "apps/apple/Shared/TransferConcurrencySettings.swift",
+    "symbol": "TransferConcurrencySettings",
+    "path": "图库备份设置 → 传输并发",
+    "states": [
+      "正常",
+      "保存中",
+      "保存失败"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "keep-awake",
+    "title": "备份亮屏与后台",
+    "titleEn": "Screen and background",
+    "kind": "inline",
+    "source": "apps/ios/BackupDuck/SettingsPage.swift",
+    "symbol": "IOSBackupPreferences / BackupDuckApp.shouldKeepScreenAwake",
+    "path": "图库备份设置 → 备份时保持屏幕亮起",
+    "states": [
+      "关闭",
+      "开启",
+      "后台限制说明"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "cache-settings",
+    "title": "缓存空间",
+    "titleEn": "Cache storage",
+    "kind": "page",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "StoragePreferences(scope:.cache)",
+    "path": "设置 → 缓存空间",
+    "states": [
+      "正常",
+      "加载中",
+      "加载失败",
+      "保存中",
+      "保存失败",
+      "缓存为空",
+      "空间不足"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "cache-budget",
+    "title": "缓存空间限制",
+    "titleEn": "Cache limits",
+    "kind": "popover",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "StoragePreferences.Picker",
+    "path": "缓存空间 → 限额/最小剩余空间",
+    "states": [
+      "缓存限额",
+      "最小剩余空间",
+      "保存失败"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "cache-reclaim",
+    "title": "检查与回收缓存",
+    "titleEn": "Inspect and reclaim cache",
+    "kind": "page",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "reclaimCache(reportResult:true)",
+    "path": "设置 → 本地缓存 → 回收说明",
+    "states": [
+      "检查前",
+      "检查中",
+      "没有可回收项目",
+      "回收完成",
+      "回收失败"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "log-retention",
+    "title": "运行记录保留",
+    "titleEn": "Log retention",
+    "kind": "page",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "StoragePreferences(scope:.logs)",
+    "path": "设置 → 日志保留",
+    "states": [
+      "正常",
+      "加载失败",
+      "保存中",
+      "保存失败"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "activity-log",
+    "title": "运行记录",
+    "titleEn": "Activity log",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "ActivityLogView / independent ActivityLogDetail",
+    "path": "设置 → 运行记录",
+    "states": [
+      "正常",
+      "读取中",
+      "读取失败",
+      "新记录待查看",
+      "空记录",
+      "详情展开",
+      "导出准备中"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "diagnostic-share",
+    "title": "分享诊断报告",
+    "titleEn": "Share diagnostics",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "ActivityLogExportSheet / ActivityLogExportModel / ShareLink",
+    "path": "运行记录 → 导出报告",
+    "states": [
+      "进入说明",
+      "文件已准备",
+      "分享取消",
+      "导出失败",
+      "返回"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "device-name",
+    "title": "设备名称",
+    "titleEn": "Device name",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/DeviceIdentity.swift",
+    "symbol": "DeviceNameEditor / renameDevice",
+    "path": "设置 → 设备名称",
+    "states": [
+      "正常",
+      "空白",
+      "长度超过40",
+      "非法字符",
+      "保存中",
+      "保存失败",
+      "已保存"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "appearance",
+    "title": "外观",
+    "titleEn": "Appearance",
+    "kind": "popover",
+    "source": "apps/ios/BackupDuck/SettingsPage.swift",
+    "symbol": "duckAppearance / preferredColorScheme",
+    "path": "设置 → 外观",
+    "states": [
+      "跟随系统",
+      "浅色",
+      "深色"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help",
+    "title": "使用帮助",
+    "titleEn": "Help",
+    "kind": "page",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp",
+    "path": "设置 → 使用帮助",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-start",
+    "title": "开始使用",
+    "titleEn": "Getting started",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_start_title)",
+    "path": "使用与恢复 → 开始使用",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-scope",
+    "title": "新增与已有照片",
+    "titleEn": "New and existing photos",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_scope_title)",
+    "path": "使用与恢复 → 新增与已有照片",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-background",
+    "title": "后台备份",
+    "titleEn": "Background backup",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(background_section)",
+    "path": "使用与恢复 → 后台备份",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-receipt",
+    "title": "接收、相册与云端",
+    "titleEn": "Receipt, gallery and cloud",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_receipt_title)",
+    "path": "使用与恢复 → 接收、相册与云端",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-recover",
+    "title": "恢复传输",
+    "titleEn": "Recover transfers",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_recover_title)",
+    "path": "使用与恢复 → 恢复传输",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-permission",
+    "title": "照片与网络权限",
+    "titleEn": "Photo and network permissions",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_permission_title)",
+    "path": "使用与恢复 → 照片与网络权限",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-space",
+    "title": "空间与缓存",
+    "titleEn": "Space and cache",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_space_title)",
+    "path": "使用与恢复 → 空间与缓存",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "help-support",
+    "title": "提供排查信息",
+    "titleEn": "Useful diagnostics",
+    "kind": "reading",
+    "source": "apps/apple/Shared/BackupHelp.swift",
+    "symbol": "BackupHelp.topic(help_support_title)",
+    "path": "使用与恢复 → 提供排查信息",
+    "states": [
+      "正常",
+      "长文案"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "photo-preview",
+    "title": "照片预览",
+    "titleEn": "Photo preview",
+    "kind": "fullscreen",
+    "source": "apps/ios/BackupDuck/LibraryGrid.swift",
+    "symbol": "IOSPhotoPreview",
+    "path": "图库 → 照片预览",
+    "states": [
+      "本机照片",
+      "本机实况",
+      "本机视频",
+      "仅云端原件"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "activity-detail",
+    "title": "运行记录详情",
+    "titleEn": "Activity entry details",
+    "kind": "sheet",
+    "source": "apps/apple/Shared/StorageModel.swift",
+    "symbol": "ActivityLogDetail",
+    "path": "设置 → 运行记录 → 单项",
+    "states": [
+      "正常",
+      "长上下文"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "about",
+    "title": "关于备份鸭",
+    "titleEn": "About BackupDuck",
+    "kind": "page",
+    "source": "apps/ios/BackupDuck/SettingsPage.swift",
+    "symbol": "IOSAboutPage",
+    "path": "设置 → 关于",
+    "states": [
+      "正常"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  }
+];

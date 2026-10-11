@@ -1,9 +1,7 @@
 package app.backupduck
 
-import android.app.AlertDialog
 import android.content.Context
 import android.net.Uri
-import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.withLock
@@ -30,13 +28,14 @@ internal object OriginalArchive {
         }
         return ArchiveEntry(hash.digest().joinToString("") { "%02x".format(it) }, size)
     }
-    suspend fun export(context: Context, uri: Uri, receiverRoot: String = "${context.filesDir}/receiver"): ArchiveTicket {
+    suspend fun export(context: Context, uri: Uri, receiverRoot: String = "${context.filesDir}/receiver",progress:suspend (Boolean,Int)->Unit={_,_->}): ArchiveTicket {
         val items = NativeBridge.request(JSONObject().put("op", "archive_batch").put("root", receiverRoot)) as JSONArray
         check(items.length() > 0) { "archive_empty" }
         val entries = linkedMapOf<String, ArchiveEntry>(); val ids = mutableListOf<String>(); val digests = mutableSetOf<String>()
         checkNotNull(context.contentResolver.openOutputStream(uri, "wt")).use { output ->
             ZipOutputStream(output).use { zip ->
                 for (index in 0 until items.length()) {
+                    progress(false,index)
                     val item = items.getJSONObject(index); val id = item.getString("id"); ids += id
                     val asset = item.getJSONObject("asset"); val metadata = asset.toString().toByteArray(Charsets.UTF_8)
                     val manifest = "$id/manifest.json"; zip.putNextEntry(ZipEntry(manifest)); zip.write(metadata); zip.closeEntry()
@@ -54,6 +53,7 @@ internal object OriginalArchive {
             }
         }
         val ticket = ArchiveTicket(uri, receiverRoot, ids, entries, digests)
+        progress(true,ids.size)
         verify(context, ticket)
         NativeBridge.request(JSONObject().put("op", "record_event").put("receiver", true).put("root", receiverRoot).put("code", "original_archive_verified"))
         return ticket
@@ -73,32 +73,50 @@ internal object OriginalArchive {
     }
 }
 
-internal fun MainActivity.exportOriginals(uri: Uri) {
-    lifecycleScope.launch {
-        val dialog = AlertDialog.Builder(this@exportOriginals).setTitle(R.string.originals_exporting)
-            .setMessage(R.string.originals_export_wait).setCancelable(false).setNegativeButton(R.string.receiver_close, null).create()
-        val work = this.coroutineContext[Job]!!
-        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { work.cancel(); dialog.dismiss() } }
-        dialog.show()
-        val ticket = try {
-            withContext(Dispatchers.IO) { ReceiverState.mediaOperations.withLock { OriginalArchive.export(this@exportOriginals, uri) } }
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) {
-            val message = if (error.message in listOf("archive_empty", "not_found")) R.string.originals_export_empty else R.string.originals_export_failed
-            Toast.makeText(this@exportOriginals, message, Toast.LENGTH_LONG).show(); null
-        }
-        finally { dialog.dismiss() }
-        if (ticket != null) {
-            AlertDialog.Builder(this@exportOriginals).setTitle(R.string.originals_verified)
-                .setMessage(getString(R.string.originals_reclaim_confirmation, ticket.ids.size))
-                .setNegativeButton(R.string.originals_keep, null)
-                .setPositiveButton(R.string.originals_reclaim) { _, _ -> lifecycleScope.launch {
-                    val result = withContext(Dispatchers.IO) { runCatching { ReceiverState.mediaOperations.withLock {
-                        OriginalArchive.verify(this@exportOriginals, ticket)
-                        NativeBridge.request(JSONObject().put("op", "release_archived").put("root", ticket.receiverRoot).put("ids", JSONArray(ticket.ids)).put("verified", JSONArray(ticket.resources.toList())))
-                    } } }
-                    Toast.makeText(this@exportOriginals, if (result.isSuccess) R.string.originals_reclaimed else R.string.originals_export_failed, Toast.LENGTH_LONG).show()
-                } }.show()
-        }
+internal fun MainActivity.showArchiveIntro(choose:()->Unit):DuckConfirmation = duckConfirm(
+    R.string.originals_export,R.string.originals_export_note,R.string.originals_choose,notice=R.string.duck_export_no_delete) {dialog->dialog.dismiss();choose()}
+internal fun MainActivity.exportOriginals(uri:Uri) {
+    val page=DuckPage(this,getString(R.string.originals_export));page.show()
+    var job:Job?=null
+    page.setOnDismissListener {job?.cancel()}
+    val status=duckNotice(page.body,getString(R.string.originals_exporting),getString(R.string.originals_export_wait))
+    val cancel=page.addAction(getString(R.string.duck_task_cancel)) {
+        job?.cancel();page.body.removeAllViews();duckNotice(page.body,getString(R.string.duck_export_cancelled))
+    }
+    job=lifecycleScope.launch {
+        try {
+            val ticket=withContext(Dispatchers.IO) {ReceiverState.mediaOperations.withLock {
+                OriginalArchive.export(this@exportOriginals,uri) {verifying,_ ->withContext(Dispatchers.Main) {
+                    val words=(status as android.widget.LinearLayout).getChildAt(1) as android.widget.LinearLayout
+                    (words.getChildAt(0) as android.widget.TextView).setText(if(verifying) R.string.duck_export_verifying else R.string.originals_exporting)
+                }}
+            }}
+            cancel.visibility=android.view.View.GONE;page.setOnDismissListener(null);page.dismiss()
+            val result=DuckSheet(this@exportOriginals,getString(R.string.originals_verified))
+            duckNotice(result.body,getString(R.string.originals_verified),getString(R.string.originals_reclaim_confirmation,ticket.ids.size))
+            result.body.addView(duckButton(getString(R.string.originals_keep)) {result.dismiss()},android.widget.LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(16)})
+            result.body.addView(duckButton(getString(R.string.originals_reclaim)) {
+                result.hide();var done=false
+                val confirmation=duckConfirm(R.string.originals_reclaim,R.string.duck_export_verified_note,R.string.originals_reclaim,true,notice=R.string.duck_keep_source,busyNotice=R.string.duck_saving,
+                    messageText=getString(R.string.originals_reclaim_confirmation,ticket.ids.size)) {dialog ->
+                    dialog.busy(true)
+                    lifecycleScope.launch {
+                        val reclaimed=withContext(Dispatchers.IO) {runCatching {ReceiverState.mediaOperations.withLock {
+                            OriginalArchive.verify(this@exportOriginals,ticket)
+                            NativeBridge.request(JSONObject().put("op","release_archived").put("root",ticket.receiverRoot).put("ids",JSONArray(ticket.ids)).put("verified",JSONArray(ticket.resources.toList())))
+                        }}}
+                        dialog.busy(false)
+                        reclaimed.onSuccess {done=true;dialog.dismiss();result.dismiss();duckAcknowledge(getString(R.string.originals_reclaimed))}
+                            .onFailure {dialog.showFailure(R.string.originals_export_failed)}
+                    }
+                }
+                confirmation.setOnDismissListener {if(!done)result.show()}
+            },android.widget.LinearLayout.LayoutParams(-1,-2));result.show()
+        } catch(cancelled:CancellationException) {throw cancelled}
+        catch(error:Exception) {
+            page.body.removeAllViews()
+            if(error.message in listOf("archive_empty","not_found")) duckNotice(page.body,getString(R.string.originals_export_empty))
+            else {duckProblem(page.body,getString(R.string.originals_export_failed));page.body.addView(duckButton(getString(R.string.duck_retry)) {page.dismiss();exportOriginals(uri)})}
+        } finally {cancel.visibility=android.view.View.GONE}
     }
 }

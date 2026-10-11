@@ -13,21 +13,23 @@ internal fun Instrumentation.checkMotionContainer(arguments: Bundle): String {
     check(targetContext.packageName.endsWith(".validation")) { "validation_app_required" }
     val still = File(targetContext.filesDir, "motion-container-still.JPG")
     val video = File(targetContext.filesDir, "motion-container-paired.MOV")
-    val output = File(targetContext.filesDir, "motion-container-result.heic")
+    val expectedMime = arguments.getString("mime") ?: "image/heic"
+    check(expectedMime in listOf("image/heic", "image/jpeg"))
+    val output = File(targetContext.filesDir, "motion-container-result.${if (expectedMime == "image/heic") "heic" else "jpg"}")
     val captured = requireNotNull(arguments.getString("captured"))
     val metadata = JSONObject().put("created_at_ms", captured)
     fun digest(file: File) = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).toList()
     val beforeStill = digest(still)
     val beforeVideo = digest(video)
-    val mime = MediaContainer.imageMime(still, "image/jpeg")
-    check(mime == "image/heic") { "container_type_wrong" }
-    val legacyFailure = runCatching { MediaDates.prepare(targetContext, still, "image/jpeg", metadata) }
-        .exceptionOrNull()?.javaClass?.simpleName ?: "none"
+    val declaredMime = if (expectedMime == "image/heic") "image/jpeg" else "image/heic"
+    val mime = MediaContainer.imageMime(still, declaredMime)
+    check(mime == expectedMime) { "container_type_wrong" }
     val dated = MediaDates.prepare(targetContext, still, mime, metadata)
     try {
         if (output.exists()) check(output.delete())
-        NativeBridge.request(JSONObject().put("op", "package_heic_motion")
-            .put("heic", dated.path).put("mov", video.path).put("output", output.path)
+        NativeBridge.request(JSONObject().put("op", if (mime == "image/heic") "package_heic_motion" else "package_motion")
+            .put(if (mime == "image/heic") "heic" else "jpeg", dated.path)
+            .put(if (mime == "image/heic") "mov" else "mp4", video.path).put("output", output.path)
             .put("video_mime", "video/quicktime").put("metadata", metadata))
         val exif = ExifInterface(output)
         check(exif.dateTimeOriginal == captured.toLong()) { "capture_time_wrong" }
@@ -49,6 +51,6 @@ internal fun Instrumentation.checkMotionContainer(arguments: Bundle): String {
         try { check(before.sameAs(after)) { "pixels_changed" } }
         finally { before.recycle(); after.recycle() }
         check(digest(still) == beforeStill && digest(video) == beforeVideo) { "original_bytes_changed" }
-        return "PASS: legacy=$legacyFailure; actual=$mime; date, motion metadata and decoded pixels verified; originals unchanged; no MediaStore rows created"
+        return "PASS: declared=$declaredMime; actual=$mime; date, motion metadata and decoded pixels verified; originals unchanged; no MediaStore rows created"
     } finally { if (dated != still) dated.delete() }
 }

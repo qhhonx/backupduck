@@ -21,6 +21,19 @@ pub(super) fn migrate(conn: &Connection) -> Result<()> {
         )
         .map_err(db)?;
     }
+    let added: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('jobs') WHERE name='added_at_ms')",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(db)?;
+    if !added {
+        conn.execute("ALTER TABLE jobs ADD COLUMN added_at_ms INTEGER", [])
+            .map_err(db)?;
+    }
+    conn.execute_batch("CREATE TRIGGER IF NOT EXISTS jobs_added_time AFTER INSERT ON jobs BEGIN UPDATE jobs SET added_at_ms=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE id=new.id AND added_at_ms IS NULL; END;
+      CREATE TABLE IF NOT EXISTS job_preparations(receiver TEXT NOT NULL,request TEXT NOT NULL,job_id INTEGER NOT NULL,cursor INTEGER NOT NULL,added_at_ms INTEGER,PRIMARY KEY(receiver,request)); CREATE INDEX IF NOT EXISTS preparation_job ON job_preparations(job_id);").map_err(db)?;
     // Old rows stay unknown: opening the app is not their completion/failure time.
     conn.execute_batch("CREATE TRIGGER IF NOT EXISTS jobs_state_time AFTER UPDATE OF state ON jobs WHEN old.state != new.state BEGIN UPDATE jobs SET state_changed_at_ms=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE id=new.id; END;
         CREATE INDEX IF NOT EXISTS jobs_state_time_order ON jobs(receiver_id,state,state_changed_at_ms,id);
@@ -61,7 +74,7 @@ impl Sender {
         } else {
             after_value.ok_or_else(|| Error::Invalid("sort cursor".into()))?
         };
-        let sql = format!("SELECT id,{value} FROM jobs WHERE (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) AND (?6 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?6) AND (?1=0 OR ({value},id){compare}(?5,?1)) ORDER BY {value} {direction},id {direction} LIMIT ?2");
+        let sql = format!("SELECT id,{value} FROM jobs WHERE (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4 OR (?4='active' AND (state IN ('queued','running','waiting','paused') OR (state='received' AND NOT EXISTS (SELECT 1 FROM processing_observations WHERE job_id=jobs.id AND state IN ('complete','failed'))))) OR (?4='attention' AND (state='failed' OR (state='received' AND id IN (SELECT job_id FROM processing_observations WHERE state='failed')))) OR (?4='saved' AND state='received' AND id IN (SELECT job_id FROM processing_observations WHERE state='complete'))) AND (?6 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?6) AND (?1=0 OR ({value},id){compare}(?5,?1)) ORDER BY {value} {direction},id {direction} LIMIT ?2");
         let mut stmt = self.conn.prepare(&sql).map_err(db)?;
         let rows = stmt
             .query_map(
@@ -170,6 +183,43 @@ mod tests {
                 ..query
             })
             .is_err());
+        s.conn.execute("INSERT INTO processing_observations(job_id,state) VALUES(1,'complete'),(205,'failed')", []).unwrap();
+        for (filter, expected) in [("saved", 1), ("attention", 205)] {
+            let rows = s
+                .browse(JobQuery {
+                    state: Some(filter),
+                    sort: "added",
+                    descending: true,
+                    after: 0,
+                    after_value: None,
+                    ..query
+                })
+                .unwrap();
+            assert_eq!(
+                rows.iter().map(|j| j.id).collect::<Vec<_>>(),
+                vec![expected]
+            );
+        }
+        // Receipt without a gallery result remains active, as the visible
+        // sender status guide promises. Successful/failed publication leaves
+        // this category; the old singleton expectation omitted pending receipt.
+        let active = s
+            .browse(JobQuery {
+                state: Some("active"),
+                sort: "added",
+                descending: true,
+                after: 0,
+                after_value: None,
+                limit: 250,
+                ..query
+            })
+            .unwrap();
+        assert_eq!(active.len(), 204);
+        assert_eq!(active[0].id, 206);
+        assert!(active.iter().any(|job| job.id == 2));
+        assert!(active
+            .iter()
+            .all(|job| job.id != 1 && job.id != 205 && job.receiver_id == "r"));
         // Direction/state filters are applied before pagination; legacy ID order is unchanged.
         assert_eq!(s.list_filtered(0, 1, Some("r"), None).unwrap()[0].id, 1);
         drop(s);

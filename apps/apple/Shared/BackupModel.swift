@@ -45,12 +45,15 @@ struct BackupJob: Decodable, Identifiable, Equatable {
   var nextAttemptAt: Int64? = nil
   var stateChangedAt: Int64? = nil
   var sortValue: Int64? = nil
+  // A task's historical destination. Never substitute the current pairing.
+  var receiverID: String? = nil
   var totalBytes: UInt64 { asset.resources.reduce(0) { $0 + $1.size } }
   enum CodingKeys: String, CodingKey {
     case id, asset, state, attempts
     case nextAttemptAt = "next_attempt_at"
     case stateChangedAt = "state_changed_at_ms"
     case sortValue = "sort_value"
+    case receiverID = "receiver_id"
     case confirmedBytes = "confirmed_bytes"
     case errorCode = "error_code"
     case processing
@@ -86,6 +89,11 @@ enum Bridge {
     }
   }
 }
+private struct ProcessingEventsResult: Decodable {
+  let revision: UInt64
+  let changed: Bool
+  let active: Bool
+}
 
 @MainActor final class BackupModel: ObservableObject {
   static let shared = BackupModel()
@@ -97,19 +105,40 @@ enum Bridge {
   var historicalCursor: HistoricalScanCursor?
   @Published var autoBackup = false
   @Published var changingAutoBackup = false
+  @Published var autoBackupError: String?
+  @Published var changingPause = false
+  @Published var pauseError: String?
+  private var pauseRequests = 0
   @Published var discoveryPending = 0
   @Published var historyUnavailable = false
   @Published var waitingForNetwork = false
   @Published var concurrentUploads = 4
   @Published var savingConcurrency = false
+  @Published var concurrencyError: String?
   @Published var transferProgress: [Int64: TransferProgress] = [:]
   @Published var receiverUnavailable = false
   @Published var receiverConnection = ReceiverConnection.unknown
   @Published var checkingConnection = false
+  @Published var receiverReadings: ReceiverReadings?
+  private var checkingReadings = false
+  func refreshReceiverReadings() async {
+    guard let target = pairing, !checkingReadings else { return }
+    checkingReadings = true
+    defer { checkingReadings = false }
+    do {
+      let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(target))
+      let data = try await Bridge.call(["op": "receiver_readings", "pairing": encoded])
+      guard !Task.isCancelled, pairing?.receiverID == target.receiverID,
+        pairing?.endpoint == target.endpoint, pairing?.token == target.token,
+        pairing?.certificate == target.certificate else { return }
+      receiverReadings = try JSONDecoder().decode(ReceiverReadings?.self, from: data)
+    } catch { receiverReadings = nil }
+  }
   private var activeExport: BoundedExportWriter?
   private lazy var availability = ReceiverAvailability(changed: { [weak self] in
     self?.receiverUnavailable = true
     self?.receiverConnection = .unknown
+    self?.receiverReadings = nil
     self?.activeExport?.cancel()
   })
   func canPrepareForReceiver() async -> Bool {
@@ -151,13 +180,14 @@ enum Bridge {
   @Published var exportProgress: Double?
   @Published var storage: StorageSnapshot?
   @Published var storageError: String?
+  @Published var storageSettingsError: String?
+  @Published var cacheReclaimError: String?
   @Published var savingStorage = false
   @Published var reclaimingCache = false
   @Published var cacheReclaimResult: String?
   @Published var pendingImports = 0
   @Published var preparationReason: String?
   private var lastStorageRefresh = Date.distantPast
-  private var lastProcessingRefresh = Date.distantPast
   @Published var hasMoreJobs = false
   private var jobsLimit = 200
   @Published var queueRevision: Int64 = -1
@@ -166,7 +196,7 @@ enum Bridge {
   private var discovery: PhotoLibraryChanges?
   private lazy var receiverDiscovery = ReceiverDiscovery(model: self)
   private var opening: Task<Void, Never>?
-  @Published var pairing: Pairing?
+  @Published var pairing: Pairing? { didSet { receiverReadings = nil } }
   @Published var pairingError: String?
   @Published var pairingInProgress = false
   @Published var deviceSnapshot: DeviceSnapshot?
@@ -182,6 +212,7 @@ enum Bridge {
   private var opened = false
   private var queueOpened = false
   private var refreshTask: Task<Void, Never>?
+  private var processingEventsTask: Task<Void, Never>?
   private var lastScheduleError: Int?
   let root: URL
   init(root: URL? = nil) {
@@ -235,7 +266,7 @@ enum Bridge {
         ?? true
       concurrentUploads = ((try JSONSerialization.jsonObject(with: state)) as? [String: Any])?["concurrent_uploads"] as? Int ?? 4
       discovery = try PhotoLibraryChanges(root: root)
-      try discovery?.matchReceiver(pairing?.receiverID)
+      try await discovery?.matchReceiver(pairing?.receiverID)
       updateDiscoveryStatus()
       let arguments = ProcessInfo.processInfo.arguments
       if let flag = arguments.firstIndex(of: "--retire-delivered-cache"),
@@ -258,12 +289,6 @@ enum Bridge {
           receiverDiscovery.update(pairing: pairing, active: Self.canPoll)
           if Self.canPoll {
             Task { await self.syncDeviceProfile() }
-            if let pairing, Date().timeIntervalSince(lastProcessingRefresh) >= 15 {
-              lastProcessingRefresh = Date()
-              if let value = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(pairing)) {
-                _ = try? await Bridge.call(["op": "refresh_processing", "pairing": value])
-              }
-            }
             await refresh()
             if !paused { _ = await canPrepareForReceiver() }
             await BackgroundTransfer.shared.kick()
@@ -274,6 +299,7 @@ enum Bridge {
           try? await Task.sleep(nanoseconds: 3_000_000_000)
         }
       }
+      startProcessingEvents()
       if !paused { startWorker() }
       scheduleBackgroundWork()
     } catch {
@@ -281,8 +307,8 @@ enum Bridge {
       message = error.localizedDescription
     }
   }
-  func pair(_ payload: String) async {
-    guard !pairingInProgress else { return }
+  @discardableResult func pair(_ payload: String) async -> Bool {
+    guard !pairingInProgress else { return false }
     pairingInProgress = true
     pairingError = nil
     defer { pairingInProgress = false }
@@ -297,12 +323,14 @@ enum Bridge {
         // Keep saved trust when a QR code supplies a new route for the same peer.
         let restored = await relocateReceiver(to: parsed.endpoint, expected: saved)
         pairingError = restored ? nil : NSLocalizedString("error_network", comment: "")
-        return
+        return restored
       }
       // Cancel requests signed for the old receiver before replacing its trust.
       if pairing?.receiverID != parsed.receiverID {
-        await setPaused(true)
-        try discovery?.matchReceiver(parsed.receiverID)
+        guard await setPaused(true) else {
+          throw Bridge.Failure(code: "pairing_pause_failed")
+        }
+        try await discovery?.matchReceiver(parsed.receiverID)
         updateDiscoveryStatus()
       }
       try await Keychain.saveAsync(try JSONEncoder().encode(parsed))
@@ -318,7 +346,8 @@ enum Bridge {
       queueRevision = -1
       await refresh()
       if !paused { startWorker() }
-    } catch { pairingError = error.localizedDescription }
+      return true
+    } catch { pairingError = error.localizedDescription; return false }
   }
   @discardableResult func relocateReceiver(to endpoint: String, expected: Pairing) async -> Bool {
     guard pairing?.receiverID == expected.receiverID, pairing?.endpoint == expected.endpoint,
@@ -338,14 +367,19 @@ enum Bridge {
   func setConcurrentUploads(_ limit: Int) async {
     guard !savingConcurrency else { return }
     savingConcurrency = true
+    concurrencyError = nil
     defer { savingConcurrency = false }
     do {
       _ = try await Bridge.call(["op": "set_transfer_concurrency", "limit": limit])
       concurrentUploads = limit
       if !paused { await BackgroundTransfer.shared.kick() }
-    } catch { message = error.localizedDescription }
+    } catch { concurrencyError = error.localizedDescription; message = concurrencyError }
   }
-  func setPaused(_ value: Bool) async {
+  @discardableResult func setPaused(_ value: Bool, discoverAfterResume: Bool = true) async -> Bool {
+    pauseRequests += 1
+    changingPause = true
+    pauseError = nil
+    defer { pauseRequests -= 1; changingPause = pauseRequests > 0 }
     do {
       _ = try await Bridge.call(["op": "pause_sender", "paused": value])
       paused = value
@@ -353,10 +387,11 @@ enum Bridge {
         await BackgroundTransfer.shared.cancelAll()
       } else {
         startWorker()
-        await discoverPhotos()
+        if discoverAfterResume { await discoverPhotos() }
       }
       scheduleBackgroundWork()
-    } catch { message = error.localizedDescription }
+      return true
+    } catch { pauseError = error.localizedDescription; message = pauseError; return false }
   }
   private func startWorker() {
     guard pairing != nil, ready else { return }
@@ -370,18 +405,22 @@ enum Bridge {
   func setAutoBackup(_ enabled: Bool) async {
     guard ready, pairing != nil, !changingAutoBackup else { return }
     changingAutoBackup = true
+    autoBackupError = nil
     defer { changingAutoBackup = false }
-    if enabled, !(await authorizePhotos()) { return }
+    if enabled, !(await authorizePhotos()) {
+      autoBackupError = NSLocalizedString("photos_permission_needed", comment: "")
+      return
+    }
     do {
       try await discovery?.setEnabled(enabled, receiverID: pairing?.receiverID)
       updateDiscoveryStatus()
       scheduleBackgroundWork()
       if !paused { await discoverPhotos() }
-    } catch { message = error.localizedDescription }
+    } catch { autoBackupError = error.localizedDescription; message = autoBackupError }
   }
   func discoverPhotos() async {
     guard ready else { return }
-    await discovery?.discoverAndExport(using: self)
+    await discovery?.discoverAndQueue(using: self)
   }
   func becameActive() async {
     await open()
@@ -427,12 +466,45 @@ enum Bridge {
     queueRevision = -1
     await refresh()
   }
-  func refresh() async {
+  func stopProcessingEvents() { processingEventsTask?.cancel(); processingEventsTask = nil }
+  func startProcessingEvents() {
+    processingEventsTask?.cancel()
+    processingEventsTask = Task {
+      var revision: UInt64 = 0
+      var route: String?
+      while !Task.isCancelled {
+        guard Self.canPoll, let target = pairing else {
+          try? await Task.sleep(for: .seconds(1)); continue
+        }
+        let currentRoute = target.receiverID + "|" + target.endpoint
+        if currentRoute != route { route = currentRoute; revision = 0 }
+        do {
+          let value = try JSONSerialization.jsonObject(with: JSONEncoder().encode(target))
+          let data = try await Bridge.call(["op": "watch_processing", "pairing": value, "after": revision])
+          guard !Task.isCancelled, pairing?.receiverID == target.receiverID, pairing?.endpoint == target.endpoint else { continue }
+          let result = try JSONDecoder().decode(ProcessingEventsResult.self, from: data)
+          revision = result.revision
+          await refresh(includeStorage: false)
+          try? await Task.sleep(for: result.active && revision > 0 ? .milliseconds(100) : .seconds(1))
+        } catch {
+          // A legacy receiver has no event route. Its existing bounded status
+          // query is kept as compatibility fallback, outside original preparation.
+          if (error as? Bridge.Failure)?.code == "unsupported",
+            let value = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(target)) {
+            _ = try? await Bridge.call(["op": "refresh_processing", "pairing": value])
+            await refresh(includeStorage: false)
+          }
+          try? await Task.sleep(for: .seconds(3))
+        }
+      }
+    }
+  }
+  func refresh(includeStorage: Bool = true) async {
+    if includeStorage, Date().timeIntervalSince(lastStorageRefresh) > 15 { Task { await refreshStorage() } }
     guard !refreshing else { return }
     refreshing = true
     defer { refreshing = false }
     waitingForNetwork = BackgroundTransfer.shared.waitingForNetwork
-    if Date().timeIntervalSince(lastStorageRefresh) > 15 { await refreshStorage() }
     do {
       let revisionData = try await Bridge.call(["op": "sender_revision"])
       let revision = try JSONDecoder().decode(Int64.self, from: revisionData)
@@ -450,7 +522,7 @@ enum Bridge {
       if jobs != all { jobs = all }
       if let pairing {
         let data = try await Bridge.call([
-          "op": "sender_summary", "receiver_id": pairing.receiverID,
+          "op": "backup_summary", "receiver_id": pairing.receiverID,
         ])
         summary = try JSONDecoder().decode(SenderSummary.self, from: data)
       }
@@ -458,12 +530,13 @@ enum Bridge {
       waitingForNetwork = BackgroundTransfer.shared.waitingForNetwork
     } catch { message = error.localizedDescription }
   }
-  func retry(_ id: Int64) async {
+  @discardableResult func retry(_ id: Int64) async -> Bool {
     do {
       _ = try await Bridge.call(["op": "retry", "id": id])
       await refresh()
       if !paused { startWorker() }
-    } catch { message = error.localizedDescription }
+      return true
+    } catch { message = error.localizedDescription; return false }
   }
   func authorizePhotos() async -> Bool {
     let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
@@ -475,12 +548,80 @@ enum Bridge {
     guard let state else { return false }
     return state != "failed" && !(rebackupReceived && state == "received")
   }
+  struct SourcePreparation: Decodable {
+    let request_id: String
+    let source: String
+    let revision: String?
+    let `repeat`: Bool
+  }
+  /// Acknowledge durable submission, not completion of potentially long iCloud
+  /// downloads. The existing worker consumes shared Rust membership on restart.
+  @discardableResult func backupSelectedAssets(_ identifiers: [String],
+    requestAuthorization: Bool = true, rebackupReceived: Bool = false) async -> Bool
+  {
+    guard !identifiers.isEmpty, let target = pairing else {
+      message = NSLocalizedString("apple_selected_receiver_needed", comment: "")
+      return false
+    }
+    let authorization = requestAuthorization
+      ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+      : PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    guard authorization == .authorized || authorization == .limited else {
+      message = NSLocalizedString("photos_permission_needed", comment: "")
+      return false
+    }
+    let sources = await PhotoBackupOrder.sources(identifiers)
+    guard pairing?.receiverID == target.receiverID else { return false }
+    do {
+      for start in stride(from: 0, to: sources.count, by: 200) {
+        let batch = Array(sources[start..<min(start + 200, sources.count)])
+        let stateData = try await Bridge.call(["op": "source_states", "receiver_id": target.receiverID,
+          "sources": batch.compactMap { source in source.revision.map { [source.id, $0] } }])
+        let states = try JSONDecoder().decode([String: String].self, from: stateData)
+        let registrations: [[String: Any]] = batch.map { source in
+          ["receiver_id": target.receiverID, "request_id": UUID().uuidString,
+           "source": source.id, "revision": source.revision as Any? ?? NSNull(),
+           "captured_at_ms": source.capturedAt as Any? ?? NSNull(),
+           "repeat": rebackupReceived && states[source.id] == "received",
+           "error": source.revision == nil ? "source_unavailable" as Any : NSNull()]
+        }
+        _ = try await Bridge.call(["op": "register_preparations", "registrations": registrations])
+      }
+      // Submission is already saved even if the peer is temporarily offline.
+      // A failed resume is reported in the persistent task state, not as a lost selection.
+      if pairing?.receiverID == target.receiverID { _ = await setPaused(false, discoverAfterResume: false) }
+      await refreshPendingImportCount()
+      scheduleBackgroundWork()
+      Task { await processPendingImports() }
+      return true
+    } catch {
+      message = error.localizedDescription
+      return false
+    }
+  }
+  private func selectedImportAllowed(rebackupReceived: Bool) -> Bool {
+    guard pairing != nil else {
+      message = NSLocalizedString("apple_selected_receiver_needed", comment: "")
+      return false
+    }
+    guard !importing else {
+      message = NSLocalizedString("apple_selected_already_preparing", comment: "")
+      return false
+    }
+    guard !rebackupReceived || !scanningHistory else {
+      message = NSLocalizedString("apple_selected_history_scanning", comment: "")
+      return false
+    }
+    return true
+  }
   @discardableResult func importAssets(_ identifiers: [String], requestAuthorization: Bool = true,
-    rebackupReceived: Bool = false)
+    rebackupReceived: Bool = false, preparation: SourcePreparation? = nil)
     async -> Bool
   {
-    guard let target = pairing, !importing else { return false }
+    guard selectedImportAllowed(rebackupReceived: rebackupReceived), let target = pairing else { return false }
+    message = nil
     var succeeded = true
+    var preparationFailure: String?
     importing = true
     defer {
       importing = false
@@ -488,7 +629,7 @@ enum Bridge {
       exportProgress = nil
     }
     do {
-      for start in stride(from: 0, to: identifiers.count, by: 10000) {
+      for start in stride(from: 0, to: preparation == nil ? identifiers.count : 0, by: 10000) {
         _ = try await Bridge.call([
           "op": "schedule_sources", "receiver_id": target.receiverID,
           "sources": Array(identifiers[start..<min(start + 10000, identifiers.count)]),
@@ -527,12 +668,13 @@ enum Bridge {
     catch { message = error.localizedDescription; return false }
     if assets.count != identifiers.count {
       succeeded = false
-      message = NSLocalizedString("photos_permission_needed", comment: "")
+      message = Bridge.Failure(code: "source_unavailable").localizedDescription
+      preparationFailure = message
       let found = Set((0..<assets.count).map { assets.object(at: $0).localIdentifier })
       for missing in identifiers where !found.contains(missing) {
         _ = try? await Bridge.call([
-          "op": "source_result", "receiver_id": target.receiverID, "source": missing,
-          "complete": false,
+          "op": "source_result", "receiver_id": target.receiverID, "source": preparation?.request_id ?? missing,
+          "complete": false, "error": "source_unavailable",
         ])
       }
       preparationReason = "source_unavailable"
@@ -542,20 +684,24 @@ enum Bridge {
       if paused && !requestAuthorization { return false }
       guard await canPrepareForReceiver() else { return false }
       let sourceID = orderedAssets[index].localIdentifier
+      let requestID = preparation?.request_id ?? sourceID
       let folder = root.appendingPathComponent("exports/" + UUID().uuidString, isDirectory: true)
       var retained = false
       defer { if !retained { try? FileManager.default.removeItem(at: folder) } }
       do {
         let asset = orderedAssets[index]
+        if let revision = preparation?.revision, revision != PhotoLibraryModel.revision(asset) {
+          throw Bridge.Failure(code: "source_changed")
+        }
         // Check the source revision before downloading originals, including
         // manual selection and metadata replay after a historical-scan restart.
         let existingData = try await Bridge.call(["op": "source_states", "receiver_id": target.receiverID,
           "sources": [[sourceID, PhotoLibraryModel.revision(asset)]]])
         let existing = try JSONDecoder().decode([String: String].self, from: existingData)
-        let rebackupThisSource = rebackupReceived && existing[sourceID] == "received"
-        if Self.shouldSkipSource(existing[sourceID], rebackupReceived: rebackupReceived) {
+        let rebackupThisSource = preparation?.repeat ?? (rebackupReceived && existing[sourceID] == "received")
+        if !rebackupThisSource && Self.shouldSkipSource(existing[sourceID], rebackupReceived: rebackupReceived) {
           _ = try await Bridge.call(["op": "source_result", "receiver_id": target.receiverID,
-            "source": sourceID, "complete": true])
+            "source": requestID, "complete": true])
           continue
         }
         importingSourceID = asset.localIdentifier
@@ -597,7 +743,7 @@ enum Bridge {
         var metadata = try await burstFields(for: asset)
         // Keep the PhotoKit source/revision stable while creating a distinct,
         // auditable receiver asset for an explicit repeat backup.
-        if rebackupThisSource { metadata["backupduck_rebackup_id"] = UUID().uuidString }
+        if rebackupThisSource { metadata["backupduck_rebackup_id"] = preparation?.request_id ?? UUID().uuidString }
         metadata["favorite"] = String(asset.isFavorite)
         if let date = asset.creationDate {
           metadata["created_at_ms"] = String(Int64(date.timeIntervalSince1970 * 1000))
@@ -612,7 +758,7 @@ enum Bridge {
             Int64(
               (asset.modificationDate ?? asset.creationDate ?? Date(timeIntervalSince1970: 0))
                 .timeIntervalSince1970 * 1000)),
-          "kind": live ? "motion" : video ? "video" : "photo", "metadata": metadata,
+          "kind": live ? "motion" : video ? "video" : "photo", "preparation_id": requestID, "metadata": metadata,
           "resources": resources,
         ])
         retained = true
@@ -622,7 +768,7 @@ enum Bridge {
           retained = sources.values.contains { $0.hasPrefix(folder.path + "/") }
         }
         _ = try await Bridge.call([
-          "op": "source_result", "receiver_id": target.receiverID, "source": sourceID,
+          "op": "source_result", "receiver_id": target.receiverID, "source": requestID,
           "complete": true,
         ])
         preparationReason = nil
@@ -632,12 +778,13 @@ enum Bridge {
       } catch {
         succeeded = false
         message = error.localizedDescription
+        if preparationFailure == nil { preparationFailure = message }
         let reason = (error as? Bridge.Failure)?.code ?? "source_unavailable"
         preparationReason = reason
         _ = try? await Bridge.call(["op": "record_event", "receiver": false, "code": reason])
         _ = try? await Bridge.call([
-          "op": "source_result", "receiver_id": target.receiverID, "source": sourceID,
-          "complete": false,
+          "op": "source_result", "receiver_id": target.receiverID, "source": requestID,
+          "complete": false, "error": preparation == nil ? NSNull() : reason as Any,
         ])
       }
     }
@@ -650,6 +797,7 @@ enum Bridge {
     }
     if !paused { startWorker() }
     scheduleBackgroundWork()
+    if !succeeded, let preparationFailure { message = preparationFailure }
     return succeeded
   }
   func refreshStorage() async {
@@ -664,7 +812,7 @@ enum Bridge {
   func saveStorage(_ settings: StorageSettings) async {
     guard !savingStorage else { return }
     savingStorage = true
-    storageError = nil
+    storageSettingsError = nil
     defer { savingStorage = false }
     do {
       _ = try await Bridge.call([
@@ -675,12 +823,13 @@ enum Bridge {
       if settings.auto_reclaim { await reclaimCache() }
       await processPendingImports()
     } catch let error as Bridge.Failure where error.code == "invalid_input" {
-      storageError = NSLocalizedString("storage_settings_invalid", comment: "")
-    } catch { storageError = error.localizedDescription }
+      storageSettingsError = NSLocalizedString("storage_settings_invalid", comment: "")
+    } catch { storageSettingsError = error.localizedDescription }
   }
   func reclaimCache(reportResult: Bool = false) async {
     guard !reclaimingCache else { return }
     reclaimingCache = true
+    cacheReclaimError = nil
     if reportResult { cacheReclaimResult = nil }
     defer { reclaimingCache = false }
     do {
@@ -693,7 +842,7 @@ enum Bridge {
             ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
       }
       await refreshStorage()
-    } catch { storageError = error.localizedDescription }
+    } catch { cacheReclaimError = error.localizedDescription }
   }
   /// Durable work must be loaded even when storage/network gates prevent export.
   func refreshPendingImportCount() async {
@@ -747,8 +896,16 @@ enum Bridge {
         preparationReason = storage.reason
         return
       }
-      if !paused, let sources = result?["sources"] as? [String], !sources.isEmpty {
-        _ = await importAssets(sources, requestAuthorization: false)
+      if !paused, let entries = result?["preparations"] as? [[String: Any]] {
+        let requests = try JSONDecoder().decode([SourcePreparation].self,
+          from: JSONSerialization.data(withJSONObject: entries))
+        for request in requests {
+          guard !Task.isCancelled, self.pairing?.receiverID == pairing.receiverID, !paused else { return }
+          // Legacy source-only membership retains its existing batching path;
+          // registered requests preserve the exact revision and repeat identity.
+          _ = await importAssets([request.source], requestAuthorization: false,
+            rebackupReceived: request.repeat, preparation: request)
+        }
       }
     } catch { message = error.localizedDescription }
   }
@@ -850,6 +1007,10 @@ enum Keychain {
 struct SenderSummary: Decodable {
   var waiting_reason: String?
   var next_retry_at: Int64?
+  var active: Int? = nil
+  var attention: Int? = nil
+  var preparation_waiting: Int? = nil
+  var preparation_failed: Int? = nil
   var total = 0
   var received = 0
   var published = 0
@@ -862,6 +1023,9 @@ struct SenderSummary: Decodable {
   var confirmed_bytes: Int64 = 0
   func count(for state: String) -> Int {
     switch state {
+    case "active": return active ?? (queued + running + waiting + paused + max(0, received - published - publication_failed))
+    case "attention": return attention ?? (failed + publication_failed)
+    case "saved": return published
     case "received": return received
     case "waiting": return waiting
     case "failed": return failed
@@ -881,4 +1045,11 @@ extension BackupModel {
     default: return summary.count(for: state)
     }
   }
+}
+
+/// Physical receiver readings fetched over the paired, pinned TLS channel.
+struct ReceiverReadings: Decodable {
+  let temperature_deci_celsius: Int?
+  let temperature_observed_at_ms: UInt64?
+  let free_bytes: UInt64?
 }

@@ -2,6 +2,7 @@
 //! content-addressed, and an asset is received only after every resource verifies.
 pub mod catalog;
 pub mod devices;
+pub mod progress;
 pub mod retention;
 pub mod usage;
 
@@ -39,6 +40,7 @@ pub struct Receiver {
     capacity: u64,
     min_free: u64,
     admission_held: bool,
+    progress: std::sync::Arc<progress::ProgressFeed>,
     _lock: File,
 }
 impl Receiver {
@@ -131,6 +133,7 @@ impl Receiver {
             capacity,
             min_free: 0,
             admission_held: false,
+            progress: std::sync::Arc::default(),
             _lock: lock,
         };
         receiver.reclaim_unreferenced()?;
@@ -138,6 +141,14 @@ impl Receiver {
     }
     pub fn hold_transfers(&mut self, held: bool) {
         self.admission_held = held;
+    }
+    pub fn progress_feed(&self) -> std::sync::Arc<progress::ProgressFeed> {
+        self.progress.clone()
+    }
+    fn publish_progress(&self, asset: &Asset, status: AssetStatus) -> AssetStatus {
+        self.progress
+            .publish(&status, asset.resources.iter().map(|r| r.size).sum());
+        status
     }
     fn check_admission(&self) -> Result<()> {
         if self.admission_held {
@@ -331,7 +342,7 @@ impl Receiver {
         let id = asset.id()?;
         if let Ok(status) = self.status(&id) {
             if status.receipt == backupduck_core::ReceiptState::Received {
-                return Ok(status);
+                return Ok(self.publish_progress(&asset, status));
             }
         }
         self.check_admission()?;
@@ -388,7 +399,7 @@ impl Receiver {
         )
         .map_err(db)?;
         tx.commit().map_err(db)?;
-        self.status(&id)
+        Ok(self.publish_progress(&asset, self.status(&id)?))
     }
     pub fn asset(&self, id: &str) -> Result<Asset> {
         if !valid_digest(id) {
@@ -571,7 +582,7 @@ impl Receiver {
         file.write_all(body)?;
         file.sync_all()?;
         drop(file);
-        self.status(id)
+        Ok(self.publish_progress(&asset, self.status(id)?))
     }
     pub fn commit(&mut self, id: &str) -> Result<AssetStatus> {
         let state = self.status(id)?;
@@ -581,7 +592,8 @@ impl Receiver {
         if state.resources.iter().any(|r| !r.complete) {
             return Err(Error::Conflict("asset has incomplete resources".into()));
         }
-        for r in &self.asset(id)?.resources {
+        let asset = self.asset(id)?;
+        for r in &asset.resources {
             if digest_reader(File::open(self.paths(&r.sha256).1)?)? != r.sha256 {
                 return Err(Error::Integrity);
             }
@@ -589,16 +601,32 @@ impl Receiver {
         self.conn
             .execute("UPDATE assets SET received_at_ms=CASE WHEN received=0 THEN ?2 ELSE received_at_ms END,received=1 WHERE id=?1", params![id, now_ms()?])
             .map_err(db)?;
-        self.status(id)
+        Ok(self.publish_progress(&asset, self.status(id)?))
     }
     /// Local user action: retry target work without touching original receipts.
     pub fn retry_processing(&mut self) -> Result<usize> {
-        self.conn
-            .execute(
-                "UPDATE assets SET processing='pending',processing_error=NULL WHERE received=1 AND processing='failed'",
-                [],
-            )
-            .map_err(db)
+        self.retry_processing_item(None)
+    }
+    /// An individual retry is scoped to the selected received, failed item.
+    pub fn retry_processing_item(&mut self, id: Option<&str>) -> Result<usize> {
+        if let Some(id) = id {
+            self.status(id)?;
+        }
+        let mut query=self.conn.prepare("SELECT id FROM assets WHERE received=1 AND processing='failed' AND (?1 IS NULL OR id=?1) ORDER BY rowid DESC LIMIT 128").map_err(db)?;
+        let ids = query
+            .query_map([id], |row| row.get::<_, String>(0))
+            .map_err(db)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db)?;
+        drop(query);
+        let count=self.conn.execute(
+            "UPDATE assets SET processing='pending',processing_error=NULL WHERE received=1 AND processing='failed' AND (?1 IS NULL OR id=?1)",
+            [id],
+        ).map_err(db)?;
+        for id in ids {
+            self.publish_progress(&self.asset(&id)?, self.status(&id)?);
+        }
+        Ok(count)
     }
     /// Target work has its own state. Failure never rolls back the receipt.
     pub fn set_processing(&mut self, id: &str, next: ProcessingState) -> Result<AssetStatus> {
@@ -646,6 +674,6 @@ impl Receiver {
                 params![id, value, error, now_ms()?],
             )
             .map_err(db)?;
-        self.status(id)
+        Ok(self.publish_progress(&self.asset(id)?, self.status(id)?))
     }
 }

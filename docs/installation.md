@@ -1,15 +1,18 @@
 # Install BackupDuck
 
+For existing installations, see the [upgrade compatibility matrix](upgrading.md),
+including the PhotoBridge identity transition and Android RC.1 certificate exception.
+
 ## macOS sender
 
 Download the Apple Silicon ZIP from the official website or GitHub Releases.
 Extract it and move BackupDuck to Applications before opening it.
-The free release candidate uses an ad hoc integrity signature and signed Sparkle updates, but
+The Mac package uses an ad hoc integrity signature and signed Sparkle updates, but
 is not notarized by Apple. If macOS blocks opening it, review the source and release,
 then use System Settings → Privacy & Security → Open Anyway.
 Do not disable Gatekeeper globally. Grant Photos and local network access.
 
-Use BackupDuck → Check for Updates, or enable automatic checks in Settings.
+Use Settings → About BackupDuck → Check for Updates, or enable automatic checks there.
 Updates pause and persist transfer work before replacing the application.
 
 ## Android receiver

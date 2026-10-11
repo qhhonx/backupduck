@@ -6,9 +6,10 @@ Back up original photos, videos and supported Live Photos directly from iPhone o
 Mac to your Android receiver. No BackupDuck account or cloud subscription is
 required for local transfers.
 
-[Official website](https://backupduck.vercel.app) ·
+[Official website](https://backupduck.app) ·
 [Downloads](https://github.com/qhhonx/backupduck/releases) ·
-[Installation](docs/installation.md) · [Architecture](docs/architecture.md)
+[Installation](docs/installation.md) · [Architecture](docs/architecture.md) ·
+[Contributing](CONTRIBUTING.md)
 
 ## License and commercial use
 
@@ -37,19 +38,19 @@ licensing requests.
 - Signed Sparkle updates on Mac and verified, user-confirmed APK updates on Android.
 - An English/Simplified Chinese website and native interfaces.
 
-**Release candidate:** preserve your source library and another trusted backup. Receiver
+**Backup and verification limits:** preserve your source library and another trusted backup. Receiver
 receipt and Google Photos cloud backup are separate states. iOS background work is
 system-scheduled. Experimental Google Photos cleanup may need attention when its
 interface changes. See [validation and limits](docs/native-validation.md).
 
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
-iOS 17+ is available from source; there is no App Store/TestFlight release yet.
+iOS 17+ is available through TestFlight or source builds; see [installation](docs/installation.md). App Store distribution is not available.
 Windows, NAS and hosted receivers are not shipped. Native hosts own platform media,
 UI and background execution; the Rust core owns transfer and durable state.
 
 ## Brand transition
 
-BackupDuck is the new name of BackupDuck. New platform installs use `app.backupduck` and must be installed manually and paired again. Existing apps and originals are not automatically removed. See [the transition guide](docs/brand-transition.md).
+PhotoBridge is now BackupDuck. New platform installs use `app.backupduck` and must be installed manually and paired again. Existing apps and originals are not automatically removed. See [the transition guide](docs/brand-transition.md).
 
 ## Try a local backup
 
@@ -89,6 +90,11 @@ unauthenticated requests are rejected. Native hosts use a pinned certificate and
 The CLI harness remains loopback-only.
 
 ## Validation
+
+The [design system](design/README.md) documents semantic tokens, reusable
+components, interaction contracts and native verification requirements.
+Interactive prototypes use synthetic data and do not establish feature completion.
+Contributions follow the [public-source policy](docs/public-source-policy.md).
 
 ```sh
 cargo fmt --all -- --check

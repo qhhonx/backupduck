@@ -7,6 +7,80 @@ import XCTest
 
 /// Run only on a disposable simulator; fixtures remain available for UI checks.
 @MainActor final class LibraryTests: XCTestCase {
+  func testPhotosIncludesLivePhotosAndCountsTheDisplayedFetch() async throws {
+    #if !targetEnvironment(simulator)
+      throw XCTSkip("PhotoKit acceptance is simulator-only")
+    #endif
+    let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    guard access == .authorized else { throw XCTSkip("Photos authorization required") }
+    let photoPredicate = try XCTUnwrap(photoLibraryFetchOptions(for: .photo).predicate)
+    let livePredicate = try XCTUnwrap(photoLibraryFetchOptions(for: .motion).predicate)
+    for subtype in [UInt(0), PHAssetMediaSubtype.photoLive.rawValue,
+      PHAssetMediaSubtype.photoLive.union(.photoHDR).rawValue] {
+      let metadata: [String: Any] = ["mediaType": PHAssetMediaType.image.rawValue, "mediaSubtype": subtype]
+      XCTAssertTrue(photoPredicate.evaluate(with: metadata), "Photos must include still and Live Photo image assets")
+      XCTAssertEqual(livePredicate.evaluate(with: metadata), subtype != 0)
+    }
+    XCTAssertFalse(photoPredicate.evaluate(with: ["mediaType": PHAssetMediaType.video.rawValue]))
+    let expected = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    let model = PhotoLibraryModel()
+    await model.open()
+    await model.changeFilter(.photo)
+    XCTAssertEqual(model.total, expected.count)
+    XCTAssertEqual(model.total, model.fetch?.count)
+    for index in 0..<model.loaded { XCTAssertEqual(model.asset(at: index)?.mediaType, .image) }
+    let photos = model.total
+    await model.changeFilter(.motion)
+    XCTAssertLessThanOrEqual(model.total, photos)
+    XCTAssertEqual(model.total, model.fetch?.count)
+    for index in 0..<model.loaded { XCTAssertTrue(model.asset(at: index)?.mediaSubtypes.contains(.photoLive) == true) }
+    let pending = Task { await model.changeFilter(.video) }
+    await Task.yield()
+    XCTAssertEqual(model.total, model.fetch?.count, "Pending filter must retain one coherent result/count")
+    await model.changeFilter(.photo)
+    await pending.value
+    XCTAssertEqual(model.filter, .photo)
+    XCTAssertEqual(model.total, expected.count)
+  }
+
+  /// Persist genuine pending/history records for the subsequent UI drilldown
+  /// checks. Only the dedicated simulator's synthetic PhotoKit library is used.
+  func testSeedPausedSourceDrilldownsForUIAcceptance() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("Acceptance fixtures are simulator-only")
+    #endif
+    XCTAssertEqual(PHPhotoLibrary.authorizationStatus(for: .readWrite), .authorized)
+    let model = BackupModel.shared
+    await model.open()
+    let paused = await model.setPaused(true)
+    XCTAssertTrue(paused)
+    if model.pairing == nil {
+      let root = FileManager.default.temporaryDirectory.appendingPathComponent("ui-receiver-" + UUID().uuidString)
+      let data = try await Bridge.call(["op": "start_receiver", "root": root.path,
+        "listen": "127.0.0.1:18489", "capacity": 32 * 1024 * 1024])
+      try Keychain.save(data)
+      model.pairing = try JSONDecoder().decode(Pairing.self, from: data)
+      _ = try await Bridge.call(["op": "stop_receiver"])
+    }
+    let target = try XCTUnwrap(model.pairing)
+    let options = photoLibraryFetchOptions()
+    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    options.fetchLimit = 2
+    let assets = PHAsset.fetchAssets(with: .image, options: options)
+    XCTAssertEqual(assets.count, 2, "Synthetic image fixtures are required")
+    let ids = (0..<assets.count).map { assets.object(at: $0).localIdentifier }
+    _ = try await Bridge.call(["op": "schedule_sources", "receiver_id": target.receiverID, "sources": ids])
+    let dates = await PhotoBackupOrder.captureDates(ids)
+    _ = try await Bridge.call(["op": "source_dates", "receiver_id": target.receiverID,
+      "dates": ids.map { [$0, dates[$0] ?? Int64.min] as [Any] }])
+    await model.refreshPendingImportCount()
+    XCTAssertGreaterThanOrEqual(model.pendingImports, 2)
+    await model.controlHistoricalImport("restart")
+    XCTAssertNotNil(model.historicalImport)
+    XCTAssertNil(model.historyError)
+    XCTAssertTrue(model.paused, "Seeding must never start a photo transfer")
+  }
+
   func testBackupCaptureOrderIgnoresIdentifierAndSelectionOrder() async throws {
     #if !targetEnvironment(simulator)
       throw XCTSkip("Synthetic library acceptance is simulator-only")
@@ -56,7 +130,7 @@ import XCTest
     window.frame = scene.coordinateSpace.bounds
     func host() {
       window.rootViewController = UIHostingController(rootView:
-        IOSLibraryGrid(library: model, queueRevision: 0, receiverID: nil))
+        IOSLibraryGrid(library: model, queueRevision: 0, receiverID: nil, showSupplementaryContent: true))
       window.makeKeyAndVisible()
     }
     defer { window.isHidden = true; window.rootViewController = nil }
@@ -132,7 +206,11 @@ import XCTest
     await model.reload()
     XCTAssertEqual(model.index(of: anchor), position + 250)
     XCTAssertGreaterThan(model.loaded, position + 250)
-    try await waitUntil("insertion scroll anchor") {
+    try await waitUntil("insertion scroll anchor", details: {
+      let index = model.index(of: anchor)
+      let frame = index.flatMap { afterNavigation.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: $0, section: 0))?.frame }
+      return "index=\(String(describing: index)), frame=\(String(describing: frame)), offset=\(afterNavigation.contentOffset), content=\(afterNavigation.contentSize), loaded=\(model.loaded), hasMore=\(model.hasMoreRows)"
+    }) {
       self.anchorIsVisible(anchor, inset: inset, grid: afterNavigation, model: model)
     }
 

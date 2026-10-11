@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="discovery_available">有新功能可了解</string>
+    <string name="discovery_entry_label">%1$s，有新功能可了解</string>
+    <string name="experiment_setup">首次设置</string>
+    <string name="experiment_auto">自动释放</string>
+    <string name="experiment_permission">1. 允许操作 Google 相册</string>
+    <string name="experiment_permission_off">未开启 · 点击前往系统设置，开启本应用的无障碍服务。</string>
+    <string name="experiment_permission_on">已开启 · 可以操作 Google 相册的释放空间页面。</string>
+    <string name="experiment_account">2. 确认相册账号</string>
+    <string name="experiment_account_off">未确认 · 使用这台手机 Google 相册中当前登录的账号。</string>
+    <string name="experiment_account_on">已确认 · 更换账号后需要重新确认。</string>
+    <string name="experiment_bind_intro">确认这台手机 Google 相册中当前登录的账号，之后只为这个账号释放空间。更换账号后会停止自动释放，需要重新确认。</string>
+    <string name="experiment_auto_setup">先完成上面的两步设置，再开启自动释放。</string>
+    <string name="experiment_troubleshoot">遇到问题？</string>
+    <string name="experiment_troubleshoot_note">无法打开或识别 Google 相册时，可检查页面并导出报告。正常使用无需执行。</string>
+    <string name="experiment_compatibility">实验功能可能受 Google 相册版本影响。</string>
+    <string name="experiment_probe_intro">只用于排查页面识别问题，不释放空间。</string>
+    <string name="experiment_account_changed">账号已改变 · 请重新确认当前账号。</string>
+    <string name="experiment_account_pending">账号已确认；上次清理结果待确认，点此继续检查</string>
+    <string name="cleanup_result_checking_result">正在打开上次清理的结果页面…</string>
+    <string name="cleanup_result_manual_review_required">无法自动确认上次清理结果。请在 Google 相册中核对，回到这里点击“我已检查结果”。不会重复执行释放。</string>
+</resources>

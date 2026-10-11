@@ -1,3 +1,32 @@
+# 0.3.0
+
+- Refresh the iPhone/macOS sender and Android receiver interfaces with reusable
+  components, consistent settings groups, clearer actions and less repetitive
+  explanatory text.
+- Standardize Apple preference density and section spacing, improve Mac library
+  selection controls and folder view alignment, and move update settings into About.
+- Derive monochrome system icons from the original BackupDuck brand artwork.
+- Register selected backup work durably before preparing originals. Preparation,
+  failures and retry continue on task screens instead of blocking confirmation.
+- Improve receiver-result updates and preserve selection, scrolling and filtering
+  as background task states change.
+- Add a one-time, duck-yellow discovery mark to the Android receiver Settings tab
+  and Experiments entry. Viewing the overview clears both; cleanup stays opt-in.
+- Simplify experimental Google Photos space-management setup and result screens.
+  The feature remains experimental; receipt and gallery publication do not prove
+  Google Photos cloud upload or a successful cleanup.
+- Provide English contributor documentation and maintained design/component
+  contracts. Android and Windows sender applications remain outside this release.
+
+Release metadata: version 0.3.0, build 47. Availability on distribution channels
+is independent of this source change. Real iCloud slow-download behavior and a
+complete physical-device Google Photos cleanup require separate verification.
+
+Official Mac 0.2.x and Android RC.2/RC.3 installations retain their update
+identities. Android RC.1 and PhotoBridge 0.1.x need the separate transition
+described in [upgrade compatibility](upgrading.md). Legacy update endpoints
+remain required when the primary website moves to GitHub Pages.
+
 # 0.2.0-rc.3
 
 - Keep the Pixel receiver on its physical Wi-Fi address when a VPN is active, including global VPN mode. Pairing retains the saved receiver identity when its address changes.

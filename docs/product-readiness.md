@@ -1,4 +1,4 @@
-# Beta scope and configuration
+# Platform scope and configuration
 
 ## Sender
 
@@ -26,8 +26,8 @@
 
 Mac: Apple Silicon, macOS 14+, ad hoc signing and signed Sparkle updates; not
 Apple-notarized. Android: arm64, Android 10+, dedicated release signing identity.
-iOS: iOS 17+, source builds using the user's own development team. No public
-TestFlight/App Store release or direct in-app updater is offered.
+iOS: iOS 17+, TestFlight or source builds using the developer's own signing team.
+App Store distribution and a direct in-app updater are not offered.
 
-Windows senders, NAS adapters and online receivers are future work. The protocol
+Android and Windows sender applications, NAS adapters and online receivers are future work. The protocol
 and Rust core are portable; this does not imply those products are already shipped.

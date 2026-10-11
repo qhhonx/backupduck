@@ -1,11 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "buildCommand": "",
+  "outputDirectory": ".",
   "cleanUrls": true,
   "rewrites": [
     {
       "source": "/appcast.xml",
       "destination": "/api/appcast"
+    },
+    {
+      "source": "/releases.json",
+      "destination": "/api/releases"
     }
   ],
   "headers": [

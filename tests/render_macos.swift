@@ -1,6 +1,7 @@
 // Render production SwiftUI views with synthetic presentation state and a
 // temporary Rust store. No Keychain, Photos authorization or network is opened.
 import AppKit
+import ScreenCaptureKit
 import SwiftUI
 
 @main struct MacLayoutCheck {
@@ -23,9 +24,55 @@ import SwiftUI
       backupduck_free(result)
     }
     let app = NSApplication.shared
-    app.setActivationPolicy(.accessory)
+    let interactive = CommandLine.arguments.contains("--interactive-replica") || CommandLine.arguments.contains("--interactive-folder") || CommandLine.arguments.contains("--interactive")
+    app.setActivationPolicy(interactive ? .regular : .accessory)
+    setvbuf(stdout, nil, _IONBF, 0)
+    print("Layout check starting: " + CommandLine.arguments.dropFirst().joined(separator: " "))
     Task { @MainActor in
       do {
+        print("Layout check main-actor task entered")
+        if CommandLine.arguments.contains("--local-preview-policy") {
+          precondition(!MacLocalPreviewPolicy.imageOptions().isNetworkAccessAllowed)
+          precondition(!MacLocalPreviewPolicy.videoOptions().isNetworkAccessAllowed)
+          precondition(!MacLocalPreviewPolicy.liveOptions().isNetworkAccessAllowed)
+          precondition(MacLocalPreviewPolicy.imageOptions().deliveryMode == .highQualityFormat)
+          precondition(MacLocalPreviewPolicy.liveOptions().deliveryMode == .highQualityFormat)
+          print("Local preview policy passed: still, video and Live Photo requests all forbid network; no Photos library access or playback invoked.")
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--menubar-symbol") {
+          precondition(MacMenuBarIcon.image.isTemplate && MacMenuBarIcon.image.size == NSSize(width: 20, height: 20))
+          let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 40, pixelsHigh: 40, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+          rep.size = NSSize(width: 20, height: 20)
+          NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+          MacMenuBarIcon.image.draw(in: NSRect(x: 0, y: 0, width: 20, height: 20))
+          NSGraphicsContext.restoreGraphicsState()
+          precondition(rep.colorAt(x: 0, y: 0)!.alphaComponent == 0 && rep.colorAt(x: 39, y: 39)!.alphaComponent == 0, "Menu symbol must have no opaque square background")
+          for dark in [false, true] {
+            try await capture("menubar-symbol-" + (dark ? "dark" : "light"), view: AnyView(HStack(spacing: 20) {
+              Image(systemName: "iphone"); Image(systemName: "paperplane.fill")
+              Image(nsImage: MacMenuBarIcon.image).renderingMode(.template)
+              Image(systemName: "rectangle"); Image(systemName: "gearshape")
+            }.font(.system(size: 18)).foregroundStyle(.primary).padding(24)), output: output, size: NSSize(width: 280, height: 80), dark: dark)
+          }
+          print("Menu symbol passed: original AppIcon mask,20pt system template,transparent corners,light/dark native icon row.")
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--submission-controls") {
+          precondition(!NSLocalizedString("updates_check", comment: "").hasSuffix("…"))
+          for dark in [false, true] {
+            for width in [440.0, 720.0] {
+              try await capture("submission-controls-" + (dark ? "dark" : "light") + "-" + String(Int(width)),
+                view: AnyView(SubmissionControlsFixture()), output: output,
+                size: NSSize(width: width, height: 340), dark: dark)
+            }
+            try await capture("selection-submission-" + (dark ? "dark" : "light"),
+              view: AnyView(DuckSelectedBackup(count: 2, rebackup: .constant(false), confirm: { true })),
+              output: output, size: NSSize(width: 560, height: 420), dark: dark)
+          }
+          print("Submission controls rendered: update label without static ellipsis, intrinsic native segments aligned trailing, normal confirmation in both appearances and compact widths.")
+          app.terminate(nil); return
+        }
         if CommandLine.arguments.contains("--burst-cells") {
           for dark in [false, true] {
             try await capture("burst-cells-" + (dark ? "dark" : "light"),
@@ -81,10 +128,468 @@ import SwiftUI
         model.paused = true
         // This identity is display-only; the renderer never starts a sender.
         let paired = Pairing(version: 2, receiverID: "layout-fixture", endpoint: "https://receiver.invalid", certificate: "", token: "")
+        if CommandLine.arguments.contains("--folder-feedback") {
+          let folders = FolderSources(backup: model)
+          let directory = store.appendingPathComponent("Example originals")
+          try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+          let bookmark = try directory.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+          var source = FolderSource(id: "feedback-source", name: "Example originals", bookmark: bookmark,
+            automatic: true, enabled: true, receiver: paired.receiverID, lastCheck: Date())
+          model.pairing = paired; model.paused = false
+          folders.summaries[source.id] = FolderSummary(files: 1, bytes: 356000, unsupported: 0, scanning: false)
+          for state in ["executing", "settling", "recovery"] {
+            source.pendingControl = state == "settling" ? nil : FolderPendingControl(action: "start")
+            folders.sources = [source]
+            folders.recoveringControls = state == "executing" ? [source.id] : []
+            folders.phases[source.id] = "folder_settling"
+            folders.actionMessages[source.id] = "folder_backup_requested"
+            let key = FolderSourcePresentation.status(source: source, phase: folders.phases[source.id],
+              action: folders.actionMessages[source.id], executing: state == "executing", paused: false, paired: true)
+            precondition(key == (state == "executing" ? "folder_starting" : state == "recovery" ? "mac_folder_operation_incomplete" : "folder_settling"))
+            for dark in [false, true] {
+              try await capture("folder-feedback-" + state + (dark ? "-dark" : "-light"),
+                view: AnyView(FolderSourcesPage(folders: folders, backup: model)), output: output,
+                size: NSSize(width: 900, height: 620), dark: dark)
+            }
+          }
+          // Exercise the actual successful durable start; only interrupted work
+          // retains recovery after it returns. Never touch a real source.
+          source.pendingControl = nil; folders.sources = [source]; folders.recoveringControls = []
+          _ = try await Bridge.call(["op": "folder", "command": ["action": "begin", "source": source.id, "root": directory.path]])
+          while true {
+            let data = try await Bridge.call(["op": "folder", "command": ["action": "step"]])
+            if !(try JSONDecoder().decode(FolderSummary.self, from: data)).scanning { break }
+          }
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          let accepted = await folders.start(source.id)
+          precondition(accepted && folders.sources[0].pendingControl == nil && folders.recoveringControls.isEmpty)
+          print("Folder feedback passed: running intent is neutral, interrupted intent is recoverable, source totals stay separate from progress, successful start finishes its durable acknowledgement.")
+          try FileManager.default.removeItem(at: store); app.terminate(nil); return
+        }
         model.deviceSnapshot = DeviceSnapshot(device: model.deviceSnapshot!.device,
           peers: [DeviceSnapshot.Peer(key: paired.receiverID,
             profile: DeviceProfile(id: String(repeating: "a", count: 64), name: "Amber Otter"),
             last_seen: Int64(Date().timeIntervalSince1970))])
+        model.pairing = paired
+        model.pairingError = "Synthetic TLS verification failure"
+        precondition(!DesktopPairingModel.acceptedPairing(model, receiverID: paired.receiverID, endpoint: paired.endpoint),
+          "An old matching receiver ID must not turn a failed TLS pairing into success")
+        model.pairingError = nil
+        precondition(!DesktopPairingModel.acceptedPairing(model, receiverID: paired.receiverID, endpoint: "https://new-route.invalid"),
+          "An unchanged old route must not confirm a different requested route")
+        precondition(DesktopPairingModel.acceptedPairing(model, receiverID: paired.receiverID, endpoint: paired.endpoint))
+        model.pairing = nil
+        if CommandLine.arguments.contains("--section-rhythm") {
+          guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else { throw CocoaError(.fileReadNoPermission) }
+          model.pairing = paired
+          await model.refreshStorage()
+          let folders = FolderSources(backup: model)
+          let rows = AnyView(MacPreferenceGroup {
+            MacPreferenceRow(title: "auto_backup_new") { Toggle("auto_backup_new", isOn: .constant(true)).labelsHidden().toggleStyle(.switch) }
+            MacPreferenceRow(title: "settings_cache", first: false) { MacPreferenceValue(value: "0 KB / 2 GB") }
+          })
+          let plain = AnyView(MacContentSection(title: "design_recent_transfers") { rows })
+          let action = AnyView(MacContentSection(title: "design_recent_transfers", actionTitle: "apple_view_all", action: {}) { rows })
+          let plainHeight = await naturalHeight(plain, width: 500)
+          let actionHeight = await naturalHeight(action, width: 500)
+          precondition(abs(plainHeight - actionHeight) < 1, "A section action must not change heading or section height")
+          precondition(abs(plainHeight - 140) < 1, "Two rows96 + heading32 + contentgap12 must total140")
+          precondition(MacMenuBarIcon.image.size == NSSize(width: 20, height: 20) && MacMenuBarIcon.image.isTemplate && !MacMenuBarIcon.image.representations.isEmpty, "Menu icon must use the transparent monochrome brand template")
+          for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            try await capture("rhythm-sections-" + suffix, view: AnyView(VStack(alignment: .leading, spacing: MacContentMetrics.sectionSpacing) { plain; action }.padding(20)), output: output, size: NSSize(width: 560, height: 350), dark: dark)
+            for destination in [MacDestination.settings, .backup, .sources] {
+              try await capture("rhythm-\(destination)-" + suffix, view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output, size: NSSize(width: 900, height: 620), dark: dark, action: {
+                precondition(!(NSApp.keyWindow?.firstResponder is NSButton), "First open must not focus the sidebar toolbar button")
+              })
+            }
+            try await capture("rhythm-about-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .about)), output: output, size: NSSize(width: 680, height: 620), dark: dark)
+            try await capture("rhythm-about-route-" + suffix, view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: .backup, folderSources: folders)), output: output, size: NSSize(width: 900, height: 620), dark: dark, action: { MacAboutNavigation.open {} })
+          }
+          try FileManager.default.removeItem(at: store)
+          print("Section checks passed: action/plain section both140pt; settings groups, overview, folders, About and shared About navigation captured in actual light/dark windows; bundled brand icon20pt; initial sidebar focus absent.")
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--preference-edges") {
+          guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else { throw CocoaError(.fileReadNoPermission) }
+          model.pairing = paired
+          await model.refreshStorage()
+          let folders = FolderSources(backup: model)
+          let edgeRows = AnyView(MacPreferenceGroup {
+            MacPreferenceRow(title: "auto_backup_new") { Toggle("auto_backup_new", isOn: .constant(true)).labelsHidden().toggleStyle(.switch) }
+            MacPreferenceRow(title: "settings_cache", first: false) { MacPreferenceValue(value: "0 KB / 2 GB") }
+          })
+          let groupHeight = await naturalHeight(edgeRows, width: 500)
+          precondition(abs(groupHeight - 96) < 1, "An untitled two-row group must not add space above or below its 48pt rows")
+          let titled = AnyView(MacPreferenceGroup(title: "device_identity") {
+            MacPreferenceRow(title: "device_this_device") { MacPreferenceValue(value: "Fixture Mac") }
+          })
+          let headingHeight = await naturalHeight(AnyView(Text("device_identity").font(.system(size: 16, weight: .semibold))), width: 460)
+          let titledHeight = await naturalHeight(titled, width: 500)
+          precondition(abs(titledHeight - (20 + headingHeight + 8 + 48)) < 1, "The last row must end at the card edge; only the heading owns extra vertical spacing")
+          for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            for destination in [MacDestination.settings, .backup] {
+              try await capture("edges-\(destination)-" + suffix, view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output, size: NSSize(width: 900, height: 620), dark: dark)
+            }
+            try await capture("edges-groups-" + suffix, view: AnyView(VStack(spacing: 20) { titled; edgeRows }.padding(20)), output: output, size: NSSize(width: 560, height: 260), dark: dark)
+            try await capture("edges-selection-" + suffix, view: AnyView(MacLibraryToolbar(total: 55120, selected: 3, selecting: .constant(true), filter: .constant(.all), tileSize: .constant(140), canBackup: true, finish: {}, backup: {}).padding(28)), output: output, size: NSSize(width: 680, height: 100), dark: dark)
+          }
+          try FileManager.default.removeItem(at: store)
+          print("Preference edge checks passed: two untitled rows total 96pt; titled group has no trailing inset; settings, overview and single-count selection captured in light/dark actual windows.")
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--ui-unification") {
+          guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else { throw CocoaError(.fileReadNoPermission) }
+          model.pairing = paired
+          await model.refreshStorage()
+          let folders = FolderSources(backup: model)
+          let directory = store.appendingPathComponent("Fixture originals")
+          try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+          let row = AnyView(MacPreferenceRow(title: "storage_cache_used") { MacPreferenceValue(value: "0 KB", indicator: nil, width: 168) })
+          let menuRow = AnyView(MacPreferenceRow(title: "storage_cache_budget") {
+            MacPreferenceMenu(title: "Cache budget", selection: .constant(2), options: [1,2,5], label: { "\($0) GB" }).frame(width: 168, height: 24)
+          })
+          let factHeight = await naturalHeight(row, width: 500)
+          let menuHeight = await naturalHeight(menuRow, width: 500)
+          precondition(abs(factHeight - 48) < 1)
+          precondition(abs(menuHeight - 48) < 1)
+          let qr = NSImage(size: NSSize(width: 240, height: 240))
+          qr.lockFocus(); NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 240, height: 240).fill()
+          NSColor.black.setFill()
+          for y in 0..<24 { for x in 0..<24 where (x * 3 + y * 5) % 7 < 3 { NSRect(x: x * 10, y: y * 10, width: 10, height: 10).fill() } }
+          qr.unlockFocus()
+          for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            for width in [900.0, 1180.0] {
+              for destination in [MacDestination.settings, .backup, .receiver, .sources] {
+                try await capture("unified-\(destination)-\(Int(width))-" + suffix,
+                  view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)),
+                  output: output, size: NSSize(width: width, height: 620), dark: dark)
+              }
+            }
+            try await capture("unified-cache-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .cache)), output: output, size: NSSize(width: 680, height: 660), dark: dark)
+            try await capture("unified-help-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .help)), output: output, size: NSSize(width: 680, height: 620), dark: dark)
+            try await capture("unified-backup-settings-" + suffix, view: AnyView(MacBackupPreferences(model: model)), output: output, size: NSSize(width: 560, height: 600), dark: dark)
+            try await capture("unified-pairing-" + suffix, view: AnyView(MacPairingPresentation(model: model, image: qr, cancel: {}, regenerate: {})), output: output, size: NSSize(width: 560, height: 600), dark: dark)
+            try await capture("unified-add-folder-" + suffix, view: AnyView(AddFolderSheet(url: directory, folders: folders, close: {})), output: output, size: NSSize(width: 560, height: 560), dark: dark)
+            for selecting in [false, true] {
+              try await capture("unified-library-\(selecting)-" + suffix, view: AnyView(MacLibraryToolbar(total: 55120, selected: selecting ? 2 : 0, selecting: .constant(selecting), filter: .constant(.all), tileSize: .constant(140), canBackup: selecting, finish: {}, backup: {}).padding(28)), output: output, size: NSSize(width: 680, height: 100), dark: dark)
+            }
+            try await capture("unified-notices-" + suffix, view: AnyView(VStack(spacing: 20) {
+              DuckNotice(title: "folder_scan_note")
+              DuckNotice(title: "mac_library_preview_unavailable", tone: .attention)
+              DuckNotice(title: "mac_receiver_connection_note", symbol: "wifi")
+              DuckNotice(title: "mac_fidelity_folder_range_title", message: "mac_fidelity_folder_range_note")
+            }.padding(20)), output: output, size: NSSize(width: 560, height: 380), dark: dark)
+          }
+          try FileManager.default.removeItem(at: store)
+          print("Unified desktop checks passed: value/menu rows both 48pt; actual active windows light/dark and minimum width; synthetic QR, folder, help, preferences, notices and toolbar states.")
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--fidelity-audit") {
+          guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else {
+            throw CocoaError(.fileReadNoPermission)
+          }
+          let folders = FolderSources(backup: model)
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          var sources: [FolderSource] = []
+          for name in ["相机 SD 卡", "Pictures"] {
+            let directory = store.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let bookmark = try directory.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+            sources.append(FolderSource(id: "fidelity-" + String(sources.count), name: name, bookmark: bookmark,
+              automatic: false, enabled: false, receiver: paired.receiverID, lastCheck: nil))
+          }
+          folders.sources = sources
+          try JSONEncoder().encode(sources).write(to: model.root.appendingPathComponent("folder-sources.json"), options: .atomic)
+          UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
+          model.pairing = Pairing(version: 2, receiverID: paired.receiverID, endpoint: "https://192.0.2.10:8484", certificate: "", token: "")
+          model.ready = true; model.paused = false
+          model.summary.total = 120; model.summary.received = 93; model.summary.published = 91
+          model.summary.publication_failed = 2; model.summary.queued = 20; model.summary.waiting = 7
+          model.deviceSnapshot = DeviceSnapshot(device: model.deviceSnapshot!.device, peers: [DeviceSnapshot.Peer(key: paired.receiverID,
+            profile: DeviceProfile(id: String(repeating: "a", count: 64), name: "示例 Pixel"), last_seen: Int64(Date().timeIntervalSince1970))])
+          for (name, destination) in [("backup-album-failure", MacDestination.backup), ("settings-normal", .settings),
+            ("receiver-paired", .receiver), ("folders-normal", .sources), ("transfers-empty", .transfers), ("library-permission", .library)] {
+            try await capture((CommandLine.arguments.contains("--fidelity-after") ? "fidelity-after-" : "fidelity-before-") + name, view: AnyView(MacWorkspace(model: model,
+              library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output,
+              size: NSSize(width: 1180, height: 800))
+          }
+          model.pairing = nil
+          for (name, destination) in [("backup-unpaired", MacDestination.backup), ("receiver-unpaired", .receiver)] {
+            try await capture((CommandLine.arguments.contains("--fidelity-after") ? "fidelity-after-" : "fidelity-before-") + name, view: AnyView(MacWorkspace(model: model,
+              library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output,
+              size: NSSize(width: 1180, height: 800))
+          }
+          print("Fidelity audit captured eight synthetic production MacWorkspace states on exact 1180x800 outer canvases, active real windows only. No design matching claim or user media access.")
+          try FileManager.default.removeItem(at: store)
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--recovery-intents") {
+          model.pairing = paired; model.paused = true; model.ready = true
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          let media = store.appendingPathComponent("Recovery originals")
+          try FileManager.default.createDirectory(at: media, withIntermediateDirectories: true)
+          try Data("isolated synthetic index fixture".utf8).write(to: media.appendingPathComponent("fixture.jpg"))
+          let bookmark = try media.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+          let config = model.root.appendingPathComponent("folder-sources.json")
+          for action in ["start", "retry", "dismiss", "rules", "remove"] {
+            let id = "recovery-" + action
+            _ = try await Bridge.call(["op": "folder", "command": ["action": "begin", "source": id, "root": media.path]])
+            while true {
+              let data = try await Bridge.call(["op": "folder", "command": ["action": "step"]])
+              if !(try JSONDecoder().decode(FolderSummary.self, from: data)).scanning { break }
+            }
+            let entryData = try await Bridge.call(["op": "folder", "command": ["action": "entry", "source": id, "relative": "fixture.jpg"]])
+            let entry = try JSONDecoder().decode(FolderEntry.self, from: entryData)
+            let source = FolderSource(id: id, name: "Recovery originals", bookmark: bookmark,
+              automatic: false, enabled: false, receiver: paired.receiverID, lastCheck: nil,
+              issues: [entry.relative: entry.revision], includePatterns: [], excludePatterns: [])
+            var writes = 0
+            let folders = FolderSources(backup: model, writeConfiguration: { data, path in
+              writes += 1
+              if writes == 2 { throw CocoaError(.fileWriteOutOfSpace) }
+              try data.write(to: path, options: .atomic)
+            })
+            folders.sources = [source]
+            var accepted = false
+            switch action {
+            case "start": accepted = await folders.start(id)
+            case "retry": accepted = await folders.retry(id, relative: entry.relative)
+            case "dismiss": accepted = await folders.dismissIssue(id, relative: entry.relative)
+            case "rules":
+              do { try await folders.saveRules(id, include: ["**/*.jpg"], exclude: []); accepted = true }
+              catch { accepted = false }
+            default: accepted = await folders.remove(id)
+            }
+            precondition(!accepted && writes == 2 && folders.sources[0].pendingControl?.action == action,
+              "Post-native persistence failure must retain a durable recovery intent")
+            let durable = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: config))
+            precondition(durable[0].pendingControl?.action == action && durable[0].receiver == paired.receiverID)
+            let cutoff = durable[0].manualCutoffMS
+            if action == "start" {
+              precondition(cutoff != nil && durable[0].enabled)
+              try await capture("audit-pending-source-recovery", view: AnyView(FolderSourcesPage(folders: folders, backup: model)),
+                output: output, size: NSSize(width: 960, height: 680))
+            }
+            if action == "retry" { precondition(durable[0].retryPaths == [entry.relative]) }
+            if action == "dismiss" {
+              let states = try await folders.states(id, relatives: [entry.relative])
+              precondition(states[entry.relative] == "ignored" && folders.sources[0].issues[entry.relative] == nil,
+                "After native dismiss commits, the UI must show ignored despite a derived-cache save failure")
+              precondition(folders.error?.contains(NSLocalizedString("mac_folder_ignore_applied_recovery", comment: "")) == true)
+            }
+            // Completing an old target's idempotent index work must not trap
+            // recovery or silently bind this saved plan to a new paired phone.
+            if ["start", "retry"].contains(action) {
+              model.pairing = Pairing(version: 2, receiverID: "different-fixture", endpoint: "https://different.invalid", certificate: "", token: "")
+              let recoveredAfterTargetChange = await folders.recoverPendingControl(id)
+              precondition(recoveredAfterTargetChange && folders.sources[0].pendingControl == nil
+                && folders.sources[0].receiver == paired.receiverID
+                && folders.actionMessages[id] == "folder_receiver_changed")
+              precondition(model.summary.total == 0, "Recovery must not enqueue a saved plan to a replacement target")
+              model.pairing = paired
+            }
+            let restarted = FolderSources(backup: model)
+            await restarted.open()
+            if action == "remove" { precondition(restarted.sources.isEmpty) }
+            else {
+              precondition(restarted.sources[0].pendingControl == nil && restarted.sources[0].receiver == paired.receiverID)
+              if action == "start" { precondition(restarted.sources[0].manualCutoffMS == cutoff, "Recovery must preserve the frozen start range") }
+              if action == "dismiss" { precondition(restarted.sources[0].issues[entry.relative] == nil) }
+              if action == "rules" { precondition(restarted.sources[0].includePatterns == ["**/*.jpg"]) }
+            }
+            let converged = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: config))
+            precondition(converged.allSatisfy { $0.pendingControl == nil })
+            print("Post-native final-write fault + restart recovery passed: " + action)
+          }
+          print("Durable source control plans passed: target/cutoff retained, pending blocks native preparation, committed ignores remain truthful, replay is idempotent and final acknowledgement persists. Synthetic temporary index only.")
+          try FileManager.default.removeItem(at: store)
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--audit-differences") {
+          model.pairing = paired; model.paused = true; model.ready = true
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          let media = store.appendingPathComponent("Audit originals")
+          let addMedia = store.appendingPathComponent("Audit new source")
+          for url in [media, addMedia] { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
+          let bookmark = try media.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+          var source = FolderSource(id: "atomic-audit", name: "Audit originals", bookmark: bookmark,
+            automatic: true, enabled: true, receiver: paired.receiverID, lastCheck: nil,
+            issues: ["missing.jpg": "1"], includePatterns: ["**/*.jpg"], excludePatterns: [])
+          source.issueDetails = ["missing.jpg": FolderIssue(reason: "missing", detail: "Synthetic audit missing original")]
+          let folders = FolderSources(backup: model); folders.sources = [source]
+          let config = model.root.appendingPathComponent("folder-sources.json")
+          try FileManager.default.createDirectory(at: config, withIntermediateDirectories: true)
+          let automatic = folders.setAutomatic(source.id, false)
+          precondition(!automatic && folders.sources[0].automatic && folders.sources[0].enabled && folders.error != nil)
+          let paused = folders.pause(source.id)
+          precondition(!paused && folders.sources[0].enabled && folders.sources[0].automatic)
+          let started = await folders.start(source.id)
+          precondition(!started && folders.sources[0].retryPaths == nil && folders.starting.isEmpty)
+          let retried = await folders.retry(source.id, relative: "missing.jpg")
+          precondition(!retried && folders.sources[0].retryPaths == nil && folders.sources[0].issues.count == 1)
+          let ignored = await folders.dismissIssue(source.id, relative: "missing.jpg")
+          precondition(!ignored && folders.sources[0].issues["missing.jpg"] == "1")
+          do { try await folders.saveRules(source.id, include: ["**/*.png"], exclude: []); preconditionFailure("Blocked saveRules must fail") }
+          catch { precondition(folders.sources[0].includePatterns == ["**/*.jpg"]) }
+          do { try await folders.add(addMedia, automatic: false, existing: false); preconditionFailure("Blocked add must fail") }
+          catch { precondition(folders.sources.count == 1 && folders.error != nil) }
+          try FileManager.default.removeItem(at: config)
+          let recovery = folders.setAutomatic(source.id, false)
+          precondition(recovery && !folders.sources[0].automatic && !folders.sources[0].enabled)
+          let persisted = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: config))
+          precondition(!persisted[0].automatic && !persisted[0].enabled)
+          folders.reveal(source, relative: "missing.jpg")
+          precondition(folders.error == NSLocalizedString("folder_issue_missing", comment: ""))
+          // A corrupt user config is never silently replaced by an empty first-use config.
+          let corruptRoot = store.appendingPathComponent("corrupt-config")
+          try FileManager.default.createDirectory(at: corruptRoot, withIntermediateDirectories: true)
+          let corruptPath = corruptRoot.appendingPathComponent("folder-sources.json")
+          let corruptData = Data("not a valid source configuration".utf8)
+          try corruptData.write(to: corruptPath)
+          let corruptModel = BackupModel(root: corruptRoot); corruptModel.ready = true
+          let protected = FolderSources(backup: corruptModel)
+          await protected.open()
+          precondition(protected.loadFailed && protected.error != nil)
+          do { try await protected.add(addMedia, automatic: false, existing: false); preconditionFailure("Corrupt config must reject add") }
+          catch { let preservedData = try Data(contentsOf: corruptPath); precondition(preservedData == corruptData) }
+          model.autoBackupError = "Synthetic auto-backup save failure. Previous choice remains unchanged."
+          model.pauseError = "Synthetic pause save failure. Previous queue state remains unchanged."
+          for dark in [false, true] {
+            try await capture("audit-current-operation-errors-" + (dark ? "dark" : "light"),
+              view: AnyView(VStack(spacing: 16) {
+                DuckLibrarySource(model: model)
+                DuckBackupProgress(model: model, showTransfers: {})
+              }.padding(20)), output: output, size: NSSize(width: 660, height: 730), dark: dark)
+            model.pairingInProgress = true
+            try await capture("audit-pair-verifying-" + (dark ? "dark" : "light"),
+              view: AnyView(MacPairingPresentation(model: model, image: nil, error: nil, cancel: {}, regenerate: {})),
+              output: output, size: NSSize(width: 520, height: 650), dark: dark)
+            model.pairingInProgress = false
+          }
+          model.historyError = "Synthetic historical-scan failure"
+          await model.refreshHistoricalImport()
+          precondition(model.historyError == "Synthetic historical-scan failure", "Routine successful status poll must retain a workflow error")
+          await model.refreshHistoricalImport(clearError: true)
+          precondition(model.historyError == nil, "Explicit successful history retry can clear its error")
+          print("Audit differences passed: blocked atomic add/rules/auto/pause/start/retry/ignore retain authoritative source; recovery persists; corrupt config protected; missing Finder file errors; historical error poll retention; current-operation error and pairing busy visual fixtures rendered. No user media or receiver contacted.")
+          try FileManager.default.removeItem(at: store)
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--replica-check") || CommandLine.arguments.contains("--interactive-replica") {
+          model.pairing = paired; model.paused = true; model.ready = true
+          model.summary.total = 120; model.summary.received = 93; model.summary.published = 91
+          model.summary.publication_failed = 2; model.summary.queued = 20; model.summary.waiting = 7
+          let mediaFolder = store.appendingPathComponent("Synthetic photos")
+          try FileManager.default.createDirectory(at: mediaFolder, withIntermediateDirectories: true)
+          let bookmark = try mediaFolder.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+            includingResourceValuesForKeys: nil, relativeTo: nil)
+          let folders = FolderSources(backup: model)
+          let longPath = String(repeating: "Synthetic long path/", count: 8) + "original-photo.jpg"
+          var source = FolderSource(id: "replica-folder", name: "Synthetic photos", bookmark: bookmark,
+            automatic: false, enabled: false, receiver: paired.receiverID, lastCheck: nil,
+            issues: [longPath: "1"], includePatterns: ["**/*.jpg"], excludePatterns: ["Temp/**"])
+          source.issueDetails = [longPath: FolderIssue(reason: "unreadable_media",
+            detail: "Synthetic unreadable original. This is an isolated fixture, not a user photo.")]
+          folders.sources = [source]
+          // Real matcher and persistence checks, always against the temporary store.
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          try await folders.saveRules(source.id, include: ["**/*.jpg"], exclude: ["Temp/**"])
+          let storedBeforeFailure = try Data(contentsOf: model.root.appendingPathComponent("folder-sources.json"))
+          do { try await folders.saveRules(source.id, include: ["["], exclude: []); preconditionFailure("Invalid rule must fail") }
+          catch {
+            let storedAfterFailure = try Data(contentsOf: model.root.appendingPathComponent("folder-sources.json"))
+            precondition(storedAfterFailure == storedBeforeFailure, "Invalid rule must retain previously saved configuration")
+          }
+          await folders.retry(source.id, relative: longPath)
+          precondition(folders.sources[0].retryPaths == [longPath] && model.paused,
+            "A retry should queue only the failed original without resuming a paused queue")
+          precondition(folders.sources[0].issues[longPath] != nil, "Submitting retry is not completion")
+          source = folders.sources[0]
+          let removalRoot = store.appendingPathComponent("removal-check")
+          try FileManager.default.createDirectory(at: removalRoot, withIntermediateDirectories: true)
+          let removalModel = BackupModel(root: removalRoot)
+          let removalSources = FolderSources(backup: removalModel)
+          var removable = source
+          removable = FolderSource(id: "remove-check", name: source.name, bookmark: bookmark,
+            automatic: false, enabled: false, receiver: paired.receiverID, lastCheck: nil)
+          removalSources.sources = [removable]
+          let blockedConfig = removalRoot.appendingPathComponent("folder-sources.json")
+          try FileManager.default.createDirectory(at: blockedConfig, withIntermediateDirectories: true)
+          let rejectedRemoval = await removalSources.remove(removable.id)
+          precondition(!rejectedRemoval && removalSources.sources.count == 1 && removalSources.error != nil,
+            "A failed atomic config write must preserve the source")
+          try FileManager.default.removeItem(at: blockedConfig)
+          let acceptedRemoval = await removalSources.remove(removable.id)
+          precondition(acceptedRemoval && removalSources.sources.isEmpty, "Removal must succeed after persistence recovers")
+          let persistedRemoval = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: blockedConfig))
+          precondition(persistedRemoval.isEmpty && FileManager.default.fileExists(atPath: mediaFolder.path),
+            "Source removal must persist while keeping the original folder")
+          if CommandLine.arguments.contains("--interactive-replica") {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 740),
+              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.title = "BackupDuck Replica Check — Synthetic Data"
+            window.contentView = NSHostingView(rootView: ReplicaFlowFixture(model: model, folders: folders,
+              folder: mediaFolder, source: source, path: longPath))
+            interactiveWindow = window
+            window.center(); window.makeKeyAndOrderFront(nil); app.activate(ignoringOtherApps: true)
+            print("Isolated replica fixture ready: folder add / rules / issue / selection / settings / help.")
+            return
+          }
+          for dark in [false, true] {
+            for width in [440.0, 660.0] {
+              let variant = (dark ? "dark" : "light") + "-" + String(Int(width))
+              let size = NSSize(width: width, height: 650)
+              try await capture("replica-add-" + variant, view: AnyView(AddFolderSheet(url: mediaFolder,
+                folders: folders, close: {})), output: output, size: size, dark: dark)
+              try await capture("replica-rules-" + variant, view: AnyView(FolderRulesSheet(folders: folders,
+                source: source, close: {})), output: output, size: size, dark: dark)
+              try await capture("replica-issue-" + variant, view: AnyView(FolderIssueDetail(folders: folders,
+                backup: model, sourceID: source.id, path: longPath)), output: output, size: size, dark: dark)
+              let fileEntry = FolderEntry(relative: longPath, source_id: "fixture-source", revision: "1", size: 123456,
+                media_type: "image/jpeg", modified_ms: 0, state: nil)
+              try await capture("replica-file-detail-" + variant, view: AnyView(FolderFileDetail(folders: folders,
+                source: source, entry: fileEntry)), output: output, size: size, dark: dark)
+              try await capture("replica-selection-" + variant, view: AnyView(DuckSelectedBackup(count: 1200,
+                rebackup: .constant(false), confirm: { true })), output: output, size: size, dark: dark)
+              try await capture("replica-receiver-" + variant, view: AnyView(ReceiverPage(model: model, pair: {})),
+                output: output, size: size, dark: dark)
+            }
+            try await capture("replica-settings-" + (dark ? "dark" : "light"),
+              view: AnyView(MacPreferences(model: model, folders: folders)), output: output,
+              size: NSSize(width: 920, height: 1000), dark: dark)
+            try await capture("replica-history-" + (dark ? "dark" : "light"),
+              view: AnyView(DuckSheetLayout(title: "mac_library_existing") {
+                HistoricalImportSettings(model: model, title: "history_scan_status", explanation: "mac_library_existing_note")
+              } actions: { Button("settings_done") {} }), output: output,
+              size: NSSize(width: 520, height: 600), dark: dark)
+          }
+          print("Replica sheets and pages rendered in Chinese/English, light/dark, compact/regular. Real rule persistence, validation failure and retry semantics passed; window interaction and user acceptance remain separate.")
+          try FileManager.default.removeItem(at: store)
+          app.terminate(nil); return
+        }
+        if CommandLine.arguments.contains("--compact-components") {
+          model.pairing = paired; model.ready = true
+          model.summary.total = 1200; model.summary.received = 1000; model.summary.published = 980
+          model.summary.publication_failed = 20; model.summary.queued = 200
+          for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            let large = DynamicTypeSize.accessibility3
+            try await capture("compact-overview-" + suffix,
+              view: AnyView(MacBackupPage(model: model, pair: {}, library: {}, sources: {}, showTransfers: { _ in })
+                .environment(\.dynamicTypeSize, large)), output: output,
+              size: NSSize(width: 620, height: 680), dark: dark)
+            try await capture("compact-selected-" + suffix,
+              view: AnyView(DuckSelectedBackup(count: 1200, rebackup: .constant(true), confirm: { true })
+                .environment(\.dynamicTypeSize, large)), output: output,
+              size: NSSize(width: 440, height: 650), dark: dark)
+          }
+          try FileManager.default.removeItem(at: store)
+          print("Rendered compact Mac component layouts with accessibility3 environment; actual system scaling/user acceptance remains separate.")
+          app.terminate(nil); return
+        }
         if CommandLine.arguments.contains("--transfer-layout-only") {
           model.pairing = paired; model.paused = false
           let asset = BackupJob.Asset(metadata: ["source_type": "folder", "source_name": "SD Card", "created_at_ms": "1727400000000"],
@@ -94,7 +599,7 @@ import SwiftUI
             let job = BackupJob(id: 1, asset: asset, state: state, confirmedBytes: state == "received" ? 1000000 : 500000,
               errorCode: ["waiting", "failed"].contains(state) ? "network" : nil,
               nextAttemptAt: state == "waiting" ? Int64(Date().addingTimeInterval(30).timeIntervalSince1970) : nil)
-            let row = AnyView(TransferRow(job: job, progress: state == "running" ? TransferProgress(sent: 250000, expected: 500000, baseline: 500000, phase: "upload") : nil, retry: {}))
+            let row = AnyView(TransferRow(job: job, progress: state == "running" ? TransferProgress(sent: 250000, expected: 500000, baseline: 500000, phase: "upload") : nil, retry: { true }))
             rowHeights.append(await naturalHeight(row, width: 680))
             try await capture("transfer-row-" + state, view: row, output: output, size: NSSize(width: 700, height: rowHeights.last!))
           }
@@ -204,10 +709,16 @@ import SwiftUI
           var beganStart = false
           let pendingStart = Task { beganStart = true; await folders.start(source.id) }
           while !beganStart { await Task.yield() }
-          folders.pause(source.id)
+          let committing = folders.sources[0].pendingControl != nil
+          let stopped = folders.pause(source.id)
+          precondition(stopped == !committing, "A committing intent disables conflicting actions")
           await pendingStart.value
+          if committing {
+            precondition(folders.sources[0].manualActive, "The accepted start must finish before stop is available")
+            precondition(folders.pause(source.id), "Stop becomes available after durable acknowledgement")
+          }
           precondition(!folders.sources[0].enabled && folders.actionMessages[source.id] == "folder_pause_explanation",
-            "An in-flight start must not undo a later stop")
+            "A later accepted stop must keep the source paused")
           folders.setAutomatic(source.id, true)
           precondition(folders.sources[0].automaticActive)
           folders.setAutomatic(source.id, false)
@@ -338,6 +849,31 @@ import SwiftUI
           print("Interactive fixture window ready. Store: \(store.path)")
           return
         }
+        if CommandLine.arguments.contains("--design-review") {
+          model.pairing = paired; model.paused = false; model.ready = true
+          model.summary.total = 120; model.summary.received = 93; model.summary.published = 91
+          model.summary.publication_failed = 2; model.summary.queued = 20; model.summary.waiting = 7
+          for dark in [false, true] {
+            try await capture("overview-" + (dark ? "dark" : "light"), view: AnyView(MacBackupPage(model: model,
+              pair: {}, library: {}, sources: {}, showTransfers: { _ in })), output: output,
+              size: NSSize(width: 880, height: 800), dark: dark)
+            try await capture("workspace-" + (dark ? "dark" : "light"), view: AnyView(MacWorkspace(model: model,
+              library: PhotoLibraryModel(), initialDestination: .backup)), output: output,
+              size: NSSize(width: 1180, height: 840), dark: dark)
+          }
+          let asset = BackupJob.Asset(metadata: ["source_type": "folder", "source_name": "SD Card", "created_at_ms": "1790906400000"],
+            kind: "motion", source_id: "layout-transfer", revision: "1", resources: [.init(filename: "旅行_实况.heic", size: 8500000)])
+          let job = BackupJob(id: 1, asset: asset, state: "received", confirmedBytes: 8500000,
+            errorCode: nil, processing: "failed", processingError: "conversion_required", nextAttemptAt: nil)
+          for dark in [false, true] {
+            try await capture("transfer-detail-" + (dark ? "dark" : "light"),
+              view: AnyView(DuckTransferDetail(job: job, status: NSLocalizedString("state_publication_failed", comment: ""),
+                symbol: "exclamationmark.triangle", tone: .failure, retry: { true })), output: output,
+              size: NSSize(width: 560, height: 650), dark: dark)
+          }
+          try FileManager.default.removeItem(at: store)
+          app.terminate(nil); return
+        }
         let overview = { AnyView(MacBackupPage(model: model, pair: {}, library: {}, sources: {}, showTransfers: { _ in })) }
         try await capture("backup-unpaired", view: overview(), output: output)
         model.pairing = paired
@@ -429,16 +965,26 @@ import SwiftUI
   @MainActor static func capture(_ name: String, view: AnyView, output: URL,
     size: NSSize = NSSize(width: 660, height: 720), dark: Bool = false,
     action: (() async -> Void)? = nil) async throws {
-    let host = NSHostingView(rootView: view
-      .frame(width: size.width, height: size.height, alignment: .topLeading)
-      .background(Color(nsColor: .windowBackgroundColor))
+    let fidelity = CommandLine.arguments.contains("--fidelity-audit")
+    let contentSize = fidelity ? NSWindow.contentRect(forFrameRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable]).size : size
+    let root = CommandLine.arguments.contains("--design-review") ?
+      AnyView(view.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)) :
+      AnyView(view.frame(width: contentSize.width, height: contentSize.height, alignment: .topLeading))
+    let host = NSHostingView(rootView: root.background(Color(nsColor: .windowBackgroundColor))
       .environment(\.colorScheme, dark ? .dark : .light))
-    let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
-      styleMask: [.borderless], backing: .buffered, defer: false)
+    host.sizingOptions = []
+    let window = NSWindow(contentRect: NSRect(origin: .zero, size: contentSize),
+      styleMask: CommandLine.arguments.contains("--design-review") ? [.titled, .closable, .fullSizeContentView] : [.borderless], backing: .buffered, defer: false)
+    window.title = "BackupDuck Layout — Synthetic Data"
+    window.toolbarStyle = .unifiedCompact
     window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     window.contentView = host
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
-    window.orderBack(nil)
+    if CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() {
+      window.setFrameOrigin(NSPoint(x: 80, y: 80))
+      window.makeKeyAndOrderFront(nil)
+      NSApplication.shared.activate(ignoringOtherApps: true)
+    } else { window.orderBack(nil) }
     defer { window.orderOut(nil); window.contentView = nil }
     try await Task.sleep(nanoseconds: 500_000_000)
     if let action {
@@ -446,6 +992,27 @@ import SwiftUI
       try await Task.sleep(nanoseconds: 200_000_000)
     }
     host.layoutSubtreeIfNeeded()
+    if CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() {
+      if !window.isKeyWindow || !window.isMainWindow {
+        window.makeKeyAndOrderFront(nil); NSApplication.shared.activate(ignoringOtherApps: true)
+        try await Task.sleep(nanoseconds: 200_000_000)
+      }
+      precondition(window.isKeyWindow && window.isMainWindow, "Real window capture needs an active titled window")
+      let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+      if let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) {
+        let config = SCStreamConfiguration()
+        config.width = Int(window.frame.width * window.backingScaleFactor)
+        config.height = Int(window.frame.height * window.backingScaleFactor)
+        config.showsCursor = false
+        let cg = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: target), configuration: config)
+        let bitmap = NSBitmapImageRep(cgImage: cg)
+        if let data = bitmap.representation(using: .png, properties: [:]) {
+          try data.write(to: output.appendingPathComponent(name + ".png"))
+          try recordCapture(name, mode: "ScreenCaptureKit active titled window (includes titlebar)", output: output, size: window.frame.size)
+          return
+        }
+      }
+    }
     guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
       throw CocoaError(.coderInvalidValue)
     }
@@ -454,6 +1021,14 @@ import SwiftUI
       throw CocoaError(.coderInvalidValue)
     }
     try data.write(to: output.appendingPathComponent(name + ".png"))
+    try recordCapture(name, mode: "offscreen NSHostingView bitmap", output: output, size: size)
+  }
+  @MainActor private static func recordCapture(_ name: String, mode: String, output: URL, size: NSSize) throws {
+    let record = ["file": name + ".png", "mode": mode, "width": String(Int(size.width)), "height": String(Int(size.height))]
+    let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+    let target = output.appendingPathComponent(name + ".capture.json")
+    try data.write(to: target)
+    print("Capture \(name): \(mode)")
   }
 }
 
@@ -476,4 +1051,72 @@ private struct BurstCellsFixture: NSViewRepresentable {
     return panel
   }
   func updateNSView(_ view: NSView, context: Context) {}
+}
+
+
+private struct ReplicaFlowFixture: View {
+  @ObservedObject var model: BackupModel
+  @ObservedObject var folders: FolderSources
+  let folder: URL
+  let source: FolderSource
+  let path: String
+  @State private var sheet: String? = nil
+  @State private var rebackup = false
+  @State private var selectedRequests = 0
+  private var invalidSource: FolderSource {
+    var copy = source
+    copy.includePatterns = ["[" + String(repeating: "synthetic-long-invalid-rule/", count: 30)]
+    return copy
+  }
+  private var showing: Binding<Bool> {
+    Binding(get: { sheet != nil }, set: { if !$0 { sheet = nil } })
+  }
+  var body: some View {
+    VStack(alignment: .leading, spacing: 20) {
+      Text("Isolated BackupDuck Replica Check").font(.title2)
+      Text("Synthetic data only. No photo access, no production pairing and no real uploads.")
+      HStack {
+        ForEach(["add", "rules", "invalid-rules", "issue", "selection", "failed-selection", "settings", "help"], id: \.self) { value in
+          Button(value) { sheet = value }.accessibilityIdentifier("replica.open." + value)
+        }
+      }
+      Text("Submitted selections: \(selectedRequests)").accessibilityIdentifier("replica.selected_requests")
+      MacBackupPage(model: model, folders: folders, pair: {}, library: {}, sources: { sheet = "add" }, showTransfers: { _ in })
+    }.padding(24).sheet(isPresented: showing) {
+      if sheet == "add" { AddFolderSheet(url: folder, folders: folders) { sheet = nil } }
+      if sheet == "rules" { FolderRulesSheet(folders: folders, source: folders.sources.first ?? source) { sheet = nil } }
+      if sheet == "invalid-rules" { FolderRulesSheet(folders: folders, source: invalidSource) { sheet = nil } }
+      if sheet == "issue" { FolderIssueDetail(folders: folders, backup: model, sourceID: source.id, path: path) }
+      if sheet == "selection" {
+        DuckSelectedBackup(count: 1200, rebackup: $rebackup) { selectedRequests += 1; return true }
+      }
+      if sheet == "failed-selection" {
+        DuckSelectedBackup(count: 1200, rebackup: $rebackup,
+          failureMessage: { "Synthetic submission failed. Selection is retained." }) { false }
+      }
+      if sheet == "settings" { MacPreferences(model: model, folders: folders).frame(width: 720, height: 680) }
+      if sheet == "help" { BackupHelp() }
+    }
+  }
+}
+
+private struct SubmissionControlsFixture: View {
+  @State private var layout = "flat"
+  @State private var automatic = true
+  var body: some View {
+    VStack(alignment: .trailing, spacing: 24) {
+      Button("folder_rules") {}.duckSecondaryAction()
+      Toggle("folder_automatic", isOn: $automatic).toggleStyle(.switch).fixedSize()
+      HStack {
+        Text("folder_sort_modified_desc").font(.system(size: 14))
+        Spacer()
+        Picker("folder_list_layout", selection: $layout) {
+          Text("folder_list_flat").tag("flat")
+          Text("folder_list_tree").tag("folders")
+        }.duckDesktopSegments(width: 180)
+      }
+      HStack { Image(systemName: "checkmark.circle"); Text("state_received") }.foregroundStyle(.secondary)
+      Button("updates_check") {}.duckPrimaryAction()
+    }.padding(24).frame(maxWidth: .infinity, alignment: .trailing)
+  }
 }

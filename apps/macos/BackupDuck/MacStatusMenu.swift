@@ -1,6 +1,25 @@
 import AppKit
 import SwiftUI
 
+enum MacMenuBarIcon {
+  static let image: NSImage = {
+    guard let url = Bundle.main.url(forResource: "DuckMenuBar", withExtension: "pdf"),
+      let image = NSImage(contentsOf: url) else { return NSImage() }
+    image.size = NSSize(width: 20, height: 20)
+    image.isTemplate = true
+    return image
+  }()
+}
+
+enum MacAboutNavigation {
+  static func open(_ openWindow: () -> Void) {
+    UserDefaults.standard.set("about", forKey: "macRequestedSettingsRoute")
+    openWindow()
+    NSApp.activate(ignoringOtherApps: true)
+    NotificationCenter.default.post(name: Notification.Name("BackupDuckShowAbout"), object: nil)
+  }
+}
+
 /// A compact snapshot of the same persistent queue used by the main window.
 /// Never start another worker when the menu opens.
 @MainActor struct MacMenuStatus {
@@ -32,8 +51,8 @@ import SwiftUI
     } else if model.summary.waiting > 0 {
       key = "state_waiting"
       symbol = "clock"
-    } else if model.summary.failed > 0 {
-      key = "state_failed"
+    } else if model.summary.failed + model.summary.publication_failed > 0 {
+      key = model.summary.publication_failed > 0 ? "state_publication_failed" : "state_failed"
       symbol = "exclamationmark.circle"
     } else {
       key = "menu_backup_ready"
@@ -44,7 +63,6 @@ import SwiftUI
 
 struct MacStatusMenu: View {
   @ObservedObject var model: BackupModel
-  @ObservedObject private var updater = AppUpdater.shared
   @Environment(\.openWindow) private var openWindow
   @State private var changingPause = false
 
@@ -62,17 +80,18 @@ struct MacStatusMenu: View {
       openWindow(id: "main")
       NSApp.activate(ignoringOtherApps: true)
     }.keyboardShortcut("o", modifiers: .command)
-    Button(model.paused ? "resume_backup" : "pause_backup") {
+    Button(LocalizedStringKey(model.paused ? "resume_backup" : "pause_backup")) {
       guard !changingPause else { return }
       changingPause = true
       Task {
         await model.setPaused(!model.paused)
         changingPause = false
       }
-    }.disabled(!model.ready || model.pairing == nil || changingPause)
+    }.disabled(!model.ready || model.pairing == nil || changingPause || model.changingPause)
+    if let error = model.pauseError { Text(error) }
     Divider()
     SettingsLink { Text("nav_settings") }
-    Button("updates_check", action: updater.check).disabled(!updater.canCheck)
+    Button("about_title") { MacAboutNavigation.open { openWindow(id: "main") } }
     Divider()
     Button("menu_quit") { NSApp.terminate(nil) }.keyboardShortcut("q")
   }

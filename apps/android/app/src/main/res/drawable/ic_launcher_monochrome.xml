@@ -1,3 +1,5 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-  <path android:fillColor="#000000" android:pathData="M31,50 Q25,43 26,56 L26,66 Q26,79 43,79 L65,79 Q80,79 77,64 L70,54 L73,46 Q87,46 87,39 Q85,35 75,37 Q75,24 62,24 Q47,24 47,40 L49,51 Z" />
-</vector>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original AppIcon mask exported by scripts/export-menu-bar-icon.swift. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_launcher_duck_monochrome"
+    android:gravity="fill" />

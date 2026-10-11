@@ -39,10 +39,18 @@ internal fun Instrumentation.checkMediaDates(): String {
         val realSample = File(context.filesDir, "date-sample.heic")
         if (realSample.exists()) samples += realSample to "image/heic"
         for ((source, mime) in samples) {
-            for (fixed in listOf(false, true)) {
+            val preserve = JSONObject().put("created_at_ms", captured.toString())
+                .put("backupduck_preserve_container_bytes", "true")
+            val beforePreserve = digest(source.readBytes())
+            check(MediaDates.prepare(context, source, mime, preserve) == source) { "container_preservation_not_honored:$mime" }
+            check(digest(source.readBytes()) == beforePreserve) { "preserved_container_changed:$mime" }
+            for (mode in listOf("original", "enriched", "preserved")) {
+                val fixed = mode != "original"
                 val originalDigest = digest(source.readBytes())
-                val delivery = if (fixed) MediaDates.prepare(context, source, mime, JSONObject().put("created_at_ms", captured.toString())) else source
-                if (fixed && mime.startsWith("image/")) {
+                val metadata = JSONObject().put("created_at_ms", captured.toString())
+                if (mode == "preserved") metadata.put("backupduck_preserve_container_bytes", "true")
+                val delivery = if (fixed) MediaDates.prepare(context, source, mime, metadata) else source
+                if (mode == "enriched" && mime.startsWith("image/")) {
                     check(MediaDates.prepare(context, delivery, mime, JSONObject().put("created_at_ms", captured.toString())) == delivery) { "date_rewritten_on_replay" }
                     val beforePixels = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(source)) { decoder, _, _ -> decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE }
                     val afterPixels = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(delivery)) { decoder, _, _ -> decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE }
@@ -71,11 +79,12 @@ internal fun Instrumentation.checkMediaDates(): String {
                 val after = resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATE_TAKEN, MediaStore.MediaColumns.DATE_MODIFIED), null, null, null)!!.use { it.moveToFirst(); it.getLong(0) to it.getLong(1) }
                 val actual = resolver.openInputStream(uri)!!.use { digest(it.readBytes()) }
                 check(actual == digest(delivery.readBytes())) { "delivery_bytes_changed" }
+                if (mode == "preserved") check(actual == originalDigest) { "preserved_gallery_bytes_changed:$mime" }
                 check(digest(source.readBytes()) == originalDigest) { "original_bytes_changed" }
                 if (fixed) {
                     check(File(path).lastModified() / 1000 == captured / 1000) { "file_date_changed:$mime" }
                     check(after.second == captured / 1000) { "indexed_modified_wrong:$mime:$after" }
-                    if (mime.startsWith("image/")) {
+                    if (mode == "enriched" && mime.startsWith("image/")) {
                         val exifDate = androidx.exifinterface.media.ExifInterface(delivery).dateTimeOriginal
                         check(exifDate == captured) { "embedded_capture_wrong:$mime:$exifDate" }
                         // Android 10's platform scanner ignores PNG eXIf; Google
@@ -83,7 +92,7 @@ internal fun Instrumentation.checkMediaDates(): String {
                         check(after.first == captured || (mime == "image/png" && after.first == 0L)) { "indexed_capture_wrong:$mime:$after" }
                     }
                 }
-                report += "$mime real=${source == realSample} fixed=$fixed before=$before after=$after original=unchanged pixels=unchanged"
+                report += "$mime real=${source == realSample} mode=$mode before=$before after=$after original=unchanged pixels=unchanged"
                 if (delivery != source) delivery.delete()
                 resolver.delete(uri, null, null); rows.remove(uri)
             }

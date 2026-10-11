@@ -18,6 +18,26 @@ func photoLibraryFetchOptions() -> PHFetchOptions {
   return options
 }
 
+func photoLibraryFetchOptions(for filter: LibraryFilter) -> PHFetchOptions {
+  let options = photoLibraryFetchOptions()
+  switch filter {
+  case .all:
+    options.predicate = NSPredicate(format: "mediaType == %d OR mediaType == %d",
+      PHAssetMediaType.image.rawValue, PHAssetMediaType.video.rawValue)
+  case .photo:
+    // Live Photos are image assets. Count and display the same inclusive set.
+    options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+  case .motion:
+    options.predicate = NSPredicate(format: "mediaType == %d AND (mediaSubtype & %d) != 0",
+      PHAssetMediaType.image.rawValue, PHAssetMediaSubtype.photoLive.rawValue)
+  case .burst:
+    options.predicate = NSPredicate(format: "burstIdentifier != nil")
+  case .video:
+    options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+  }
+  return options
+}
+
 enum LibraryFilter: String, CaseIterable, Identifiable {
   case all, photo, motion, video, burst
   var id: String { rawValue }
@@ -42,7 +62,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   @Published private(set) var authorized = false
   @Published private(set) var authorizationStatus: PHAuthorizationStatus = .notDetermined
   @Published private(set) var requestingPermission = false
-  @Published var filter: LibraryFilter = .all
+  @Published private(set) var filter: LibraryFilter = .all
+  private var requestedFilter: LibraryFilter = .all
   @Published var selection: Set<String> = []
   @Published var message: String?
   private(set) var fetch: PHFetchResult<PHAsset>?
@@ -59,6 +80,13 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   var scrollAnchorInset: CGFloat = 0
   private(set) var scrollResetGeneration = 0
   let thumbnails = ThumbnailPipeline()
+
+  // Display rows can group multiple burst assets, so loaded < total does not
+  // describe the raw PhotoKit cursor's remaining pagination range.
+  var hasMoreRows: Bool {
+    guard let fetch else { return false }
+    return presentation.cursor < fetch.count
+  }
 
   var placeholder: LibraryPlaceholderKind? {
     if !authorized { return .permission(authorizationStatus) }
@@ -108,8 +136,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     return allowed
   }
   func changeFilter(_ next: LibraryFilter) async {
-    guard filter != next else { return }
-    filter = next
+    guard requestedFilter != next else { return }
+    requestedFilter = next
     selection.removeAll()
     scrollOffset = .zero
     scrollAnchorID = nil
@@ -123,31 +151,14 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     cancelMetadata?(); cancelMetadata = nil
     let expected = requestGeneration
     loading = true
-    let selectedFilter = filter
+    let selectedFilter = requestedFilter
     let targetRows = resetWindow ? 240 : max(240, loaded)
     let previousCursor = resetWindow ? 0 : presentation.cursor
     let anchor = resetWindow ? nil : scrollAnchorID
     let selected = selection
     let work = Task.detached(priority: .userInitiated) {
-      let options = photoLibraryFetchOptions()
+      let options = photoLibraryFetchOptions(for: selectedFilter)
       options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-      switch selectedFilter {
-      case .all:
-        options.predicate = NSPredicate(
-          format: "mediaType == %d OR mediaType == %d", PHAssetMediaType.image.rawValue,
-          PHAssetMediaType.video.rawValue)
-      case .photo:
-        options.predicate = NSPredicate(
-          format: "mediaType == %d AND (mediaSubtype & %d) == 0", PHAssetMediaType.image.rawValue,
-          PHAssetMediaSubtype.photoLive.rawValue)
-      case .motion:
-        options.predicate = NSPredicate(
-          format: "(mediaSubtype & %d) != 0", PHAssetMediaSubtype.photoLive.rawValue)
-      case .burst:
-        options.predicate = NSPredicate(format: "burstIdentifier != nil")
-      case .video:
-        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
-      }
       let fetch = PHAsset.fetchAssets(with: options)
       let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
       var index = LibraryPresentationIndex()
@@ -162,6 +173,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     presentation = result.1
     total = result.0.count
     loaded = presentation.rows.count
+    filter = selectedFilter
     groups.removeAll(); groupOrder.removeAll()
     // Preserve selected off-screen items while removing deleted/revoked sources.
     selection.formIntersection(result.2.union(selection.subtracting(selected)))

@@ -1,83 +1,78 @@
 import SwiftUI
 
-/// An overview of the durable queue. Full history is queried on its own page.
+/// The overview presents confirmed local results; source controls and the queue
+/// retain their separate workflows, rather than being hidden in a generic menu.
 struct IOSBackupPage: View {
   @ObservedObject var model: BackupModel
-  @State private var picker = false
+  @State private var transfers = false
+  @State private var pairing = false
+  @ScaledMetric(relativeTo: .title2) private var heroSize = 26
+  @ScaledMetric(relativeTo: .body) private var bodySize = 16
+  @ScaledMetric(relativeTo: .headline) private var sectionSize = 19
   var body: some View {
     NavigationStack {
-      List {
-        Section {
-          VStack(alignment: .leading, spacing: 16) {
-            if let peer = model.peerDevice {
-              Text(String(format: NSLocalizedString("device_sending_to", comment: ""), peer.name))
-                .font(.headline)
+      VStack(spacing: 0) {
+        IOSPrototypeHeader("nav_backup")
+      ScrollView {
+        VStack(alignment: .leading, spacing: 20) {
+          if model.pairing == nil {
+            DuckSurface {
+              VStack(alignment: .leading, spacing: 16) {
+                DuckBrandMark(size: 76)
+                Text("design_backup_title").iosPrototypeText(size: heroSize, weight: .semibold, lineHeight: 1.3)
+                  .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                Text("backup_pair_first").iosPrototypeText(size: bodySize)
+                  .frame(maxWidth: .infinity, alignment: .leading).foregroundStyle(DuckColors.textSecondary)
+                if !model.ready { BackupStatusIndicator(model: model) }
+                Button { pairing = true } label: {
+                  Text("pair_receiver").frame(maxWidth: .infinity)
+                }.iosPrototypeAction(primary: true)
+                  .accessibilityIdentifier("backup.pair")
+              }
             }
+          } else if !model.ready {
+            DuckNotice(title: "backup_initializing")
+            if let error = model.message { DuckNotice(title: LocalizedStringKey(error), tone: .attention) }
+          } else {
+            DuckBackupProgress(model: model, showTransfers: { transfers = true })
+          }
+          VStack(alignment: .leading, spacing: 12) {
             HStack {
-              BackupStatusIndicator(model: model)
-              Spacer()
-              if model.pairing != nil {
-                Button { Task { await model.setPaused(!model.paused) } } label: {
-                  Label(model.paused ? "resume_backup" : "pause_backup",
-                    systemImage: model.paused ? "play" : "pause")
-                }.buttonStyle(.bordered).disabled(!model.ready)
-              }
+              Text("backup_settings").iosPrototypeText(size: sectionSize, weight: .semibold, lineHeight: 1.4)
+              Spacer(minLength: 8)
+              NavigationLink { IOSBackupPreferences(model: model) } label: {
+                HStack(spacing: 4) {
+                  Text("backup_more_settings")
+                  Image(systemName: "chevron.right").font(.caption)
+                }.foregroundStyle(DuckColors.action).frame(minHeight: 44)
+              }.buttonStyle(.plain).accessibilityIdentifier("backup.manage_source")
             }
-            if model.summary.total > 0 {
-              Text(
-                String(
-                  format: NSLocalizedString("transfer_summary", comment: ""),
-                  model.summary.received, model.summary.total)
-              ).foregroundStyle(.secondary)
+            IOSPreferenceGroup {
+              IOSPreferenceRow(title: "auto_backup_new") {
+                Toggle("auto_backup_new", isOn: Binding(get: { model.autoBackup }, set: { enabled in Task { await model.setAutoBackup(enabled) } }))
+                  .labelsHidden().disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
+                  .accessibilityIdentifier("backup.auto_backup")
+              }
+              if let error = model.autoBackupError { DuckNotice(title: LocalizedStringKey(error), tone: .failure).padding(16) }
+            }
+          }
+          if model.pairing == nil {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("design_recent_transfers").iosPrototypeText(size: sectionSize, weight: .semibold, lineHeight: 1.4)
+              DuckNotice(title: "tasks_empty")
+            }
+          } else { DuckRecentTransfers(model: model, showTransfers: { transfers = true }) }
 
-            } else {
-              Text(model.pairing == nil ? "backup_pair_first" : "tasks_empty").foregroundStyle(
-                .secondary)
-            }
-          }.padding(.vertical, 8)
-        }
-        Section {
-          NavigationLink {
-            TransferList(model: model).padding(.horizontal, 20).padding(.top, 12)
-              .navigationTitle("transfer_tasks").navigationBarTitleDisplayMode(.inline)
-          } label: {
-            Label("backup_all_tasks", systemImage: "list.bullet")
-          }.accessibilityIdentifier("backup.all_tasks")
-          ForEach(["preparing", "running", "queued", "waiting", "paused", "failed", "received", "scanned"], id: \.self) { state in
-            NavigationLink {
-              TransferList(model: model, filter: state).padding(.horizontal, 20).padding(.top, 12)
-                .navigationTitle(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state))
-                .navigationBarTitleDisplayMode(.inline)
-            } label: {
-              HStack {
-                Label(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state), systemImage: taskSymbol(state))
-                Spacer()
-                Text(model.transferCount(for: state).formatted()).monospacedDigit().foregroundStyle(.secondary)
-              }
-            }.accessibilityIdentifier("backup.filter.\(state)")
-          }
-        } header: {
-          Text("transfer_tasks")
+        }.iosPrototypePageBody()
+      }
+      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      .navigationDestination(isPresented: $transfers) {
+        IOSPrototypeDestination(title: "transfer_tasks") {
+          TransferList(model: model, showsHeading: false).frame(maxWidth: 600).padding(.horizontal, 16).padding(.top, 4).frame(maxWidth: .infinity)
         }
       }
-      .safeAreaPadding(.bottom, 12)
-      .navigationTitle("nav_backup")
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button {
-            Task { if await model.authorizePhotos() { picker = true } }
-          } label: {
-            Label("choose_photos", systemImage: "plus")
-          }
-          .disabled(model.pairing == nil || model.importing)
-        }
-      }
-      .sheet(isPresented: $picker) {
-        LibraryPicker { identifiers in
-          picker = false
-          Task { await model.importAssets(identifiers) }
-        }
-      }
+      .sheet(isPresented: $pairing) { IOSPairingFlow(model: model) }
+
     }
   }
 }

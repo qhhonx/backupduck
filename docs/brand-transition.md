@@ -2,7 +2,7 @@
 
 PhotoBridge is now BackupDuck (备份鸭 in Simplified Chinese). The same project
 and Git history continue under [qhhonx/backupduck](https://github.com/qhhonx/backupduck).
-The website is [backupduck.vercel.app](https://backupduck.vercel.app).
+The website is [backupduck.app](https://backupduck.app).
 
 ## Existing installations
 
@@ -22,14 +22,7 @@ backup for that folder in Google Photos and verify cloud results separately.
 Accessibility-based space management, if used, needs permission for the new app.
 Existing PhotoBridge gallery and cloud copies are not renamed or modified.
 
-## 中文说明
-
-新版名称为「备份鸭」，包标识统一为 `app.backupduck`。需要手动安装、重新
-授予权限并配对；不会自动迁移旧版的配对、设置和传输记录，也不会自动卸载
-旧版或删除照片。请先暂停旧版的备份与接收，再测试新的一组设备。
-
-Pixel 的 Google 相册需要为新版保存文件夹开启备份；设备“已接收”或“已保存”
-不代表已经上传云端。请先核对小批量照片、实况、连拍和视频，再继续大量备份。
+A [Simplified Chinese guide](brand-transition.zh-CN.md) is also available.
 
 ## Coordinated release candidate
 

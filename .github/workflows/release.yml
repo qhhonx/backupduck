@@ -57,7 +57,7 @@ jobs:
           cargo fmt --all -- --check
           cargo test --workspace --locked
           node --test site/tests/*.test.mjs
-          python3 scripts/audit-public.py
+          python3 scripts/audit-public.py --documentation
           sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;27.1.12297006'
           scripts/build-macos.sh
           python3 tests/sparkle_integration.py

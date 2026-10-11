@@ -2,7 +2,50 @@ import SwiftUI
 
 /// Shared sender guidance; storage and cloud policies belong to the receiver.
 struct BackupHelp: View {
+  @Environment(\.dismiss) private var dismiss
+  #if os(iOS)
+  @ScaledMetric(relativeTo: .body) private var bodySize = 16
+  @ScaledMetric(relativeTo: .headline) private var titleSize = 19
+  #endif
   var body: some View {
+    #if os(macOS)
+      VStack(spacing: 0) {
+        HStack {
+          Text("help_title").font(.title2.weight(.semibold))
+          Spacer()
+          Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 32, height: 32) }
+            .buttonStyle(.plain).accessibilityLabel(Text("close"))
+        }.padding(20)
+        Divider()
+        helpContent
+        Divider()
+        HStack {
+          Spacer()
+          Button("settings_done") { dismiss() }.duckSecondaryAction()
+            .keyboardShortcut(.cancelAction)
+        }.padding(20)
+      }.frame(minWidth: 480, idealWidth: 620, minHeight: 480, idealHeight: 620, maxHeight: 760)
+        .background(DuckColors.canvas)
+    #else
+      helpContent
+    #endif
+  }
+  private var helpContent: some View {
+    #if os(iOS)
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        iosTopic("help_start_title", "help_start_body")
+        iosTopic("help_scope_title", "help_scope_body")
+        iosTopic("background_section", "background_explanation")
+        Text("background_force_quit").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+        iosTopic("help_receipt_title", "help_receipt_body")
+        iosTopic("help_recover_title", "help_recover_body")
+        iosTopic("help_permission_title", "help_permission_body")
+        iosTopic("help_space_title", "help_space_body")
+        iosTopic("help_support_title", "help_support_body")
+      }.iosPrototypePageBody()
+    }.accessibilityIdentifier("settings.help.content")
+    #else
     Form {
       topic("help_start_title", "help_start_body")
       #if os(macOS)
@@ -40,7 +83,16 @@ struct BackupHelp: View {
       .navigationBarTitleDisplayMode(.inline)
     #endif
     .accessibilityIdentifier("settings.help.content")
+    #endif
   }
+  #if os(iOS)
+  private func iosTopic(_ title: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(title).iosPrototypeText(size: titleSize, weight: .semibold, lineHeight: 1.4)
+      Text(body).iosPrototypeText(size: bodySize, lineHeight: 1.7).foregroundStyle(DuckColors.textSecondary).textSelection(.enabled)
+    }.frame(maxWidth: .infinity, alignment: .leading)
+  }
+  #endif
 
   private func topic(_ title: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
     Section { Text(body).textSelection(.enabled) } header: { Text(title) }

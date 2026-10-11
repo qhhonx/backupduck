@@ -20,7 +20,7 @@ import java.security.MessageDigest
 internal data class AppRelease(val version: String, val build: Long, val url: String, val sha256: String, val size: Long)
 internal object AppUpdates {
     private const val API = "https://api.github.com/repos/qhhonx/backupduck/releases?per_page=30"
-    private const val SITE_API = "https://backupduck.vercel.app/api/releases"
+    private const val SITE_API = "https://backupduck.app/releases.json"
     private const val PREFIX = "https://github.com/qhhonx/backupduck/releases/download/"
     private const val MAX_APK = 250L * 1024 * 1024
     private val TAG = Regex("v[0-9]+\\.[0-9]+\\.[0-9]+(?:-(?:alpha|beta|rc)\\.[0-9]+)?")
@@ -128,67 +128,66 @@ internal object AppUpdates {
     }
 }
 
-class UpdatesActivity : AppCompatActivity() {
-    private var release: AppRelease? = null
-    private var download: File? = null
-    private lateinit var status: TextView
-    private lateinit var button: Button
-    override fun onCreate(savedInstanceState: Bundle?) {
+class UpdatesActivity:AppCompatActivity() {
+    private var release:AppRelease?=null
+    private var downloaded:File?=null
+    private lateinit var feedback:LinearLayout
+    private lateinit var button:com.google.android.material.button.MaterialButton
+    private val installedVersion get()=packageManager.getPackageInfo(packageName,0).versionName ?: ""
+    override fun onCreate(savedInstanceState:Bundle?) {
+        delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
-        title = getString(R.string.updates_title)
-        setContentView(scrollPage { panel ->
-            section(panel, R.string.updates_title)
-            card(panel) { body ->
-                label(body, getString(R.string.settings_version, packageManager.getPackageInfo(packageName, 0).versionName ?: ""), 18)
-                body.addView(MaterialSwitch(this).apply {
-                    setText(R.string.updates_automatic)
-                    isChecked = AppUpdates.preferences(this@UpdatesActivity).getBoolean("automatic", true)
-                    setOnCheckedChangeListener { _, checked -> AppUpdates.preferences(this@UpdatesActivity).edit().putBoolean("automatic", checked).apply() }
-                })
-                status = label(body, getString(R.string.updates_note), 15, secondaryColor())
-                button = action(body, R.string.updates_check) { perform() }
-                action(body, R.string.official_website) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://backupduck.vercel.app"))) }
-            }
-        })
+        nativeDetailPage(R.string.updates_title) {panel ->
+            val group=duckGroup(panel)
+            duckSetting(group,getString(R.string.settings_version,receiverVersionLabel()),control=duckText("",13))
+            duckSetting(group,getString(R.string.updates_automatic),getString(R.string.updates_note),duckSwitch(AppUpdates.preferences(this).getBoolean("automatic",true)) {
+                AppUpdates.preferences(this).edit().putBoolean("automatic",it).apply()
+            })
+            feedback=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};panel.addView(feedback)
+            button=duckButton(getString(R.string.updates_check),true) {perform()};panel.addView(button,LinearLayout.LayoutParams(-1,-2))
+            panel.addView(duckButton(getString(R.string.official_website)) {
+                runCatching {startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://backupduck.app")))}.onFailure {showMessage(getString(R.string.updates_check_failed),true)}
+            },LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
+        }
         check()
     }
+    private fun showMessage(message:String,failed:Boolean=false) {
+        feedback.removeAllViews()
+        if(failed)duckProblem(feedback,message) else duckNotice(feedback,message)
+    }
     private fun check() {
-        button.isEnabled = false
-        status.setText(R.string.updates_checking)
+        if(packageName.endsWith(".validation")||installedVersion.endsWith("-dev")) {
+            showMessage(getString(R.string.duck_update_development));button.isEnabled=false;return
+        }
+        button.isEnabled=false;release=null;showMessage(getString(R.string.updates_checking))
         lifecycleScope.launch {
-            runCatching { withContext(Dispatchers.IO) { AppUpdates.latest(this@UpdatesActivity) } }
-                .onSuccess {
-                    release = it
-                    status.text = if (it == null) getString(R.string.updates_current) else getString(R.string.updates_available, it.version)
-                    button.setText(if (it == null) R.string.updates_check else R.string.updates_download)
-                }.onFailure { status.setText(R.string.updates_check_failed) }
-            button.isEnabled = true
+            runCatching {withContext(Dispatchers.IO) {AppUpdates.latest(this@UpdatesActivity)}}
+                .onSuccess {release=it;showMessage(if(it==null)getString(R.string.updates_current) else getString(R.string.updates_available,it.version));button.setText(if(it==null)R.string.updates_check else R.string.updates_download)}
+                .onFailure {showMessage(getString(R.string.updates_check_failed),true);button.setText(R.string.duck_retry)}
+            button.isEnabled=true
         }
     }
     private fun perform() {
-        val target = release ?: return check()
-        button.isEnabled = false
-        status.setText(R.string.updates_downloading)
+        val target=release?:return check()
+        button.isEnabled=false;showMessage(getString(R.string.updates_downloading))
         lifecycleScope.launch {
             runCatching {
-                val file = withContext(Dispatchers.IO) {
-                    val local = download
-                    if (local != null && local.exists()) { AppUpdates.verify(this@UpdatesActivity, local, target); local }
-                    else AppUpdates.download(this@UpdatesActivity, target)
+                val file=withContext(Dispatchers.IO) {
+                    val local=downloaded
+                    if(local!=null&&local.exists()) {AppUpdates.verify(this@UpdatesActivity,local,target);local} else AppUpdates.download(this@UpdatesActivity,target)
                 }
-                download = file
-                if (!packageManager.canRequestPackageInstalls()) {
-                    status.setText(R.string.updates_permission)
-                    startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                downloaded=file
+                if(!packageManager.canRequestPackageInstalls()) {
+                    showMessage(getString(R.string.updates_permission))
+                    startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))
                 } else {
-                    val uri = FileProvider.getUriForFile(this@UpdatesActivity, "$packageName.updates", file)
-                    startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
-                    status.setText(R.string.updates_confirm)
+                    val uri=FileProvider.getUriForFile(this@UpdatesActivity,"$packageName.updates",file)
+                    startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    showMessage(getString(R.string.updates_confirm))
                 }
                 button.setText(R.string.updates_install)
-            }.onFailure { status.setText(R.string.updates_download_failed) }
-            button.isEnabled = true
+            }.onFailure {error ->showMessage(getString(if(error.message=="Signing identity mismatch")R.string.duck_update_signature else R.string.updates_download_failed),true);button.setText(R.string.duck_retry)}
+            button.isEnabled=true
         }
     }
 }

@@ -172,3 +172,19 @@ notifications and media metadata APIs; the existing Rust sender owns snapshots,
 checksums, durable tasks and transfer. Mobile native builds never link the folder
 crate. Source identity is namespaced without changing existing PhotoKit IDs.
 See [folder backup](folder-backup.md) for behavior and validation boundaries.
+
+## Sender host contract
+
+All senders follow the [shared sender host contract](sender-host-contract.md).
+The Android foreground host wakes the common Rust `run_sender_batch` reference
+executor; Apple executes Rust-planned requests using OS-managed URLSession.
+These are execution adapters to one queue policy. The contract defines durable preparation and source membership boundaries.
+Platform UI parity does not prove system behavior or complete host implementation.
+
+## Receiver device readings
+
+The paired HTTPS endpoint `/v2/device-status` returns optional temperature and
+actual filesystem free space. Temperature expires after 120 seconds without a
+host observation. Older receivers may return 404; clients show unavailable
+readings rather than inventing values. Browser access is not required for these
+readings and browser credentials are never used by senders.

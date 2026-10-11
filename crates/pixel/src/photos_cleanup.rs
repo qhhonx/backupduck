@@ -68,7 +68,19 @@ pub fn step(mut state: State, snapshot: &Snapshot, expected: &str) -> Decision {
                 state.nothing_to_free = true;
                 (Close, "nothing_to_free")
             }
-            _ => (Wait, "pending"),
+            Releasing => (Wait, "pending"),
+            // Relaunching Photos returns to its home page. Re-enter the result
+            // path with the same account, while retaining the durable fence.
+            AccountEntry
+                if state.actions < 12
+                    && !expected.is_empty()
+                    && snapshot.account.as_deref() == Some(expected) =>
+            {
+                (Account, "checking_result")
+            }
+            CleanupEntry if state.actions < 12 => (Entry, "checking_result"),
+            Confirmation => (Stop, "manual_review_required"),
+            _ => (Stop, "manual_review_required"),
         }
     } else if state.phase == Phase::Returning {
         match observed {
@@ -187,7 +199,8 @@ mod tests {
         assert_eq!(d.action, Action::Confirm);
         let saved = serde_json::to_string(&d.state).unwrap();
         let d = step(serde_json::from_str(&saved).unwrap(), &offer, "bound");
-        assert_eq!(d.action, Action::Wait);
+        assert_eq!(d.action, Action::Stop);
+        assert_eq!(d.reason, "manual_review_required");
         let mut locked = offer;
         locked.locked = true;
         let d = step(d.state, &locked, "bound");
@@ -205,5 +218,34 @@ mod tests {
             state = d.state;
         }
         assert_eq!(step(state, &unknown, "bound").action, Action::Stop);
+    }
+    #[test]
+    fn pending_relaunch_navigates_without_a_second_confirmation() {
+        let state = State {
+            phase: Phase::Pending,
+            actions: 3,
+            ..State::default()
+        };
+        let home = page(&[("selected_account_disc", "", true)]);
+        let menu = page(&[("og_bento_card_title", "释放此设备的空间", true)]);
+        let offer = page(&[
+            ("safetyTip", "这些内容已按照您选择的画质安全备份。", false),
+            ("free_up_button", "释放 1 GB", true),
+        ]);
+        let d = step(state, &home, "bound");
+        assert_eq!(d.action, Action::Account);
+        assert_eq!(d.state.phase, Phase::Pending);
+        let d = step(d.state, &menu, "bound");
+        assert_eq!(d.action, Action::Entry);
+        let d = step(d.state, &offer, "bound");
+        assert_eq!(d.action, Action::Stop);
+        assert_eq!(d.reason, "manual_review_required");
+        assert_eq!(d.state.phase, Phase::Pending);
+        assert_eq!(step(d.state.clone(), &home, "changed").action, Action::Stop);
+        let bounded = State {
+            actions: 12,
+            ..d.state
+        };
+        assert_eq!(step(bounded, &home, "bound").action, Action::Stop);
     }
 }

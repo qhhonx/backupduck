@@ -14,19 +14,36 @@ struct FolderSourcesPage: View {
   @State private var issuesPage = false
   @State private var rulesSource: FolderSource?
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
+    VStack(alignment: .leading, spacing: 20) {
+      if selection == nil {
+        HStack(alignment: .top, spacing: 12) {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("mac_nav_sources").font(.system(size: 26, weight: .semibold))
+            Text("folder_readonly_note").font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)
+          }
+          Spacer()
+          Button { showHelp = true } label: { Image(systemName: "questionmark.circle").frame(width: 32, height: 32) }.buttonStyle(.plain).help("folder_help")
+          Button("folder_add", action: choose).duckSecondaryAction()
+            .disabled(!backup.ready || folders.loadFailed)
+        }
+      }
       if backup.paused {
         HStack {
           Label("folder_global_paused", systemImage: "pause.circle")
           Spacer()
-          Button("mac_resume_all") { Task { await backup.setPaused(false) } }
-            .disabled(!backup.ready || backup.pairing == nil)
+          Button("mac_resume_all") { Task { await backup.setPaused(false) } }.duckSecondaryAction()
+            .disabled(!backup.ready || backup.pairing == nil || backup.changingPause)
         }.font(.callout).padding(12)
-          .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+          .background(DuckColors.subtle, in: RoundedRectangle(cornerRadius: 10))
       }
-      if let selection, let source = folders.sources.first(where: { $0.id == selection }) {
+      if let error = backup.pauseError { DuckNotice(title: LocalizedStringKey(error), tone: .failure) }
+      if folders.loadFailed {
+        DuckNotice(title: "mac_folder_settings_unavailable", tone: .failure)
+        Button("retry_task") { Task { await folders.open() } }.duckSecondaryAction()
+          .accessibilityIdentifier("folder.reload_config")
+      } else if let selection, let source = folders.sources.first(where: { $0.id == selection }) {
         Button { if issuesPage { issuesPage = false } else { self.selection = nil } } label: {
-          Label(issuesPage ? "folder_open" : "sources_back", systemImage: "chevron.left")
+          Label(LocalizedStringKey(issuesPage ? "folder_open" : "sources_back"), systemImage: "chevron.left")
         }
         if issuesPage { FolderIssuesPage(folders: folders, backup: backup, source: source) }
         else {
@@ -35,7 +52,7 @@ struct FolderSourcesPage: View {
         }
       } else {
         ScrollView {
-          VStack(alignment: .leading, spacing: 14) {
+          VStack(alignment: .leading, spacing: 20) {
             ForEach(folders.sources) { source in
               FolderSourceCard(folders: folders, backup: backup, source: source,
                 open: { selection = source.id; issuesPage = false },
@@ -43,39 +60,46 @@ struct FolderSourcesPage: View {
                 editRules: { rulesSource = source }, remove: { removing = source.id })
             }
             if folders.sources.isEmpty {
-              Text("folder_sources_empty").foregroundStyle(.secondary).padding(.vertical, 24)
+              DuckSurface {
+                VStack(alignment: .leading, spacing: 20) {
+                  DuckBrandMark(size: 60)
+                  Text("folder_sources_empty").font(.headline)
+                  Text("folder_readonly_note").foregroundStyle(DuckColors.textSecondary)
+                  Button("folder_add", action: choose).duckPrimaryAction()
+                    .disabled(!backup.ready || folders.loadFailed)
+                }
+              }
             }
           }
         }
       }
-      if let error = folders.error { Text(error).font(.caption).foregroundStyle(.orange) }
-    }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .toolbar {
-        ToolbarItemGroup(placement: .primaryAction) {
-          Button { showHelp = true } label: { Label("folder_help", systemImage: "questionmark.circle") }
-            .labelStyle(.iconOnly).help("folder_help")
-          Button { choose() } label: { Label("folder_add", systemImage: "folder.badge.plus") }
-            .labelStyle(.titleAndIcon).disabled(!backup.ready)
-        }
+      if let error = folders.error, !folders.loadFailed {
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.triangle")
       }
+    }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .sheet(item: $rulesSource) { source in FolderRulesSheet(folders: folders, source: source) { rulesSource = nil } }
       .sheet(isPresented: $showHelp) {
-        VStack(alignment: .leading, spacing: 16) {
-          Text("folder_help").font(.title2)
+        DuckSheetLayout(title: "folder_help") {
           Text("folder_automatic").font(.headline)
           Text("folder_automatic_guide")
           Text("folder_backup_now").font(.headline)
           Text("folder_manual_guide")
-          Text("folder_readonly_note").foregroundStyle(.secondary)
-          HStack { Spacer(); Button("settings_done") { showHelp = false }.keyboardShortcut(.defaultAction) }
-        }.padding(24).frame(width: 440)
+          DuckNotice(title: "folder_readonly_note")
+        } actions: {
+          Button("settings_done") { showHelp = false }.duckSecondaryAction()
+            .keyboardShortcut(.cancelAction)
+        }
       }
+
       .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
         if let adding { AddFolderSheet(url: adding, folders: folders) { self.adding = nil } }
       }
-      .confirmationDialog("folder_remove", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
-        Button("folder_remove", role: .destructive) { if let removing { Task { await folders.remove(removing) }; self.removing = nil } }
-      } message: { Text("folder_remove_note") }
+      .sheet(isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
+        if let removing, let source = folders.sources.first(where: { $0.id == removing }) {
+          FolderRemoveSheet(folders: folders, source: source) { self.removing = nil }
+        }
+      }
+
   }
   private func choose() {
     let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
@@ -92,18 +116,17 @@ private struct FolderSourceCard: View {
   let editRules: () -> Void
   let remove: () -> Void
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 20) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: "folder").font(.title2).foregroundStyle(.tint)
         VStack(alignment: .leading, spacing: 5) {
-          Text(folders.displayName(source)).font(.headline).lineLimit(1)
-          Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
+          Text(folders.displayName(source)).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+          Text(folders.displayPath(source)).font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)
             .lineLimit(1).truncationMode(.middle).help(folders.displayPath(source))
         }
         Spacer()
         Menu {
-          Button("folder_rules", action: editRules)
-          Button("folder_check") { folders.check(source.id, userInitiated: true) }
+          Button("folder_rules", action: editRules).duckSecondaryAction().disabled(source.pendingControl != nil && source.pendingControl?.action != "rules")
+          Button("folder_check") { folders.check(source.id, userInitiated: true) }.disabled(source.pendingControl != nil)
           Button("folder_reveal") { folders.reveal(source) }
           if let checked = source.lastCheck {
             Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
@@ -112,25 +135,29 @@ private struct FolderSourceCard: View {
             Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), summary.unsupported))
           }
           Divider()
-          Button("folder_remove", role: .destructive, action: remove)
+          Button("folder_remove", role: .destructive, action: remove).disabled(source.pendingControl != nil && source.pendingControl?.action != "remove")
         } label: { Label("folder_more", systemImage: "ellipsis") }
           .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
       }
-      HStack(spacing: 12) {
-        FolderSourceStatus(folders: folders, backup: backup, source: source)
-        if let summary = folders.summaries[source.id] {
-          Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
-            ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
-            .font(.caption).foregroundStyle(.secondary)
-        }
+      HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
+          FolderSourceStatus(folders: folders, backup: backup, source: source)
+          if let summary = folders.summaries[source.id] {
+            Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
+              ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
+              .font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+          }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
+          .background(DuckColors.subtle, in: RoundedRectangle(cornerRadius: 12))
         if !source.issues.isEmpty {
           Button(action: openIssues) { Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count)) }
-            .buttonStyle(.link).foregroundStyle(.orange)
+            .duckSecondaryAction().foregroundStyle(DuckColors.attention)
         }
       }
       FolderSourceActions(folders: folders, backup: backup, source: source, open: open)
-    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+    }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+      .background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 16))
+      .overlay(RoundedRectangle(cornerRadius: 16).stroke(DuckColors.border, lineWidth: 1))
   }
 }
 private struct FolderSourceStatus: View {
@@ -138,19 +165,9 @@ private struct FolderSourceStatus: View {
   @ObservedObject var backup: BackupModel
   let source: FolderSource
   private var key: String {
-    let phase = folders.phases[source.id]
-    if let phase, ["folder_scanning", "folder_scan_failed", "folder_offline"].contains(phase) { return phase }
-    if folders.actionMessages[source.id] == "folder_check_finished",
-      let checked = source.lastCheck, Date().timeIntervalSince(checked) < 15 { return "folder_check_finished" }
-    if source.enabled || !(source.retryPaths ?? []).isEmpty {
-      if backup.paused {
-        return source.automaticActive ? "folder_auto_enabled" : source.manualActive ? "folder_manual_queued" : "folder_retry_waiting"
-      }
-      if backup.pairing == nil { return "folder_pair_first" }
-      if let phase, !["folder_up_to_date", "folder_paused", "folder_manual_idle"].contains(phase) { return phase }
-      return source.automaticActive ? "folder_auto_active" : "folder_manual_active"
-    }
-    return "folder_manual_idle"
+    FolderSourcePresentation.status(source: source, phase: folders.phases[source.id],
+      action: folders.actionMessages[source.id], executing: folders.recoveringControls.contains(source.id),
+      paused: backup.paused, paired: backup.pairing != nil)
   }
   var body: some View { Text(LocalizedStringKey(key)).font(.callout).foregroundStyle(.secondary) }
 }
@@ -161,40 +178,36 @@ private struct FolderSourceActions: View {
   var open: (() -> Void)? = nil
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      ViewThatFits(in: .horizontal) {
-        HStack(spacing: 10) { buttons; Spacer(minLength: 12); automatic }
-        VStack(alignment: .leading, spacing: 10) { HStack(spacing: 10) { buttons }; automatic }
+      if FolderControlPresentation(pending: source.pendingControl,
+        executing: folders.recoveringControls.contains(source.id)) == .needsRecovery {
+        Button("mac_folder_recover_operation") { Task { await folders.recoverPendingControl(source.id) } }
+          .duckPrimaryAction().disabled(folders.recoveringControls.contains(source.id))
+          .accessibilityIdentifier("folder.recover_operation")
       }
-      if let message = folders.actionMessages[source.id],
-        (message != "folder_global_wait" || backup.paused),
-        !["folder_check_finished", "folder_check_running", "folder_backup_requested", "folder_pause_explanation", "folder_automatic_on", "folder_automatic_off"].contains(message) {
-        Text(LocalizedStringKey(message)).font(.caption).foregroundStyle(.secondary)
-          .accessibilityIdentifier("folder.action_feedback")
-      }
+      DuckActions { buttons; Spacer(minLength: 12); automatic }
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
   private var automatic: some View {
     Toggle("folder_automatic", isOn: Binding(get: { source.automaticActive },
       set: { folders.setAutomatic(source.id, $0) }))
       .toggleStyle(.switch).controlSize(.small).fixedSize()
-      .help("folder_automatic_hint").disabled(folders.starting.contains(source.id))
+      .help("folder_automatic_hint").disabled(folders.starting.contains(source.id) || source.pendingControl != nil)
   }
   @ViewBuilder private var buttons: some View {
     if let open {
-      Button(action: open) { Label("folder_open", systemImage: "folder") }
+      Button("folder_open", action: open).duckSecondaryAction()
     }
     if source.manualActive {
-      Button { folders.pause(source.id) } label: { Label("folder_stop_manual", systemImage: "stop.circle") }
-        .help("folder_pause_help").disabled(folders.starting.contains(source.id))
+      Button("folder_stop_manual") { folders.pause(source.id) }
+        .duckSecondaryAction().help("folder_pause_help").disabled(folders.starting.contains(source.id) || source.pendingControl != nil)
     } else {
-      Button { Task { await folders.start(source.id) } } label: {
-        Label(folders.starting.contains(source.id) ? "folder_starting" : "folder_backup_now", systemImage: "arrow.up.circle")
-      }.help("folder_backup_help")
-        .disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id))
+      Button(LocalizedStringKey(folders.starting.contains(source.id) ? "folder_starting" : "folder_backup_now")) { Task { await folders.start(source.id) } }.duckSecondaryAction().help("folder_backup_help")
+        .disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id) || source.pendingControl != nil)
     }
   }
 }
-private struct AddFolderSheet: View {
+struct AddFolderSheet: View {
   let url: URL
   @ObservedObject var folders: FolderSources
   var close: () -> Void
@@ -202,38 +215,57 @@ private struct AddFolderSheet: View {
   @State private var existing = true
   @State private var include = ""
   @State private var exclude = ""
+  @State private var rulesExpanded = false
   @State private var adding = false
   @State private var error: String?
   var body: some View {
-    VStack(alignment: .leading, spacing: 18) {
-      Label("folder_add", systemImage: "folder.badge.plus").font(.title2.weight(.medium))
-      Text(url.lastPathComponent).font(.headline)
-      Text(url.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-      Text("folder_scan_note").foregroundStyle(.secondary)
-      Toggle("folder_include_existing", isOn: $existing)
-      Toggle("folder_automatic", isOn: $automatic)
-      DisclosureGroup("folder_rules") {
-        ScrollView { FolderRuleFields(include: $include, exclude: $exclude).frame(maxWidth: .infinity, alignment: .leading) }
-          .frame(maxHeight: 360)
+    DuckSheetLayout(title: "folder_add", busy: adding, error: error) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text(url.lastPathComponent).font(.headline)
+        Text(url.path).font(.caption).foregroundStyle(DuckColors.textSecondary)
+          .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
       }
-      Text("folder_readonly_note").font(.caption).foregroundStyle(.secondary)
-      if let error { Text(error).foregroundStyle(.orange) }
-      HStack {
-        Button("cancel", action: close).disabled(adding)
-        Spacer()
-        Button("folder_add") {
-          Task {
-            adding = true
-            do { try await folders.add(url, automatic: automatic, existing: existing,
-              include: FolderRuleFields.lines(include), exclude: FolderRuleFields.lines(exclude)); close() }
-            catch let failure as Bridge.Failure where failure.code == "conflict" { self.error = NSLocalizedString("folder_overlap_error", comment: "") }
-            catch let error as FolderRuleError { self.error = NSLocalizedString("folder_rules_invalid", comment: "") + " " + error.localizedDescription }
-            catch { self.error = error.localizedDescription }
-            adding = false
-          }
-        }.buttonStyle(.borderedProminent).disabled(adding || (!existing && !automatic))
-      }
-    }.padding(28).frame(width: 520).interactiveDismissDisabled(adding)
+      Text("folder_scan_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+      option("folder_include_existing", note: "mac_fidelity_folder_existing_note", value: $existing)
+        .disabled(adding).accessibilityIdentifier("folder.add.existing")
+      option("folder_automatic", note: "mac_fidelity_folder_auto_note", value: $automatic)
+        .disabled(adding).accessibilityIdentifier("folder.add.automatic")
+      Button { rulesExpanded.toggle() } label: {
+        MacPreferenceRow(title: "folder_rules") {
+          Image(systemName: rulesExpanded ? "chevron.down" : "chevron.right").foregroundStyle(DuckColors.action).frame(width: 16)
+        }
+      }.buttonStyle(.plain).disabled(adding).accessibilityIdentifier("folder.add.rules")
+      if rulesExpanded { FolderRuleFields(include: $include, exclude: $exclude).disabled(adding) }
+      Text("folder_readonly_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+      if adding { ProgressView("settings_saving").accessibilityIdentifier("folder.add.busy") }
+    } actions: {
+      Button("cancel", action: close).disabled(adding).duckSecondaryAction()
+        .keyboardShortcut(.cancelAction)
+      Button("folder_add", action: add).duckPrimaryAction()
+        .disabled(adding || (!existing && !automatic)).keyboardShortcut(.defaultAction)
+        .accessibilityIdentifier("folder.add.confirm")
+    }
+  }
+  private func option(_ title: LocalizedStringKey, note: LocalizedStringKey, value: Binding<Bool>) -> some View {
+    MacPreferenceRow(title: title, note: note) {
+      Toggle(title, isOn: value).labelsHidden().toggleStyle(.switch)
+    }
+  }
+  private func add() {
+    guard !adding else { return }
+    adding = true; error = nil
+    Task {
+      defer { adding = false }
+      do {
+        try await folders.add(url, automatic: automatic, existing: existing,
+          include: FolderRuleFields.lines(include), exclude: FolderRuleFields.lines(exclude))
+        close()
+      } catch let failure as Bridge.Failure where failure.code == "conflict" {
+        error = NSLocalizedString("folder_overlap_error", comment: "")
+      } catch let failure as FolderRuleError {
+        error = NSLocalizedString("folder_rules_invalid", comment: "") + " " + failure.localizedDescription
+      } catch { self.error = error.localizedDescription }
+    }
   }
 }
 private struct FolderSourceDetail: View {
@@ -251,12 +283,13 @@ private struct FolderSourceDetail: View {
   @AppStorage("macFolderFileSort") private var sort = FolderFileSort.modifiedNewest
   @AppStorage("macFolderTreeDescending") private var treeDescending = false
   @State private var request = UUID()
+  @State private var loadedContext: String?
   @StateObject private var tree = FolderTreeModel()
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack {
         VStack(alignment: .leading, spacing: 6) {
-          Text(folders.displayName(source)).font(.title3.weight(.medium))
+          Text(folders.displayName(source)).font(.system(size: 26, weight: .semibold))
           Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
             .lineLimit(1).truncationMode(.middle)
           FolderSourceStatus(folders: folders, backup: backup, source: source)
@@ -266,17 +299,22 @@ private struct FolderSourceDetail: View {
           Button(action: openIssues) { Label(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count), systemImage: "exclamationmark.triangle") }
             .foregroundStyle(.orange).accessibilityIdentifier("folder.issues")
         }
-        Button("folder_rules", action: editRules)
+        Button("folder_rules", action: editRules).duckSecondaryAction().disabled(source.pendingControl != nil && source.pendingControl?.action != "rules")
       }
       FolderSourceActions(folders: folders, backup: backup, source: source)
-      HStack {
+      HStack(alignment: .center) {
         FolderSortControl(layout: layout, sort: $sort, treeDescending: $treeDescending)
           .fixedSize(horizontal: true, vertical: true)
         Spacer()
         Picker("folder_list_layout", selection: $layout) {
           Text("folder_list_flat").tag("flat")
           Text("folder_list_tree").tag("folders")
-        }.pickerStyle(.segmented).labelsHidden().frame(width: 180)
+        }.duckDesktopSegments(width: 180)
+      }
+      if layout == "flat", let error {
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
+          .accessibilityIdentifier("folder.files_load_error")
+        Button("retry_task") { Task { await reload() } }.duckSecondaryAction().disabled(loading)
       }
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 0) {
@@ -296,7 +334,7 @@ private struct FolderSourceDetail: View {
                       }.padding(.vertical, 12).contentShape(Rectangle())
                     }.buttonStyle(.plain).help(child.relative)
                   } else if let entry = child.entry {
-                    FolderFileRow(source: source, entry: entry, nested: true)
+                    FolderFileRow(folders: folders, source: source, entry: entry, nested: true)
                       .onAppear { visible.insert(entry.relative) }
                       .onDisappear { visible.remove(entry.relative) }
                   }
@@ -304,7 +342,7 @@ private struct FolderSourceDetail: View {
                   ProgressView().padding(.vertical, 12)
                 } else {
                   if let message = tree.errors[row.directory] { Text(message).font(.caption).foregroundStyle(.orange) }
-                  Button(tree.errors[row.directory] == nil ? "folder_load_more" : "retry_task") {
+                  Button(LocalizedStringKey(tree.errors[row.directory] == nil ? "folder_load_more" : "retry_task")) {
                     Task { await tree.load(row.directory, source: source.id, folders: folders) }
                   }.padding(.vertical, 12)
                 }
@@ -314,7 +352,7 @@ private struct FolderSourceDetail: View {
             if tree.rows.isEmpty { Text("folder_empty").foregroundStyle(.secondary).padding(.vertical, 24) }
           } else {
             ForEach(entries) { entry in
-              FolderFileRow(source: source, entry: entry)
+              FolderFileRow(folders: folders, source: source, entry: entry)
                 .onAppear { visible.insert(entry.relative) }
                 .onDisappear { visible.remove(entry.relative) }
               Divider()
@@ -322,12 +360,11 @@ private struct FolderSourceDetail: View {
             if more { Button("folder_load_more") { Task { await load() } }.padding(.vertical, 16).disabled(loading) }
             if entries.isEmpty {
               if loading { ProgressView().padding(.vertical, 24) }
-              else { Text("folder_empty").foregroundStyle(.secondary).padding(.vertical, 24) }
+              else if error == nil { Text("folder_empty").foregroundStyle(.secondary).padding(.vertical, 24) }
             }
           }
         }
       }
-      if let error { Text(error).foregroundStyle(.orange).font(.caption) }
     }
     .task(id: "\(source.id)|\(folders.indexRevision)|\(layout)|\(sort.rawValue)|\(treeDescending)") {
       if layout == "folders" { await tree.refresh(source: source.id, folders: folders, descending: treeDescending) }
@@ -357,8 +394,10 @@ private struct FolderSourceDetail: View {
   private func reload() async {
     let expected = UUID(); request = expected
     let selectedSort = sort
+    let context = source.id + "|" + selectedSort.rawValue
+    if loadedContext != context { entries = []; more = false; loadedContext = context }
     let limit = max(100, entries.count)
-    entries = []; more = false; loading = true; error = nil
+    loading = true; error = nil
     defer { if request == expected { loading = false } }
     do {
       var result: [FolderEntry] = []
@@ -402,22 +441,24 @@ private struct FolderRuleFields: View {
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("folder_rules_note").font(.callout)
-      Text("folder_rules_include").font(.headline)
-      Text("folder_rules_include_note").font(.callout).foregroundStyle(.secondary)
-      example("folder_rules_include_example", explanation: "folder_rules_include_example_note")
-      TextEditor(text: $include).font(.system(.body, design: .monospaced)).frame(height: 90)
-        .overlay(RoundedRectangle(cornerRadius: 4).stroke(.quaternary))
+      Text("folder_rules_note").font(.system(size: 14))
+      Text("folder_rules_include").font(.system(size: 14))
+      Text("folder_rules_include_note").font(.system(size: 12)).foregroundStyle(.secondary)
+      TextEditor(text: $include).font(.system(size: 14, design: .monospaced)).frame(height: 96)
+        .padding(8).background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(DuckColors.border))
         .accessibilityLabel("folder_rules_include")
-      Text("folder_rules_exclude").font(.headline)
-      Text("folder_rules_exclude_note").font(.callout).foregroundStyle(.secondary)
-      example("folder_rules_exclude_example", explanation: "folder_rules_exclude_example_note")
-      TextEditor(text: $exclude).font(.system(.body, design: .monospaced)).frame(height: 90)
-        .overlay(RoundedRectangle(cornerRadius: 4).stroke(.quaternary))
+      Text("folder_rules_exclude").font(.system(size: 14))
+      Text("folder_rules_exclude_note").font(.system(size: 12)).foregroundStyle(.secondary)
+      TextEditor(text: $exclude).font(.system(size: 14, design: .monospaced)).frame(height: 96)
+        .padding(8).background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(DuckColors.border))
         .accessibilityLabel("folder_rules_exclude")
       DisclosureGroup("folder_rules_pattern_help") {
         VStack(alignment: .leading, spacing: 8) {
           Text("folder_rules_path_note")
+          example("folder_rules_include_example", explanation: "folder_rules_include_example_note")
+          example("folder_rules_exclude_example", explanation: "folder_rules_exclude_example_note")
           Text(verbatim: NSLocalizedString("folder_rules_examples", comment: ""))
         }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled).padding(.top, 4)
       }.font(.callout)
@@ -431,7 +472,7 @@ private struct FolderRuleFields: View {
     }
   }
 }
-private struct FolderRulesSheet: View {
+struct FolderRulesSheet: View {
   @ObservedObject var folders: FolderSources
   let source: FolderSource
   let close: () -> Void
@@ -444,27 +485,39 @@ private struct FolderRulesSheet: View {
     _include = State(initialValue: (source.includePatterns ?? []).joined(separator: "\n"))
     _exclude = State(initialValue: (source.excludePatterns ?? []).joined(separator: "\n"))
   }
+  private var pending: Bool { folders.sources.first { $0.id == source.id }?.pendingControl != nil }
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("folder_rules").font(.title2)
-      Text(folders.displayName(source)).foregroundStyle(.secondary)
-      ScrollView { FolderRuleFields(include: $include, exclude: $exclude).frame(maxWidth: .infinity, alignment: .leading) }
-        .frame(maxHeight: 540)
-      Text("folder_rules_effect").font(.caption).foregroundStyle(.secondary)
-      if let error { Text(error).foregroundStyle(.orange).font(.caption).textSelection(.enabled) }
-      HStack {
-        Button("cancel", action: close).disabled(saving)
-        Spacer()
-        Button("folder_rules_save") {
-          Task {
-            saving = true
-            do { try await folders.saveRules(source.id, include: FolderRuleFields.lines(include), exclude: FolderRuleFields.lines(exclude)); close() }
-            catch { self.error = NSLocalizedString("folder_rules_invalid", comment: "") + " " + error.localizedDescription }
-            saving = false
-          }
-        }.disabled(saving).keyboardShortcut(.defaultAction)
+    DuckSheetLayout(title: "folder_rules", busy: saving, error: error) {
+      Text(folders.displayName(source)).font(.headline)
+      FolderRuleFields(include: $include, exclude: $exclude).disabled(saving || pending)
+      if pending && !saving && !folders.recoveringControls.contains(source.id) {
+        Text("mac_folder_operation_incomplete").foregroundStyle(DuckColors.attention)
       }
-    }.padding(24).frame(width: 500).interactiveDismissDisabled(saving)
+      DuckNotice(title: "folder_rules_effect")
+      if saving { ProgressView("settings_saving") }
+    } actions: {
+      Button(LocalizedStringKey(pending ? "settings_done" : "cancel"), action: close).disabled(saving).duckSecondaryAction()
+        .keyboardShortcut(.cancelAction)
+      Button(LocalizedStringKey(pending ? "mac_folder_recover_operation" : "folder_rules_save"), action: save).duckPrimaryAction()
+        .disabled(saving).keyboardShortcut(.defaultAction).accessibilityIdentifier("folder.rules.save")
+    }
+  }
+  private func save() {
+    guard !saving else { return }
+    saving = true; error = nil
+    Task {
+      defer { saving = false }
+      do {
+        if pending {
+          guard await folders.recoverPendingControl(source.id) else { error = folders.error; return }
+        } else {
+          try await folders.saveRules(source.id, include: FolderRuleFields.lines(include), exclude: FolderRuleFields.lines(exclude))
+        }
+        close()
+      } catch {
+        self.error = pending ? error.localizedDescription : NSLocalizedString("folder_rules_invalid", comment: "") + " " + error.localizedDescription
+      }
+    }
   }
 }
 
@@ -473,27 +526,82 @@ private struct FolderIssueRow: View {
   @ObservedObject var backup: BackupModel
   let source: FolderSource
   let path: String
-  @State private var dismissing = false
+  @State private var details = false
   private var issue: FolderIssue? { source.issueDetails?[path] }
-  private var retrying: Bool { (source.retryPaths ?? []).contains(path) }
   var body: some View {
-    HStack(alignment: .top, spacing: 16) {
-      Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
-      VStack(alignment: .leading, spacing: 4) {
-        Text((path as NSString).lastPathComponent).font(.callout.weight(.medium)).lineLimit(1)
-        Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-          .truncationMode(.middle).help(path).textSelection(.enabled)
-        Text(LocalizedStringKey("folder_issue_" + (issue?.reason ?? "unknown"))).font(.callout)
-        if let detail = issue?.detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2).help(detail) }
-      }.frame(maxWidth: .infinity, alignment: .leading)
-      VStack(alignment: .trailing, spacing: 8) {
-        Button("folder_reveal") { folders.reveal(source, relative: path) }
-        Button(retrying ? "folder_retry_waiting" : "retry_task") { Task { await folders.retry(source.id, relative: path) } }
-          .disabled(retrying || dismissing || !backup.ready || backup.pairing == nil)
-        Button("folder_ignore_version") { Task { dismissing = true; await folders.dismissIssue(source.id, relative: path); dismissing = false } }
-          .help("folder_ignore_note").disabled(dismissing)
-      }.fixedSize()
-    }.accessibilityIdentifier("folder.issue." + path)
+    Button { details = true } label: {
+      HStack(alignment: .firstTextBaseline, spacing: 16) {
+        Image(systemName: "exclamationmark.triangle").foregroundStyle(DuckColors.attention)
+        VStack(alignment: .leading, spacing: 6) {
+          Text((path as NSString).lastPathComponent).font(.callout.weight(.medium)).lineLimit(1)
+          Text(path).font(.caption).foregroundStyle(DuckColors.textSecondary).lineLimit(1)
+            .truncationMode(.middle)
+          Text(LocalizedStringKey("folder_issue_" + (issue?.reason ?? "unknown")))
+            .font(.callout).foregroundStyle(DuckColors.textSecondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+        Image(systemName: "chevron.right").foregroundStyle(DuckColors.textSecondary)
+      }.padding(.vertical, 8).contentShape(Rectangle())
+    }.buttonStyle(.plain).accessibilityIdentifier("folder.issue." + path)
+      .sheet(isPresented: $details) {
+        FolderIssueDetail(folders: folders, backup: backup, sourceID: source.id, path: path)
+      }
+  }
+}
+struct FolderIssueDetail: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let sourceID: String
+  let path: String
+  @Environment(\.dismiss) private var dismiss
+  @State private var busy = false
+  @State private var ignore = false
+  private var source: FolderSource? { folders.sources.first { $0.id == sourceID } }
+  private var retrying: Bool { (source?.retryPaths ?? []).contains(path) }
+  var body: some View {
+    DuckSheetLayout(title: "folder_issue_details", busy: busy, error: folders.error) {
+      Text((path as NSString).lastPathComponent).font(.headline)
+        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+      Text(path).font(.callout.monospaced()).foregroundStyle(DuckColors.textSecondary)
+        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+      if let source {
+        DuckNotice(title: LocalizedStringKey("folder_issue_" + (source.issueDetails?[path]?.reason ?? "unknown")),
+          tone: .attention, symbol: "exclamationmark.triangle")
+        if let detail = source.issueDetails?[path]?.detail {
+          Text(detail).font(.callout).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+        }
+        if retrying {
+          DuckNotice(title: "folder_retry_waiting", message: backup.paused ? "folder_global_wait" : "folder_retry_requested")
+            .accessibilityIdentifier("folder.issue.retry_feedback")
+        }
+        Button("folder_reveal") { folders.reveal(source, relative: path) }.duckSecondaryAction()
+        Button("folder_ignore_version") { ignore = true }.duckSecondaryAction()
+          .disabled(busy || source.pendingControl != nil).accessibilityIdentifier("folder.issue.ignore")
+      }
+      DuckNotice(title: "folder_ignore_note")
+    } actions: {
+      Button("settings_done") { dismiss() }.duckSecondaryAction().disabled(busy)
+        .keyboardShortcut(.cancelAction)
+      Button(LocalizedStringKey(source?.pendingControl != nil ? "mac_folder_recover_operation" : retrying ? "folder_retry_waiting" : "retry_task")) {
+        busy = true; folders.error = nil
+        Task {
+          if source?.pendingControl != nil { _ = await folders.recoverPendingControl(sourceID) }
+          else { _ = await folders.retry(sourceID, relative: path) }
+          busy = false
+        }
+      }.duckPrimaryAction()
+        .disabled((retrying && source?.pendingControl == nil) || busy || !backup.ready || backup.pairing == nil || source == nil)
+        .accessibilityIdentifier("folder.issue.retry")
+    }
+    .confirmationDialog("folder_ignore_version", isPresented: $ignore) {
+      Button("folder_ignore_version", role: .destructive) {
+        busy = true; folders.error = nil
+        Task {
+          let ignored = await folders.dismissIssue(sourceID, relative: path)
+          busy = false
+          if ignored { dismiss() }
+        }
+      }
+    } message: { Text("folder_ignore_note") }
   }
 }
 
@@ -656,26 +764,125 @@ struct FolderChildren: Decodable {
 }
 
 private struct FolderFileRow: View {
+  @ObservedObject var folders: FolderSources
+  @State private var details = false
   let source: FolderSource
   let entry: FolderEntry
   var nested = false
   var body: some View {
+    Button { details = true } label: {
     HStack(spacing: 14) {
       MacFileThumbnail(source: source, relative: entry.relative, revision: entry.revision,
         video: entry.media_type.hasPrefix("video/"), size: 44)
-      VStack(alignment: .leading, spacing: 5) {
-        Text((entry.relative as NSString).lastPathComponent).lineLimit(1).help(entry.relative)
-        if !nested { Text(entry.relative).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
-      }
-      Spacer(minLength: 12)
-      VStack(alignment: .trailing, spacing: 5) {
-        Text(Date(timeIntervalSince1970: Double(entry.modified_ms) / 1000), format: .dateTime.year().month(.twoDigits).day(.twoDigits).hour().minute())
-          .help("folder_modified_time").accessibilityIdentifier("folder.file_modified")
+      VStack(alignment: .leading, spacing: 4) {
+        Text((entry.relative as NSString).lastPathComponent).font(.system(size: 14, weight: .semibold))
+          .lineLimit(1).help(entry.relative)
+        HStack(spacing: 6) {
+          Text(LocalizedStringKey(entry.media_type.hasPrefix("video/") ? "library_filter_video" : "library_filter_photo"))
+          Text("·")
+          if entry.modified_ms > 0 {
+            Text(Date(timeIntervalSince1970: Double(entry.modified_ms) / 1000), format: .dateTime.year().month(.twoDigits).day(.twoDigits).hour().minute())
+              .help("folder_modified_time").accessibilityIdentifier("folder.file_modified")
+          } else { Text("task_order_unknown") }
+          Text("·")
+          Text(folders.displayName(source))
+        }.font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary).lineLimit(1)
+      }.frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .trailing, spacing: 4) {
+        Label(LocalizedStringKey(entry.state.map { "state_" + $0 } ?? "folder_not_queued"), systemImage: taskSymbol(entry.state))
+          .font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
         Text(ByteCountFormatter.string(fromByteCount: Int64(entry.size), countStyle: .file))
-      }.font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: true, vertical: false)
-      Image(systemName: taskSymbol(entry.state))
-        .foregroundStyle(entry.state == "received" ? .blue : .secondary)
-        .help(LocalizedStringKey(entry.state.map { "state_" + $0 } ?? "folder_not_queued"))
-    }.padding(.vertical, 10)
+          .font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+      }.fixedSize(horizontal: true, vertical: false)
+    }.padding(.vertical, 12).contentShape(Rectangle())
+    }.buttonStyle(.plain).accessibilityIdentifier("folder.file." + entry.relative)
+      .sheet(isPresented: $details) {
+        FolderFileDetail(folders: folders, source: source, entry: entry)
+      }
+  }
+}
+
+struct FolderFileDetail: View {
+  @ObservedObject var folders: FolderSources
+  let source: FolderSource
+  let entry: FolderEntry
+  @Environment(\.dismiss) private var dismiss
+  var body: some View {
+    DuckSheetLayout(title: "mac_file_details", error: folders.error) {
+      Text((entry.relative as NSString).lastPathComponent).font(.system(size: 16, weight: .semibold))
+        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+      VStack(spacing: 0) {
+        field("mac_fidelity_relative_path", value: entry.relative)
+        field("folder_modified_time", value: entry.modified_ms > 0
+          ? Date(timeIntervalSince1970: Double(entry.modified_ms) / 1000).formatted(date: .abbreviated, time: .shortened)
+          : NSLocalizedString("task_order_unknown", comment: ""))
+        field("design_file_size", value: ByteCountFormatter.string(fromByteCount: Int64(entry.size), countStyle: .file))
+        field("task_source_filter", value: folders.displayName(source))
+        field("mac_fidelity_status_title", value: NSLocalizedString(entry.state.map { "state_" + $0 } ?? "folder_not_queued", comment: ""))
+      }
+      DuckNotice(title: "mac_file_source_note")
+      DisclosureGroup("design_file_type") { Text(entry.media_type).font(.system(size: 12)).textSelection(.enabled) }
+    } actions: {
+      Button("settings_done") { dismiss() }.duckSecondaryAction().keyboardShortcut(.cancelAction)
+      Button("folder_reveal") { folders.reveal(source, relative: entry.relative) }.duckSecondaryAction()
+      Button("nav_transfers") {
+        dismiss()
+        NotificationCenter.default.post(name: Notification.Name("BackupDuckShowTransfers"), object: nil)
+      }.duckSecondaryAction()
+    }
+  }
+  private func field(_ title: LocalizedStringKey, value: String) -> some View {
+    HStack(alignment: .top, spacing: 12) {
+      Text(title).font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary).frame(width: 130, alignment: .leading)
+      Text(value).font(.system(size: 14)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }.padding(.vertical, 12).overlay(alignment: .bottom) { Divider() }
+  }
+}
+
+
+struct FolderRemoveSheet: View {
+  @ObservedObject var folders: FolderSources
+  let source: FolderSource
+  var close: () -> Void
+  @State private var removing = false
+  @State private var error: String?
+  private var pending: Bool { folders.sources.first { $0.id == source.id }?.pendingControl != nil }
+  var body: some View {
+    DuckSheetLayout(title: "folder_remove", busy: removing, error: error, desktopWidth: 480, desktopMinHeight: 240, desktopIdealHeight: 320) {
+      Text(String(format: NSLocalizedString("mac_fidelity_remove_question", comment: ""), folders.displayName(source))).font(.system(size: 16, weight: .semibold))
+      Text("folder_remove_note").font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary).fixedSize(horizontal: false, vertical: true)
+      DuckNotice(title: "mac_fidelity_remove_boundary", tone: .attention)
+      if removing { ProgressView("settings_saving") }
+    } actions: {
+      Button(LocalizedStringKey(pending ? "settings_done" : "cancel"), action: close).duckSecondaryAction().disabled(removing)
+        .keyboardShortcut(.cancelAction)
+      Button(LocalizedStringKey(pending ? "mac_folder_recover_operation" : "folder_remove"), role: .destructive) {
+        guard !removing else { return }
+        removing = true; error = nil
+        Task {
+          let succeeded = await folders.remove(source.id)
+          removing = false
+          if succeeded { close() }
+          else { error = folders.error ?? NSLocalizedString("error_internal", comment: "") }
+        }
+      }.buttonStyle(MacDestructiveOutlineStyle()).disabled(removing)
+        .accessibilityIdentifier("folder.remove.confirm")
+    }
+  }
+}
+
+/// Role/tint alone is overridden by the macOS bordered capsule style. This
+/// desktop confirmation variant keeps an actual Button and explicit danger
+/// foreground and outline, matching its distinct destructive action contract.
+private struct MacDestructiveOutlineStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var enabled
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.font(.system(size: 14))
+      .foregroundStyle(DuckColors.failure)
+      .padding(.horizontal, 14).padding(.vertical, 10)
+      .background(DuckColors.failure.opacity(configuration.isPressed ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 8))
+      .overlay { RoundedRectangle(cornerRadius: 8).stroke(DuckColors.failure, lineWidth: 1) }
+      .contentShape(RoundedRectangle(cornerRadius: 8)).opacity(enabled ? 1 : 0.48)
   }
 }

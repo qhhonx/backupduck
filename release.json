@@ -1,7 +1,7 @@
 {
-  "version": "0.2.0-rc.3",
-  "build": 46,
-  "website": "https://backupduck.vercel.app",
+  "version": "0.3.0",
+  "build": 47,
+  "website": "https://backupduck.app",
   "repository": "qhhonx/backupduck",
   "distribution_repository": "qhhonx/backupduck"
 }

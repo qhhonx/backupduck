@@ -17,10 +17,79 @@ class ReceiverInstrumentation : Instrumentation() {
     private var arguments = Bundle()
     override fun onCreate(arguments: Bundle?) { this.arguments = arguments ?: Bundle(); super.onCreate(arguments); start() }
     override fun onStart() {
+        if(arguments.getString("mode")=="history_live") {
+            val result=runCatching {checkHistoryLive(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if(arguments.getString("mode")=="updates_ui") {
+            val result=runCatching {checkUpdatesLayout(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "receiver_remaining_feedback") {
+            val result=runCatching {checkReceiverRemainingFeedback(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "receiver_settings_revision") {
+            val result=runCatching {checkReceiverSettingsRevision()}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+
+        if (arguments.getString("mode") == "receiver_storage_flow") {
+            val result=runCatching {checkReceiverStorageFlow(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+
+        if (arguments.getString("mode") == "receiver_row_contract") {
+            val result=runCatching {checkReceiverRowContract(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "receiver_empty_accessibility") {
+            val result=runCatching {checkReceiverEmptyAccessibility()}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "receiver_default_policy") {
+            val result=runCatching {checkReceiverDefaultPolicy()}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "receiver_refinement") {
+            val result=runCatching {checkReceiverRefinement(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "acceptance_feedback") {
+            val result=runCatching {checkReceiverFeedback(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "receiver_surface") {
+            val result = runCatching { checkReceiverSurface(arguments) }
+            finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("result", result.getOrElse { "FAIL: ${it.stackTraceToString()}" }) })
+            return
+        }
         if (arguments.getString("mode") == "receiver_wifi") {
             val result = runCatching { checkReceiverWifi(arguments) }
             finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
                 putString("result", result.getOrElse { "FAIL: ${it.javaClass.simpleName}: ${it.message}" })
+
+            })
+            return
+        }
+        if(arguments.getString("mode")=="experiments_ui") {
+            val result=runCatching {checkExperimentsClarity(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if(arguments.getString("mode")=="full_replica") {
+            val result=runCatching {checkFullReplica(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return
+        }
+        if (arguments.getString("mode") == "component_flow") {
+            val result=runCatching {checkComponentFlow(arguments)}
+            finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})})
+            return
+        }
+        if (arguments.getString("mode") == "design_review") {
+            val result = runCatching { checkDesignReview(arguments) }
+            finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
+                putString("result", result.getOrElse { "FAIL: ${it.stackTraceToString()}" })
             })
             return
         }
@@ -119,6 +188,12 @@ class ReceiverInstrumentation : Instrumentation() {
                 photo.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)) }; bitmap.recycle()
                 val movie = File(root, "fixture.mp4")
                 context.assets.open("motion.mp4").use { input -> movie.outputStream().use { input.copyTo(it) } }
+                // The disposable AVD can have less than the production 1 GiB floor.
+                // Set a real, nonzero gate only on this newly-created fixture root.
+                val fixtureReceiverRoot = File(root, "receiver").path
+                val fixtureSettings = (NativeBridge.request(JSONObject().put("op", "receiver_settings").put("root", fixtureReceiverRoot)) as JSONObject).getJSONObject("settings")
+                fixtureSettings.put("min_free_bytes", 256L * 1024 * 1024)
+                NativeBridge.request(JSONObject().put("op", "receiver_settings").put("root", fixtureReceiverRoot).put("settings", fixtureSettings))
                 val pairing = NativeBridge.request(JSONObject().put("op", "start_receiver").put("root", File(root, "receiver").path)
                     .put("listen", "127.0.0.1:38484").put("capacity", 32 * 1024 * 1024)) as JSONObject
                 NativeBridge.request(JSONObject().put("op", "open_sender").put("root", File(root, "sender").path))
@@ -151,7 +226,7 @@ class ReceiverInstrumentation : Instrumentation() {
                     NativeBridge.request(JSONObject().put("op", "enqueue").put("receiver_id", pairing.getString("receiver_id"))
                         .put("source_id", "fixture-$kind-${root.name}").put("revision", "1").put("kind", if (kind.startsWith("burst-")) "photo" else kind).put("metadata", metadata).put("resources", resources))
                     val job = NativeBridge.request(JSONObject().put("op", "run_sender").put("pairing", pairing)) as JSONObject
-                    check(job.getString("state") == "received") { "receipt_missing" }
+                    check(job.getString("state") == "received") { "receipt_missing:$kind:${job.optString("state")}:${job.optString("error_code")}" }
                 }
                 val items = NativeBridge.request(JSONObject().put("op", "publications")) as JSONArray
                 check(items.length() == 5) { "asset_count" }

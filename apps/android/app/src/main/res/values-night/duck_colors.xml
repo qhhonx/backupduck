@@ -1,0 +1,19 @@
+<!-- Generated from design/backupduck-v1/tokens.json. -->
+<resources>
+    <color name="duck_canvas">#131922</color>
+    <color name="duck_surface">#1D2633</color>
+    <color name="duck_subtle">#242E3D</color>
+    <color name="duck_text">#EFF3F8</color>
+    <color name="duck_text_secondary">#AAB6C6</color>
+    <color name="duck_border">#364354</color>
+    <color name="duck_action">#8CB9FF</color>
+    <color name="duck_action_background">#243C60</color>
+    <color name="duck_brand_accent">#F5CE55</color>
+    <color name="duck_saved">#89D8AA</color>
+    <color name="duck_saved_background">#213F32</color>
+    <color name="duck_attention">#F6CC81</color>
+    <color name="duck_attention_background">#453724</color>
+    <color name="duck_failure">#FFADAD</color>
+    <color name="duck_failure_background">#482C32</color>
+    <color name="duck_brand_accent_background">#3D3420</color>
+</resources>

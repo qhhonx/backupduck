@@ -1,13 +1,29 @@
 <resources>
     <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="fontFamily">sans</item>
-        <item name="colorPrimary">#ADC6FF</item>
-        <item name="colorSecondary">#ADC6FF</item>
-        <item name="colorSecondaryContainer">#26395F</item>
-        <item name="colorOnSecondaryContainer">#D8E3FF</item>
+        <item name="colorPrimary">@color/duck_action</item>
+        <item name="colorOnPrimary">@color/duck_canvas</item>
+        <item name="colorSecondary">@color/duck_action</item>
+        <item name="colorSecondaryContainer">@color/duck_action_background</item>
+        <item name="colorOnSecondaryContainer">@color/duck_action</item>
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="colorSurface">@color/duck_surface</item>
+        <item name="colorSurfaceContainerLow">@color/duck_surface</item>
+        <item name="colorSurfaceContainer">@color/duck_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/duck_subtle</item>
+        <item name="colorOnSurface">@color/duck_text</item>
+        <item name="colorSurfaceVariant">@color/duck_subtle</item>
+        <item name="colorOnSurfaceVariant">@color/duck_text_secondary</item>
+        <item name="colorOutline">@color/duck_border</item>
+        <item name="android:colorBackground">@color/duck_surface</item>
+        <item name="android:textColorPrimary">@color/duck_text</item>
+        <item name="android:textColorSecondary">@color/duck_text_secondary</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:statusBarColor">?android:colorBackground</item>
         <item name="android:navigationBarColor">?android:colorBackground</item>
+    </style>
+    <style name="DuckToolbarTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">24sp</item><item name="android:textStyle">bold</item><item name="android:fontFamily">sans-serif</item>
     </style>
 </resources>
