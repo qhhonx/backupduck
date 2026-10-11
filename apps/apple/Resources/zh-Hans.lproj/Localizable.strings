@@ -1112,3 +1112,5 @@
 "apple_selected_submitting" = "正在加入备份任务…";
 
 "receiver_indicator_connected" = "已连接";
+
+"updates_store_note" = "此版本由 TestFlight 或 App Store 管理更新。";

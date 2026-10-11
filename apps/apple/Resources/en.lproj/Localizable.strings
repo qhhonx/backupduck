@@ -1112,3 +1112,5 @@
 "apple_selected_submitting" = "Adding backup tasks…";
 
 "receiver_indicator_connected" = "Connected";
+
+"updates_store_note" = "Updates for this version are managed by TestFlight or the App Store.";

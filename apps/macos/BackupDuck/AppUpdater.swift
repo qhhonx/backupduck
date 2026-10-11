@@ -1,6 +1,18 @@
 import AppKit
 import Combine
 import SwiftUI
+#if BACKUPDUCK_APP_STORE
+@MainActor final class AppUpdater: ObservableObject {
+  static let shared = AppUpdater()
+  func start() async {}
+}
+
+struct UpdateSettings: View {
+  var body: some View {
+    Text("updates_store_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+  }
+}
+#else
 import Sparkle
 
 @MainActor final class AppUpdater: NSObject, ObservableObject, SPUUpdaterDelegate {
@@ -66,3 +78,5 @@ struct UpdateSettings: View {
     }
   }
 }
+
+#endif

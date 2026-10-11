@@ -23,7 +23,10 @@ assert p['SURequireSignedFeed'] and p['SUVerifyUpdateBeforeExtraction']
 assert p['CFBundleIdentifier']=='app.backupduck'
 ios=plistlib.loads((r/'apps/ios/BackupDuck/Info.plist').read_bytes())
 assert ios['CFBundleIdentifier']=='app.backupduck'
-for metadata in [p,ios]:
+store=plistlib.loads((r/'apps/macos/BackupDuck/StoreInfo.plist').read_bytes())
+assert store['CFBundleIdentifier']=='app.backupduck'
+assert not any(key.startswith('SU') for key in store), 'Store build must not advertise Sparkle'
+for metadata in [p,ios,store]:
  assert metadata['CFBundleShortVersionString']==i['version'].split('-')[0]
  assert int(metadata['CFBundleVersion'])==i['build']
 assert ios['BackupDuckReleaseVersion']==i['version']

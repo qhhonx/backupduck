@@ -13,6 +13,7 @@
 		0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */; };
 		262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
+		2BEFB58626ADBF3EF0F6881A /* DuckColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402E7CB28372F82B4FC8831A /* DuckColors.swift */; };
 		332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
 		358ABB1546C3819108BD6BFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B879720B5A1DAB699000E2E /* Assets.xcassets */; };
 		3B2C0F7A0931F23825434A1E /* BackgroundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E0025F00086FE962B3096D /* BackgroundTests.swift */; };
@@ -20,7 +21,6 @@
 		3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		3F7A401A51B7FF461CB0368B /* NetworkProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
-		55709C23FCD0540ECF192F68 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 2C8194DB525B048022B8F3ED /* DuckBrand.png */; };
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */; };
 		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
@@ -33,13 +33,14 @@
 		87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
 		8933930286FA62C95995E273 /* SettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B3868DBAEACC46DF1CAC96 /* SettingsTests.swift */; };
 		91B34306380AFC106472164B /* LibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94C4B44B41B9AAD96A51E7E3 /* LibraryTests.swift */; };
+		94E8C583B194F42A5585B965 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */; };
 		994F060A2FD375E01DFF8334 /* PhotoLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */; };
 		9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
-		A7248D6193F3C3B243F6201D /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */; };
-		AC7A0386615CDE5D7A6BB073 /* DuckColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B3FB1247793009B2B15729 /* DuckColors.swift */; };
 		AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		B0E62F0601171C8A7963164B /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
+		B9F56EADDB99697062A99110 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		BA114F060234BD9171C23F24 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
+		BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */; };
 		C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
@@ -70,8 +71,8 @@
 		094878371404AC47EB9890CE /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		0B879720B5A1DAB699000E2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		16B3C1C169CA7713E06B26B3 /* BackupDuckTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BackupDuckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckComponents.swift; sourceTree = "<group>"; };
 		25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkProgressTests.swift; sourceTree = "<group>"; };
-		2C8194DB525B048022B8F3ED /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
 		2DD73467DFE30B87BA715C9D /* StorageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModel.swift; sourceTree = "<group>"; };
 		318AEFF6C64EC209A4BCEA65 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
@@ -79,16 +80,17 @@
 		34CBDBD2C2EF0A30ACEABBA8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		36B169D63C5CECC627CB1FA4 /* BackupDuckUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BackupDuckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupModel.swift; sourceTree = "<group>"; };
-		3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckComponents.swift; sourceTree = "<group>"; };
+		402E7CB28372F82B4FC8831A /* DuckColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckColors.swift; sourceTree = "<group>"; };
 		48543A6804607508613E2435 /* PairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
 		6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurstPhotos.swift; sourceTree = "<group>"; };
 		74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupDuckApp.swift; sourceTree = "<group>"; };
-		76B3FB1247793009B2B15729 /* DuckColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckColors.swift; sourceTree = "<group>"; };
+		78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		790522FA25588024EE51100B /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
 		7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBackupOrder.swift; sourceTree = "<group>"; };
 		805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPresentationTests.swift; sourceTree = "<group>"; };
 		831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverDiscovery.swift; sourceTree = "<group>"; };
 		8544D07DE28FC92FCC6C01EC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
 		90B3868DBAEACC46DF1CAC96 /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
 		94C4B44B41B9AAD96A51E7E3 /* LibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTests.swift; sourceTree = "<group>"; };
 		9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPresentation.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 		D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverPage.swift; sourceTree = "<group>"; };
 		D8AB253C7227DDBD8BE24778 /* BackupPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupPage.swift; sourceTree = "<group>"; };
 		DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConcurrencySettings.swift; sourceTree = "<group>"; };
+		E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = DuckMenuBar.pdf; sourceTree = "<group>"; };
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
@@ -139,9 +142,19 @@
 			path = BackupDuck;
 			sourceTree = "<group>";
 		};
+		50D50FBDBBB66E14BAC4F955 /* apple */ = {
+			isa = PBXGroup;
+			children = (
+				78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */,
+			);
+			name = apple;
+			path = ../apple;
+			sourceTree = "<group>";
+		};
 		5495F3E19E0584C465CF102F = {
 			isa = PBXGroup;
 			children = (
+				50D50FBDBBB66E14BAC4F955 /* apple */,
 				33538B84AF814E9BBAD6BADE /* BackupDuck */,
 				8B1BA4F931D5BD124606C855 /* Resources */,
 				E1F0E283D93E21E408019AB0 /* Shared */,
@@ -166,7 +179,8 @@
 		8B1BA4F931D5BD124606C855 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				2C8194DB525B048022B8F3ED /* DuckBrand.png */,
+				89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */,
+				E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */,
 				FC24582406B7B42FD52AC817 /* InfoPlist.strings */,
 				D54CA1F1DA8164B463AAC43D /* Localizable.strings */,
 			);
@@ -177,13 +191,13 @@
 		E1F0E283D93E21E408019AB0 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */,
-				76B3FB1247793009B2B15729 /* DuckColors.swift */,
 				B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */,
 				B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */,
 				3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */,
 				6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */,
 				32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */,
+				402E7CB28372F82B4FC8831A /* DuckColors.swift */,
+				1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */,
 				C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */,
 				B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */,
 				9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */,
@@ -281,7 +295,11 @@
 					4C12B6378330946494E34178 = {
 						ProvisioningStyle = Automatic;
 					};
+					70D0830E89D6BCB35FF2DEEB = {
+						ProvisioningStyle = Automatic;
+					};
 					D401BFD42D81D88C547FAAE6 = {
+						ProvisioningStyle = Automatic;
 						TestTargetID = 4C12B6378330946494E34178;
 					};
 				};
@@ -314,9 +332,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				358ABB1546C3819108BD6BFB /* Assets.xcassets in Resources */,
+				94E8C583B194F42A5585B965 /* DuckBrand.png in Resources */,
+				B9F56EADDB99697062A99110 /* DuckMenuBar.pdf in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
-				55709C23FCD0540ECF192F68 /* DuckBrand.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,7 +359,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -377,6 +396,8 @@
 				C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */,
 				600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */,
 				779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */,
+				2BEFB58626ADBF3EF0F6881A /* DuckColors.swift in Sources */,
+				BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */,
 				653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */,
@@ -396,8 +417,6 @@
 				81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */,
 				C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */,
 				2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */,
-				A7248D6193F3C3B243F6201D /* DuckComponents.swift in Sources */,
-				AC7A0386615CDE5D7A6BB073 /* DuckColors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -553,6 +572,7 @@
 		};
 		839C73611FD10815EDAD271F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -627,6 +647,7 @@
 		};
 		FE20340BF2285100A574E781 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

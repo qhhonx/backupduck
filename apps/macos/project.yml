@@ -7,24 +7,26 @@ settings:
     ARCHS: arm64
     MACOSX_DEPLOYMENT_TARGET: '14.0'
     ENABLE_USER_SCRIPT_SANDBOXING: NO
-targets:
-  BackupDuck:
+  configs:
+    Release:
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+configFiles:
+  Debug: ../apple/Signing.xcconfig
+  Release: ../apple/Signing.xcconfig
+targetTemplates:
+  MacHost:
     type: application
     platform: macOS
     sources:
       - path: BackupDuck
-        excludes: [Info.plist]
+        excludes: [Info.plist, StoreInfo.plist, Store.entitlements]
       - path: ../apple/Shared
       - path: ../apple/Resources
-    dependencies:
-      - framework: ../../build/dependencies/sparkle/Sparkle.framework
-        embed: true
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: app.backupduck
-        INFOPLIST_FILE: BackupDuck/Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_IDENTITY: '-'
         SWIFT_OBJC_BRIDGING_HEADER: ../../crates/native/include/backupduck.h
         OTHER_LDFLAGS:
           - $(inherited)
@@ -42,11 +44,33 @@ targets:
         script: |
           set -eu
           export PATH="$HOME/.cargo/bin:$PATH"
+          export CARGO_PROFILE_RELEASE_STRIP=none
           cd "$SRCROOT/../.."
           export MACOSX_DEPLOYMENT_TARGET=14.0
-          ./scripts/fetch-sparkle.sh
+          if [ "$TARGET_NAME" != BackupDuckStore ]; then ./scripts/fetch-sparkle.sh; fi
           cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
           cp target/aarch64-apple-darwin/release/libbackupduck_native.a "$BUILT_PRODUCTS_DIR/"
+targets:
+  BackupDuck:
+    templates: [MacHost]
+    dependencies:
+      - framework: ../../build/dependencies/sparkle/Sparkle.framework
+        embed: true
+    settings:
+      base:
+        INFOPLIST_FILE: BackupDuck/Info.plist
+        CODE_SIGN_IDENTITY: '-'
+  BackupDuckStore:
+    templates: [MacHost]
+    settings:
+      base:
+        PRODUCT_NAME: BackupDuck
+        INFOPLIST_FILE: BackupDuck/StoreInfo.plist
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        CODE_SIGN_ENTITLEMENTS: BackupDuck/Store.entitlements
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE
+        ENABLE_HARDENED_RUNTIME: YES
 schemes:
   BackupDuck:
     build:
@@ -54,3 +78,11 @@ schemes:
         BackupDuck: all
     run:
       config: Debug
+  BackupDuckStore:
+    build:
+      targets:
+        BackupDuckStore: all
+    run:
+      config: Debug
+    archive:
+      config: Release

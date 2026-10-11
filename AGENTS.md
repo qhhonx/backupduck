@@ -79,6 +79,9 @@ do not remove tracked files. Keep temporary evidence in ignored local storage.
 notes together. Builds increase monotonically.
 Preserve installed-client trust anchors and legacy update endpoints; consult
 `docs/upgrading.md` before changing app identities, certificates or feeds.
+For Apple store/test distribution, follow `docs/apple-distribution.md`. Keep
+the Mac store target sandboxed and free of Sparkle, inject the signing team via
+local/Cloud configuration, and distinguish upload from tester availability.
 A push to `main` may publish apps and deploy the website: do not merge, tag or
 publish without explicit authorization.
 Do not rewrite published history as part of routine source cleanup.

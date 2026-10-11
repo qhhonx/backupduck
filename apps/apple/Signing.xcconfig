@@ -1,0 +1,3 @@
+// Each contributor supplies their own team; Xcode Cloud uses its selected team.
+CODE_SIGN_STYLE = Automatic
+#include? "../../build/AppleSigning.xcconfig"
