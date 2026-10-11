@@ -857,16 +857,30 @@
             </div>
             <p data-i18n="mac_role">Back up your photo library or folders</p>
             <p class="requirements">macOS 14+ · Apple Silicon</p>
-            <a
-              class="button"
-              id="download-mac"
-              href="https://github.com/qhhonx/backupduck/releases"
-              ><span data-i18n="download_releases">View releases</span></a
-            >
-            <p data-i18n="mac_install" class="small-note">
-              Move to Applications. This build is not Apple-notarized; allow it
-              in Privacy & Security if prompted. Future updates use Sparkle.
-            </p>
+            <div class="download-actions">
+              <div>
+                <a
+                  class="button"
+                  id="download-mac"
+                  href="https://github.com/qhhonx/backupduck/releases"
+                  ><span data-i18n="download_releases">View releases</span></a
+                >
+                <p data-i18n="mac_install" class="small-note">
+                  Move to Applications. This build is not Apple-notarized; allow it
+                  in Privacy & Security if prompted. Future updates use Sparkle.
+                </p>
+              </div>
+              <div>
+                <a
+                  class="button secondary"
+                  href="https://testflight.apple.com/join/wGBxuQKT"
+                  ><span data-i18n="testflight_install">Install with TestFlight ↗</span></a
+                >
+                <p data-i18n="mac_testflight_install" class="small-note">
+                  Join the Mac beta through TestFlight. Updates are delivered by TestFlight.
+                </p>
+              </div>
+            </div>
           </article>
           <article>
             <div class="download-platform">
@@ -919,7 +933,7 @@
             <a
               class="button secondary"
               href="https://testflight.apple.com/join/wGBxuQKT"
-              ><span data-i18n="ios_build">Install with TestFlight ↗</span></a
+              ><span data-i18n="testflight_install">Install with TestFlight ↗</span></a
             >
             <p data-i18n="ios_install" class="small-note">
               Join the iOS beta through TestFlight. You can also build from source with Xcode and your own signing team. Development installs need periodic renewal.

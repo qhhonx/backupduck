@@ -953,6 +953,10 @@ h3 {
   font-size: 14px;
   padding-inline: 12px;
 }
+.download-actions {
+  display: grid;
+  gap: 24px;
+}
 .download-grid article .small-note {
   font-size: 12px;
   line-height: 1.8;
