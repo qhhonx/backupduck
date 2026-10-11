@@ -47,6 +47,21 @@ local release shares the same version, inspect the actual TestFlight counter
 before selecting its next build number. A GitHub artifact version does not prove
 that an Apple test build has been uploaded or made available to testers.
 
+## Encryption and metadata
+
+The current Apple test-distribution plan excludes France. Both store hosts use
+standard cryptography for secure local transfer; they do not implement a
+proprietary encryption algorithm. The App Store Connect questionnaire was
+completed with standard algorithms outside the Apple OS and no French
+distribution. Its result requires no encryption document for this scope.
+`ITSAppUsesNonExemptEncryption` is false in both store Info.plists to retain that
+result for subsequent builds. This does not mean the apps contain no encryption.
+Revisit the declaration before changing cryptography or distribution geography.
+
+Keep the English and Chinese Beta descriptions, marketing/privacy links, review
+instructions and per-build testing notes current together. Use the custom-domain
+website and privacy page; do not retain old RC pairing/migration instructions.
+
 ## Acceptance
 
 Confirm uploaded version, build, platform, processing status and tester-group

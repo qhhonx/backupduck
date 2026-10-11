@@ -26,6 +26,8 @@ assert ios['CFBundleIdentifier']=='app.backupduck'
 store=plistlib.loads((r/'apps/macos/BackupDuck/StoreInfo.plist').read_bytes())
 assert store['CFBundleIdentifier']=='app.backupduck'
 assert not any(key.startswith('SU') for key in store), 'Store build must not advertise Sparkle'
+for metadata in [ios,store]:
+ assert metadata.get('ITSAppUsesNonExemptEncryption') is False, 'Recheck Apple encryption declaration and distribution scope'
 for metadata in [p,ios,store]:
  assert metadata['CFBundleShortVersionString']==i['version'].split('-')[0]
  assert int(metadata['CFBundleVersion'])==i['build']
