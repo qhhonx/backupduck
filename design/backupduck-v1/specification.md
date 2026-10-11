@@ -1,141 +1,95 @@
-# 备份鸭视觉与交互标准 · v1.1
+# Visual and interaction foundations
 
-设计日期：2026-10-02。用于评审与原生实现，不代表所列行为都已在发布版完成。
+The 0.3.0 interface baseline covers Apple senders and the Android receiver.
+The `backupduck-v1` directory is a stable token/prototype source path, not an
+application release number. Current component rules override historical mockups.
 
-## 设计目标
+## Visual language
 
-让用户知道三件事：备份从哪里来、现在到了哪一步、下一步能做什么。围绕“来源 → Pixel”的链路组织页面，不扩展为照片编辑器或综合云盘。
+Use warm neutral surfaces, blue primary actions and restrained duck-yellow brand
+accents. Semantic success, attention and failure colors require text and icons.
+Yellow decorates brand/empty-state illustrations, a labeled storage category,
+or a quiet unseen-feature discovery mark;
+it does not stand in for operational status.
 
-品牌保留现有黄鸭图标。暖白提供亲和感，蓝色表达操作与进行中，黄色只作为品牌点缀或空间分类色。成功、等待、失败都有文字与图标，不能让一个绿色勾代表传输、保存、云端三个阶段。
+Colors come from `tokens.json`. Native hosts use system fonts and platform icons.
+Mobile body/supporting text generally uses 16/13; desktop uses 14/12. Counts and
+progress use monospaced digits. Spacing follows 4/8/12/16/24/32. Wrapped text and
+accessibility sizes grow naturally rather than being clipped.
 
-## v1.1 调整
+Preference-row minima are 52 pt on iPhone and 48 pt on Mac, through shared
+platform metrics. Android interactive targets are at least 48 dp. These are
+platform density contracts, not interchangeable CSS pixels. See
+[component rules](../ui-content-rules.md) for section geometry and alignment.
 
-保留已评审的布局、信息密度、状态语言与深浅色方向。本轮增加平台材质、控件形态、鸭黄实例与辅助功能回退；不改备份业务，也不将网页原型组件直接搬到原生应用。
+## Platform surfaces
 
-### 鸭黄的具体用法
+Apple navigation, toolbars and standard overlays use native system materials.
+Content, file rows, errors and progress stay solid. Reduced transparency, enhanced
+contrast and unsupported systems use opaque fallbacks with the same information.
+Android and browser interfaces use solid surfaces without real-time blur.
+Prototype CSS is illustrative; it does not implement native material optics.
 
-上一版主要在品牌图标和存储占用分类中出现，工作页上不明显。本版在首次连接、空状态的鸭子插画背板补充暖黄，并在交互规范页给出可点击的实际页面示例。暖黄底上的文字使用正文墨色，不使用黄色小字；浅色与深色各有品牌浅底变量。
+Phone senders use Library, Backup, Receiver and Settings navigation. Mac sources
+include the system Photos library and folders. The receiver uses Receive,
+Transfers, Storage and Settings. Browser management uses overview/history/storage
+and settings. System permission, camera, picker, sharing and installation UI
+remain actual platform interfaces.
 
-| 用途 | 位置与边界 |
-| --- | --- |
-| 品牌图标 | 现有鸭子图标不重绘，不强行改成色票里的单一黄色 |
-| 首次连接 / 空状态 | 小块暖黄背板与点缀，衬托鸭子；正常传输列表不添加黄色装饰 |
-| 存储分类 | 区分“处理中与派生文件”，始终附分类文字，不表达风险 |
-| 操作与状态 | 主操作蓝色；保存绿色、提醒橙色、失败红色；品牌黄色不承担这些含义 |
+## Actions and information
 
-### 材质与平台边界
+A task context has one primary action. Keep selection count and backup actions
+visible outside an unbounded scrolling list. Show the count once. Use switches
+for persistent Boolean settings; use checkboxes for selecting independent items.
+Secondary actions and low-frequency menus do not compete with primary work.
 
-| 平台 | 导航与控件 | 内容与性能 |
+Automatic discovery, an existing-media scan and pausing the current queue are
+separate controls. Selection confirmation persists intent and closes on successful
+registration; originals prepare in the persistent task workflow. Cancellation
+preserves the parent context. Failure preserves drafts, selection and a recovery
+path. Help is read-only and has one consistent entry from Settings.
+
+Shared settings groups are Device identity, Display and language, Local storage,
+Diagnostics, and Help and About. Update controls belong in About on platforms
+with an in-app updater. iOS uses its distribution channel rather than an invented
+in-app update workflow. Desktop layout may use columns; phone layout stays linear.
+
+## Task semantics
+
+| State | Confirmed fact | Recovery or next step |
 | --- | --- | --- |
-| iOS | 系统导航材质、浮动底部导航、标准 Sheet；原生使用平台组件 | 照片、文件行、错误说明、任务进度实色；内容可以滚过导航背后 |
-| macOS | 系统侧边栏、工具栏与标准对话框材质；熟悉的窗口与键盘结构 | 正文卡片与底部任务状态实色，材质不重复嵌套 |
-| Android | Material 风格的胶囊选中态、按钮、开关与底部弹层 | 实色表面，不计算实时背景模糊；旧 Pixel 优先保证接收与列表性能 |
-| 浏览器 | 清楚的表格、页码、详情对话框 | 实色背景，不因追求跨端统一加入玻璃层 |
+| Queued/preparing | Durable work exists; transfer is incomplete | Inspect tasks; pause or retry as applicable |
+| Receiving | Actual byte transfer is in progress | Show verified progress where available |
+| Received | Original resources are durable and verified on receiver | Wait for or inspect gallery processing |
+| Saved | Phone-gallery publication succeeded | Cloud status remains independent |
+| Failed | The named stage failed | Preserve originals and expose specific retry |
+| Thermal hold | Receiver protection holds admission | Show actual temperature/protection conditions |
+| Offline/source unavailable | Device or source access is unavailable | Preserve configuration and pending work |
 
-原型用 CSS 示意半透明层级，不宣称重现 Liquid Glass 的光学效果。落地时使用系统材质与标准控件，跟随系统版本；不能仅凭系统版本号为整页启用模糊。旧系统、不支持材质时使用实色表面，保持同一信息与布局。
+Never infer cloud upload from receipt or gallery publication. Missing times,
+source dates, temperature and storage remain unknown; receipt time must not
+replace capture time. Overview, rows, detail and status controls use the same
+mapping. Retry submission is not success. Preparation is not byte transfer.
 
-遵循系统“减少透明度”和“增强对比度”：导航、工具栏、弹层恢复不透明底色，文字与图标不降透明度。原型页顶的“材质预览 / 旧系统实色”和“减少透明度”仅是评审控制，不是新增产品设置；网页也响应可用的 `prefers-reduced-transparency` 与 `prefers-contrast: more`。
+## Files, previews and persistence
 
-深色使用独立底色与语义颜色；内容默认实色。材质不参与逐帧动画，不叠加多重模糊。导航选中态同时依赖文字粗细和形状，不能只靠颜色。
+Library browsing previews available local media without fetching cloud originals
+solely for preview. Selection, sorting, pagination, expanded folders and scroll
+positions survive background state updates. Native grids/lists are virtualized
+with stable identities and bounded thumbnail work.
 
-参考：[Apple 材质规范](https://developer.apple.com/design/human-interface-guidelines/materials)、[Google Material 3 Expressive](https://blog.google/products-and-platforms/platforms/android/material-3-expressive-android-wearos-launch/)。平台设计语言是落地约束，不要求把 Android 和浏览器都改成 Apple 玻璃。
+Folder include rules select supported media, while exclusion rules take priority.
+Rules are relative to the source. Saved rules do not modify original files;
+missing volumes retain source configuration and offer recovery. Existing-media
+scope freezes a run; automatic discovery handles subsequent changes.
 
-## 基础规范
+Brand derivatives preserve the original AppIcon shape. Native menu/status marks
+use transparent monochrome masks rather than full launch tiles or redrawn logos.
+See [brand resources](../../assets/brand-notes.md).
 
-语义变量见 `tokens.json`。页面只引用语义色，避免散落硬编码；深色配色不是反转照片或整页滤镜。原型中的颜色样本卡显示浅色标称值，深色实际值见 JSON。
+## Verification boundary
 
-| 项目 | 原生实施标准 |
-| --- | --- |
-| 字体 | 各平台系统字体；中文使用系统中文字体，不下载装饰字体 |
-| 字号 | 手机正文 16、辅助 13；桌面正文 14、辅助 12；标题 24–28 |
-| 数值 | 进度、计数、温度、速度使用等宽数字，防止长度变化造成晃动 |
-| 行高 | 正文 1.5，较长说明 1.7；支持系统字体放大与多行换行 |
-| 间距 | 4 / 8 / 12 / 16 / 24 / 32，以 8 为主要节奏 |
-| 圆角 | 控件 8，列表组 12，主要容器 16，手机弹层 20 |
-| 图标 | iOS / macOS 使用 SF Symbols；Android 使用 Material Symbols 同等含义；浏览器用轻量本地 SVG |
-| 触控 | iOS 不小于 44 pt，Android 不小于 48 dp；小图标可以保留视觉尺寸，但实际命中区域扩大 |
-| 分隔 | 细边线替代每行卡片阴影；使用背景层级，而非大量蓝色填充 |
-| 密度 | 桌面约 68 px 文件行，Android 约 64 dp，iOS 约 72 pt；大字体允许增加高度 |
-
-原型以像素为审阅单位，为了在桌面并排看手机，辅助文字会比最终原生值紧凑。`tokens.json` 与本规范的原生字号、触控尺寸优先，不能机械复制网页的每个 CSS 数值。落地后必须以真机验收密度与可读性。
-
-## 组件与动作
-
-- 每个任务场景一个主操作。用完整动宾短语：连接新设备、备份现有文件、备份所选、暂停传输、重试处理。
-- 来源自动备份是长期设置；当前队列暂停是即时动作。不能在一个文件夹卡里同时放“备份 / 暂停 / 自动备份”三个没有说明的同级按钮。
-- 更多菜单只放低频操作，例如重新扫描、备份规则、移除来源；主要动作放列表行或工具栏。菜单尽量一层，排序使用一层选择器，不嵌套子菜单。
-- 加载、错误与正常反馈有独立位置。重要错误持续可见，并有恢复入口；短提示只用于“请求已提交”这类无需后续处理的反馈。
-- 详情展示长路径、原件与派生文件说明、来源设备、各阶段时间、失败原因。列表只保留核心字段。
-- 进度线附着在稳定状态区底边；非传输状态显示真实标题与下一步，不制造一个空的进度槽。
-
-## 状态语言与成功边界
-
-| 状态 | 文字 / 图形 | 用户能据此判断的事实 | 推荐操作 |
-| --- | --- | --- | --- |
-| queued | 等待接收 / 时钟 | 在队列中，还没传输完 | 查看队列；允许暂停 |
-| receiving | 接收中 / 双箭头 | 字节传输中，显示可用进度 | 暂停传输 |
-| received | 已接收 · 待处理 / 时钟 | 原件在接收端持久保存并校验 | 等待处理，查看详情 |
-| saved | 已保存到相册 / 勾 | 已成功加入 Pixel 系统相册 | 打开相册确认云端 |
-| failed | 相册处理失败 / 警告 | 原件保留，加入相册失败 | 重试处理，查看原因 |
-| thermal | 接收端高温暂停 / 温度计 | 温度保护触发，暂停新接收 | 让手机降温，查看保护设置 |
-| offline | 等待设备连接 / Wi-Fi | 接收端不可达 | 检查连接，保留队列 |
-| sourceUnavailable | SD 卡未连接 / 磁盘 | 无法扫描来源，不是照片失败 | 插回设备，再扫描 |
-
-云端上传不在上述成功判断中。没有可验证的云端回执时，不显示“云端成功”“全部备份完成”。“本批已保存”也必须注明“到 Pixel 相册”。将来如果有真实云端确认能力，新增独立阶段与来源，不复用 saved 的含义。
-
-列表、概览、图标提示、计数和底部任务区必须使用同一状态映射。整体“部分文件未备份”不能仅由过期扫描错误、离线 SD 卡或已忽略文件触发。未记录时间显示“未记录”，来源没有拍摄时间显示“未提供”，不能用接收时间填拍摄时间。
-
-兼容转换默认关闭，说明“仅在原样封装不支持时转换，可能重新编码”。不因 Google 相册“正在准备”触发转换，也不以 JPEG / HEIC 扩展名决定是否转换。
-
-## 页面清单与状态
-
-以下页面在原型里可导航；“文件详情 / 配对 / 规则”等为可打开弹层。系统权限与选择器使用平台界面，原型提供进入提示。
-
-| 平台 | 页面 | 信息结构 | 关键异常 / 恢复 |
-| --- | --- | --- | --- |
-| iOS | 图库 | 日期分组、照片网格、实况 / 视频时长 / 连拍标识、选择 | 照片权限、静态加载占位、已保存标记说明 |
-| iOS | 备份 | 本批保存进度、系统图库自动备份、最近传输 | 首次连接、设备离线、保存失败、高温暂停 |
-| iOS | 传输（二级） | 筛选、拍摄时间、类型与保存状态，详情 | 失败重试；保留列表滚动位置 |
-| iOS | 接收设备 | 配对步骤、扫描 Pixel 配对码、连接状态 | 未连接、网络权限、重试 |
-| iOS | 设置 | 图库备份、显示、设备、帮助 | 不出现 macOS 文件夹来源配置 |
-| macOS | 系统图库 | 网格、选择、备份所选确认 | 已备份跳过与强制重传可选择 |
-| macOS | 文件夹 | 紧凑来源卡、路径区分、查看文件、自动备份 | SD 卡未连接、重新扫描、移除来源 |
-| macOS | 文件夹详情 | 时间 / 名称排序、平铺 / 文件夹树、备份规则 | 无文件、扫描加载、单项失败详情 |
-| macOS | 备份概览 | 统一来源、本批状态、接收设备、最近任务 | 失败 / 离线 / 降温有恢复入口 |
-| macOS | 传输任务 | 单项状态、筛选、详情 | 与底部任务区同步，失败不藏在来源文件表上方 |
-| macOS | 接收设备 / 设置 | 连接、设备状态、分来源设置 | 设备信息不可用时不推测远端温度与空间 |
-| Android | 接收 | 连接新设备、当前批次、少量最近记录、温度与空间 | 未启动可直接配对，启动失败说明原因 |
-| Android | 传输 | 紧凑文件行、类型、拍摄时间、状态，详情 | 原件保留、失败可重试；小屏能看到多个项目 |
-| Android | 存储 | 可用空间、原件占用、待处理占用、保留策略 | 空间保护，不能凭本地 saved 清理唯一原件 |
-| Android | 设置 | 自动接收、温度保护、兼容转换、浏览器管理 | 默认阈值沿用接收端事实，明确温度是电池读数 |
-| 浏览器 | 总览 | 保存 / 进行中 / 失败 / 空间、最近记录 | 登录、处理失败、温度暂停、未连接 |
-| 浏览器 | 传输记录 | 文件、状态、拍摄时间、大小；筛选、搜索、分页 | 详情有来源与时间线；不因刷新跳页 |
-| 浏览器 | 存储 / 设置 | 本机状态、保留策略、接收选项 | 仅局域网管理，不扩大云端权限 |
-
-“状态预览”用于评审，不在产品界面内。有些状态只对相应平台有意义，例如 SD 卡拔出仅在文件夹来源里有具体恢复流程。
-
-## 重点流程
-
-### 首次配对
-
-Pixel “连接新设备” → 启动接收（短暂显示启动中）→ 选择 iPhone / Mac → 显示 / 扫描码 → 配对成功 → 显示已连接设备。接收启动失败时留在此流程，说明 Wi-Fi、端口冲突或权限原因，并提供修复动作。不能让用户先发现另一个“开始接收”的前置按钮。
-
-Mac 显示配对码让 Pixel 扫描；iPhone 扫描 Pixel 配对码。复用真实的协议与有效期，二维码绝不作为身份认证的替代。原型图形只是标注为演示的占位码。
-
-### 文件夹规则
-
-分别用“只备份这些文件（白名单）”和“跳过这些文件（黑名单）”。白名单空表示所有支持媒体；填入后符合任意一条才选中；黑名单符合任意一条就排除，排除优先。首层不讲 glob 术语，例子和高级语法放展开帮助。每行一条、相对路径、大小写、目录 `/**` 等要求必须与真实匹配器一致。
-
-保存后重新扫描；不修改原文件、已有备份、已排队传输。规则页不承诺增加不支持的媒体格式。失败文件重试放传输详情；明确用户移除的是来源、队列项目还是待处理原件，不能把三个操作都叫“移除”。
-
-### 状态与恢复
-
-接收完成先进入“待处理”。加入相册成功后才显示 saved；失败保留原件并提供原因、重试。发送端从接收端可验证的本地状态显示结果，不能把“已接收”画成“已保存”。离线时留历史结果，远端实时温度 / 空间显示最近读数时间或未提供。
-
-高温暂停由业务状态驱动，界面不自己判断抖动或恢复阈值。暂停传输仅控制当前任务，不能把手动暂停伪装成设备离线。任务重试请求发出也不立刻改为成功。
-
-## 实现与验收
-
-此轮只交设计原型。后续原生改版分来源和组件落地，避免同时重构传输业务与列表 UI。图库与长列表优先复用现有原生虚拟化、分页、缩略图请求与缓存，不以网页组件替换原生列表。
-
-实施须验证：iOS / macOS 字体放大、VoiceOver、Android TalkBack、手机 320 dp 宽与横向模式；至少四个高对比文字组合；键盘焦点与关闭弹层；日期缺失、长文件名、设备名称、本地化与大计数；失败与重试真机流程；浅深色；减少动态效果、减少透明度与增强对比度；断开网络与拔卡时状态的实际语义。截图好看不等于这些验收已经通过。
+Prototypes and synthetic references are not native or physical-device acceptance.
+Follow [UI change checks](../iteration-checklist.md), compare actual rendered
+windows and retain explicit scope for performance, accessibility and real media
+verification. Never publish personal acceptance logs as design specifications.

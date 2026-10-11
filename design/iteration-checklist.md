@@ -1,22 +1,30 @@
-# 设计与交互迭代验收
+# UI change checks
 
-本表用于每次涉及界面的改动，选择本次影响的平台和状态；不要求无关改动重跑全部截图。
+Apply these checks to the platforms and states affected by a change. Do not
+regenerate unrelated screenshot matrices without a reason.
 
-1. 确认页面沿用 v1.1 的来源、任务、设备、设置结构，主要操作名称和位置清楚。
-2. 使用生成的设计变量与共用组件。新增语义变量先改 `tokens.json`，生成后检查浅深色文字对比。
-3. 按真实数据核对等待、传输、已接收待处理、已保存到 Pixel 相册、失败、离线、拔卡、高温与手动暂停；失败重试不立即标成功。
-4. 检查照片、实况、视频时长、连拍与日期缺失；详情下沉长路径和阶段信息，列表保留核心字段。
-5. 对照视觉稿检查受影响页面的浅色、深色、小屏和长文案。Apple 同时检查减少透明度 / 动效、旧系统回退；Android 检查旧 Pixel 列表空间和无实时模糊。
-6. 连续刷新并滚动列表，确认任务进度、警告和缩略图变化不推挤布局；分页、选择和滚动位置不被后台刷新重置。
-7. 运行相应平台构建与现有布局 / 交互检查。真机检查最大字体、键盘或屏幕阅读器、配对和失败恢复；未做的项记入验证记录。
-8. 提交说明写明影响页面、验证证据和仍待真机验收的项。改变设计规则时，规范、共用组件、变量和受影响视觉稿同一变更更新，并记录版本及原因。
+1. Preserve the source, backup, receiver and settings information structure and
+   make primary actions clear.
+2. Reuse semantic tokens and shared components. Run
+   `python3 scripts/export-design-tokens.py --check`; regenerate after token changes.
+3. Keep receipt, gallery publication and cloud upload distinct. Never invent
+   dates, progress, temperature or storage readings.
+4. Inspect component combinations: first/last rows, untitled groups, heading
+   gaps, control alignment, wrapping and action areas.
+5. Check light/dark, narrow layouts, large text and long localized content.
+   Respect reduced motion, reduced transparency, contrast and platform fallbacks.
+6. Preserve selection, scrolling, sorting, paging and thumbnail identity during
+   background updates. Progress must not add a layout row.
+7. Exercise cancellation, failure, retry and restart where affected. Durable
+   submission must not wait for original export inside a modal dialog.
+8. Run relevant native builds and existing interaction/layout checks. Separate
+   synthetic fixtures, real API checks and physical-device observations.
+9. Update the specification, components and affected prototypes in the same
+   change. Describe intentional platform differences and remaining limits in
+   the pull request.
+10. Follow the [public-source policy](../docs/public-source-policy.md). Keep
+    personal acceptance records and temporary evidence out of commits.
 
-自动化只能防止变量漂移、编译错误和已覆盖交互的回归，不能保证每个页面始终视觉一致。新增页面仍需按照以上项目审阅；不得仅以 CI 通过替代设计与真机验收。
-
-## Android 完整流程落地补充
-
-- 入口、二三级页、对话框、表单、长任务与系统跳转逐项登记到 Android 设计清单，新增功能先补设计。
-- 核对统一组件和图标资源，不能只检查颜色变量。短提示、持续错误、输入错误各有固定使用规则。
-- 测量导航图标 / 标签、输入 / 提交区、系统栏 / 键盘的边界，验证它们不相交；最大字体可增长，不能压缩后裁切。
-- 原型渲染覆盖、原生组件检查、真实接口行为和用户验收分别记录，不可互相替代。
-- 按 `android-v1.2/native-acceptance.md` 提取组件契约并从真实入口检查状态转换；使用 `scripts/verify-android-ui.py` 留存当前窗口的反馈、图标字形对齐与浅深色证据。测试覆盖范围与待真机检查项必须写明，不把“文案存在”当“用户可见”。
+For Android, also follow [native UI checks](android-v1.2/native-acceptance.md).
+Automation detects covered regressions; inspect rendered text, icons and feedback
+in the active window rather than relying only on view rectangles or text lookup.

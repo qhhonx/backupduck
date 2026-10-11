@@ -55,11 +55,14 @@ import Sparkle
 struct UpdateSettings: View {
   @ObservedObject private var updater = AppUpdater.shared
   var body: some View {
-    Section("updates_title") {
-      Toggle("updates_automatic", isOn: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks))
-      Button("updates_check", action: updater.check).disabled(!updater.canCheck)
-      Text("updates_mac_note").foregroundStyle(.secondary)
-      Link("official_website", destination: URL(string: "https://backupduck.vercel.app")!)
+    VStack(alignment: .leading, spacing: 20) {
+      MacPreferenceGroup {
+        MacPreferenceRow(title: "updates_automatic") {
+          Toggle("updates_automatic", isOn: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks)).labelsHidden().toggleStyle(.switch)
+        }
+      }
+      Text("updates_mac_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+      Button("updates_check", action: updater.check).duckPrimaryAction().disabled(!updater.canCheck)
     }
   }
 }

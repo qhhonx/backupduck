@@ -12,6 +12,7 @@ CARGO_PROFILE_RELEASE_STRIP=none cargo build --locked --release -p backupduck-na
 app="build/ios/$platform/BackupDuck.app"
 mkdir -p "$app"
 cp apps/ios/BackupDuck/Info.plist "$app/Info.plist"
+python3 scripts/stamp-version.py "$app/Info.plist" --ios
 cp -R apps/apple/Resources/*.lproj "$app/"
 cp apps/apple/Resources/DuckBrand.png "$app/"
 set --

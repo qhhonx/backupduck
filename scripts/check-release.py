@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 """Check release metadata and embedded trust before publishing."""
 from pathlib import Path
-import json,plistlib,re,sys,urllib.request
+import json,plistlib,re,sys,tomllib,urllib.request
 r=Path(__file__).resolve().parent.parent
 i=json.loads((r/'release.json').read_text())
 assert re.fullmatch(r'\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?',i['version'])
 assert type(i['build']) is int and 0<i['build']<2100000000
 assert i['distribution_repository']=='qhhonx/backupduck'
+assert tomllib.loads((r/'Cargo.toml').read_text())['workspace']['package']['version']==i['version']
+for package in tomllib.loads((r/'Cargo.lock').read_text())['package']:
+ if package['name']=='backupduck' or package['name'].startswith('backupduck-'):
+  assert package['version']==i['version']
 p=plistlib.loads((r/'apps/macos/BackupDuck/Info.plist').read_bytes())
 assert p['SUPublicEDKey']==(r/'assets/update-public-key.txt').read_text().strip()
+# Pin the installed-client trust anchors; changing both asset and plist together
+# must not silently sever updates. An intentional rotation needs a migration.
+assert p['SUPublicEDKey']=='s+qs6cjo68nDzWOAs2OB4CyO5WtcjD19KDJ2Pu1fVN4=', 'Sparkle trust identity changed'
+assert (r/'assets/android-signing-cert.sha256').read_text().strip()=='4dd6c7ba1caa93069542dd65607100468bf49a1026dd51d3fd7638ad11361bb3', 'Android RC.2 release trust identity changed'
 assert p['SUFeedURL']==i['website']+'/appcast.xml'
 assert p['SURequireSignedFeed'] and p['SUVerifyUpdateBeforeExtraction']
 # The release identity, native package and background registration must agree.
 assert p['CFBundleIdentifier']=='app.backupduck'
 ios=plistlib.loads((r/'apps/ios/BackupDuck/Info.plist').read_bytes())
 assert ios['CFBundleIdentifier']=='app.backupduck'
+for metadata in [p,ios]:
+ assert metadata['CFBundleShortVersionString']==i['version'].split('-')[0]
+ assert int(metadata['CFBundleVersion'])==i['build']
+assert ios['BackupDuckReleaseVersion']==i['version']
 identifier='app.backupduck.backup.processing'
 assert identifier in ios['BGTaskSchedulerPermittedIdentifiers']
 assert identifier in (r/'apps/ios/BackupDuck/BackgroundLifecycle.swift').read_text()

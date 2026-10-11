@@ -18,12 +18,14 @@ cp LICENSE "$app/Contents/Resources/"
 cp build/dependencies/sparkle/LICENSE "$app/Contents/Resources/Sparkle-LICENSE.txt"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
 cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
+xcrun swift -module-cache-path build/SwiftModuleCache-mac scripts/export-menu-bar-icon.swift
+cp apps/apple/Resources/DuckMenuBar.pdf "$app/Contents/Resources/"
 xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \
  -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos14.0 -parse-as-library \
  -debug-prefix-map "$PWD=/backupduck" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
  -import-objc-header crates/native/include/backupduck.h \
  apps/apple/Shared/*.swift apps/macos/BackupDuck/*.swift target/aarch64-apple-darwin/release/libbackupduck_native.a \
- -framework Security -framework SystemConfiguration -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework Vision -lsqlite3 -lz -liconv \
+ -framework Security -framework SystemConfiguration -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework PhotosUI -framework AVKit -framework Vision -lsqlite3 -lz -liconv \
  -o "$app/Contents/MacOS/BackupDuck"
 # Keep a stable local development identity across builds. This optional file is
 # ignored by Git; release/CI builds may supply the environment variable instead.

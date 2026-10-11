@@ -44,7 +44,7 @@ class ReceiverHelpActivity : AppCompatActivity() {
                 panel.addView(duckParagraph(getString(R.string.receiver_help_intro)),android.widget.LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(20)})
                 val group=duckGroup(panel)
                 ReceiverHelpTopic.entries.forEach {entry ->
-                    duckSetting(group,getString(entry.title),getString(entry.description)) {startActivity(Intent(this,ReceiverHelpActivity::class.java).putExtra("topic",entry.key))}
+                    duckSetting(group,getString(entry.title)) {startActivity(Intent(this,ReceiverHelpActivity::class.java).putExtra("topic",entry.key))}
                 }
             } else {
                 if(topic==ReceiverHelpTopic.CONNECTION) {
@@ -60,25 +60,9 @@ class ReceiverHelpActivity : AppCompatActivity() {
                 }
                 val group=duckGroup(panel)
                 topic.sections.forEach {(title,text)->
-                    val destination=when(title) {
-                        R.string.duck_help_pair_title->"receive" to "pairing"
-                        R.string.duck_help_restore_title->"settings" to null
-                        R.string.duck_help_cloud_title->"gallery" to null
-                        R.string.storage_limits->"storage" to "storage-limits"
-                        R.string.duck_keep,R.string.duck_help_relay_title->"storage" to "retention"
-                        R.string.originals_export->"storage" to "archive"
-                        R.string.duck_help_retry_title->"transfers" to null
-                        R.string.duck_help_report_title->"settings" to "report"
-                        R.string.updates_title->"updates" to null
-                        else->null
-                    }
-                    duckSetting(group,getString(title),getString(text),if(destination==null)duckText("",13) else null,action=destination?.let {target->{
-                        when(target.first) {
-                            "gallery"->{val launch=packageManager.getLaunchIntentForPackage("com.google.android.apps.photos");if(launch!=null)runCatching {startActivity(launch)}.onFailure {duckProblem(panel,getString(R.string.receiver_photos_missing))} else duckProblem(panel,getString(R.string.receiver_photos_missing))}
-                            "updates"->startActivity(Intent(this,UpdatesActivity::class.java))
-                            else->startActivity(Intent(this,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("destination",target.first).putExtra("surface",target.second))
-                        }
-                    }})
+                    // Help is read only: paths are text, never a hidden workflow transition.
+                    duckSetting(group,getString(title),getString(text),duckText("",13))
+
                 }
             }
         }

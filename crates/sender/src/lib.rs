@@ -11,7 +11,11 @@ use std::{
 };
 
 mod sorting;
+mod task_feed;
 pub use sorting::JobQuery;
+
+/// Shared supported concurrency range, independent of the native executor.
+pub const MAX_CONCURRENT_UPLOADS: u32 = 4;
 
 fn db(e: rusqlite::Error) -> Error {
     Error::Storage(e.to_string())
@@ -147,6 +151,31 @@ impl Sender {
     }
     pub fn enqueue(
         &mut self,
+        receiver: &str,
+        asset: Asset,
+        sources: BTreeMap<String, String>,
+    ) -> Result<Job> {
+        self.enqueue_prepared(receiver, asset, sources, None)
+    }
+    /// Presentation identity is stored outside the signed asset manifest: adding
+    /// preparation membership must never change the protocol asset hash.
+    pub fn enqueue_prepared(
+        &mut self,
+        receiver: &str,
+        asset: Asset,
+        sources: BTreeMap<String, String>,
+        preparation: Option<&(String, i64, Option<i64>)>,
+    ) -> Result<Job> {
+        let tx = self.conn.unchecked_transaction().map_err(db)?;
+        let job = self.enqueue_job(receiver, asset, sources)?;
+        if let Some((request, cursor, added)) = preparation {
+            tx.execute("INSERT INTO job_preparations(receiver,request,job_id,cursor,added_at_ms) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(receiver,request) DO NOTHING",params![receiver,request,job.id,cursor,added]).map_err(db)?;
+        }
+        tx.commit().map_err(db)?;
+        Ok(job)
+    }
+    fn enqueue_job(
+        &self,
         receiver: &str,
         asset: Asset,
         sources: BTreeMap<String, String>,
@@ -526,7 +555,7 @@ impl Sender {
             .map_err(db)
     }
     pub fn set_concurrent_uploads(&mut self, limit: u32) -> Result<()> {
-        if !(1..=4).contains(&limit) {
+        if !(1..=MAX_CONCURRENT_UPLOADS).contains(&limit) {
             return Err(Error::Invalid("concurrent uploads".into()));
         }
         self.conn
@@ -537,6 +566,14 @@ impl Sender {
             .map_err(db)?;
         Ok(())
     }
+    /// The shared policy applies to native OS requests and the Rust executor.
+    pub fn transfer_window(&self, receiver: &str) -> Result<u32> {
+        if self.bundle_upload(receiver)? {
+            self.concurrent_uploads()
+        } else {
+            Ok(1)
+        }
+    }
     pub fn claim_native(&mut self, receiver: &str, now: i64) -> Result<Option<Job>> {
         let active: u32 = self
             .conn
@@ -546,11 +583,7 @@ impl Sender {
                 |r| r.get(0),
             )
             .map_err(db)?;
-        let window = if self.bundle_upload(receiver)? {
-            self.concurrent_uploads()?
-        } else {
-            1
-        };
+        let window = self.transfer_window(receiver)?;
         if active >= window {
             return Ok(None);
         }
@@ -648,6 +681,15 @@ impl Sender {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db)?;
         Ok(result)
+    }
+    pub fn processing_event_jobs(&self, receiver: &str) -> Result<Vec<(i64, String)>> {
+        let mut query=self.conn.prepare("SELECT j.id,j.asset_id FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.state IN ('running','received') AND (p.state IS NULL OR p.state!='complete') ORDER BY j.id DESC LIMIT 128").map_err(db)?;
+        let items = query
+            .query_map([receiver], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(db)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db)?;
+        Ok(items)
     }
     pub fn observe_processing(&mut self, id: i64, status: &AssetStatus, now: i64) -> Result<()> {
         let job = self.job(id)?;

@@ -179,7 +179,9 @@ impl Receiver {
             .map_err(db)?;
         tx.execute("UPDATE assets SET processing='complete',published_at_ms=COALESCE(published_at_ms,?2) WHERE id=?1", params![id, now_ms()?])
             .map_err(db)?;
-        tx.commit().map_err(db)
+        tx.commit().map_err(db)?;
+        self.publish_progress(&self.asset(id)?, self.status(id)?);
+        Ok(())
     }
     /// Independent opt-in relay policy; never pass gallery evidence to archive
     /// reclamation. The fresh proof must exactly match recorded delivery bytes.

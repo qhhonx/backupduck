@@ -11,6 +11,31 @@ enum PhotoBackupOrder {
     lhsDate == rhsDate ? lhsID < rhsID : lhsDate > rhsDate
   }
 
+  struct Source: Sendable {
+    let id: String
+    let revision: String?
+    let capturedAt: Int64?
+  }
+  /// Metadata only: submission never downloads a PhotoKit original.
+  static func sources(_ identifiers: [String]) async -> [Source] {
+    await Task.detached(priority: .userInitiated) {
+      var found: [String: Source] = [:]
+      for start in stride(from: 0, to: identifiers.count, by: 200) {
+        let batch = Array(identifiers[start..<min(start + 200, identifiers.count)])
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: batch, options: photoLibraryFetchOptions())
+        assets.enumerateObjects { asset, _, _ in
+          found[asset.localIdentifier] = Source(id: asset.localIdentifier,
+            revision: PhotoLibraryModel.revision(asset),
+            capturedAt: asset.creationDate.flatMap { date in
+              let milliseconds = Int64(date.timeIntervalSince1970 * 1000)
+              return milliseconds >= 0 ? milliseconds : nil
+            })
+        }
+      }
+      return identifiers.map { found[$0] ?? Source(id: $0, revision: nil, capturedAt: nil) }
+    }.value
+  }
+
   static func captureDates(_ identifiers: [String]) async -> [String: Int64] {
     await Task.detached(priority: .utility) {
       var dates: [String: Int64] = [:]

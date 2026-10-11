@@ -48,10 +48,10 @@ struct StoragePreferences: View {
   }
   @ViewBuilder private var rows: some View {
     Group {
-      Text(
+      Text(LocalizedStringKey(
         scope == .cache
           ? "settings_cache" : scope == .logs ? "settings_log_retention" : "storage_settings"
-      ).font(.headline).task { await model.refreshStorage() }
+      )).font(.headline).task { await model.refreshStorage() }
       if let snapshot = model.storage {
         if scope != .logs {
           #if os(macOS)
@@ -61,6 +61,12 @@ struct StoragePreferences: View {
           #endif
           LabeledContent("storage_cache_used", value: bytes(snapshot.used_bytes))
           LabeledContent("storage_disk_free", value: bytes(snapshot.free_bytes))
+          if let reason = snapshot.reason,
+            ["local_free_space", "local_cache_budget"].contains(reason) {
+            DuckNotice(title: LocalizedStringKey("error_" + reason), tone: .attention,
+              symbol: "exclamationmark.circle")
+              .accessibilityIdentifier("settings.cache_limit_reason")
+          }
           Picker(
             "storage_cache_budget",
             selection: Binding(
@@ -104,7 +110,7 @@ struct StoragePreferences: View {
             Button {
               Task { await model.reclaimCache(reportResult: true) }
             } label: {
-              Label(model.reclaimingCache ? "storage_reclaim_running" : "storage_reclaim_now",
+              Label(LocalizedStringKey(model.reclaimingCache ? "storage_reclaim_running" : "storage_reclaim_now"),
                 systemImage: "arrow.clockwise")
             }.buttonStyle(.bordered)
               .disabled(model.reclaimingCache || !model.ready)
@@ -112,7 +118,7 @@ struct StoragePreferences: View {
             Text("storage_reclaim_check_help").font(.footnote).foregroundStyle(.secondary)
           }
           if let result = model.cacheReclaimResult {
-            Text(result).font(.footnote).foregroundStyle(.secondary)
+            DuckNotice(title: LocalizedStringKey(result))
               .accessibilityIdentifier("settings.reclaim_result")
           }
         }
@@ -144,16 +150,24 @@ struct StoragePreferences: View {
           ) { ForEach([1000, 5000, 10000, 20000], id: \.self) { Text("\($0)").tag($0) } }
         }
       } else if let error = model.storageError {
-        Text(error).foregroundStyle(.orange)
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
         Button("retry_task") { Task { await model.refreshStorage() } }
       } else {
         ProgressView(model.ready ? "storage_loading" : "backup_initializing")
           .controlSize(.small)
       }
       if model.storage != nil, let error = model.storageError {
-        Text(error).foregroundStyle(.orange)
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
       }
-      if model.savingStorage { ProgressView("settings_saving").controlSize(.small) }
+      if let error = model.storageSettingsError {
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
+          .accessibilityIdentifier("settings.storage_save_error")
+      }
+      if scope != .logs, let error = model.cacheReclaimError {
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
+          .accessibilityIdentifier("settings.cache_reclaim_error")
+      }
+
       if scope == .all {
         Button {
           logs = true
@@ -194,20 +208,13 @@ struct ActivityContext: Decodable, Equatable {
   let phase: String?
   let reason: String?
 }
-private struct ActivityContextView: View {
+private struct ActivityContextFields: View {
   let context: ActivityContext
-  @Binding var expanded: Bool
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      // A DisclosureGroup inside a macOS List can become an outline-row
-      // heading with no usable disclosure control. Keep this action explicit.
-      Button { expanded.toggle() } label: {
-        Label("logs_details", systemImage: expanded ? "chevron.down" : "chevron.right")
-          .contentShape(Rectangle())
-      }.buttonStyle(.borderless)
-        .accessibilityIdentifier("activity.details")
-        .accessibilityValue(Text(expanded ? "logs_details_expanded" : "logs_details_collapsed"))
-      if expanded {
+      #if os(iOS)
+      iosContextFields
+      #else
       VStack(alignment: .leading, spacing: 5) {
         if let execution = context.execution {
           Text(LocalizedStringKey("logs_execution_" + execution))
@@ -223,7 +230,7 @@ private struct ActivityContextView: View {
           Text(String(format: NSLocalizedString("logs_import_counts", comment: ""), pending, discovery))
         }
         if let paused = context.paused {
-          Text(paused ? "logs_backup_paused" : "logs_backup_enabled")
+          Text(LocalizedStringKey(paused ? "logs_backup_paused" : "logs_backup_enabled"))
         }
         if let active = context.active_requests {
           Text(String(format: NSLocalizedString("logs_active_requests", comment: ""), active))
@@ -244,9 +251,45 @@ private struct ActivityContextView: View {
           Text(String(format: NSLocalizedString("logs_system_error", comment: ""), error))
         }
       }.frame(maxWidth: .infinity, alignment: .leading)
-      }
-    }.font(.caption).foregroundStyle(.secondary)
+      #endif
+    }
+    #if os(iOS)
+      .foregroundStyle(DuckColors.textSecondary)
+    #else
+      .font(.caption).foregroundStyle(.secondary)
+    #endif
   }
+  #if os(iOS)
+  @ScaledMetric(relativeTo: .body) private var bodySize = 16
+  private var iosContextFields: some View {
+    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
+      if let v = context.execution { contextField("apple_log_execution", NSLocalizedString("logs_execution_" + v, comment: "")) }
+      if let v = context.reason { contextField("apple_log_reason", NSLocalizedString("logs_reason_" + v, comment: "")) }
+      if let q = context.queued, let r = context.running, let w = context.waiting, let f = context.failed {
+        contextField("apple_log_queue", String(format: NSLocalizedString("logs_queue_counts", comment: ""), q, r, w, f))
+      }
+      if let p = context.pending_imports, let d = context.discovery_pending {
+        contextField("apple_log_originals", String(format: NSLocalizedString("logs_import_counts", comment: ""), p, d))
+      }
+      if let v = context.paused { contextField("apple_log_dispatch", NSLocalizedString(v ? "logs_backup_paused" : "logs_backup_enabled", comment: "")) }
+      if let v = context.active_requests { contextField("apple_log_requests", String(v)) }
+      if let v = context.phase { contextField("apple_log_phase", NSLocalizedString("logs_phase_" + v, comment: "")) }
+      if let s = context.bytes_sent, let e = context.bytes_expected {
+        contextField("apple_log_bytes", String(format: NSLocalizedString("logs_request_bytes", comment: ""), ByteCountFormatter.string(fromByteCount: s, countStyle: .file), ByteCountFormatter.string(fromByteCount: e, countStyle: .file)))
+      }
+      if let v = context.next_retry_at { contextField("logs_next_retry", Date(timeIntervalSince1970: Double(v)).formatted(date: .abbreviated, time: .standard)) }
+      if let v = context.http_status, v > 0 { contextField("apple_log_http", String(v)) }
+      if let v = context.system_error { contextField("apple_log_system_error", String(v)) }
+    }
+  }
+  private func contextField(_ title: LocalizedStringKey, _ value: String) -> some View {
+    GridRow(alignment: .top) {
+      Text(title).iosPrototypeText(size: bodySize).frame(minWidth: 80, alignment: .leading)
+      Text(value).iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.text).fixedSize(horizontal: false, vertical: true)
+    }
+  }
+  #endif
+
 }
 struct ActivityLogUpdate: Decodable {
   let entries: [ActivityEntry]
@@ -303,18 +346,99 @@ struct ActivityLogUpdate: Decodable {
   }
 }
 
-/// Each share request creates an immutable current snapshot, not the opening-time log.
-private struct ActivityLogReport: Transferable {
-  static var transferRepresentation: some TransferRepresentation {
-    FileRepresentation(exportedContentType: .json) { (_: ActivityLogReport) in
-      let data = try await Bridge.call(["op": "activity_log", "receiver": false])
-      let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "BackupDuck-diagnostics-" + UUID().uuidString, isDirectory: true)
-      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      let url = directory.appendingPathComponent("BackupDuck-diagnostics.json")
-      try data.write(to: url, options: .atomic)
-      return SentTransferredFile(url)
+/// Preparation belongs to the visible app sheet. System sharing only receives a
+/// finished immutable file, so snapshot/write failures cannot disappear in ShareLink.
+@MainActor final class ActivityLogExportModel: ObservableObject {
+  @Published private(set) var preparing = false
+  @Published private(set) var url: URL?
+  @Published private(set) var failed = false
+  private let snapshot: () async throws -> Data
+  private let write: (Data) async throws -> URL
+  init(
+    snapshot: @escaping () async throws -> Data = {
+      try await Bridge.call(["op": "activity_log", "receiver": false])
+    },
+    write: @escaping (Data) async throws -> URL = { data in
+      try await Task.detached(priority: .utility) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+          "BackupDuck-diagnostics-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("BackupDuck-diagnostics.json")
+        try data.write(to: url, options: .atomic)
+        return url
+      }.value
     }
+  ) { self.snapshot = snapshot; self.write = write }
+
+  func prepare() async {
+    guard !preparing else { return }
+    preparing = true; failed = false; url = nil
+    defer { preparing = false }
+    do {
+      let data = try await snapshot()
+      try Task.checkCancellation()
+      let result = try await write(data)
+      try Task.checkCancellation()
+      url = result
+    } catch {
+      if !Task.isCancelled { failed = true }
+    }
+  }
+}
+
+private struct ActivityLogReport: Transferable {
+  let url: URL
+  static var transferRepresentation: some TransferRepresentation {
+    FileRepresentation(exportedContentType: .json) { report in
+      SentTransferredFile(report.url)
+    }
+  }
+}
+
+private struct ActivityLogExportSheet: View {
+  @StateObject private var export = ActivityLogExportModel()
+  @Environment(\.dismiss) private var dismiss
+  var body: some View {
+    DuckSheetLayout(title: "logs_export", busy: export.preparing,
+      error: export.failed ? NSLocalizedString("logs_export_failed", comment: "") : nil) {
+      Text("logs_privacy_note").foregroundStyle(.secondary)
+      if export.preparing {
+        ProgressView("logs_export_preparing").accessibilityIdentifier("activity.export_preparing")
+      } else if export.url != nil {
+        DuckNotice(title: "logs_export_ready")
+        Text("logs_export_share_note").foregroundStyle(.secondary)
+      }
+    } actions: {
+      #if os(iOS)
+      if export.preparing {
+        Button {} label: { Text("logs_export_preparing").frame(maxWidth: .infinity) }
+          .iosPrototypeAction(primary: true).disabled(true).accessibilityIdentifier("activity.export_preparing_action")
+      } else {
+      Button { dismiss() } label: { Text("close").frame(maxWidth: .infinity) }
+        .iosPrototypeAction().disabled(export.preparing)
+      if let url = export.url {
+        ShareLink(item: ActivityLogReport(url: url), preview: SharePreview("BackupDuck-diagnostics.json")) {
+          Text("logs_export_share").frame(maxWidth: .infinity)
+        }.iosPrototypeAction(primary: true).accessibilityIdentifier("activity.export_share")
+      } else {
+        Button { Task { await export.prepare() } } label: { Text("retry_task").frame(maxWidth: .infinity) }
+          .iosPrototypeAction(primary: true).disabled(export.preparing)
+          .accessibilityIdentifier("activity.export_retry")
+      }
+      }
+      #else
+      Button("close") { dismiss() }.disabled(export.preparing).duckAction()
+      if let url = export.url {
+        ShareLink(item: ActivityLogReport(url: url), preview: SharePreview("BackupDuck-diagnostics.json")) {
+          Text("logs_export_share")
+        }.duckPrimaryAction().accessibilityIdentifier("activity.export_share")
+      } else {
+        Button("retry_task") { Task { await export.prepare() } }
+          .duckPrimaryAction().disabled(export.preparing)
+          .accessibilityIdentifier("activity.export_retry")
+      }
+      #endif
+    }.task { await export.prepare() }
   }
 }
 
@@ -323,79 +447,233 @@ struct ActivityLogView: View {
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var journal = ActivityLogModel()
   @State private var visibleID: Int64?
-  @State private var expanded: Set<Int64> = []
+  @State private var detail: ActivityEntry?
+  @State private var holdLatest = false
+  @State private var exportPresented = false
+  var embedded = false
   var body: some View {
-    NavigationStack {
+    Group {
+      if embedded { logContent }
+      else {
+        #if os(iOS)
+        iosLogModal
+        #else
+        NavigationStack {
+          logContent.padding().navigationTitle("activity_log")
+            .toolbar {
+              ToolbarItem(placement: .confirmationAction) {
+                Button("settings_done") { dismiss() }.accessibilityIdentifier("activity.done")
+              }
+              ToolbarItem(placement: .cancellationAction) {
+                Button("logs_export") { exportPresented = true }
+                  .disabled(!journal.loaded).accessibilityIdentifier("activity.export")
+              }
+            }
+        }
+        #endif
+      }
+    }
+    .sheet(isPresented: $exportPresented) { ActivityLogExportSheet() }
+    .sheet(item: $detail) { ActivityLogDetail(entry: $0) }
+    #if os(macOS)
+      .frame(width: embedded ? nil : 680, height: embedded ? nil : 540)
+    #endif
+    .task(id: scenePhase) {
+      guard scenePhase == .active else { return }
+      while !Task.isCancelled {
+        let follow = await journal.refresh {
+          !holdLatest && detail == nil && (visibleID == nil || visibleID == journal.entries.first?.id)
+        }
+        guard !Task.isCancelled else { return }
+        #if os(iOS)
+        // Preserve the opening privacy/live preamble. Explicit Show Latest or
+        // already-following entries may still advance to a new first record.
+        if follow, visibleID != nil { visibleID = journal.entries.first?.id }
+        #else
+        if follow { visibleID = journal.entries.first?.id }
+        #endif
+        do { try await Task.sleep(for: .seconds(2)) } catch { return }
+      }
+    }
+  }
+  #if os(iOS)
+  @ScaledMetric(relativeTo: .title2) private var modalTitleSize = 22
+  @ScaledMetric(relativeTo: .body) private var bodySize = 16
+  @ScaledMetric(relativeTo: .caption) private var captionSize = 13
+  @Environment(\.dynamicTypeSize) private var logTextSize
+  private var iosLogModal: some View {
+    VStack(spacing: 0) {
+      HStack(alignment: .top, spacing: 12) {
+        Text("activity_log").iosPrototypeText(size: modalTitleSize, weight: .bold, lineHeight: 1.3)
+          .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("activity.title")
+        Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 22)).frame(width: 44, height: 44).contentShape(Rectangle()) }
+          .buttonStyle(.plain).foregroundStyle(DuckColors.textSecondary).accessibilityLabel(Text("close"))
+      }.padding(20)
+      Divider()
       VStack(alignment: .leading, spacing: 12) {
+          if !logTextSize.isAccessibilitySize {
+            Text("logs_privacy_note").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+          }
+          DuckActions {
+            Text(LocalizedStringKey(journal.failed ? "logs_load_retrying" : "logs_live"))
+              .iosPrototypeText(size: captionSize, lineHeight: 1.6).foregroundStyle(DuckColors.textSecondary)
+            Spacer(minLength: 0)
+            Button {
+              holdLatest = false; journal.showLatest(); visibleID = journal.entries.first?.id
+            } label: {
+              Text(journal.pendingCount > 0
+                ? String(format: NSLocalizedString("logs_new_count", comment: ""), journal.pendingCount)
+                : NSLocalizedString("logs_latest", comment: ""))
+            }.iosPrototypeAction().accessibilityIdentifier("activity.latest")
+          }
+      }.padding(20)
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 20) {
+          if logTextSize.isAccessibilitySize {
+            Text("logs_privacy_note").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+          }
+          if journal.entries.isEmpty {
+            if journal.failed { DuckNotice(title: "logs_load_retrying", tone: .failure) }
+            else if journal.loaded { DuckNotice(title: "logs_empty").accessibilityIdentifier("activity.empty") }
+            else { ProgressView("logs_loading").accessibilityIdentifier("activity.loading") }
+          }
+          ForEach(journal.entries) { entry in
+            Button { holdLatest = true; detail = entry } label: {
+              HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                  Text(activityTime(entry)).iosPrototypeText(size: captionSize, lineHeight: 1.6).foregroundStyle(DuckColors.textSecondary)
+                  Text(LocalizedStringKey("event_" + entry.code)).iosPrototypeText(size: bodySize, weight: .semibold)
+                  if let job = entry.job_id { Text(String(format: NSLocalizedString("logs_job_id", comment: ""), job)).iosPrototypeText(size: captionSize).foregroundStyle(DuckColors.textSecondary) }
+                  if let amount = entry.bytes { Text(ByteCountFormatter.string(fromByteCount: amount, countStyle: .file)).iosPrototypeText(size: captionSize).foregroundStyle(DuckColors.textSecondary) }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right").font(.system(size: 16)).foregroundStyle(DuckColors.textSecondary)
+              }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                .background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(DuckColors.border, lineWidth: 1))
+                .contentShape(Rectangle())
+            }.buttonStyle(.plain).foregroundStyle(DuckColors.text).id(entry.id)
+              .accessibilityIdentifier("activity.details").accessibilityHint(Text("apple_log_details_open"))
+          }
+          if journal.failed && !journal.entries.isEmpty { DuckNotice(title: "logs_load_retrying", tone: .failure) }
+        }.padding(.horizontal, 20).scrollTargetLayout()
+      }.contentMargins(.vertical, 20, for: .scrollContent)
+        .scrollPosition(id: $visibleID, anchor: .top).transaction { $0.animation = nil }
+      Divider()
+      DuckActions {
+        Button { exportPresented = true } label: { Text("logs_export").frame(maxWidth: .infinity) }
+          .iosPrototypeAction().disabled(!journal.loaded).accessibilityIdentifier("activity.export")
+        Button { dismiss() } label: { Text("settings_done").frame(maxWidth: .infinity) }
+          .iosPrototypeAction().accessibilityIdentifier("activity.done")
+      }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 20)
+    }.background(DuckColors.surface).foregroundStyle(DuckColors.text).presentationDetents([.large]).presentationDragIndicator(.visible)
+      .presentationCornerRadius(22).iosPrototypeSheetHost().symbolVariant(.none)
+  }
+  #endif
+  private var logContent: some View {
+      VStack(alignment: .leading, spacing: 12) {
+        if embedded {
+          HStack {
+            Text("activity_log").font(.system(size: 26, weight: .semibold))
+            Spacer()
+            Button("logs_export") { exportPresented = true }.duckSecondaryAction()
+              .disabled(!journal.loaded).accessibilityIdentifier("activity.export")
+          }
+        }
         Text("logs_privacy_note").font(.footnote).foregroundStyle(.secondary)
-        HStack {
-          Label(journal.failed ? "logs_load_retrying" : "logs_live",
+        DuckActions {
+          Label(LocalizedStringKey(journal.failed ? "logs_load_retrying" : "logs_live"),
             systemImage: journal.failed ? "exclamationmark.circle" : "dot.radiowaves.left.and.right")
             .foregroundStyle(journal.failed ? Color.orange : Color.secondary)
-          Spacer()
           Button {
-            journal.showLatest()
+            holdLatest = false; journal.showLatest()
             visibleID = journal.entries.first?.id
           } label: {
             Text(journal.pendingCount > 0
               ? String(format: NSLocalizedString("logs_new_count", comment: ""), journal.pendingCount)
               : NSLocalizedString("logs_latest", comment: ""))
           }.buttonStyle(.borderless).accessibilityIdentifier("activity.latest")
-        }.font(.caption).frame(height: 28)
+        }.font(.caption)
+        if journal.entries.isEmpty {
+          if journal.failed {
+            DuckNotice(title: "logs_load_retrying", tone: .failure, symbol: "exclamationmark.circle")
+          } else if journal.loaded {
+            Text("logs_empty").foregroundStyle(.secondary).accessibilityIdentifier("activity.empty")
+          } else {
+            ProgressView("logs_loading").accessibilityIdentifier("activity.loading")
+          }
+        }
         ScrollView {
           LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(journal.entries) { entry in
-              VStack(alignment: .leading, spacing: 5) {
-                Text(Date(timeIntervalSince1970: Double(entry.timestamp)), format: .dateTime.year().month().day().hour().minute().second())
-                  .font(.caption).foregroundStyle(.secondary)
-                Text(LocalizedStringKey("event_" + entry.code))
-                if let job = entry.job_id {
-                  Text(String(format: NSLocalizedString("logs_job_id", comment: ""), job))
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-                if let amount = entry.bytes {
-                  Text(ByteCountFormatter.string(fromByteCount: amount, countStyle: .file))
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-                if let context = entry.context {
-                  ActivityContextView(context: context, expanded: Binding(
-                    get: { expanded.contains(entry.id) },
-                    set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } }))
-                }
-                Divider().padding(.top, 7)
-              }.frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-                .padding(.vertical, 12).id(entry.id)
+              Button { holdLatest = true; detail = entry } label: {
+                HStack(alignment: .center, spacing: 12) {
+                  VStack(alignment: .leading, spacing: 5) {
+                    Text(activityTime(entry)).font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+                    Text(LocalizedStringKey("event_" + entry.code)).font(.system(size: 14, weight: .semibold))
+                    if let job = entry.job_id { Text(String(format: NSLocalizedString("logs_job_id", comment: ""), job)).font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary) }
+                    if let amount = entry.bytes { Text(ByteCountFormatter.string(fromByteCount: amount, countStyle: .file)).font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary) }
+                  }.frame(maxWidth: .infinity, alignment: .leading)
+                  Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+                }.padding(.vertical, 12).contentShape(Rectangle())
+              }.buttonStyle(.plain).foregroundStyle(DuckColors.text).id(entry.id)
+                .accessibilityIdentifier("activity.details").accessibilityHint(Text("apple_log_details_open"))
+              Divider()
             }
           }.scrollTargetLayout()
         }.scrollPosition(id: $visibleID, anchor: .top)
           .transaction { $0.animation = nil }
-      }.padding().navigationTitle("activity_log")
-        .toolbar {
-          ToolbarItem(placement: .confirmationAction) {
-            Button("settings_done") { dismiss() }.accessibilityIdentifier("activity.done")
-          }
-          ToolbarItem(placement: .cancellationAction) {
-            ShareLink(item: ActivityLogReport(), preview: SharePreview("BackupDuck-diagnostics.json")) {
-              Text("logs_export")
-            }.disabled(!journal.loaded).accessibilityIdentifier("activity.export")
-          }
-        }
-    }
-    #if os(macOS)
-      .frame(width: 680, height: 540)
-    #endif
-    .task(id: scenePhase) {
-      guard scenePhase == .active else { return }
-      while !Task.isCancelled {
-        let follow = await journal.refresh {
-          expanded.isEmpty && (visibleID == nil || visibleID == journal.entries.first?.id)
-        }
-        guard !Task.isCancelled else { return }
-        if follow { visibleID = journal.entries.first?.id }
-        expanded.formIntersection(Set(journal.entries.map(\.id)))
-        do { try await Task.sleep(for: .seconds(2)) } catch { return }
       }
-    }
+  }
+
+  private func activityTime(_ entry: ActivityEntry) -> String {
+    entry.timestamp > 0 ? Date(timeIntervalSince1970: Double(entry.timestamp)).formatted(date: .abbreviated, time: .standard)
+      : NSLocalizedString("task_order_unknown", comment: "")
+  }
+}
+
+/// The selected entry is an immutable snapshot; live polling must not replace
+/// the record the user is currently reading or expand a long-list row.
+struct ActivityLogDetail: View {
+  let entry: ActivityEntry
+  @Environment(\.dismiss) private var dismiss
+  #if os(iOS)
+  @ScaledMetric(relativeTo: .body) private var bodySize = 16
+  @ScaledMetric(relativeTo: .caption) private var captionSize = 13
+  #endif
+  var body: some View {
+    DuckSheetLayout(title: "apple_log_detail_title") {
+      #if os(iOS)
+      Text(LocalizedStringKey("event_" + entry.code)).iosPrototypeText(size: bodySize, weight: .semibold)
+      #else
+      Text(LocalizedStringKey("event_" + entry.code)).font(.system(size: 16, weight: .semibold))
+      #endif
+      VStack(alignment: .leading, spacing: 12) {
+        LabeledContent("apple_log_time", value: entry.timestamp > 0 ? Date(timeIntervalSince1970: Double(entry.timestamp)).formatted(date: .abbreviated, time: .standard) : NSLocalizedString("task_order_unknown", comment: ""))
+        LabeledContent("apple_log_code", value: entry.code)
+        if let job = entry.job_id { Text(String(format: NSLocalizedString("logs_job_id", comment: ""), job)) }
+        if let amount = entry.bytes { Text(ByteCountFormatter.string(fromByteCount: amount, countStyle: .file)) }
+      }
+      #if os(iOS)
+      .iosPrototypeText(size: bodySize)
+      #else
+      .font(.system(size: 14))
+      #endif
+      if let context = entry.context { ActivityContextFields(context: context) }
+      #if os(iOS)
+      Text("logs_privacy_note").iosPrototypeText(size: captionSize, lineHeight: 1.6).foregroundStyle(DuckColors.textSecondary)
+      #else
+      Text("logs_privacy_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+      #endif
+    } actions: {
+      #if os(iOS)
+      Button { dismiss() } label: { Text("settings_done").frame(maxWidth: .infinity) }.iosPrototypeAction()
+        .accessibilityIdentifier("activity.detail.done")
+      #else
+      Button("settings_done") { dismiss() }.duckSecondaryAction().keyboardShortcut(.cancelAction)
+        .accessibilityIdentifier("activity.detail.done")
+      #endif
+    }.textSelection(.enabled).accessibilityElement(children: .contain)
+      .accessibilityIdentifier("activity.detail")
   }
 }
 

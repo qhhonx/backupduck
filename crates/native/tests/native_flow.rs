@@ -526,6 +526,7 @@ async fn local_receiver_settings_work_before_network_and_survive_first_start() {
         serde_json::json!({"op":"receiver_history","root":root,"state":"all","kind":"all"}),
     );
     assert_eq!(history["total"], 0);
+    assert_eq!(history["counts"], initial["counts"]);
     assert_eq!(history["items"], serde_json::json!([]));
     assert!(
         !request(serde_json::json!({"op":"receiver_logs","root":root}))
@@ -679,4 +680,228 @@ fn offline_archive_preserves_originals_until_all_resources_verify() {
     assert!(codes.contains(&"original_archive_verified"));
     assert!(codes.contains(&"originals_reclaimed"));
     assert!(!codes.contains(&"receiver_started"));
+}
+
+#[tokio::test]
+async fn receiving_network_chunks_wake_byte_progress_before_history_refresh() {
+    let temp = Temp::new();
+    let host = ReceiverHost::start(&temp.0.join("live-progress"), address(), 8 * 1024 * 1024)
+        .await
+        .unwrap();
+    let client = host.pairing.client().unwrap();
+    let bytes = vec![42; 1024 * 1024];
+    let hash = digest(&bytes);
+    let asset = Asset {
+        version: PROTOCOL_VERSION,
+        source_id: "generated-network-progress".into(),
+        revision: "1".into(),
+        kind: AssetKind::Photo,
+        metadata: BTreeMap::new(),
+        resources: vec![Resource {
+            role: ResourceRole::Photo,
+            filename: "generated.jpg".into(),
+            media_type: "image/jpeg".into(),
+            size: bytes.len() as u64,
+            sha256: hash.clone(),
+        }],
+    };
+    let registered = client.register(&asset).await.unwrap();
+    let feed = host.receiver.lock().unwrap().progress_feed();
+    let revision = feed.wait(0, std::time::Duration::ZERO).revision;
+    let watcher = std::thread::spawn(move || {
+        let mut revision = revision;
+        let mut offsets = Vec::new();
+        for _ in 0..8 {
+            let snapshot = feed.wait(revision, std::time::Duration::from_secs(1));
+            if snapshot.revision == revision {
+                continue;
+            }
+            revision = snapshot.revision;
+            let item = snapshot.items.back().unwrap();
+            offsets.push(item.confirmed_bytes);
+            if item.received {
+                return offsets;
+            }
+        }
+        panic!("Network receipt did not reach the byte event consumer");
+    });
+    for offset in (0..bytes.len()).step_by(256 * 1024) {
+        let chunk = bytes[offset..offset + 256 * 1024].to_vec();
+        client
+            .append(&registered.asset_id, &hash, offset as u64, chunk)
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    client.commit(&registered.asset_id).await.unwrap();
+    let offsets = watcher.join().unwrap();
+    assert!(offsets
+        .iter()
+        .any(|offset| *offset > 0 && *offset < bytes.len() as u64));
+    assert!(offsets.windows(2).all(|pair| pair[0] <= pair[1]));
+    assert_eq!(*offsets.last().unwrap(), bytes.len() as u64);
+    assert_eq!(
+        host.receiver.lock().unwrap().overview().unwrap()["published"],
+        0,
+        "Receipt is not gallery publication"
+    );
+    let initial = client
+        .status_events(0, vec![registered.asset_id.clone()])
+        .await
+        .unwrap();
+    assert_eq!(initial.items.len(), 1);
+    assert_ne!(initial.items[0].processing, ProcessingState::Complete);
+    host.receiver
+        .lock()
+        .unwrap()
+        .set_processing_result(&registered.asset_id, ProcessingState::Pending, None)
+        .unwrap();
+    let pending = client
+        .status_events(initial.revision, vec![registered.asset_id.clone()])
+        .await
+        .unwrap();
+    assert_eq!(pending.items[0].processing, ProcessingState::Pending);
+    host.receiver
+        .lock()
+        .unwrap()
+        .record_gallery_copy(
+            &registered.asset_id,
+            &backupduck_store::retention::GalleryCopy {
+                locator: "content://generated/1".into(),
+                sha256: hash,
+                size: bytes.len() as u64,
+                display_name: None,
+            },
+        )
+        .unwrap();
+    let started = std::time::Instant::now();
+    let saved = client
+        .status_events(pending.revision, vec![registered.asset_id.clone()])
+        .await
+        .unwrap();
+    assert_eq!(saved.items[0].processing, ProcessingState::Complete);
+    assert!(started.elapsed() < std::time::Duration::from_secs(1));
+    let unrelated = client
+        .status_events(saved.revision, vec![digest(b"unknown asset")])
+        .await
+        .unwrap();
+    assert!(
+        unrelated.items.is_empty(),
+        "Scoped events must not expose unrelated asset IDs"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+// The fixture deliberately blocks receiver storage to observe and cancel in-flight IO.
+#[allow(clippy::await_holding_lock)]
+async fn rust_slots_bound_parallel_host_calls_and_quick_resume_keeps_old_io_cancelled() {
+    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+    let temp = Temp::new();
+    let receiver = ReceiverHost::start(&temp.0.join("receiver"), address(), 1 << 20)
+        .await
+        .unwrap();
+    let sender = Arc::new(SenderHost::open(&temp.0.join("sender")).unwrap());
+    sender
+        .set_bundle_upload(&receiver.pairing.receiver_id, true)
+        .unwrap();
+    sender.set_concurrent_uploads(2).unwrap();
+    for index in 0..4 {
+        let bytes = format!("synthetic original {index}").into_bytes();
+        let path = temp.0.join(format!("original-{index}.jpg"));
+        std::fs::write(&path, &bytes).unwrap();
+        let hash = digest(&bytes);
+        sender
+            .enqueue(
+                &receiver.pairing.receiver_id,
+                Asset {
+                    version: PROTOCOL_VERSION,
+                    source_id: format!("parallel-{index}"),
+                    revision: "1".into(),
+                    kind: AssetKind::Photo,
+                    metadata: BTreeMap::new(),
+                    resources: vec![Resource {
+                        role: ResourceRole::Photo,
+                        filename: format!("original-{index}.jpg"),
+                        media_type: "image/jpeg".into(),
+                        size: bytes.len() as u64,
+                        sha256: hash.clone(),
+                    }],
+                },
+                BTreeMap::from([(hash, path.to_str().unwrap().into())]),
+            )
+            .unwrap();
+    }
+    // Hold actual receiver storage to observe simultaneous attempts before receipt.
+    let receiver_gate = receiver.receiver.lock().unwrap();
+    let mut tasks = Vec::new();
+    for _ in 0..2 {
+        let host = sender.clone();
+        let pairing = receiver.pairing.clone();
+        tasks.push(tokio::spawn(async move { host.run_once(&pairing).await }));
+    }
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while sender
+            .list(0)
+            .unwrap()
+            .iter()
+            .filter(|job| job.state == JobState::Running)
+            .count()
+            != 2
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(sender.run_once(&receiver.pairing).await.unwrap().is_none());
+    sender.set_concurrent_uploads(1).unwrap();
+    assert_eq!(
+        sender
+            .list(0)
+            .unwrap()
+            .iter()
+            .filter(|job| job.state == JobState::Running)
+            .count(),
+        2
+    );
+    assert!(sender.run_once(&receiver.pairing).await.unwrap().is_none());
+    sender.pause(true).unwrap();
+    sender.pause(false).unwrap();
+    for task in tasks {
+        let job = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(job.state, JobState::Queued);
+    }
+    assert_eq!(
+        sender
+            .list(0)
+            .unwrap()
+            .iter()
+            .filter(|job| job.state == JobState::Queued)
+            .count(),
+        4
+    );
+    drop(receiver_gate);
+    sender.set_concurrent_uploads(4).unwrap();
+    let completed = tokio::time::timeout(
+        Duration::from_secs(10),
+        sender.run_available(&receiver.pairing),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let mut ids = BTreeSet::new();
+    for job in completed {
+        assert_eq!(job.state, JobState::Received);
+        assert!(ids.insert(job.id));
+        assert_eq!(job.confirmed_bytes, job.asset.resources[0].size);
+        assert!(std::path::Path::new(job.sources.values().next().unwrap()).exists());
+    }
+    assert_eq!(ids.len(), 4);
+    assert!(sender.run_once(&receiver.pairing).await.unwrap().is_none());
+    drop(receiver);
 }

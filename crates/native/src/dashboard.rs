@@ -245,6 +245,7 @@ async fn history(
             "per_page": if numbered { Some(per_page) } else { None },
             "pages": if numbered { Some(((value.total.max(1) - 1) / i64::from(per_page)) + 1) } else { None },
             "items": value.items.into_iter().map(|item| json!({
+                "id": item.id,
                 "filename": item.filename,
                 "kind": item.kind,
                 "burst_primary": item.burst_primary,
@@ -257,6 +258,7 @@ async fn history(
                 "received_at_ms": item.received_at_ms,
                 "published_at_ms": item.published_at_ms,
                 "originals_released": item.originals_released,
+                "release_reason": item.release_reason,
                 "senders": item.senders.into_iter().map(|peer| peer.profile.name).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
         })).into_response(),
@@ -382,7 +384,7 @@ mod tests {
             Receiver::open(root.join("store"), 1 << 20).unwrap(),
         ));
         let dashboard = DashboardHost::start(
-            receiver,
+            receiver.clone(),
             root.clone(),
             SocketAddr::from(([127, 0, 0, 1], 0)),
         )
@@ -527,6 +529,92 @@ mod tests {
             .unwrap();
         assert_eq!(retry.status(), StatusCode::OK);
         assert_eq!(retry.json::<Value>().await.unwrap()["count"], 0);
+        // Use real receiver records and the live HTTP response. A browser fixture
+        // with invented IDs cannot prove the API supports a scoped retry.
+        let mut expected_ids = Vec::new();
+        for index in 0..2 {
+            let bytes = format!("synthetic original {index}").into_bytes();
+            let hash = backupduck_core::digest(&bytes);
+            let asset = backupduck_core::Asset {
+                version: backupduck_core::PROTOCOL_VERSION,
+                source_id: format!("dashboard-fixture-{index}"),
+                revision: "1".into(),
+                kind: backupduck_core::AssetKind::Photo,
+                metadata: Default::default(),
+                resources: vec![backupduck_core::Resource {
+                    role: backupduck_core::ResourceRole::Photo,
+                    filename: format!("fixture-{index}.jpg"),
+                    media_type: "image/jpeg".into(),
+                    size: bytes.len() as u64,
+                    sha256: hash.clone(),
+                }],
+            };
+            let id = asset.id().unwrap();
+            {
+                let mut store = receiver.lock().unwrap();
+                store.register(asset).unwrap();
+                store.append(&id, &hash, 0, &bytes, &hash).unwrap();
+                store.commit(&id).unwrap();
+                store
+                    .set_processing(&id, backupduck_core::ProcessingState::Pending)
+                    .unwrap();
+                store
+                    .set_processing_result(
+                        &id,
+                        backupduck_core::ProcessingState::Failed,
+                        Some("conversion_required"),
+                    )
+                    .unwrap();
+            }
+            expected_ids.push(id);
+        }
+        let history = client
+            .get(format!(
+                "{base}/api/history?page=1&per_page=20&state=failed"
+            ))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap()
+            .json::<Value>()
+            .await
+            .unwrap();
+        let items = history["items"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        for item in items {
+            let id = item["id"]
+                .as_str()
+                .expect("history must expose the stable retry ID");
+            assert!(expected_ids.iter().any(|expected| expected == id));
+            assert_eq!(item["originals_released"], false);
+            assert!(item.get("release_reason").is_some());
+        }
+        let selected = client
+            .post(format!("{base}/api/retry"))
+            .query(&[("id", &expected_ids[0])])
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap()
+            .json::<Value>()
+            .await
+            .unwrap();
+        assert_eq!(selected["count"], 1);
+        {
+            let store = receiver.lock().unwrap();
+            assert_eq!(
+                store.status(&expected_ids[0]).unwrap().processing,
+                backupduck_core::ProcessingState::Pending
+            );
+            assert_eq!(
+                store.status(&expected_ids[1]).unwrap().processing,
+                backupduck_core::ProcessingState::Failed
+            );
+            assert_eq!(
+                store.status(&expected_ids[0]).unwrap().receipt,
+                backupduck_core::ReceiptState::Received
+            );
+        }
         assert_eq!(
             client
                 .post(format!("{base}/api/logout"))

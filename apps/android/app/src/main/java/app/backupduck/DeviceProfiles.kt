@@ -22,11 +22,12 @@ internal class DevicePanels(private val activity:MainActivity,private val change
     private val nameLabels=mutableListOf<TextView>()
     private var state:JSONObject?=null
     private var work:Job?=null
+    val hasSenders:Boolean? get()=state?.optJSONArray("peers")?.let {it.length()>0}
     val name:String? get()=state?.optJSONObject("device")?.optString("name")
     fun compactSettings(parent:LinearLayout) {
         val value=activity.duckText(name ?: android.os.Build.MODEL,13,true);nameLabels+=value
-        activity.duckSetting(parent,activity.getString(R.string.duck_device_name),control=value) {rename()}
-        activity.duckSetting(parent,activity.getString(R.string.device_known_senders),activity.getString(R.string.duck_sender_settings_note)) {showPeers()}
+        activity.receiverSetting(parent,activity.getString(R.string.duck_device_name),control=value) {rename()}
+        activity.receiverSetting(parent,activity.getString(R.string.device_known_senders)) {showPeers()}
     }
     fun refresh() {
         if(work?.isActive==true)return
@@ -36,7 +37,9 @@ internal class DevicePanels(private val activity:MainActivity,private val change
         }
     }
     private fun render(next:JSONObject) {
-        state=next;changed();val name=next.getJSONObject("device").getString("name")
+        val previousName=name;val previousSenders=hasSenders
+        state=next;val name=next.getJSONObject("device").getString("name")
+        if(previousName!=name||previousSenders!=hasSenders)changed()
         nameLabels.forEach {if(it.text.toString()!=name) it.text=name}
     }
     fun showPeers():DuckPage {
@@ -57,7 +60,7 @@ internal class DevicePanels(private val activity:MainActivity,private val change
                         for(i in 0 until peers.length()) {
                             val peer=peers.getJSONObject(i)
                             val seen=DateUtils.getRelativeTimeSpanString(peer.getLong("last_seen")*1000).toString()
-                            activity.duckSetting(group,peer.getJSONObject("profile").getString("name"),listOfNotNull(peer.optString("device_type").takeUnless {it.isBlank()||it=="null"},seen).joinToString(" · "),
+                            activity.receiverSetting(group,peer.getJSONObject("profile").getString("name"),listOfNotNull(peer.optString("device_type").takeUnless {it.isBlank()||it=="null"},seen).joinToString(" · "),
                                 activity.duckPill(activity.getString(if(peer.optBoolean("enabled",true)) R.string.device_enable else R.string.device_disabled))) {showPeer(peer,page.body) {load()}}
                         }
                     }
@@ -72,7 +75,7 @@ internal class DevicePanels(private val activity:MainActivity,private val change
     private fun showPeer(peer:JSONObject,host:View,changed:()->Unit) {
         val sheet=DuckSheet(activity,peer.getJSONObject("profile").getString("name"))
         val group=activity.duckGroup(sheet.body)
-        fun datum(title:Int,value:String) {activity.duckSetting(group,activity.getString(title),value,activity.duckText("",13))}
+        fun datum(title:Int,value:String) {activity.receiverSetting(group,activity.getString(title),value,activity.duckText("",13))}
         datum(R.string.duck_device_name,peer.getJSONObject("profile").getString("name"))
         datum(R.string.duck_type,peer.optString("device_type").takeUnless {it.isBlank()||it=="null"} ?: "—")
         datum(R.string.duck_device_address,peer.optString("ip").takeUnless {it.isBlank()||it=="null"} ?: "—")
@@ -98,14 +101,13 @@ internal class DevicePanels(private val activity:MainActivity,private val change
     }
     internal fun rename():DuckSheet {
         val sheet=DuckSheet(activity,activity.getString(R.string.duck_device_name))
-        sheet.body.addView(activity.duckParagraph(activity.getString(R.string.duck_name_intro)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=activity.dp(20)})
         val field=DuckField(activity,activity.getString(R.string.device_name),name ?: android.os.Build.MODEL,maxLength=80)
         field.input.addTextChangedListener(object:android.text.TextWatcher {
             override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int)=Unit
             override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {field.box.error=null}
             override fun afterTextChanged(s:android.text.Editable?)=Unit
         })
-        sheet.body.addView(field.view);activity.duckNotice(sheet.body,activity.getString(R.string.duck_code_tasks_unchanged))
+        sheet.body.addView(field.view)
         val failure=activity.duckFailure(sheet.body,activity.getString(R.string.device_save_failed))
         val cancel=sheet.addAction(activity.getString(R.string.device_cancel)) {sheet.dismiss()}
         val save=sheet.addAction(activity.getString(R.string.device_save),true) {

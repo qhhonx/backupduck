@@ -2,3 +2,5 @@ pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal()
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
 rootProject.name = 'BackupDuck'
 include ':app'
+// Optional local development module; not part of the receiver release.
+if (file('sender/build.gradle').exists() && providers.gradleProperty('includeSender').orNull == 'true') { include ':sender' }

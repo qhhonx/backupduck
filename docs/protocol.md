@@ -60,3 +60,12 @@ sequence. When the additional envelope would exceed the sender's staging budget
 or free-space reserve, it uses the original bounded chunk path. No extra background
 execution entitlement is implied; actual locked-device scheduling remains subject
 to the operating system.
+
+## Optional receiver readings
+
+`GET /v2/device-status` uses the same bearer authentication and pinned HTTPS as
+transfer routes. It returns `temperature_deci_celsius`,
+`temperature_observed_at_ms` and `free_bytes`; fields can be null. Temperature is
+a host sensor observation and expires after 120 seconds. Free space is measured
+on the receiver filesystem, not inferred from a cache budget or receipt count.
+Older receivers may return 404; unavailable readings must not block backup.

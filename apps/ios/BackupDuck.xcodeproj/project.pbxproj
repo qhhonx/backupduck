@@ -20,6 +20,7 @@
 		3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		3F7A401A51B7FF461CB0368B /* NetworkProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
+		55709C23FCD0540ECF192F68 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 2C8194DB525B048022B8F3ED /* DuckBrand.png */; };
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */; };
 		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
@@ -34,6 +35,8 @@
 		91B34306380AFC106472164B /* LibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94C4B44B41B9AAD96A51E7E3 /* LibraryTests.swift */; };
 		994F060A2FD375E01DFF8334 /* PhotoLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */; };
 		9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
+		A7248D6193F3C3B243F6201D /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */; };
+		AC7A0386615CDE5D7A6BB073 /* DuckColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B3FB1247793009B2B15729 /* DuckColors.swift */; };
 		AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		B0E62F0601171C8A7963164B /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
 		BA114F060234BD9171C23F24 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
@@ -43,9 +46,6 @@
 		D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		EC71D3762A45B460A3B79DBA /* BackgroundLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */; };
 		F69787C40DFA7D9F1C0FCB75 /* LibraryPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */; };
-		AC7A0386615CDE5D7A6BB073 /* DuckColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B3FB1247793009B2B15729 /* DuckColors.swift */; };
-		A7248D6193F3C3B243F6201D /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */; };
-		55709C23FCD0540ECF192F68 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 2C8194DB525B048022B8F3ED /* DuckBrand.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +71,7 @@
 		0B879720B5A1DAB699000E2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		16B3C1C169CA7713E06B26B3 /* BackupDuckTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BackupDuckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkProgressTests.swift; sourceTree = "<group>"; };
+		2C8194DB525B048022B8F3ED /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
 		2DD73467DFE30B87BA715C9D /* StorageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModel.swift; sourceTree = "<group>"; };
 		318AEFF6C64EC209A4BCEA65 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
@@ -78,9 +79,11 @@
 		34CBDBD2C2EF0A30ACEABBA8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		36B169D63C5CECC627CB1FA4 /* BackupDuckUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BackupDuckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupModel.swift; sourceTree = "<group>"; };
+		3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckComponents.swift; sourceTree = "<group>"; };
 		48543A6804607508613E2435 /* PairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
 		6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurstPhotos.swift; sourceTree = "<group>"; };
 		74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupDuckApp.swift; sourceTree = "<group>"; };
+		76B3FB1247793009B2B15729 /* DuckColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckColors.swift; sourceTree = "<group>"; };
 		790522FA25588024EE51100B /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
 		7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBackupOrder.swift; sourceTree = "<group>"; };
 		805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPresentationTests.swift; sourceTree = "<group>"; };
@@ -107,9 +110,6 @@
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
-		76B3FB1247793009B2B15729 /* DuckColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckColors.swift; sourceTree = "<group>"; };
-		3F3FD0D5B6367AA2334B56EB /* DuckComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckComponents.swift; sourceTree = "<group>"; };
-		2C8194DB525B048022B8F3ED /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */

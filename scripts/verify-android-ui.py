@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--serial", required=True, help="Already booted, disposable emulator serial")
+parser.add_argument("--mode", choices=["all", "full_replica", "updates_ui", "history_live", "experiments_ui"], default="all", help="Run the covered page matrix or a focused page matrix")
 args = parser.parse_args()
 if not args.serial.startswith("emulator-"):
     parser.error("Only disposable Android emulators are allowed")
@@ -75,9 +76,21 @@ try:
             device("shell", "wm", "size", size)
             device("shell", "wm", "density", "320")
             device("shell", "settings", "put", "system", "font_scale", font)
-            check("component_flow", folder, dark)
+            if args.mode in ("updates_ui", "history_live", "experiments_ui"):
+                check(args.mode, folder, dark)
+                screens = [f"experiments-{name}" for name in ("discovery-settings", "landing", "setup", "ready", "running", "account-changed", "pending", "troubleshoot", "diagnostics", "result-empty")] if args.mode == "experiments_ui" else ["updates-layout" if args.mode == "updates_ui" else "history-live"]
+                for prefix in screens:
+                    source = f"cache/{prefix}-{'dark' if dark else 'light'}.png"
+                    result = subprocess.run([adb, "-s", args.serial, "exec-out", "run-as", "app.backupduck.validation", "cat", source], check=True, stdout=subprocess.PIPE)
+                    if not result.stdout.startswith(b"\x89PNG\r\n\x1a\n"):
+                        raise RuntimeError(f"Missing actual-window screenshot: {source}")
+                    (folder / f"{prefix}.png").write_bytes(result.stdout)
+                report["checks"].append({"variant": name, "result": "pass"})
+                continue
+            if args.mode == "all":
+                check("component_flow", folder, dark)
             check("full_replica", folder, dark)
-            for screen in ("code-default", "reset-default", "revoke-default", "access-masked", "access-copied", "browser-page"):
+            for screen in (("code-default", "reset-default", "revoke-default", "access-masked", "access-copied", "browser-page") if args.mode == "all" else ()):
                 source = f"cache/component-{screen}-{'dark' if dark else 'light'}.png"
                 result = subprocess.run([adb, "-s", args.serial, "exec-out", "run-as", "app.backupduck.validation", "cat", source],
                                         check=True, stdout=subprocess.PIPE)
@@ -94,11 +107,13 @@ try:
     device("shell", "wm", "size", "822x1462")
     device("shell", "wm", "density", "320")
     device("shell", "settings", "put", "system", "font_scale", "1.0")
-    check("storage_ui", out, False)
-    check("design_review", out, False)
-    check("receiver_help", out, False)
-    check("dashboard_ui", out)
-    report["nativeOperations"] = "pass; original emulator access code restored"
+    if args.mode == "all":
+        check("storage_ui", out, False)
+        check("design_review", out, False)
+        check("receiver_help", out, False)
+        check("dashboard_ui", out)
+    report["nativeOperations"] = "pass; original emulator access code restored" if args.mode == "all" else "not run; page matrix only"
+    report["mode"] = args.mode
     report["status"] = "pass"
 except Exception as error:
     report["status"] = "fail"

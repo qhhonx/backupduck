@@ -41,7 +41,13 @@ async fn relocated_receiver_keeps_identity_partial_bytes_and_receipts() {
     assert!(saved.certificate == legacy.certificate && saved.token == legacy.token);
     assert_eq!(saved.certificate_name.as_deref(), Some("127.0.0.2"));
     let client = saved.client().unwrap();
-    client.capabilities().await.unwrap();
+    assert!(
+        client
+            .capabilities()
+            .await
+            .unwrap()
+            .preserve_container_bytes
+    );
     let bytes = b"synthetic original retained across receiver address changes";
     let asset = Asset {
         version: PROTOCOL_VERSION,

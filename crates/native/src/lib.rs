@@ -160,11 +160,13 @@ pub struct ReceiverHost {
     root: PathBuf,
     listen: SocketAddr,
     pub receiver: Arc<Mutex<Receiver>>,
+    progress: Arc<backupduck_store::progress::ProgressFeed>,
     pub pairing: Pairing,
     maintenance: Arc<Mutex<maintenance::Maintenance>>,
     handle: axum_server::Handle,
     task: tokio::task::JoinHandle<()>,
     dashboard: Option<dashboard::DashboardHost>,
+    readings: Arc<Mutex<backupduck_transport::DeviceReadings>>,
 }
 impl ReceiverHost {
     pub async fn start(root: &Path, addr: SocketAddr, capacity: u64) -> Result<Self> {
@@ -176,6 +178,7 @@ impl ReceiverHost {
         let _ = rustls::crypto::ring::default_provider().install_default();
         fs::create_dir_all(root)?;
         let receiver = Arc::new(Mutex::new(Receiver::open(root.join("store"), capacity)?));
+        let progress = receiver.lock().map_err(lock)?.progress_feed();
         let ident = identity(root, addr)?;
         let mut maintenance = maintenance::Maintenance::open(root)?;
         if !root.join("maintenance.initialized").exists() {
@@ -211,10 +214,12 @@ impl ReceiverHost {
                 let _ = log.log_context(event.event, None, None, Some(&context));
             }
         });
-        let router = backupduck_transport::shared_router_observed(
+        let readings = Arc::new(Mutex::new(backupduck_transport::DeviceReadings::default()));
+        let router = backupduck_transport::shared_router_with_readings(
             receiver.clone(),
             &ident.pairing.token,
             Some(observer),
+            readings.clone(),
         )?;
         let listener = std::net::TcpListener::bind(addr).map_err(|error| match error.kind() {
             std::io::ErrorKind::AddrInUse => Error::Conflict("receiver_port_in_use".into()),
@@ -235,11 +240,13 @@ impl ReceiverHost {
             root: root.into(),
             listen: addr,
             receiver,
+            progress,
             pairing: ident.pairing,
             maintenance,
             handle,
             task,
             dashboard: None,
+            readings,
         })
     }
     fn start_dashboard(&mut self) -> Result<Value> {
@@ -280,8 +287,7 @@ fn now() -> i64 {
 
 pub struct SenderHost {
     sender: Arc<Mutex<Sender>>,
-    cancelled: Arc<AtomicBool>,
-    busy: AtomicBool,
+    cancelled: Mutex<Arc<AtomicBool>>,
     request_root: PathBuf,
     export_root: PathBuf,
     maintenance: Mutex<maintenance::Maintenance>,
@@ -296,8 +302,7 @@ impl SenderHost {
             export_root: root.parent().unwrap_or(root).join("exports"),
             maintenance: Mutex::new(maintenance),
             sender: Arc::new(Mutex::new(Sender::open(root)?)),
-            cancelled: Arc::new(AtomicBool::new(false)),
-            busy: AtomicBool::new(false),
+            cancelled: Mutex::new(Arc::new(AtomicBool::new(false))),
             request_root,
         };
         host.restore_export_locations()?;
@@ -309,41 +314,106 @@ impl SenderHost {
         asset: Asset,
         sources: BTreeMap<String, String>,
     ) -> Result<Job> {
-        self.sender
-            .lock()
-            .map_err(lock)?
-            .enqueue(receiver, asset, sources)
+        self.enqueue_prepared(receiver, asset, sources, None)
+    }
+    fn enqueue_prepared(
+        &self,
+        receiver: &str,
+        asset: Asset,
+        sources: BTreeMap<String, String>,
+        request: Option<&str>,
+    ) -> Result<Job> {
+        let mut sender = self.sender.lock().map_err(lock)?;
+        let maintenance = self.maintenance.lock().map_err(lock)?;
+        let preparation = maintenance.preparation_link(
+            receiver,
+            &asset.source_id,
+            &asset.revision,
+            request,
+            asset.metadata.contains_key("backupduck_rebackup_id"),
+        )?;
+        let job = sender.enqueue_prepared(receiver, asset, sources, preparation.as_ref())?;
+        let _ = maintenance.log("transfer_queued", Some(job.id), None);
+        Ok(job)
     }
     pub fn list(&self, after: i64) -> Result<Vec<Job>> {
         self.sender.lock().map_err(lock)?.list(after, 200)
     }
     pub fn pause(&self, paused: bool) -> Result<()> {
-        self.cancelled.store(paused, Ordering::SeqCst);
-        self.sender.lock().map_err(lock)?.set_paused(paused)
+        // Serialize pause/resume with task claims. A resumed generation gets a
+        // fresh token so a quick resume cannot revive previously cancelled I/O.
+        let mut sender = self.sender.lock().map_err(lock)?;
+        let mut cancelled = self.cancelled.lock().map_err(lock)?;
+        sender.set_paused(paused)?;
+        if paused {
+            cancelled.store(true, Ordering::SeqCst);
+        } else if cancelled.load(Ordering::SeqCst) {
+            *cancelled = Arc::new(AtomicBool::new(false));
+        }
+        Ok(())
+    }
+    pub fn set_concurrent_uploads(&self, limit: u32) -> Result<()> {
+        self.sender
+            .lock()
+            .map_err(lock)?
+            .set_concurrent_uploads(limit)
     }
     pub fn retry(&self, id: i64) -> Result<()> {
         self.sender.lock().map_err(lock)?.retry(id)
     }
-    /// One queued asset per call. Native hosts schedule invocations; the Rust
-    /// queue chooses due work and owns retry policy, receipt and progress.
-    pub async fn run_once(&self, pairing: &Pairing) -> Result<Option<Job>> {
-        if self.busy.swap(true, Ordering::SeqCst) {
-            return Err(Error::Conflict("sender already running".into()));
-        }
-        struct Guard<'a>(&'a AtomicBool);
-        impl Drop for Guard<'_> {
-            fn drop(&mut self) {
-                self.0.store(false, Ordering::SeqCst);
-            }
-        }
-        let _guard = Guard(&self.busy);
-        // Construct runtime-bound clients inside Tokio, not on native UI threads.
-        let client = pairing.client()?;
-        let job = self
+    /// Bounded reference-executor batch. Hosts wake this entry without knowing
+    /// queue slots or selecting jobs. OS-managed executors instead execute the
+    /// immutable actions from prepare_native; both use Sender::claim_native.
+    pub async fn run_available(self: &Arc<Self>, pairing: &Pairing) -> Result<Vec<Job>> {
+        let window = self
             .sender
             .lock()
             .map_err(lock)?
-            .claim(&pairing.receiver_id, now())?;
+            .transfer_window(&pairing.receiver_id)?;
+        let mut tasks = tokio::task::JoinSet::new();
+        for _ in 0..window {
+            let host = self.clone();
+            let pairing = pairing.clone();
+            tasks.spawn(async move { host.run_once(&pairing).await });
+        }
+        let mut completed = Vec::new();
+        let mut failure = None;
+        // Drain all tasks even on one failure: dropping the batch must not leave
+        // another claimed attempt running with a discarded receipt callback.
+        while let Some(result) = tasks.join_next().await {
+            match result {
+                Ok(Ok(Some(job))) => completed.push(job),
+                Ok(Ok(None)) => {}
+                Ok(Err(error)) => {
+                    if failure.is_none() {
+                        failure = Some(error);
+                    }
+                }
+                Err(error) => {
+                    if failure.is_none() {
+                        failure = Some(Error::Transport(error.to_string()));
+                    }
+                }
+            }
+        }
+        if let Some(error) = failure {
+            Err(error)
+        } else {
+            Ok(completed)
+        }
+    }
+    /// One queued asset per call. Native hosts schedule invocations; the Rust
+    /// queue chooses due work and owns retry policy, receipt and progress.
+    pub async fn run_once(&self, pairing: &Pairing) -> Result<Option<Job>> {
+        // Native callers provide execution lanes only. Slot limits, legacy
+        // fallback and unique attempts are decided by the same Rust queue used
+        // by Apple background transfers.
+        let client = pairing.client()?;
+        let (job, cancelled) = {
+            let mut sender = self.sender.lock().map_err(lock)?;
+            let cancelled = self.cancelled.lock().map_err(lock)?.clone();
+            (sender.claim_native(&pairing.receiver_id, now())?, cancelled)
+        };
         let Some(job) = job else {
             return Ok(None);
         };
@@ -354,7 +424,7 @@ impl SenderHost {
             .map(|(h, p)| (h.clone(), PathBuf::from(p)))
             .collect();
         let mut progress_error = None;
-        let transfer = client.send(&job.asset, &paths, &self.cancelled, |status| {
+        let transfer = client.send(&job.asset, &paths, &cancelled, |status| {
             if let Err(e) = self
                 .sender
                 .lock()
@@ -362,13 +432,13 @@ impl SenderHost {
                 .and_then(|mut s| s.acknowledge(&attempt, status))
             {
                 progress_error = Some(e);
-                self.cancelled.store(true, Ordering::SeqCst);
+                cancelled.store(true, Ordering::SeqCst);
             }
         });
         let result = tokio::select! {
             result = transfer => result,
             _ = async {
-                loop { if self.cancelled.load(Ordering::SeqCst) {break;}
+                loop { if cancelled.load(Ordering::SeqCst) {break;}
                     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
             } => Err(Error::Cancelled),
@@ -398,6 +468,10 @@ fn default_motion_video_mime() -> String {
 }
 fn default_heic_motion_video_mime() -> String {
     "video/quicktime".into()
+}
+
+fn default_preparation_limit() -> u32 {
+    200
 }
 
 #[derive(Deserialize)]
@@ -499,18 +573,31 @@ enum Command {
         pairing: Pairing,
         device_type: Option<String>,
     },
+    ReceiverReadings {
+        pairing: Pairing,
+    },
     HistoryStatus {
         receiver_id: String,
     },
     HistoryControl {
         receiver_id: String,
         action: maintenance::HistoryAction,
+        #[serde(default)]
+        snapshot_id: Option<String>,
     },
     HistoryBatch {
         receiver_id: String,
         run: i64,
         sources: Vec<(String, String)>,
         finished: bool,
+        #[serde(default)]
+        snapshot_id: Option<String>,
+        #[serde(default)]
+        registrations: Vec<maintenance::PreparationRegistration>,
+    },
+    HandoffSources {
+        receiver_id: String,
+        sources: Vec<maintenance::DiscoverySource>,
     },
     ScheduleSources {
         receiver_id: String,
@@ -532,6 +619,31 @@ enum Command {
         receiver_id: String,
         history: bool,
     },
+    RegisterPreparation {
+        registration: maintenance::PreparationRegistration,
+    },
+    RegisterPreparations {
+        registrations: Vec<maintenance::PreparationRegistration>,
+    },
+    LookupPreparations {
+        registrations: Vec<maintenance::PreparationRegistration>,
+    },
+    SourcePreparations {
+        receiver_id: Option<String>,
+        #[serde(default)]
+        ready: bool,
+        #[serde(default = "default_preparation_limit")]
+        limit: u32,
+    },
+    RetrySource {
+        receiver_id: String,
+        source: String,
+    },
+    RetrySources {
+        receiver_id: String,
+        #[serde(default)]
+        space_only: bool,
+    },
     PendingSources {
         receiver_id: String,
     },
@@ -543,6 +655,8 @@ enum Command {
         receiver_id: String,
         source: String,
         complete: bool,
+        #[serde(default)]
+        error: Option<String>,
     },
     StorageStatus {
         receiver: bool,
@@ -587,6 +701,8 @@ enum Command {
         source_id: String,
         revision: String,
         kind: AssetKind,
+        #[serde(default)]
+        preparation_id: Option<String>,
         #[serde(default)]
         metadata: BTreeMap<String, String>,
         resources: Vec<ExportedResource>,
@@ -656,14 +772,42 @@ enum Command {
     RunSender {
         pairing: Pairing,
     },
+    RunSenderBatch {
+        pairing: Pairing,
+    },
     RefreshProcessing {
         pairing: Pairing,
+    },
+    WatchProcessing {
+        pairing: Pairing,
+        #[serde(default)]
+        after: u64,
     },
     PauseSender {
         paused: bool,
     },
     Retry {
         id: i64,
+    },
+    BackupTasks {
+        receiver_id: String,
+        #[serde(default)]
+        source_filter: Option<String>,
+        #[serde(default)]
+        after: i64,
+        #[serde(default)]
+        after_value: Option<i64>,
+        #[serde(default)]
+        state: Option<String>,
+        #[serde(default)]
+        sort: Option<String>,
+        #[serde(default)]
+        descending: bool,
+    },
+    BackupSummary {
+        receiver_id: String,
+        #[serde(default)]
+        source_filter: Option<String>,
     },
     Jobs {
         #[serde(default)]
@@ -723,6 +867,12 @@ enum Command {
     },
     ReceiverStatus,
     ReceiverOverview,
+    ReceiverProgress {
+        #[serde(default)]
+        after: u64,
+        #[serde(default)]
+        timeout_ms: u64,
+    },
     ReceiverLogs {
         root: PathBuf,
     },
@@ -846,6 +996,12 @@ fn dispatch(command: Command) -> Result<Value> {
             }
             let hosts = HOSTS.lock().map_err(lock)?;
             let host = hosts.receiver.as_ref().ok_or(Error::NotFound)?;
+            *host.readings.lock().map_err(lock)? = backupduck_transport::DeviceReadings {
+                temperature_deci_celsius,
+                temperature_observed_at_ms: temperature_deci_celsius
+                    .map(|_| backupduck_transport::observation_time_ms()),
+                free_bytes: None,
+            };
             if let Some(dashboard) = &host.dashboard {
                 dashboard.update_device_status(dashboard::DeviceStatus {
                     temperature_deci_celsius,
@@ -909,6 +1065,10 @@ fn dispatch(command: Command) -> Result<Value> {
                 .set_enabled(&id, enabled)?;
             Ok(json!({}))
         }
+        Command::ReceiverReadings { pairing } => {
+            let value = runtime().block_on(async { pairing.client()?.device_readings().await })?;
+            Ok(serde_json::to_value(value)?)
+        }
         Command::ExchangeDevice {
             pairing,
             device_type,
@@ -944,18 +1104,21 @@ fn dispatch(command: Command) -> Result<Value> {
         Command::HistoryControl {
             receiver_id,
             action,
+            snapshot_id,
         } => Ok(serde_json::to_value(
             sender()?
                 .maintenance
                 .lock()
                 .map_err(lock)?
-                .history_control(&receiver_id, action)?,
+                .history_control_with_snapshot(&receiver_id, action, snapshot_id.as_deref())?,
         )?),
         Command::HistoryBatch {
             receiver_id,
             run,
             sources,
             finished,
+            snapshot_id,
+            registrations,
         } => {
             let host = sender()?;
             let known = host
@@ -963,14 +1126,31 @@ fn dispatch(command: Command) -> Result<Value> {
                 .lock()
                 .map_err(lock)?
                 .source_states(&receiver_id, &sources)?;
-            let status = host.maintenance.lock().map_err(lock)?.history_batch(
-                &receiver_id,
-                run,
-                &sources,
-                &known,
-                finished,
-            )?;
+            let status = host
+                .maintenance
+                .lock()
+                .map_err(lock)?
+                .history_batch_with_preparations(
+                    &receiver_id,
+                    run,
+                    &sources,
+                    &known,
+                    finished,
+                    snapshot_id.as_deref(),
+                    &registrations,
+                )?;
             Ok(serde_json::to_value(status)?)
+        }
+        Command::HandoffSources {
+            receiver_id,
+            sources,
+        } => {
+            sender()?
+                .maintenance
+                .lock()
+                .map_err(lock)?
+                .handoff_sources(&receiver_id, &sources)?;
+            Ok(json!({}))
         }
         Command::ScheduleSources {
             receiver_id,
@@ -1045,6 +1225,52 @@ fn dispatch(command: Command) -> Result<Value> {
             }
             Ok(page)
         }
+        Command::LookupPreparations { registrations } => sender()?
+            .maintenance
+            .lock()
+            .map_err(lock)?
+            .lookup_preparations(&registrations),
+        Command::RegisterPreparations { registrations } => sender()?
+            .maintenance
+            .lock()
+            .map_err(lock)?
+            .register_preparations(&registrations),
+        Command::RegisterPreparation { registration } => sender()?
+            .maintenance
+            .lock()
+            .map_err(lock)?
+            .register_preparation(&registration),
+        Command::SourcePreparations {
+            receiver_id,
+            ready,
+            limit,
+        } => sender()?.maintenance.lock().map_err(lock)?.preparations(
+            receiver_id.as_deref(),
+            ready,
+            limit,
+        ),
+        Command::RetrySource {
+            receiver_id,
+            source,
+        } => {
+            sender()?
+                .maintenance
+                .lock()
+                .map_err(lock)?
+                .retry_source(&receiver_id, &source)?;
+            Ok(json!({}))
+        }
+        Command::RetrySources {
+            receiver_id,
+            space_only,
+        } => {
+            sender()?
+                .maintenance
+                .lock()
+                .map_err(lock)?
+                .retry_sources(&receiver_id, space_only)?;
+            Ok(json!({}))
+        }
         Command::PendingSources { receiver_id } => sender()?
             .maintenance
             .lock()
@@ -1062,12 +1288,13 @@ fn dispatch(command: Command) -> Result<Value> {
             receiver_id,
             source,
             complete,
+            error,
         } => {
-            sender()?.maintenance.lock().map_err(lock)?.source_result(
-                &receiver_id,
-                &source,
-                complete,
-            )?;
+            sender()?
+                .maintenance
+                .lock()
+                .map_err(lock)?
+                .source_result_with_error(&receiver_id, &source, complete, error.as_deref())?;
             Ok(json!({}))
         }
         Command::ArchiveBatch { root } => {
@@ -1176,16 +1403,13 @@ fn dispatch(command: Command) -> Result<Value> {
             source_id,
             revision,
             kind,
+            preparation_id,
             metadata,
             resources,
         } => {
             let (a, p) = manifest(source_id, revision, kind, metadata, resources)?;
             let host = sender()?;
-            let job = host.enqueue(&receiver_id, a, p)?;
-            host.maintenance
-                .lock()
-                .map_err(lock)?
-                .log("transfer_queued", Some(job.id), None)?;
+            let job = host.enqueue_prepared(&receiver_id, a, p, preparation_id.as_deref())?;
             Ok(serde_json::to_value(job)?)
         }
         Command::PrepareNative { receiver_id } => Ok(serde_json::to_value(
@@ -1245,7 +1469,12 @@ fn dispatch(command: Command) -> Result<Value> {
             runtime().block_on(pairing::submit(invite, pairing))?;
             Ok(json!({}))
         }
-        Command::SenderRevision => Ok(json!(sender()?.sender.lock().map_err(lock)?.revision()?)),
+        Command::SenderRevision => {
+            let host = sender()?;
+            let sender = host.sender.lock().map_err(lock)?;
+            let maintenance = host.maintenance.lock().map_err(lock)?;
+            Ok(json!(sender.revision()? + maintenance.revision()))
+        }
         Command::SourceStates {
             receiver_id,
             sources,
@@ -1337,11 +1566,65 @@ fn dispatch(command: Command) -> Result<Value> {
             if let Ok(host) = sender() {
                 host.set_bundle_upload(&pairing.receiver_id, caps.bundle_upload)?;
             }
-            Ok(json!({"receiver_id":pairing.receiver_id}))
+            Ok(json!({"receiver_id":pairing.receiver_id, "capabilities":caps}))
         }
         Command::RunSender { pairing } => Ok(serde_json::to_value(
             runtime().block_on(sender()?.run_once(&pairing))?,
         )?),
+        Command::RunSenderBatch { pairing } => Ok(serde_json::to_value(
+            runtime().block_on(sender()?.run_available(&pairing))?,
+        )?),
+        Command::WatchProcessing { pairing, after } => {
+            let host = sender()?;
+            let scope = host
+                .sender
+                .lock()
+                .map_err(lock)?
+                .processing_event_jobs(&pairing.receiver_id)?;
+            if scope.is_empty() {
+                return Ok(json!({"revision":after,"changed":false,"active":false}));
+            }
+            let client = pairing.client()?;
+            let events = runtime()
+                .block_on(async {
+                    tokio::time::timeout(
+                        std::time::Duration::from_secs(3),
+                        client
+                            .status_events(after, scope.iter().map(|(_, id)| id.clone()).collect()),
+                    )
+                    .await
+                })
+                .map_err(|_| Error::Transport("status events timeout".into()))??;
+            let mut changed = false;
+            let mut sender = host.sender.lock().map_err(lock)?;
+            for (id, asset) in scope {
+                if let Some(event) = events
+                    .items
+                    .iter()
+                    .find(|item| item.id == asset && item.received)
+                {
+                    let job = sender.job(id)?;
+                    if job.state == backupduck_sender::JobState::Received
+                        && (job.processing.as_ref() != Some(&event.processing)
+                            || job.processing_error != event.processing_error)
+                    {
+                        sender.observe_processing(
+                            id,
+                            &AssetStatus {
+                                asset_id: asset,
+                                receipt: ReceiptState::Received,
+                                processing: event.processing.clone(),
+                                processing_error: event.processing_error.clone(),
+                                resources: vec![],
+                            },
+                            now(),
+                        )?;
+                        changed = true;
+                    }
+                }
+            }
+            Ok(json!({"revision":events.revision,"changed":changed,"active":true}))
+        }
         Command::RefreshProcessing { pairing } => {
             let host = sender()?;
             let due = host.sender.lock().map_err(lock)?.processing_due(
@@ -1399,6 +1682,62 @@ fn dispatch(command: Command) -> Result<Value> {
         Command::Retry { id } => {
             sender()?.retry(id)?;
             Ok(json!({}))
+        }
+        Command::BackupTasks {
+            receiver_id,
+            source_filter,
+            after,
+            after_value,
+            state,
+            sort,
+            descending,
+        } => {
+            let host = sender()?;
+            let sender = host.sender.lock().map_err(lock)?;
+            let _maintenance = host.maintenance.lock().map_err(lock)?;
+            sender.backup_tasks(
+                &host
+                    .request_root
+                    .parent()
+                    .ok_or(Error::NotFound)?
+                    .join("maintenance.sqlite3"),
+                JobQuery {
+                    after,
+                    after_value,
+                    limit: 200,
+                    receiver: Some(&receiver_id),
+                    state: state.as_deref(),
+                    sort: sort.as_deref().unwrap_or("added"),
+                    descending,
+                },
+                source_filter.as_deref(),
+            )
+        }
+        Command::BackupSummary {
+            receiver_id,
+            source_filter,
+        } => {
+            let host = sender()?;
+            let sender = host.sender.lock().map_err(lock)?;
+            let _maintenance = host.maintenance.lock().map_err(lock)?;
+            Ok(sender.backup_tasks(
+                &host
+                    .request_root
+                    .parent()
+                    .ok_or(Error::NotFound)?
+                    .join("maintenance.sqlite3"),
+                JobQuery {
+                    after: 0,
+                    after_value: None,
+                    limit: 1,
+                    receiver: Some(&receiver_id),
+                    state: None,
+                    sort: "added",
+                    descending: true,
+                },
+                source_filter.as_deref(),
+            )?["summary"]
+                .clone())
         }
         Command::Jobs {
             source_filter,
@@ -1699,13 +2038,15 @@ fn dispatch(command: Command) -> Result<Value> {
             kind,
         } => {
             let catalog = backupduck_store::catalog::Catalog::open(&root.join("store"))?;
-            Ok(serde_json::to_value(catalog.page_for_sender(
+            let mut page = serde_json::to_value(catalog.page_for_sender(
                 before,
                 &state,
                 &kind,
                 100,
                 sender_id.as_deref(),
-            )?)?)
+            )?)?;
+            page["counts"] = serde_json::to_value(catalog.counts()?)?;
+            Ok(page)
         }
         Command::ReceiverOverview => {
             let h = HOSTS.lock().map_err(lock)?;
@@ -1718,6 +2059,23 @@ fn dispatch(command: Command) -> Result<Value> {
                 .map_err(lock)?
                 .overview();
             result
+        }
+        Command::ReceiverProgress { after, timeout_ms } => {
+            let feed = {
+                let hosts = HOSTS.lock().map_err(lock)?;
+                let feed = hosts
+                    .receiver
+                    .as_ref()
+                    .ok_or(Error::NotFound)?
+                    .progress
+                    .clone();
+                feed
+            };
+            // Release host/receiver locks before waiting, so network writes continue.
+            Ok(serde_json::to_value(feed.wait(
+                after,
+                std::time::Duration::from_millis(timeout_ms.min(1000)),
+            ))?)
         }
         Command::ReceiverStatus => {
             let h = HOSTS.lock().map_err(lock)?;
@@ -1854,6 +2212,9 @@ pub extern "system" fn Java_app_backupduck_NativeBridge_call(
 
 #[cfg(test)]
 mod receiver_identity_tests;
+
+#[cfg(test)]
+mod enqueue_commit_tests;
 
 #[cfg(test)]
 mod burst_error_tests {

@@ -5,6 +5,35 @@ import XCTest
 @testable import BackupDuck
 
 @MainActor final class BackgroundTests: XCTestCase {
+  func testSelectedBackupGuardsPreserveDraftWithoutCreatingQueue() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("selection-guard-" + UUID().uuidString)
+    let model = BackupModel(root: root)
+    let ids = ["synthetic-selected-photo"]
+    model.paused = true
+    let accepted0 = await model.backupSelectedAssets(ids, requestAuthorization: false)
+    XCTAssertFalse(accepted0)
+    XCTAssertEqual(model.message, NSLocalizedString("apple_selected_receiver_needed", comment: ""))
+    XCTAssertFalse(model.importing)
+    XCTAssertTrue(model.paused, "Rejected selections must not resume the queue")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+    model.pairing = Pairing(version: 2, receiverID: "synthetic-receiver",
+      endpoint: "https://192.0.2.10:8484", certificate: "synthetic-certificate", token: "synthetic-token")
+    model.importing = true
+    let accepted1 = await model.backupSelectedAssets(ids, requestAuthorization: false)
+    XCTAssertFalse(accepted1)
+    XCTAssertEqual(model.message, NSLocalizedString("apple_selected_already_preparing", comment: ""))
+    XCTAssertTrue(model.importing)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+    model.importing = false
+    model.scanningHistory = true
+    let accepted2 = await model.backupSelectedAssets(ids, requestAuthorization: false, rebackupReceived: true)
+    XCTAssertFalse(accepted2)
+    XCTAssertEqual(model.message, NSLocalizedString("apple_selected_history_scanning", comment: ""))
+    XCTAssertFalse(model.importing)
+    XCTAssertTrue(model.paused)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: root.path), "Rejected force resends must not schedule a normal import")
+  }
+
   func testManualRebackupOnlyBypassesCompletedReceipt() {
     XCTAssertFalse(BackupModel.shouldSkipSource(nil, rebackupReceived: true))
     XCTAssertFalse(BackupModel.shouldSkipSource("failed", rebackupReceived: false))
@@ -389,9 +418,10 @@ import XCTest
     try Keychain.save(data)
     model.pairing = pairing
     _ = try await Bridge.call(["op": "check_pairing", "pairing": try JSONSerialization.jsonObject(with: data)])
-    await model.setPaused(false)
-    let imported = await model.importAssets([id], requestAuthorization: false)
+    XCTAssertTrue(model.paused)
+    let imported = await model.backupSelectedAssets([id], requestAuthorization: false)
     XCTAssertTrue(imported)
+    XCTAssertFalse(model.paused, "Manual backup must resume before original preparation")
     let deadline = Date().addingTimeInterval(45)
     repeat {
       await BackgroundTransfer.shared.kick()
@@ -403,6 +433,12 @@ import XCTest
     XCTAssertEqual(job.asset.kind, "video")
     XCTAssertEqual(job.state, "received")
     XCTAssertGreaterThan(job.confirmedBytes, 0)
+    // A later successful export must not erase an earlier unavailable-source
+    // failure and make the selection sheet misreport a network problem.
+    let partial = await model.backupSelectedAssets([id, "missing-" + UUID().uuidString],
+      requestAuthorization: false, rebackupReceived: true)
+    XCTAssertFalse(partial)
+    XCTAssertEqual(model.message, Bridge.Failure(code: "source_unavailable").localizedDescription)
     await model.setPaused(true)
     _ = try await Bridge.call(["op": "stop_receiver"])
   }

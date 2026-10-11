@@ -23,17 +23,41 @@ internal fun Context.duckBackground(color: Int = R.color.duck_surface, radius: I
     if (border) setStroke(dp(1), getColor(R.color.duck_border))
 }
 internal fun Context.duckRule() = View(this).apply { setBackgroundColor(getColor(R.color.duck_border)); layoutParams = LinearLayout.LayoutParams(-1, dp(1)) }
+/** A quiet discovery mark; its owner supplies a localized, non-color accessibility label. */
+internal fun Context.duckDiscoveryDot() = View(this).apply {
+    tag = "duck.discovery"
+    background = duckBackground(R.color.duck_brand_accent, 4, false)
+    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+}
 internal fun Context.duckPill(text: String, color: Int = R.color.duck_text_secondary, backgroundColor: Int = R.color.duck_subtle) = duckText(text, 12, bold = true).apply {
+    tag = "duck.pill"; gravity = Gravity.CENTER_VERTICAL
     setTextColor(getColor(color)); setPadding(dp(8), dp(5), dp(8), dp(5))
     background = duckBackground(backgroundColor, 6, false)
+}
+/** Keep each icon and label a visual unit while preserving the 80dp touch row. */
+internal fun Context.duckNavigation(navigation: com.google.android.material.bottomnavigation.BottomNavigationView) {
+    navigation.itemPaddingTop = dp(12)
+    navigation.itemPaddingBottom = dp(20)
+    navigation.activeIndicatorLabelPadding = dp(4)
+    navigation.itemTextAppearanceInactive = R.style.DuckNavigationLabel
+    navigation.itemTextAppearanceActive = R.style.DuckNavigationLabel
+}
+internal fun Context.duckActionStyle(button: MaterialButton, primary: Boolean) {
+    val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val foreground = getColor(if (primary) if (dark) R.color.duck_canvas else R.color.duck_surface else R.color.duck_text)
+    val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
+    button.backgroundTintList = android.content.res.ColorStateList(states,
+        intArrayOf(getColor(R.color.duck_subtle), getColor(if (primary) R.color.duck_action else R.color.duck_surface)))
+    val ink = android.content.res.ColorStateList(states, intArrayOf(getColor(R.color.duck_text_secondary), foreground))
+    button.setTextColor(ink); button.iconTint = ink
+    button.strokeWidth = if (primary) 0 else dp(1)
+    button.strokeColor = android.content.res.ColorStateList.valueOf(getColor(R.color.duck_border))
 }
 internal fun Context.duckButton(text: String, primary: Boolean = false, action: () -> Unit) = MaterialButton(this, null,
     if (primary) com.google.android.material.R.attr.materialButtonStyle else com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
     this.text = text; isAllCaps = false; textSize = 14f; cornerRadius = dp(24); minimumHeight = dp(48)
     elevation=0f;stateListAnimator=null
-    backgroundTintList=android.content.res.ColorStateList.valueOf(getColor(if(primary) R.color.duck_action else R.color.duck_surface))
-    setTextColor(getColor(if(primary) if(resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES) R.color.duck_canvas else R.color.duck_surface else R.color.duck_text))
-    strokeWidth=if(primary) 0 else dp(1);strokeColor=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_border))
+    this@duckButton.duckActionStyle(this, primary)
     insetTop = 0; insetBottom = 0; setOnClickListener { action() }
 }
 internal fun Context.duckLink(text: String, action: () -> Unit) = MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
@@ -61,13 +85,15 @@ internal fun Context.duckGroup(parent: LinearLayout, title: String? = null): Lin
 internal fun Context.duckSetting(parent: LinearLayout, title: String, description: String? = null, control: View? = null, leadingIcon:Int?=null, action: (() -> Unit)? = null): TextView {
     if (parent.childCount > 0 && parent.getChildAt(parent.childCount-1).tag == "duck.setting") parent.addView(duckRule())
     val row = LinearLayout(this).apply { tag = "duck.setting"; gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(64); setPadding(dp(14), dp(8), dp(14), dp(8)) }
-    if(leadingIcon!=null) row.addView(ImageView(this).apply {setImageResource(leadingIcon);imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_text_secondary))},LinearLayout.LayoutParams(dp(22),dp(22)).apply {marginEnd=dp(12)})
+    // Settings are identified by their text; decorative leading icons do not
+    // distinguish repeated configuration rows. Media/status icons live elsewhere.
     val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
     val heading = duckText(title, 16, bold = true)
     words.addView(heading)
     if (!description.isNullOrEmpty()) words.addView(duckText(description, 13, true).apply { setPadding(0, dp(5), 0, 0) })
     row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-    val accessory = control ?: ImageView(this).apply {setImageResource(R.drawable.ic_chevron);imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_action));layoutParams=LinearLayout.LayoutParams(dp(22),dp(22))}
+    val accessory = control ?: if (action != null) ImageView(this).apply {setImageResource(R.drawable.ic_chevron);imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_action));layoutParams=LinearLayout.LayoutParams(dp(22),dp(22))}
+        else View(this).apply {visibility=View.GONE}
     row.addView(accessory, LinearLayout.LayoutParams(if(control==null) dp(22) else -2, if(control==null) dp(22) else -2).apply { marginStart = dp(12) })
     if (action != null) {
         val out = android.util.TypedValue(); theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
@@ -117,19 +143,19 @@ internal fun Context.duckMessageRow(title:String,description:String?=null,icon:I
 }
 internal class DuckReadings(private val context: Context, labels: List<String>) {
     val view = LinearLayout(context).apply {
-        gravity = Gravity.CENTER_VERTICAL; setPadding(context.dp(8), context.dp(16), context.dp(8), context.dp(16))
+        gravity = Gravity.TOP; setPadding(context.dp(8), context.dp(16), context.dp(8), context.dp(16))
         background = context.duckBackground()
     }
     private val captions = mutableListOf<TextView>()
     private val values = labels.mapIndexed { index, label ->
         if (index > 0) view.addView(View(context).apply { setBackgroundColor(context.getColor(R.color.duck_border)) }, LinearLayout.LayoutParams(context.dp(1), context.dp(42)))
-        val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
         val value = context.duckText("—", 16, bold = true).apply { fontFeatureSettings = "tnum";gravity=Gravity.CENTER }
         column.addView(value); val caption=context.duckText(label,11,true).apply {gravity=Gravity.CENTER;setPadding(0,context.dp(7),0,0)}; captions+=caption;column.addView(caption)
         view.addView(column, LinearLayout.LayoutParams(0, -2, 1f)); value
     }
-    fun caption(index:Int,text:String) {captions[index].text=text}
-    fun render(vararg readings: String) { values.forEachIndexed { index, text -> text.text = readings[index] } }
+    fun caption(index:Int,text:String) {if(captions[index].text.toString()!=text)captions[index].text=text}
+    fun render(vararg readings: String) { values.forEachIndexed { index, text -> if(text.text.toString()!=readings[index])text.text = readings[index] } }
 }
 internal class DuckSheet(context: Context, title: String) : BottomSheetDialog(context,R.style.DuckBottomSheetDialog) {
     private var canClose=true
@@ -176,12 +202,28 @@ internal class DuckSheet(context: Context, title: String) : BottomSheetDialog(co
         }
     }
     private var dimMotion:ValueAnimator?=null
+    private fun updateDim(amount:Float) {
+        val dialogWindow=window ?: return
+        // A locale/theme change can recreate the Activity while the closing
+        // animation is still running. Never update an already detached window.
+        if(isShowing && dialogWindow.decorView.isAttachedToWindow) dialogWindow.setDimAmount(amount)
+    }
+    fun dismissImmediately() {
+        dimMotion?.cancel();dimMotion=null
+        body.animate().cancel()
+        super.dismiss()
+    }
+    override fun onDetachedFromWindow() {
+        dimMotion?.cancel();dimMotion=null
+        body.animate().cancel()
+        super.onDetachedFromWindow()
+    }
     override fun show() {
         super.show(); window?.setWindowAnimations(0)
         dimMotion?.cancel()
         if(ValueAnimator.areAnimatorsEnabled()) {
             window?.setDimAmount(0f)
-            dimMotion=ValueAnimator.ofFloat(0f,.24f).apply {duration=140;addUpdateListener {window?.setDimAmount(it.animatedValue as Float)};start()}
+            dimMotion=ValueAnimator.ofFloat(0f,.24f).apply {duration=140;addUpdateListener {updateDim(it.animatedValue as Float)};start()}
         } else window?.setDimAmount(.24f)
         val sheet = findViewById<android.widget.FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
         sheet?.backgroundTintList=null
@@ -194,8 +236,8 @@ internal class DuckSheet(context: Context, title: String) : BottomSheetDialog(co
     }
     override fun dismiss() {
         dimMotion?.cancel()
-        if (isShowing && ValueAnimator.areAnimatorsEnabled()) {
-            dimMotion=ValueAnimator.ofFloat(.24f,0f).apply {duration=160;addUpdateListener {window?.setDimAmount(it.animatedValue as Float)};start()}
+        if (isShowing && window?.decorView?.isAttachedToWindow==true && ValueAnimator.areAnimatorsEnabled()) {
+            dimMotion=ValueAnimator.ofFloat(.24f,0f).apply {duration=160;addUpdateListener {updateDim(it.animatedValue as Float)};start()}
             body.animate().alpha(0f).translationY(context.dp(8).toFloat()).setDuration(160).withEndAction { super.dismiss() }.start()
         } else super.dismiss()
     }
@@ -294,7 +336,13 @@ internal fun Context.duckSelect(parent:LinearLayout,title:String,values:List<Str
     parent.addView(duckParagraph(title),LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(8)})
     val container=FrameLayout(this).apply {background=duckBackground(radius=8)}
     val spinner=Spinner(this,Spinner.MODE_DROPDOWN).apply {
-        contentDescription=title;adapter=ArrayAdapter(this@duckSelect,android.R.layout.simple_spinner_dropdown_item,values)
+        contentDescription=title
+        adapter=object:ArrayAdapter<String>(this@duckSelect,android.R.layout.simple_spinner_dropdown_item,values) {
+            override fun getView(position:Int,convert:View?,host:android.view.ViewGroup):View = (super.getView(position,convert,host) as TextView).apply {
+                gravity=Gravity.START or Gravity.CENTER_VERTICAL;includeFontPadding=false;minimumHeight=dp(56)
+                setPadding(0,0,0,0)
+            }
+        }
         setSelection(selected);background=null;setPadding(dp(12),0,dp(40),0)
     }
     container.addView(spinner,FrameLayout.LayoutParams(-1,-1))

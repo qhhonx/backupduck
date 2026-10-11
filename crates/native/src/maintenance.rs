@@ -1,7 +1,12 @@
 //! Private runtime settings, bounded diagnostics, and managed sender-cache policy.
+mod discovery;
 mod history;
+pub use discovery::DiscoverySource;
+mod preparation;
+
 use super::*;
 pub use history::HistoryAction;
+pub use preparation::PreparationRegistration;
 use rusqlite::{params, Connection};
 
 #[cfg(test)]
@@ -74,7 +79,10 @@ impl Default for Settings {
             receiver_budget_bytes: 6 << 30,
             min_free_bytes: 1 << 30,
             auto_reclaim: true,
-            receiver_relay: false,
+            // Fresh receivers retire staging originals only after a verified
+            // gallery copy. Explicit/legacy saved preferences are deserialized
+            // unchanged (the field's serde default remains false).
+            receiver_relay: true,
             log_days: 14,
             log_limit: 5000,
         }
@@ -237,6 +245,8 @@ impl Maintenance {
           CREATE TABLE IF NOT EXISTS history_members(receiver TEXT NOT NULL, source TEXT NOT NULL, revision TEXT NOT NULL, PRIMARY KEY(receiver,source));
           CREATE TABLE IF NOT EXISTS pending_sources(receiver TEXT NOT NULL, source TEXT NOT NULL, retry_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(receiver,source));
           CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, code TEXT NOT NULL, job_id INTEGER, amount INTEGER);") .map_err(database)?;
+        Self::migrate_preparations(&conn)?;
+        Self::migrate_discovery(&conn)?;
         let has_capture_date: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM pragma_table_info('pending_sources') WHERE name='created_at_ms')",
             [], |r| r.get(0)).map_err(database)?;
@@ -246,6 +256,38 @@ impl Maintenance {
                 [],
             )
             .map_err(database)?;
+        }
+        let has_added: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('pending_sources') WHERE name='added_at_ms')", [], |r|r.get(0)).map_err(database)?;
+        if !has_added {
+            conn.execute(
+                "ALTER TABLE pending_sources ADD COLUMN added_at_ms INTEGER",
+                [],
+            )
+            .map_err(database)?;
+        }
+        for column in ["feed_cursor", "state_changed_at_ms"] {
+            let present:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('pending_sources') WHERE name=?1)",[column],|r|r.get(0)).map_err(database)?;
+            if !present {
+                conn.execute(
+                    &format!("ALTER TABLE pending_sources ADD COLUMN {column} INTEGER"),
+                    [],
+                )
+                .map_err(database)?;
+            }
+        }
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS task_sequence(id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER NOT NULL);
+          UPDATE pending_sources SET feed_cursor=-rowid WHERE feed_cursor IS NULL;
+          INSERT OR IGNORE INTO task_sequence SELECT 1,COALESCE(MAX(-feed_cursor),0) FROM pending_sources;
+          DROP TRIGGER IF EXISTS pending_added_time;
+          CREATE TRIGGER pending_added_time AFTER INSERT ON pending_sources BEGIN
+            UPDATE task_sequence SET value=value+1 WHERE id=1;
+            UPDATE pending_sources SET feed_cursor=-(SELECT value FROM task_sequence WHERE id=1),added_at_ms=CAST(strftime('%s','now') AS INTEGER)*1000,state_changed_at_ms=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE rowid=new.rowid;
+          END;
+          CREATE TRIGGER IF NOT EXISTS pending_state_time AFTER UPDATE OF error_code,retry_at ON pending_sources WHEN old.error_code IS NOT new.error_code OR old.retry_at!=new.retry_at BEGIN UPDATE pending_sources SET state_changed_at_ms=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE rowid=new.rowid; END;").map_err(database)?;
+        let has_snapshot:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('history_runs') WHERE name='snapshot_id')",[],|r|r.get(0)).map_err(database)?;
+        if !has_snapshot {
+            conn.execute("ALTER TABLE history_runs ADD COLUMN snapshot_id TEXT", [])
+                .map_err(database)?;
         }
         let history_date: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('history_members') WHERE name='created_at_ms')", [], |r|r.get(0)).map_err(database)?;
         if !history_date {
@@ -362,7 +404,7 @@ impl Maintenance {
         }
         let mut query = self
             .conn
-            .prepare("SELECT COUNT(*) FROM pending_sources WHERE receiver=?1 AND source=?2")
+            .prepare("SELECT COUNT(*) FROM pending_sources p WHERE receiver=?1 AND (source=?2 OR EXISTS(SELECT 1 FROM source_preparations r WHERE r.receiver=p.receiver AND r.request=p.source AND r.source_ref=?2))")
             .map_err(database)?;
         let mut result = std::collections::BTreeMap::new();
         for (id, _) in sources {
@@ -487,16 +529,26 @@ impl Maintenance {
             )
             .optional()
             .map_err(database)?;
-        let revision = if history { "revision" } else { "''" };
+        let source_ref = if history {
+            "source"
+        } else {
+            "COALESCE((SELECT source_ref FROM source_preparations r WHERE r.receiver=pending_sources.receiver AND r.request=pending_sources.source),source)"
+        };
+        let revision = if history {
+            "revision"
+        } else {
+            "COALESCE((SELECT revision FROM source_preparations r WHERE r.receiver=pending_sources.receiver AND r.request=pending_sources.source),'')"
+        };
         let retry = if history {
             "(SELECT retry_at FROM pending_sources p WHERE p.receiver=history_members.receiver AND p.source=history_members.source)"
         } else {
             "retry_at"
         };
-        let sql=format!("SELECT rowid,source,{revision},{retry},created_at_ms,{value} FROM {table} WHERE receiver=?1 AND (?2=0 OR ({value},rowid){comparison}(?3,?2)) ORDER BY {value} {direction},rowid {direction} LIMIT 100");
+        let error = if history { "NULL" } else { "error_code" };
+        let sql=format!("SELECT rowid,{source_ref},{revision},{retry},created_at_ms,{value},source,{error} FROM {table} WHERE receiver=?1 AND (?2=0 OR ({value},rowid){comparison}(?3,?2)) ORDER BY {value} {direction},rowid {direction} LIMIT 100");
         let rows = {
             let mut stmt = tx.prepare(&sql).map_err(database)?;
-            let rows=stmt.query_map(params![receiver,after,cursor],|r|Ok(json!({"cursor":r.get::<_,i64>(0)?,"source":r.get::<_,String>(1)?,"revision":r.get::<_,String>(2)?,"retry_at":r.get::<_,Option<i64>>(3)?,"created_at_ms":r.get::<_,Option<i64>>(4)?,"sort_value":r.get::<_,i64>(5)?}))).map_err(database)?.collect::<std::result::Result<Vec<_>,_>>().map_err(database)?;
+            let rows=stmt.query_map(params![receiver,after,cursor],|r|Ok(json!({"cursor":r.get::<_,i64>(0)?,"source":r.get::<_,String>(1)?,"revision":r.get::<_,String>(2)?,"retry_at":r.get::<_,Option<i64>>(3)?,"created_at_ms":r.get::<_,Option<i64>>(4)?,"sort_value":r.get::<_,i64>(5)?,"request_id":r.get::<_,String>(6)?,"error_code":r.get::<_,Option<String>>(7)?}))).map_err(database)?.collect::<std::result::Result<Vec<_>,_>>().map_err(database)?;
             rows
         };
         tx.commit().map_err(database)?;
@@ -511,7 +563,7 @@ impl Maintenance {
                 |r| r.get(0),
             )
             .map_err(database)?;
-        let mut s=self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND retry_at<=?2 ORDER BY created_at_ms DESC,source LIMIT 5").map_err(database)?;
+        let mut s=self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND retry_at<=?2 AND (error_code IS NULL OR error_code IN ('local_cache_budget','local_free_space')) ORDER BY created_at_ms DESC,source LIMIT 5").map_err(database)?;
         let ids = s
             .query_map(params![receiver, now()], |r| r.get::<_, String>(0))
             .map_err(database)?
@@ -523,7 +575,18 @@ impl Maintenance {
             .map_err(database)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(database)?;
-        Ok(json!({"count":count,"sources":ids,"unordered":unordered}))
+        // Resolve native access identifiers without changing shared queue order.
+        // Apple can resume explicit repeat requests after process exit without
+        // retaining a second platform-owned scheduling queue.
+        let preparations = ids.iter().map(|id| {
+            let row: Option<(String, Option<String>, bool)> = self.conn.query_row(
+                "SELECT source_ref,revision,repeating FROM source_preparations WHERE receiver=?1 AND request=?2",
+                params![receiver,id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)))
+                .optional().map_err(database)?;
+            let (source, revision, repeating) = row.unwrap_or((id.clone(), None, false));
+            Ok(json!({"request_id":id,"source":source,"revision":revision,"repeat":repeating}))
+        }).collect::<Result<Vec<_>>>()?;
+        Ok(json!({"count":count,"sources":ids,"unordered":unordered,"preparations":preparations}))
     }
     /// Metadata-only backfill also orders queues created by older app versions.
     /// Missing or inaccessible dates sort last; no source membership is removed.
@@ -547,23 +610,9 @@ impl Maintenance {
         tx.commit().map_err(database)?;
         Ok(())
     }
+    #[cfg(test)]
     pub fn source_result(&self, receiver: &str, source: &str, complete: bool) -> Result<()> {
-        if complete {
-            self.conn
-                .execute(
-                    "DELETE FROM pending_sources WHERE receiver=?1 AND source=?2",
-                    params![receiver, source],
-                )
-                .map_err(database)?;
-        } else {
-            self.conn
-                .execute(
-                    "UPDATE pending_sources SET retry_at=?3 WHERE receiver=?1 AND source=?2",
-                    params![receiver, source, now() + 300],
-                )
-                .map_err(database)?;
-        }
-        Ok(())
+        self.source_result_with_error(receiver, source, complete, None)
     }
     pub fn events(&self) -> Result<Value> {
         self.event_update(None)
@@ -772,6 +821,21 @@ mod tests {
     use backupduck_sender::JobState;
     use std::sync::atomic::{AtomicU64, Ordering};
     static SEQ: AtomicU64 = AtomicU64::new(0);
+    #[test]
+    fn fresh_receiver_recycles_verified_staging_without_overriding_saved_retention() {
+        let root = Temp::new();
+        let mut m = Maintenance::open(&root.0).unwrap();
+        assert!(m.settings.receiver_relay);
+        let mut retain = m.settings.clone();
+        retain.receiver_relay = false;
+        m.save(retain).unwrap();
+        drop(m);
+        assert!(!Maintenance::open(&root.0).unwrap().settings.receiver_relay);
+        let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+        legacy.as_object_mut().unwrap().remove("receiver_relay");
+        assert!(!serde_json::from_value::<Settings>(legacy).unwrap().receiver_relay,
+            "An old settings record without a relay flag must not begin deleting staging copies silently");
+    }
     #[test]
     fn event_ids_survive_new_entries_and_distinguish_identical_events() {
         let root = Temp::new();
@@ -1208,7 +1272,7 @@ mod tests {
         let mut m = Maintenance::open(&t.0).unwrap();
         assert_eq!(
             m.pending("a").unwrap(),
-            json!({"count":1,"sources":[],"unordered":["one"]})
+            json!({"count":1,"sources":[],"unordered":["one"],"preparations":[]})
         );
         assert_eq!(m.pending("b").unwrap()["sources"], json!(["one"]));
         let inputs = vec![("one".into(), "1".into()), ("two".into(), "1".into())];

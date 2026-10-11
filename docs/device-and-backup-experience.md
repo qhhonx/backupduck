@@ -1,11 +1,8 @@
 # Device identity, backup scope and receiver capabilities
 
-This specification records the product requirements from the September 12 review.
-It describes intended behavior, not a claim that every feature is implemented.
-The reference PixelBridge checkout was fast-forwarded to `b424f81`
-(`0.1.0-beta.16`). Its burst implementation enumerates all burst members and
-annotates delivery copies with GCamera BurstID/BurstPrimary. BackupDuck retains
-its own transport and original-preservation model instead of copying that pipeline.
+This document describes device identity, backup scope and receiver capabilities.
+Requirements and implementation details are separate; supported behavior must be
+established by the relevant platform checks.
 
 ## Device names
 
@@ -291,15 +288,18 @@ and immediate refresh on entry. A refresh already in progress is not duplicated.
 Original budget controls preserve exact stored byte values, including custom
 limits that are not whole GiB.
 
-### Optional receiver relay mode
+### Receiver staging-original reclamation
 
-The storage page offers “Reclaim originals after saving to gallery”, off by
-default. Enabling requires a native explanation/confirmation: this is local
+The storage page offers “Reclaim originals after saving to gallery”, on for
+fresh installations starting with the v1.2.4 acceptance revision. Existing saved
+preferences remain unchanged; older settings that omit the field retain originals.
+Enabling for an existing receiver requires a native explanation/confirmation: this is local
 gallery storage, not cloud backup, and converted motion/burst originals will
 no longer be recoverable from this receiver. Turning the switch off prevents
 new reclamation and does not restore earlier files. Sender UI stays neutral.
 
-Rust persists `receiver_relay` with a false migration default. Before writing a
+Rust uses a true fresh-install default and a false missing-field migration default
+for `receiver_relay`. Before writing a
 delivery item, the Android host persists its expected locator, size and SHA-256.
 It verifies bytes while writing, marks the owned MediaStore item ready, then
 reopens and hashes the saved file. Indexed size or a successful insertion alone

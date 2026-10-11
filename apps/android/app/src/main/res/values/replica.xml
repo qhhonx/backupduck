@@ -5,15 +5,15 @@
     <string name="duck_battery_temp">Battery temperature</string>
     <string name="duck_free">Available storage</string>
     <string name="duck_battery">Battery</string>
-    <string name="duck_batch">Current reception</string>
+    <string name="duck_batch">Reception overview</string>
     <string name="duck_all_records">All records ›</string>
-    <string name="duck_pause">Pause reception</string>
-    <string name="duck_resume">Resume reception</string>
+    <string name="duck_pause">Pause new transfers</string>
+    <string name="duck_resume">Resume new transfers</string>
     <string name="duck_how_pair">How to pair?</string>
-    <string name="duck_pair_iphone">Connect iPhone / iPad</string>
-    <string name="duck_pair_iphone_note">Show a code for your iPhone to scan</string>
-    <string name="duck_pair_mac">Connect Mac</string>
-    <string name="duck_pair_mac_note">Scan the pairing code shown on your Mac</string>
+    <string name="duck_pair_iphone">Connect a phone</string>
+    <string name="duck_pair_iphone_note">Show the Pixel code for iPhone / Android Sender to scan</string>
+    <string name="duck_pair_mac">Connect a computer</string>
+    <string name="duck_pair_mac_note">Scan a Mac / Windows Sender code with Pixel</string>
     <string name="duck_pair_auto">Choosing a connection method starts reception automatically.</string>
     <string name="duck_cloud_note">After saving to the phone gallery, Google Photos handles cloud backup.</string>
     <string name="duck_ready_connect">Ready to connect</string>
@@ -25,6 +25,7 @@
     <string name="duck_online">Online</string>
     <string name="duck_paused">Paused</string>
     <string name="duck_status_guide">Status guide</string>
+    <string name="duck_status_guide_link">Status guide ›</string>
     <string name="duck_advanced_filters">More filters</string>
     <string name="duck_count">%1$d items · %2$d saved</string>
     <string name="duck_all">All</string>
@@ -84,7 +85,7 @@
     <string name="duck_received_short">Originals received</string>
     <string name="duck_language">Language</string>
 <string name="duck_relay_keep">Automatic reclaim</string>
-<string name="duck_reception_paused">Reception paused</string>
+<string name="duck_reception_paused">New transfers paused</string>
 <string name="duck_pause_note">Resume to receive new files. Received originals remain.</string>
 <string name="duck_gallery_failed">Gallery processing failed</string>
 <string name="duck_view_tasks">View tasks</string>
@@ -97,6 +98,12 @@
 <string name="duck_original_retained">Retained on Pixel for processing retries</string>
 <string name="duck_cloud_title">Google Photos cloud</string>
 <string name="duck_cloud_unknown">Confirm in Google Photos. BackupDuck cannot read this status.</string>
-<string name="duck_receive_done">Files saved</string>
+<string name="duck_receive_done">Saved to Pixel gallery</string>
 <string name="duck_failed_note">Originals retained. Retry processing in file details.</string>
+    <string name="duck_new_reception_only">Only new transfers pause. Processing received files continues; resuming still respects temperature and space protection.</string>
+    <string name="receiver_device_state">Device status</string>
+    <string name="receiver_recent_records">Recent records</string>
+    <string name="receiver_home_recent_empty">No received items yet</string>
+    <string name="receiver_recent_failed">Recent records could not be read. Existing received files and gallery results are unchanged.</string>
+    <string name="receiver_recent_retry">Retry reading</string>
 </resources>

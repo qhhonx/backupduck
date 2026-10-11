@@ -23,11 +23,11 @@ class BrowserManagementActivity:AppCompatActivity() {
             var applying=false
             val enabled=duckSwitch(ReceiverDashboardSettings.enabled(this)) {}
             duckSetting(group,getString(R.string.duck_browser_enable),getString(R.string.duck_browser_disable_note),enabled)
-            duckSetting(group,getString(R.string.duck_browser_access),getString(R.string.duck_browser_access_note),action={access.access {
+            duckSetting(group,getString(R.string.duck_browser_access),action={access.access {
                 applying=true;enabled.isChecked=ReceiverDashboardSettings.enabled(this);applying=false
             }})
-            duckSetting(group,getString(R.string.dashboard_manage_code),getString(R.string.duck_code_persistence),action={access.code()})
-            duckSetting(group,getString(R.string.dashboard_revoke),getString(R.string.duck_browser_revoke_summary),action={access.revoke()})
+            duckSetting(group,getString(R.string.dashboard_manage_code),action={access.code()})
+            duckSetting(group,getString(R.string.dashboard_revoke),action={access.revoke()})
             val failure=duckFailure(panel,getString(R.string.dashboard_unavailable))
             lateinit var startup:BrowserStartupUI
             enabled.setOnCheckedChangeListener {_,checked ->

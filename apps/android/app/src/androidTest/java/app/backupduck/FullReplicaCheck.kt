@@ -96,14 +96,26 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
         main {nav.selectedItemId=3};Thread.sleep(800);shot("storage")
         main {nav.selectedItemId=4};settle();shot("settings")
         val experiments=startActivitySync(Intent(targetContext,ExperimentsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ExperimentsActivity
-        try {settle();shot("experiments")} finally {main {experiments.finish()}}
+        try {settle();check(textExists(R.string.cleanup_title)&&!textExists(R.string.photos_diagnostics_title));shot("experiments")} finally {main {experiments.finish()}}
         for((route,diagnostics) in listOf("cleanup" to false,"bind" to false,"progress" to false,"diagnostics" to true)) {
             val page=startActivitySync(Intent(targetContext,PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("route",route).putExtra("diagnostics",diagnostics)) as PhotosProbeActivity
-            try {settle();shot(if(route=="diagnostics")"photos-diagnostics" else route);if(route=="cleanup") {click(R.string.duck_cleanup_permission);settle();check(textExists(R.string.duck_cleanup_cloud_boundary));shot("cleanup-consent");back()}}
+            try {settle();if(diagnostics)check(textExists(R.string.photos_probe_steps)&&textExists(R.string.experiment_probe_intro));shot(if(route=="diagnostics")"photos-diagnostics" else route);if(route=="cleanup") {check(textExists(R.string.experiment_setup)&&textExists(R.string.experiment_account));check(!textExists(R.string.cleanup_now));click(R.string.experiment_permission);settle();check(textExists(R.string.cleanup_disclosure));shot("cleanup-consent");back()}}
             finally {main {page.finish()}}
         }
         val updates=startActivitySync(Intent(targetContext,UpdatesActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as UpdatesActivity
-        try {settle();check(textExists(R.string.duck_update_development));shot("updates")} finally {main {updates.finish()}}
+        try {
+            settle();check(textExists(R.string.duck_update_development))
+            main {
+                val actions=views(root()).filterIsInstance<com.google.android.material.button.MaterialButton>()
+                val checkButton=actions.single {it.text.toString()==targetContext.getString(R.string.updates_check)}
+                val website=actions.single {it.text.toString()==targetContext.getString(R.string.official_website)}
+                val upper=IntArray(2);val lower=IntArray(2)
+                checkButton.getLocationOnScreen(upper);website.getLocationOnScreen(lower)
+                check(lower[1]-(upper[1]+checkButton.height)>=updates.dp(8)) {"Update actions touch or overlap"}
+                check(upper[0]==lower[0]&&checkButton.width==website.width)
+            }
+            shot("updates")
+        } finally {main {updates.finish()}}
         return "PASS: real pairing pending/error/retry; thermal persistence; conversion; rename validation/persistence; devices; exact storage/log limits; cancelled and saved relay scope; export and stop notices; settings/storage/diagnostics/experiments/account/progress/update screens. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
     } finally {
         RelayMaintenance.cancelAutomatic()

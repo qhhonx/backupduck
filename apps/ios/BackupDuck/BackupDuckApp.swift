@@ -6,6 +6,10 @@ import SwiftUI
   @StateObject private var library = PhotoLibraryModel()
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
+  @AppStorage("duckAppearance") private var appearance = "system"
+  private var colorScheme: ColorScheme? {
+    appearance == "dark" ? .dark : appearance == "light" ? .light : nil
+  }
   private var shouldKeepScreenAwake: Bool {
     keepScreenAwake && scenePhase == .active && model.ready && !model.paused
       && model.pairing != nil && !model.waitingForNetwork && !model.receiverUnavailable
@@ -27,7 +31,7 @@ import SwiftUI
         IOSSettingsPage(model: model).tabItem {
           Label("nav_settings", systemImage: "gearshape")
         }
-      }.tint(DuckColors.action).task { await model.open() }
+      }.background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake

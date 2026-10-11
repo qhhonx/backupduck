@@ -42,13 +42,11 @@ internal class StoragePage(private val activity:MainActivity,private val receive
         summary.addView(copies,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         summary.addView(other,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         val retention=duckGroup(panel,getString(R.string.duck_retention))
-        duckSetting(retention,getString(R.string.duck_keep),getString(R.string.duck_keep_note),keep) {showRetention()}
-        duckSetting(retention,getString(R.string.duck_limit),getString(R.string.duck_limit_note),budget) {showStorageControls(StorageSection.LIMITS) {refresh(force=true)}}
-        val row=duckSetting(retention,getString(R.string.duck_pending),null,failures) {openTransfers(failed=true)}
-        val words=row.parent as LinearLayout
-        words.addView(pendingNote,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(5)})
-        duckWarning(panel,getString(R.string.duck_cleanup_title),getString(R.string.duck_cleanup_note))
+        receiverSetting(retention,getString(R.string.storage_flow_policy_entry),null,keep) {showRetention()}
+        receiverSetting(retention,getString(R.string.duck_limit),null,budget) {showStorageControls(StorageSection.LIMITS) {refresh(force=true)}}
+        val row=receiverSetting(retention,getString(R.string.duck_pending),null,failures) {openTransfers(failed=true)}
         panel.addView(duckButton(getString(R.string.duck_storage_detail),action=::showDetails),LinearLayout.LayoutParams(-1,dp(48)))
+
     }}
     internal fun showRetention() {
         val sheet=DuckSheet(activity,activity.getString(R.string.duck_retention))
@@ -70,20 +68,16 @@ internal class StoragePage(private val activity:MainActivity,private val receive
                     activity.duckProblem(sheet.body,activity.getString(R.string.storage_unavailable))
                     sheet.body.addView(activity.duckButton(activity.getString(R.string.duck_retry)) {load()});return@launch
                 }
-                val group=activity.duckGroup(sheet.body)
-                activity.duckSetting(group,activity.getString(R.string.storage_originals_title),size(usage.getOrThrow().getLong("ready_bytes")),activity.duckText("",13))
-                activity.duckSetting(group,activity.getString(R.string.storage_partial,size(usage.getOrThrow().getLong("partial_bytes"))),control=activity.duckText("",13))
+                val originals=activity.duckGroup(sheet.body,activity.getString(R.string.receiver_refinement_staging))
+                activity.receiverSetting(originals,activity.getString(R.string.storage_flow_originals_stat),null,activity.duckText(size(usage.getOrThrow().getLong("ready_bytes")),13,true))
+                activity.receiverSetting(originals,activity.getString(R.string.receiver_refinement_partial),control=activity.duckText(size(usage.getOrThrow().getLong("partial_bytes")),13,true))
+                val gallery=activity.duckGroup(sheet.body,activity.getString(R.string.storage_gallery_title))
                 inventory.onSuccess {value ->
-                    activity.duckSetting(group,activity.getString(R.string.storage_gallery_title),activity.getString(R.string.storage_gallery_amount,size(value.readyBytes),value.readyCount),activity.duckText("",13))
-                    activity.duckSetting(group,activity.getString(R.string.storage_gallery_pending,size(value.pendingBytes),value.pendingCount),control=activity.duckText("",13))
-                }.onFailure {activity.duckProblem(sheet.body,activity.getString(R.string.storage_unavailable))}
-                val config=configuration.getOrThrow().getJSONObject("settings")
-                activity.duckSetting(group,activity.getString(R.string.storage_limits),size(config.getLong("receiver_budget_bytes"))) {sheet.dismiss();activity.showStorageControls(StorageSection.LIMITS) {refresh(force=true)}}
-                activity.duckSetting(group,activity.getString(R.string.relay_check_history)) {sheet.dismiss();activity.checkHistoricalOriginals {refresh(force=true)}}
-                activity.duckSetting(group,activity.getString(R.string.originals_export),activity.getString(R.string.originals_export_note)) {sheet.dismiss();export()}
-                activity.duckSetting(group,activity.getString(R.string.receiver_open_photos)) {activity.openPhotos()}
-                RelayMaintenance.status.value?.let {activity.duckNotice(sheet.body,activity.getString(it))}
-                activity.duckNotice(sheet.body,activity.getString(R.string.storage_snapshot_note))
+                    activity.receiverSetting(gallery,activity.getString(R.string.storage_flow_gallery_ready),activity.getString(R.string.duck_items,value.readyCount.toInt()),activity.duckText(size(value.readyBytes),13,true))
+                    activity.receiverSetting(gallery,activity.getString(R.string.storage_flow_gallery_pending),activity.getString(R.string.duck_items,value.pendingCount.toInt()),activity.duckText(size(value.pendingBytes),13,true))
+                    activity.duckParagraph(activity.getString(R.string.storage_flow_gallery_summary)).also {sheet.body.addView(it)}
+                }.onFailure {activity.duckProblem(gallery,activity.getString(R.string.storage_unavailable))}
+
             }
         }
         sheet.setOnDismissListener {task?.cancel()};load()

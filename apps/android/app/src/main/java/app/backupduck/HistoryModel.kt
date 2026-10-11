@@ -19,45 +19,53 @@ internal data class HistoryItem(val cursor: Long, val id: String, val filename: 
         else -> R.string.receiver_item_received
     }
 }
+internal data class HistoryCounts(val total:Int,val published:Int,val failed:Int)
 internal data class HistoryState(val items: List<HistoryItem> = emptyList(), val total: Int = 0,
     val nextCursor: Long? = null, val loading: Boolean = false, val failed: Boolean = false,
-    val filter: String = "all", val kind: String = "all", val sender: String? = null)
+    val filter: String = "all", val kind: String = "all", val sender: String? = null,
+    val counts:HistoryCounts? = null)
 
 /** Rust applies filters and cursor pagination. UI keeps only requested pages. */
-internal class HistoryModel : ViewModel() {
+internal class HistoryModel(private val readPage:(JSONObject)->JSONObject = { NativeBridge.request(it) as JSONObject }) : ViewModel() {
     private val mutable = MutableStateFlow(HistoryState())
     val state = mutable.asStateFlow()
     private val requests = Mutex()
     private var generation = 0
+    private var loadedOnce=false
+    private var selecting=false
     suspend fun select(root: String, filter: String = mutable.value.filter, kind: String = mutable.value.kind, sender: String? = mutable.value.sender) {
-        generation++
-        mutable.value = HistoryState(filter = filter, kind = kind, sender = sender)
-        load(root, null, replace = true)
+        val requestedGeneration=++generation
+        selecting=true
+        try {load(root,null,replace=true,selection=HistoryState(filter=filter,kind=kind,sender=sender))} finally {if(requestedGeneration==generation)selecting=false}
     }
     suspend fun more(root: String) {
         val before = mutable.value.nextCursor ?: return
-        if (!mutable.value.loading) load(root, before, replace = false)
+        if (!selecting&&!mutable.value.loading) load(root, before, replace = false)
     }
     // Poll just the visible page, not every historical item loaded so far.
     suspend fun refreshVisible(root: String, firstVisible: Int) {
         val snapshot = mutable.value
-        if (snapshot.loading) return
+        if (selecting||snapshot.loading) return
         val start = (firstVisible - 4).coerceAtLeast(0).coerceAtMost(snapshot.items.size)
         val before = if (start == 0) null else snapshot.items[start - 1].cursor
         load(root, before, replace = false, refresh = true)
     }
-    private suspend fun load(root: String, before: Long?, replace: Boolean, refresh: Boolean = false) {
+    private suspend fun load(root: String, before: Long?, replace: Boolean, refresh: Boolean = false,selection:HistoryState?=null) {
         val expected = generation
         requests.withLock {
             if (expected != generation) return
-            val snapshot = mutable.value
-            if (!refresh) mutable.value = snapshot.copy(loading = true, failed = false)
+            val previous=mutable.value
+            val snapshot=selection ?: previous
+            // Short filter changes replace rows atomically on completion. Keep
+            // the previous truthful category/list visible while reading rather
+            // than blanking it for every native request.
+            if (!refresh&&(selection==null||!loadedOnce)) mutable.value=snapshot.copy(loading=true,failed=false)
             val result = withContext(Dispatchers.IO) { runCatching {
                 val query = JSONObject().put("op", "receiver_history").put("root", root)
                     .put("state", snapshot.filter).put("kind", snapshot.kind)
                 if (snapshot.sender != null) query.put("sender_id",snapshot.sender)
                 if (before != null) query.put("before", before)
-                val data = NativeBridge.request(query) as JSONObject
+                val data = readPage(query)
                 val rows = data.getJSONArray("items")
                 val items = (0 until rows.length()).map { i ->
                     val row = rows.getJSONObject(i)
@@ -68,10 +76,13 @@ internal class HistoryModel : ViewModel() {
                         row.getString("processing"), if (row.isNull("processing_error")) null else row.getString("processing_error"),
                         row.getBoolean("originals_released"), row.optString("release_reason").takeIf { it == "gallery" || it == "archive" }, names, row.optLong("captured_at_ms").takeIf { it > 0 }, if (row.isNull("burst_primary")) null else row.getBoolean("burst_primary"),row.optLong("received_at_ms").takeIf {it>0},row.optLong("published_at_ms").takeIf {it>0})
                 }
-                Triple(items, data.getInt("total"), if (data.isNull("next_cursor")) null else data.getLong("next_cursor"))
+                val counts=data.optJSONObject("counts")?.let {HistoryCounts(it.getInt("total"),it.getInt("published"),it.getInt("failed"))}
+                HistoryState(items=items,total=data.getInt("total"),nextCursor=if(data.isNull("next_cursor"))null else data.getLong("next_cursor"),counts=counts)
             } }
             if (expected != generation) return
-            result.onSuccess { (page, total, cursor) ->
+            loadedOnce=true
+            result.onSuccess { update ->
+                val page=update.items;val total=update.total;val cursor=update.nextCursor
                 val merged = if (replace) page else {
                     // Remove rows in this refreshed range that no longer match the filter.
                     val floor = page.lastOrNull()?.cursor ?: 0
@@ -83,9 +94,9 @@ internal class HistoryModel : ViewModel() {
                 val next = if (!refresh || snapshot.items.isEmpty() || before == snapshot.nextCursor) cursor
                     else if (cursor == null && (page.isEmpty() || merged.lastOrNull()?.cursor == page.last().cursor)) null
                     else snapshot.nextCursor
-                mutable.value = snapshot.copy(items = merged, total = total, nextCursor = next, loading = false, failed = false)
+                mutable.value = snapshot.copy(items = merged, total = total, nextCursor = next, loading = false, failed = false,counts=update.counts)
             }.onFailure {
-                mutable.value = snapshot.copy(loading = false, failed = true)
+                mutable.value=(if(selection!=null)previous else snapshot).copy(loading=false,failed=true)
             }
         }
     }

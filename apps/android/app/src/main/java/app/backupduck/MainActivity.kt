@@ -11,7 +11,6 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
@@ -34,14 +33,16 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
+    private val currentSettingValues=mutableListOf<Pair<TextView,()->String>>()
     private lateinit var pairingUI:PairingUI
 
     private val history: HistoryModel by viewModels()
     private val recentHistory = HistoryModel()
-    private var lastRecentRefresh = 0L
     private val receiverRoot get() = "$filesDir/receiver"
     private var selectedPage = 1
     private lateinit var navigation: BottomNavigationView
+    private var experimentsDiscoveryDot: View? = null
+    private var experimentsDiscoveryTitle: TextView? = null
     internal lateinit var receiverHome: ReceiverHome
         private set
     private lateinit var storagePage: StoragePage
@@ -81,9 +82,12 @@ class MainActivity : AppCompatActivity() {
         }
         super.onCreate(savedInstanceState)
         RelayMaintenance.schedule(this)
-        devicePanels = DevicePanels(this) {if(::receiverHome.isInitialized) receiverHome.render(ReceiverState.snapshot.value,devicePanels.name,false)}
+        devicePanels = DevicePanels(this) {
+            if(::receiverHome.isInitialized) receiverHome.render(ReceiverState.snapshot.value,devicePanels.name,false)
+            if(::historyPage.isInitialized) historyPage.render(history.state.value)
+        }
         pairingUI=PairingUI(this,::beginReceiving) {
-            scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.receiver_scan_prompt)).setBeepEnabled(false).setBarcodeImageEnabled(false).setOrientationLocked(false))
+            scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.receiver_scan_prompt)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
         }
         selectedPage = savedInstanceState?.getInt("page", 1) ?: 1
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(getColor(R.color.duck_surface)) }
@@ -91,11 +95,12 @@ class MainActivity : AppCompatActivity() {
             title = getString(R.string.nav_receive); setTitleTextAppearance(this@MainActivity,R.style.DuckToolbarTitle)
             setBackgroundColor(getColor(R.color.duck_surface)); contentInsetStartWithNavigation=dp(16)
             menu.add(0,100,0,R.string.receiver_help_title).apply {
+                isVisible=false
                 setIcon(R.drawable.ic_info)
                 iconTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_text_secondary))
                 setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
-            setOnMenuItemClickListener { if(selectedPage==2) historyPage.showFilters() else openHelp();true }
+            setOnMenuItemClickListener {if(selectedPage==2)historyPage.showFilters();true}
         }
         root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
         root.addView(duckRule())
@@ -120,12 +125,12 @@ class MainActivity : AppCompatActivity() {
             itemIconSize=dp(22)
             itemActiveIndicatorColor=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_action_background))
             itemActiveIndicatorWidth=dp(56);itemActiveIndicatorHeight=dp(32)
-            itemPaddingTop=dp(8);itemPaddingBottom=dp(12)
+            duckNavigation(this)
             titles.forEachIndexed { index, title -> menu.add(0, index + 1, index, title).setIcon(icons[index]) }
             setOnItemSelectedListener { item ->
                 selectedPage = item.itemId
                 toolbar.setTitle(titles[selectedPage - 1])
-                toolbar.menu.findItem(100).apply { isVisible=selectedPage<=2;setIcon(if(selectedPage==2) R.drawable.ic_more else R.drawable.ic_info) }
+                toolbar.menu.findItem(100).apply {isVisible=selectedPage==2;setIcon(R.drawable.ic_more);setTitle(R.string.duck_advanced_filters)}
                 pages.forEachIndexed { index, page -> page.visibility = if (index + 1 == selectedPage) View.VISIBLE else View.GONE }
                 if (selectedPage == 3) storagePage.refresh(force = true)
                 true
@@ -135,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(navigation, LinearLayout.LayoutParams(-1, if(resources.configuration.fontScale>1.3f) -2 else dp(80)))
         setContentView(root)
         navigation.selectedItemId = selectedPage
+        refreshDiscovery()
         handleDestination(intent)
         storagePage.refresh(force = true, includeDetails = selectedPage == 3)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -148,6 +154,24 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { history.state.collect { historyPage.render(it) } }
                 launch { ReceiverState.snapshot.collect(::renderReceiver) }
+                launch {
+                  var knownProgressIDs=emptySet<String>()
+                  var knownStates=emptyMap<String,String?>()
+                  ReceiverProgress.snapshot.collect {progress ->
+                    historyPage.progress(progress)
+                    receiverHome.progress(progress)
+                    val added=progress.keys-knownProgressIDs
+                    val states=progress.mapValues {it.value.processing}
+                    val statusChanged=states.any {(id,value)->value!=knownStates[id]}
+                    knownStates=states
+                    knownProgressIDs=progress.keys.toSet()
+                    if(added.isNotEmpty()||statusChanged) {
+                        // Both pages must reconcile the same result even while one tab is hidden.
+                        recentHistory.refreshVisible(receiverRoot,0)
+                        history.refreshVisible(receiverRoot,historyPage.firstVisible())
+                    }
+                  }
+                }
                 launch { recentHistory.state.collect { state ->
                     receiverHome.history(state)
                 } }
@@ -155,8 +179,7 @@ class MainActivity : AppCompatActivity() {
                     while (isActive) {
                         devicePanels.refresh()
                         renderReceiver(ReceiverState.snapshot.value)
-                        if (selectedPage == 1 && SystemClock.elapsedRealtime() - lastRecentRefresh > 8_000) {
-                            lastRecentRefresh = SystemClock.elapsedRealtime()
+                        if (selectedPage == 1) {
                             recentHistory.refreshVisible(receiverRoot, 0)
                         }
                         if (selectedPage == 2) history.refreshVisible(receiverRoot, historyPage.firstVisible())
@@ -168,6 +191,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
     override fun onNewIntent(next:Intent) {super.onNewIntent(next);setIntent(next);handleDestination(next)}
+    override fun onResume() {
+        super.onResume()
+        if (::navigation.isInitialized) refreshDiscovery()
+    }
+    private fun refreshDiscovery() {
+        val unseen = FeatureDiscovery(this).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP)
+        experimentsDiscoveryDot?.visibility = if (unseen) View.VISIBLE else View.GONE
+        experimentsDiscoveryTitle?.contentDescription = if (unseen)
+            getString(R.string.discovery_entry_label, getString(R.string.experiments_title)) else null
+        if (unseen) navigation.getOrCreateBadge(4).apply {
+            clearNumber()
+            backgroundColor = getColor(R.color.duck_brand_accent)
+            setContentDescriptionNumberless(getString(R.string.discovery_available))
+            isVisible = true
+        } else navigation.removeBadge(4)
+    }
     private fun handleDestination(next:Intent) {
         when(next.getStringExtra("destination")) {
             "receive"->navigation.selectedItemId=1
@@ -190,6 +229,7 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onStart() {
         super.onStart()
+        currentSettingValues.forEach {(view,value)->val next=value();if(view.text.toString()!=next)view.text=next}
         if (ReceiverPreferences.enabled(this)) startReceiverService()
         val updates = AppUpdates.preferences(this)
         val now = System.currentTimeMillis()
@@ -205,7 +245,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun receiverPage(): View {
         receiverHome=ReceiverHome(this,::choosePairing,{pairingUI.iphone()},{pairingUI.mac()},
-            {navigation.selectedItemId=2},::pauseReceiving) {
+            {navigation.selectedItemId=2},{lifecycleScope.launch {recentHistory.refreshVisible(receiverRoot,0)}},::pauseReceiving) {
             receiverProblem(ReceiverState.snapshot.value)?.let { problem -> when(problem.recovery) {
                 ReceiverRecovery.NETWORK -> runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }.onFailure { openHelp(ReceiverHelpTopic.CONNECTION) }
                 ReceiverRecovery.STORAGE -> navigation.selectedItemId=3
@@ -230,71 +270,91 @@ class MainActivity : AppCompatActivity() {
     }
     private fun settingsPage(): View = scrollPage { panel ->
         panel.setPadding(dp(16),dp(8),dp(16),dp(24))
-        panel.addView(duckText(getString(R.string.duck_settings_intro),13,true),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(24) })
         val receive=duckGroup(panel,getString(R.string.duck_receive_settings))
-        duckSetting(receive,getString(R.string.duck_restore),getString(if(Build.VERSION.SDK_INT>=35) R.string.receiver_restore_note_modern else R.string.duck_restore_note),
+        receiverSetting(receive,getString(R.string.duck_restore),null,
             duckSwitch(ReceiverPreferences.restore(this)) { ReceiverPreferences.setRestore(this,it) })
         val thermal=duckText("",13,true)
         fun thermalValue() {thermal.text=if(ReceiverThermalSettings.enabled(this)) "${ReceiverThermalSettings.threshold(this)} °C" else getString(R.string.duck_off)}
         thermalValue()
-        duckSetting(receive,getString(R.string.duck_thermal),getString(R.string.duck_thermal_note),thermal) {showThermalSettings {thermalValue()}}
+        receiverSetting(receive,getString(R.string.duck_thermal),null,thermal) {showThermalSettings {thermalValue()}}
         val conversion=duckText("",13,true)
         fun conversionValue() {conversion.text=getString(if(MotionConversionSettings.enabled(this)) R.string.duck_on else R.string.duck_off)}
         conversionValue()
-        duckSetting(receive,getString(R.string.duck_conversion),getString(R.string.duck_conversion_note),conversion) {showConversionSettings {conversionValue()}}
-        val browser=duckGroup(panel,getString(R.string.duck_browser))
-        duckSetting(browser,getString(R.string.dashboard_section),getString(R.string.duck_access_note),
-            action={startActivity(Intent(this,BrowserManagementActivity::class.java))})
+        receiverSetting(receive,getString(R.string.duck_conversion),null,conversion) {showConversionSettings {conversionValue()}}
+        receiverSetting(receive,getString(R.string.receiver_stop),action=::confirmStopReceiving)
+        val browser=duckGroup(panel)
+        val browserValue=duckText("",13,true);val browserCurrent={getString(if(ReceiverDashboardSettings.enabled(this))R.string.duck_on else R.string.duck_off)};browserValue.text=browserCurrent();currentSettingValues+=browserValue to browserCurrent
+        receiverSetting(browser,getString(R.string.dashboard_section),control=browserValue,action={startActivity(Intent(this,BrowserManagementActivity::class.java))})
         val device=duckGroup(panel,getString(R.string.duck_device_appearance))
         devicePanels.compactSettings(device)
         val appearanceValue=duckText(getString(when(delegate.localNightMode) { AppCompatDelegate.MODE_NIGHT_YES -> R.string.appearance_dark;AppCompatDelegate.MODE_NIGHT_NO -> R.string.appearance_light;else -> R.string.appearance_system }),13,true)
-        duckSetting(device,getString(R.string.settings_appearance),control=appearanceValue) {
+        receiverSetting(device,getString(R.string.settings_appearance),control=appearanceValue) {
             val modes=listOf(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,AppCompatDelegate.MODE_NIGHT_NO,AppCompatDelegate.MODE_NIGHT_YES)
             val labels=listOf(R.string.appearance_system,R.string.appearance_light,R.string.appearance_dark)
             val sheet=DuckSheet(this,getString(R.string.settings_appearance))
             val choices=duckGroup(sheet.body)
-            labels.forEachIndexed { i,label -> duckSetting(choices,getString(label),control=if(delegate.localNightMode==modes[i]) duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
+            labels.forEachIndexed { i,label -> receiverSetting(choices,getString(label),control=if(delegate.localNightMode==modes[i]) duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
                 sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putInt("mode",modes[i]).apply();delegate.localNightMode=modes[i]
             } };sheet.show()
         }
         val language=if(Build.VERSION.SDK_INT>=33) getSystemService(android.app.LocaleManager::class.java).applicationLocales.toLanguageTags() else AppCompatDelegate.getApplicationLocales().toLanguageTags()
-        duckSetting(device,getString(R.string.duck_language),control=duckText(if(language.startsWith("zh")) "简体中文" else if(language.startsWith("en")) "English" else getString(R.string.appearance_system),13,true)) {
+        receiverSetting(device,getString(R.string.duck_language),control=duckText(if(language.startsWith("zh")) "简体中文" else if(language.startsWith("en")) "English" else getString(R.string.appearance_system),13,true)) {
             val sheet=DuckSheet(this,getString(R.string.duck_language))
             val choices=duckGroup(sheet.body)
-            listOf("" to getString(R.string.appearance_system),"zh-CN" to "简体中文","en" to "English").forEach { (tag,label) -> duckSetting(choices,label,control=if(language.equals(tag,true))duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
+            listOf("" to getString(R.string.appearance_system),"zh-CN" to "简体中文","en" to "English").forEach { (tag,label) -> receiverSetting(choices,label,control=if(language.equals(tag,true))duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
                 sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply();AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
             } };sheet.show()
         }
-        val help=duckGroup(panel,getString(R.string.duck_help_about))
-        duckSetting(help,getString(R.string.receiver_help_title),action={openHelp()})
-        duckSetting(help,getString(R.string.updates_title),getString(R.string.settings_version,packageManager.getPackageInfo(packageName,0).versionName ?: ""),action={startActivity(Intent(this,UpdatesActivity::class.java))})
-        duckSetting(help,getString(R.string.settings_diagnostics),action=::showDiagnostics)
-        duckSetting(help,"备份鸭 / BackupDuck",getString(R.string.duck_brand_note),duckPill(packageManager.getPackageInfo(packageName,0).versionName ?: ""))
+        recordsAndExports(panel)
+        val experiments=duckGroup(panel,getString(R.string.experiments_title))
+        val experimentTitle=receiverSetting(experiments,getString(R.string.experiments_title)) {startActivity(Intent(this,ExperimentsActivity::class.java))}
+        val words=experimentTitle.parent as LinearLayout
+        words.removeView(experimentTitle)
+        val discoveryHeading=LinearLayout(this).apply {gravity=android.view.Gravity.CENTER_VERTICAL}
+        discoveryHeading.addView(experimentTitle,LinearLayout.LayoutParams(0,-2,1f))
+        experimentsDiscoveryDot=duckDiscoveryDot().also {dot ->
+            discoveryHeading.addView(dot,LinearLayout.LayoutParams(dp(8),dp(8)).apply {marginStart=dp(8)})
+        }
+        words.addView(discoveryHeading,0)
+        experimentsDiscoveryTitle=experimentTitle
+        val help=duckGroup(panel,getString(R.string.receiver_application_help))
+        receiverSetting(help,getString(R.string.updates_title),control=duckText(receiverDisplayVersion(),13,true).apply {
+            tag="duck.version"
+            contentDescription=receiverVersionLabel()
+            if(resources.configuration.fontScale<=1.3f) {maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END}
+        },action={startActivity(Intent(this,UpdatesActivity::class.java))})
+        receiverSetting(help,getString(R.string.receiver_help_title),action={openHelp()})
+    }
+    private fun recordsAndExports(parent:LinearLayout, heading:Boolean=true) {
+        val group=duckGroup(parent,if(heading)getString(R.string.receiver_records_exports) else null)
+        receiverSetting(group,getString(R.string.logs_retention_settings)) {showStorageControls(StorageSection.LOGS) {}}
+        receiverSetting(group,getString(R.string.logs_export)) {showReportExport(false)}
+        receiverSetting(group,getString(R.string.gallery_receipts_export)) {exportGalleryRecords()}
+        receiverSetting(group,getString(R.string.originals_export)) {
+            showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
+        }
     }
     internal fun showDiagnostics() {
-        val page=DuckPage(this,getString(R.string.settings_diagnostics))
-        val group=duckGroup(page.body)
-        duckSetting(group,getString(R.string.device_known_senders)) {devicePanels.showPeers()}
-        duckSetting(group,getString(R.string.logs_retention_settings)) {showStorageControls(StorageSection.LOGS) {}}
-        duckSetting(group,getString(R.string.logs_export)) {showReportExport(false)}
-        duckSetting(group,getString(R.string.gallery_receipts_export)) {showReportExport(true)}
-        duckSetting(group,getString(R.string.experiments_title),getString(R.string.experiments_description)) {startActivity(Intent(this,ExperimentsActivity::class.java))}
-        duckSetting(group,getString(R.string.receiver_stop),getString(R.string.duck_stop_summary)) {
-            duckConfirm(R.string.receiver_stop,R.string.duck_stop_service_intro,R.string.receiver_stop,true,notice=R.string.duck_reset_unchanged) {dialog ->
-                ReceiverPreferences.setEnabled(this,false);stopService(Intent(this,ReceiverService::class.java));dialog.dismiss();page.dismiss();renderReceiver(ReceiverState.snapshot.value)
-            }
-        }
+        val page=DuckPage(this,getString(R.string.receiver_records_exports))
+        recordsAndExports(page.body,false)
         page.show()
     }
+    private fun confirmStopReceiving() {
+        duckConfirm(R.string.receiver_stop,R.string.duck_stop_service_intro,R.string.receiver_stop,true,notice=R.string.duck_reset_unchanged) {dialog ->
+            ReceiverPreferences.setEnabled(this,false);stopService(Intent(this,ReceiverService::class.java));dialog.dismiss();renderReceiver(ReceiverState.snapshot.value)
+        }
+    }
+    internal fun exportGalleryRecords() {showReportExport(true)}
     private var reportPage:DuckPage?=null
     private var reportGallery=false
+    private fun receiverDisplayVersion():String {
+        return receiverVersionLabel()
+    }
     private fun showReportExport(gallery:Boolean) {
-        val page=DuckPage(this,getString(R.string.duck_export_title));reportPage=page;reportGallery=gallery
-        val group=duckGroup(page.body)
-        duckSetting(group,getString(if(gallery) R.string.gallery_receipts_export else R.string.logs_export),getString(if(gallery) R.string.duck_report_gallery else R.string.duck_report_logs),duckText("",13))
-        duckNotice(page.body,getString(R.string.duck_export_report_note))
+        val page=DuckPage(this,getString(if(gallery)R.string.gallery_receipts_export else R.string.logs_export));reportPage=page;reportGallery=gallery
+        page.body.addView(duckParagraph(getString(if(gallery)R.string.gallery_receipts_export_note else R.string.duck_report_logs)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(20)})
         page.body.addView(duckButton(getString(R.string.duck_choose_location),true) {
-            if(gallery) exportGalleryReceipts.launch("BackupDuck-gallery-receipts.json") else exportLogs.launch("BackupDuck-diagnostics.json")
+            if(gallery)exportGalleryReceipts.launch("BackupDuck-gallery-receipts.json") else exportLogs.launch("BackupDuck-diagnostics.json")
         },LinearLayout.LayoutParams(-1,-2));page.show()
     }
     private fun reportBusy() {reportPage?.takeIf {it.isShowing}?.body?.let {it.removeAllViews();duckNotice(it,getString(R.string.duck_exporting_report))}}
@@ -313,6 +373,7 @@ class MainActivity : AppCompatActivity() {
         val sheet=DuckSheet(this,getString(R.string.duck_operation_failed));duckProblem(sheet.body,getString(message))
         sheet.body.addView(duckButton(getString(R.string.duck_retry)) {sheet.dismiss();retry()});sheet.show()
     }
+    internal val hasKnownSenders get()=devicePanels.hasSenders
     internal val receiverDeviceName get()=devicePanels.name ?: Build.MODEL
     internal fun openConnection() {navigation.selectedItemId=1;choosePairing()}
     internal fun openTransfers(failed:Boolean=false) {

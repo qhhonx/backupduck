@@ -26,4 +26,9 @@
     <style name="DuckToolbarTitle" parent="TextAppearance.Material3.TitleLarge">
         <item name="android:textSize">24sp</item><item name="android:textStyle">bold</item><item name="android:fontFamily">sans-serif</item>
     </style>
+    <style name="DuckNavigationLabel" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">12sp</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:lineHeight">16sp</item>
+    </style>
 </resources>

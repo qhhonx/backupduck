@@ -28,3 +28,8 @@ __pycache__/
 
 **/.build/
 .vercel
+
+# Local development evidence and UI automation sessions
+/output/
+/artifacts/
+/.playwright-cli/

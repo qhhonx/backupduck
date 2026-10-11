@@ -26,6 +26,14 @@ struct DeviceSnapshot: Decodable {
   let peers: [Peer]
 }
 extension BackupModel {
+  /// Names are optional display metadata, scoped to the job's stored target id.
+  /// A different current pairing must not relabel an older task.
+  func receiverDeviceName(for job: BackupJob) -> String? {
+    guard let id = job.receiverID, !id.isEmpty,
+      let name = deviceSnapshot?.peers.first(where: { $0.key == id })?.profile.name,
+      !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return name
+  }
   var peerDevice: DeviceProfile? {
     guard let pairing else { return nil }
     return deviceSnapshot?.peers.first { $0.key == pairing.receiverID }?.profile
@@ -98,31 +106,49 @@ struct DeviceIdentitySettings: View {
     }.task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
   }
 }
-private struct DeviceNameEditor: View {
+struct DeviceNameEditor: View {
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss
   @State var name: String
-  var body: some View {
-    NavigationStack {
-      Form {
-        TextField("device_name", text: $name).accessibilityIdentifier("device.name")
-        Text("device_name_note").foregroundStyle(.secondary)
-        if let error = model.deviceError { Text(error).foregroundStyle(.orange) }
-      }.formStyle(.grouped).disabled(model.savingDevice)
-        .navigationTitle("device_rename")
-        .toolbar {
-          ToolbarItem(placement: .cancellationAction) {
-            Button("device_cancel") { dismiss() }.disabled(model.savingDevice)
-          }
-          ToolbarItem(placement: .confirmationAction) {
-            Button("device_save") { Task { if await model.renameDevice(name) { dismiss() } } }
-              .disabled(model.savingDevice || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-          }
-        }
+  #if os(iOS)
+  @ScaledMetric(relativeTo: .body) private var bodySize = 16
+  #endif
+  private var valid: Bool {
+    let scalars = name.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars
+    return !scalars.isEmpty && scalars.count <= 40 && !scalars.contains {
+      CharacterSet.controlCharacters.contains($0) || (0x2028...0x202e).contains($0.value) || (0x2066...0x2069).contains($0.value)
     }
-    #if os(macOS)
-      .frame(width: 480, height: 300)
-    #endif
-      .onAppear { model.deviceError = nil }
+  }
+  var body: some View {
+    DuckSheetLayout(title: "device_rename", busy: model.savingDevice, error: model.deviceError) {
+      #if os(iOS)
+      Text("device_name_note").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+      #endif
+      VStack(alignment: .leading, spacing: 8) {
+        #if os(iOS)
+        Text("device_name").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+        #else
+        Text("device_name").font(.caption.weight(.medium)).foregroundStyle(DuckColors.textSecondary)
+        #endif
+        TextField("device_name", text: $name).textFieldStyle(.roundedBorder)
+          .accessibilityIdentifier("device.name").disabled(model.savingDevice)
+      }
+      #if os(macOS)
+      DuckNotice(title: "device_name_note")
+      #endif
+      if !valid { Text("device_name_invalid").font(.callout).foregroundStyle(DuckColors.failure) }
+      if model.savingDevice { ProgressView("apple_working") }
+    } actions: {
+      #if os(iOS)
+      Button { dismiss() } label: { Text("device_cancel").frame(maxWidth: .infinity) }
+        .iosPrototypeAction().disabled(model.savingDevice)
+      Button { Task { if await model.renameDevice(name) { dismiss() } } } label: { Text("device_save").frame(maxWidth: .infinity) }
+        .iosPrototypeAction(primary: true).disabled(model.savingDevice || !valid).accessibilityIdentifier("device.name_save")
+      #else
+      Button("device_cancel") { dismiss() }.duckSecondaryAction().disabled(model.savingDevice)
+      Button("device_save") { Task { if await model.renameDevice(name) { dismiss() } } }
+        .duckPrimaryAction().disabled(model.savingDevice || !valid).accessibilityIdentifier("device.name_save")
+      #endif
+    }.onAppear { model.deviceError = nil }
   }
 }

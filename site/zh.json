@@ -97,7 +97,7 @@
   "demo_motion": "照片、视频、动图和连拍，一起保留。",
   "demo_new": "备份已有图库，也接住新的回忆。",
   "demo_download": "选择你的版本",
-  "demo_note": "视频使用示例照片与示意界面。Pixel 上的 Google 相册负责云端备份。后台上传由 iOS 调度；iOS 已开放 TestFlight 测试，也可用 Xcode 自行安装。",
+  "demo_note": "视频展示示例照片与操作流程，界面细节可能与当前原生应用不同。Pixel 上的 Google 相册负责云端备份。后台上传由 iOS 调度；iOS 已开放 TestFlight 测试，也可用 Xcode 自行安装。",
   "demo_caption": "42 秒 · 品牌升级前的界面 · 示例演示",
   "demo_fallback": "你的浏览器不支持内嵌视频播放。",
   "brand_name": "备份鸭",

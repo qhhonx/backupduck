@@ -7,13 +7,18 @@
     "symbol": "render",
     "states": [
       "首次使用",
+      "等待接收",
+      "启动中",
       "接收中",
       "已保存",
       "高温暂停",
+      "空间不足",
       "手动暂停",
-      "启动失败"
+      "启动失败",
+      "记录为空",
+      "记录读取失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "pairing",
@@ -26,11 +31,11 @@
       "启动中",
       "启动失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "pair-code",
-    "title": "iPhone 配对码",
+    "title": "手机配对码",
     "kind": "sheet",
     "source": "apps/android/app/src/main/java/app/backupduck/PairingUI.kt",
     "symbol": "code",
@@ -39,11 +44,11 @@
       "接收不可用",
       "失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "pair-scan",
-    "title": "扫描 Mac 配对码",
+    "title": "扫描电脑配对码",
     "kind": "page",
     "source": "apps/android/app/src/main/java/app/backupduck/PairingUI.kt",
     "symbol": "scanning / scanned",
@@ -53,7 +58,7 @@
       "无效码",
       "配对成功"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "transfers",
@@ -66,9 +71,10 @@
       "空白",
       "加载中",
       "失败",
-      "高温暂停"
+      "高温暂停",
+      "筛选无匹配"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "filters",
@@ -79,7 +85,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "filter-kind",
@@ -90,7 +96,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "filter-sender",
@@ -102,7 +108,7 @@
       "正常",
       "空白"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "status-guide",
@@ -113,7 +119,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "file-detail",
@@ -127,9 +133,11 @@
       "待处理",
       "失败",
       "原件已释放",
-      "时间缺失"
+      "时间缺失",
+      "视频",
+      "副本缺失"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "storage",
@@ -142,7 +150,7 @@
       "空间不足",
       "读取失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "storage-detail",
@@ -154,7 +162,7 @@
       "正常",
       "读取失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "storage-limits",
@@ -167,7 +175,7 @@
       "保存中",
       "保存失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "retention",
@@ -180,83 +188,87 @@
       "自动回收",
       "保存失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "relay-scope",
-    "title": "自动回收范围",
+    "title": "文件保留",
     "kind": "sheet",
     "source": "apps/android/app/src/main/java/app/backupduck/RetentionControls.kt",
-    "symbol": "save",
+    "symbol": "RetentionControls.scope / inline draft inside existing retention sheet",
     "states": [
       "正常",
       "保存中",
       "保存失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "sameHost": "retention"
   },
   {
     "id": "relay-history",
     "title": "检查历史原件",
-    "kind": "page",
+    "kind": "sheet",
     "source": "apps/android/app/src/main/java/app/backupduck/RelayMaintenance.kt",
-    "symbol": "checkHistoricalOriginals",
+    "symbol": "checkHistoricalOriginals / single-sheet stages",
     "states": [
       "检查中",
       "等待降温",
       "检查失败",
       "已取消"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "relay-preview",
-    "title": "历史原件检查结果",
+    "title": "检查历史原件",
     "kind": "sheet",
     "source": "apps/android/app/src/main/java/app/backupduck/RelayMaintenance.kt",
-    "symbol": "inspectRelay",
+    "symbol": "checkHistoricalOriginals / single-sheet stages",
     "states": [
       "有可回收项",
       "无可回收项"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "sameHost": "relay-history"
   },
   {
     "id": "relay-reclaim",
-    "title": "回收已验证原件",
-    "kind": "confirm",
+    "title": "检查历史原件",
+    "kind": "sheet",
     "source": "apps/android/app/src/main/java/app/backupduck/RelayMaintenance.kt",
-    "symbol": "reclaimRelay",
+    "symbol": "checkHistoricalOriginals / single-sheet stages",
     "states": [
       "确认",
       "回收中",
       "回收失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "sameHost": "relay-history"
   },
   {
     "id": "relay-result",
-    "title": "原件回收结果",
+    "title": "检查历史原件",
     "kind": "sheet",
     "source": "apps/android/app/src/main/java/app/backupduck/RelayMaintenance.kt",
-    "symbol": "reclaimRelay",
+    "symbol": "checkHistoricalOriginals / single-sheet stages",
     "states": [
       "完成",
       "部分保留",
       "已取消"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "sameHost": "relay-history"
   },
   {
     "id": "archive",
-    "title": "导出原件",
+    "title": "导出原件归档",
     "kind": "confirm",
     "source": "apps/android/app/src/main/java/app/backupduck/OriginalArchive.kt",
     "symbol": "showArchiveIntro",
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "archive-progress",
@@ -271,7 +283,7 @@
       "失败",
       "已取消"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "archive-result",
@@ -283,7 +295,7 @@
       "校验通过",
       "校验失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "archive-reclaim",
@@ -296,7 +308,7 @@
       "回收中",
       "失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "settings",
@@ -307,7 +319,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "thermal",
@@ -320,7 +332,7 @@
       "保护关闭",
       "保存失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "conversion",
@@ -332,7 +344,7 @@
       "关闭",
       "开启"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "browser",
@@ -347,7 +359,7 @@
       "启动失败",
       "接收未启动"
     ],
-    "native": "已迁移，浏览器常规流程用户验收通过"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "browser-access",
@@ -360,7 +372,7 @@
       "接收未启动",
       "地址不可用"
     ],
-    "native": "已迁移，浏览器常规流程用户验收通过"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "browser-code",
@@ -374,7 +386,7 @@
       "保存中",
       "保存失败"
     ],
-    "native": "已迁移，浏览器常规流程用户验收通过"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "browser-reset",
@@ -387,7 +399,7 @@
       "处理中",
       "失败"
     ],
-    "native": "已迁移，浏览器常规流程用户验收通过"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "browser-revoke",
@@ -400,7 +412,7 @@
       "处理中",
       "失败"
     ],
-    "native": "已迁移，浏览器常规流程用户验收通过"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "device-name",
@@ -414,7 +426,7 @@
       "保存中",
       "保存失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "devices",
@@ -427,7 +439,7 @@
       "空白",
       "读取失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "device-detail",
@@ -439,7 +451,7 @@
       "允许接收",
       "已禁用"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "device-confirm",
@@ -452,7 +464,7 @@
       "处理中",
       "失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "appearance",
@@ -465,7 +477,7 @@
       "浅色",
       "深色"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "language",
@@ -478,7 +490,7 @@
       "简体中文",
       "English"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "help",
@@ -489,7 +501,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "help-connection",
@@ -502,7 +514,7 @@
       "未启动",
       "读取失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "help-background",
@@ -513,7 +525,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "help-results",
@@ -524,7 +536,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "help-storage",
@@ -535,7 +547,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "help-recovery",
@@ -546,7 +558,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "updates",
@@ -565,18 +577,19 @@
       "签名不兼容",
       "开发版本"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "diagnostics",
-    "title": "诊断",
+    "title": "记录与导出",
     "kind": "page",
     "source": "apps/android/app/src/main/java/app/backupduck/MainActivity.kt",
     "symbol": "showDiagnostics",
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "path": "设置 → 运行记录"
   },
   {
     "id": "log-limits",
@@ -589,23 +602,22 @@
       "保存中",
       "保存失败"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "export-report",
-    "title": "导出报告",
+    "title": "导出诊断日志",
     "kind": "page",
     "source": "apps/android/app/src/main/java/app/backupduck/MainActivity.kt",
     "symbol": "exportLogs",
     "states": [
-      "日志",
-      "相册记录",
-      "检查报告",
+      "说明",
       "导出中",
       "导出失败",
       "导出成功"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "path": "设置 → 运行记录 → 导出诊断日志"
   },
   {
     "id": "experiments",
@@ -616,7 +628,8 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "path": "设置 → 实验功能"
   },
   {
     "id": "cleanup",
@@ -632,7 +645,7 @@
       "结果待核对",
       "账号改变"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "cleanup-disclosure",
@@ -643,7 +656,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "cleanup-bind",
@@ -657,7 +670,7 @@
       "无法识别",
       "需要解锁"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "cleanup-progress",
@@ -675,7 +688,7 @@
       "超时",
       "已停止"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "cleanup-review",
@@ -686,7 +699,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "photos-diagnostics",
@@ -702,7 +715,7 @@
       "超时",
       "中断"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "probe-disclosure",
@@ -713,7 +726,7 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "stop-receiving",
@@ -724,7 +737,8 @@
     "states": [
       "正常"
     ],
-    "native": "已迁移，待 Pixel 用户验收"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "path": "设置 → 接收设置 → 停止接收服务"
   },
   {
     "id": "system-permission",
@@ -736,7 +750,7 @@
       "允许",
       "拒绝"
     ],
-    "native": "系统界面"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "system-document",
@@ -749,7 +763,7 @@
       "取消",
       "失败"
     ],
-    "native": "系统界面"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "system-install",
@@ -762,7 +776,7 @@
       "取消",
       "失败"
     ],
-    "native": "系统界面"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "system-accessibility",
@@ -774,7 +788,7 @@
       "开启",
       "返回未授权"
     ],
-    "native": "系统界面"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "system-gallery",
@@ -786,7 +800,7 @@
       "已打开",
       "未安装"
     ],
-    "native": "外部应用"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "system-website",
@@ -798,7 +812,7 @@
       "已打开",
       "无法打开"
     ],
-    "native": "外部浏览器"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
   },
   {
     "id": "components",
@@ -809,6 +823,40 @@
     "states": [
       "正常"
     ],
-    "native": "设计工具"
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md."
+  },
+  {
+    "id": "gallery-record-export",
+    "title": "导出相册保存记录",
+    "kind": "page",
+    "source": "apps/android/app/src/main/java/app/backupduck/GalleryReceiptExport.kt",
+    "symbol": "exportGalleryRecords",
+    "states": [
+      "日志",
+      "相册记录",
+      "检查报告",
+      "导出中",
+      "导出失败",
+      "导出成功"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "path": "存储 → 存储明细 → 记录与导出"
+  },
+  {
+    "id": "photos-report-export",
+    "title": "导出相册页面检查报告",
+    "kind": "page",
+    "source": "apps/android/app/src/main/java/app/backupduck/ExperimentsActivity.kt",
+    "symbol": "exportLogs",
+    "states": [
+      "日志",
+      "相册记录",
+      "检查报告",
+      "导出中",
+      "导出失败",
+      "导出成功"
+    ],
+    "native": "Synthetic interactive reference. Native and physical-device verification are separate; follow design/iteration-checklist.md.",
+    "path": "实验功能 → Google 相册页面检查 → 导出检查报告"
   }
 ]

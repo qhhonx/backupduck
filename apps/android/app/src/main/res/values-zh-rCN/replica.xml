@@ -5,15 +5,15 @@
     <string name="duck_battery_temp">电池温度</string>
     <string name="duck_free">可用空间</string>
     <string name="duck_battery">电量</string>
-    <string name="duck_batch">本批接收</string>
+    <string name="duck_batch">接收概况</string>
     <string name="duck_all_records">全部记录 ›</string>
-    <string name="duck_pause">暂停接收</string>
-    <string name="duck_resume">继续接收</string>
+    <string name="duck_pause">暂停新接收</string>
+    <string name="duck_resume">继续新接收</string>
     <string name="duck_how_pair">怎么配对？</string>
-    <string name="duck_pair_iphone">连接 iPhone / iPad</string>
-    <string name="duck_pair_iphone_note">显示配对码，让 iPhone 扫描</string>
-    <string name="duck_pair_mac">连接 Mac</string>
-    <string name="duck_pair_mac_note">用 Pixel 扫描 Mac 的配对码</string>
+    <string name="duck_pair_iphone">连接手机</string>
+    <string name="duck_pair_iphone_note">显示 Pixel 配对码，让 iPhone / Android 发送端扫描</string>
+    <string name="duck_pair_mac">连接电脑</string>
+    <string name="duck_pair_mac_note">Pixel 扫描 Mac / Windows 发送端配对码</string>
     <string name="duck_pair_auto">选择连接方式后，会自动启动接收服务。</string>
     <string name="duck_cloud_note">已保存到手机相册后，云端备份由 Google 相册继续完成。</string>
     <string name="duck_ready_connect">准备连接设备</string>
@@ -25,6 +25,7 @@
     <string name="duck_online">在线</string>
     <string name="duck_paused">暂停</string>
     <string name="duck_status_guide">状态说明</string>
+    <string name="duck_status_guide_link">状态说明 ›</string>
     <string name="duck_advanced_filters">更多筛选</string>
     <string name="duck_count">%1$d 个项目 · %2$d 个已保存</string>
     <string name="duck_all">全部</string>
@@ -84,7 +85,7 @@
     <string name="duck_received_short">已接收原件</string>
     <string name="duck_language">语言</string>
 <string name="duck_relay_keep">自动回收</string>
-<string name="duck_reception_paused">接收已暂停</string>
+<string name="duck_reception_paused">新接收已暂停</string>
 <string name="duck_pause_note">点继续恢复接收，已接收原件保留。</string>
 <string name="duck_gallery_failed">相册处理失败</string>
 <string name="duck_view_tasks">查看任务</string>
@@ -97,6 +98,12 @@
 <string name="duck_original_retained">保留在 Pixel，可重试处理</string>
 <string name="duck_cloud_title">Google 相册云端</string>
 <string name="duck_cloud_unknown">请在 Google 相册确认，备份鸭不能读取这一状态。</string>
-<string name="duck_receive_done">本批已保存</string>
+<string name="duck_receive_done">已保存到 Pixel 相册</string>
 <string name="duck_failed_note">原件保留，可在详情重试处理。</string>
+    <string name="duck_new_reception_only">只暂停新接收，已接收文件的相册处理继续。继续后仍遵守温度与空间保护。</string>
+    <string name="receiver_device_state">设备状态</string>
+    <string name="receiver_recent_records">最近记录</string>
+    <string name="receiver_home_recent_empty">暂无接收记录</string>
+    <string name="receiver_recent_failed">最近记录暂不可读。已有接收文件与相册结果未改变。</string>
+    <string name="receiver_recent_retry">重试读取</string>
 </resources>

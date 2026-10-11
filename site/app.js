@@ -63,7 +63,7 @@ document.querySelector("#language").addEventListener("click", () => {
   render();
 });
 try {
-  const response = await fetch("/api/releases");
+  const response = await fetch("/releases.json");
   if (!response.ok) throw Error();
   release = await response.json();
   if (

@@ -41,11 +41,10 @@
     <string name="duck_choose_location">Choose save location</string>
     <string name="duck_retry_failed_note">Originals are retained. Retry first, then inspect the cause before enabling compatibility conversion.</string>
     <string name="duck_scan_code_fail">This code could not be paired. Check the Mac code and network, then scan again.</string>
-    <string name="duck_experiments_intro">These features depend on Google Photos and Android accessibility. They are disabled by default.</string>
+    <string name="duck_experiments_intro">Let Google Photos remove backed-up device copies when this receiver is low on space. One-time setup is required; it is off by default.</string>
     <string name="duck_experiments_cleanup_note">Let Google Photos free device copies it confirms are backed up.</string>
     <string name="duck_cleanup_fingerprint">Only an account fingerprint is kept on this device.</string>
-    <string name="duck_cleanup_cloud_boundary">Observations are not cloud backup receipts for individual photos.</string>
-    <string name="duck_cleanup_no_changes">This restores receiving only. No files are deleted or confirmed backed up to the cloud.</string>
+    <string name="duck_cleanup_no_changes">Resumes transfers without deleting files.</string>
     <string name="duck_stop_service_intro">Stop LAN receiving? New sending requests and browser management will disconnect. Received originals and records remain; existing gallery processing continues.</string>
     <string name="duck_stop_summary">Different from pausing new receiving</string>
     <string name="duck_update_signature">The update signing identity differs. Do not uninstall or clear storage; retain originals and records.</string>
@@ -81,7 +80,7 @@
     <string name="duck_help_background_title">Background reception</string>
     <string name="duck_help_background_note">Reception shows a system notification. Battery restrictions may interrupt background work.</string>
     <string name="duck_help_restore_title">Automatic restore</string>
-    <string name="duck_help_restore_note">Restarting or opening the app follows the restore setting. Recent Android versions may require tapping the notification or opening the app.</string>
+    <string name="duck_help_restore_note">Settings → Receiving settings → Restore after restart. On Android 15 or later, tap the notification or open the app to resume. Manually stopping the service prevents automatic restoration.</string>
     <string name="duck_help_sender_title">Sender limits</string>
     <string name="duck_help_sender_note">iPhone background time is limited. Keep the sender app open during large backups.</string>
     <string name="duck_help_receipt_title">Received</string>

@@ -32,10 +32,26 @@ use tokio::sync::Semaphore;
 #[derive(Clone)]
 struct ServerState {
     receiver: Arc<Mutex<Receiver>>,
+    progress: Arc<backupduck_store::progress::ProgressFeed>,
     token_digest: String,
     sender_id: Option<String>,
     permits: Arc<Semaphore>,
     observer: Option<Observer>,
+    readings: Arc<Mutex<DeviceReadings>>,
+}
+
+/// Optional physical readings; absence never implies a zero reading.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct DeviceReadings {
+    pub temperature_deci_celsius: Option<i32>,
+    pub temperature_observed_at_ms: Option<u64>,
+    pub free_bytes: Option<u64>,
+}
+pub fn observation_time_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 #[derive(Serialize, Deserialize)]
 struct Problem {
@@ -92,18 +108,39 @@ pub fn shared_router_observed(
     token: &str,
     observer: Option<Observer>,
 ) -> Result<Router> {
+    shared_router_with_readings(
+        receiver,
+        token,
+        observer,
+        Arc::new(Mutex::new(DeviceReadings::default())),
+    )
+}
+pub fn shared_router_with_readings(
+    receiver: Arc<Mutex<Receiver>>,
+    token: &str,
+    observer: Option<Observer>,
+    readings: Arc<Mutex<DeviceReadings>>,
+) -> Result<Router> {
     validate_token(token)?;
+    let progress = receiver
+        .lock()
+        .map_err(|_| Error::Storage("receiver lock poisoned".into()))?
+        .progress_feed();
     let state = ServerState {
         receiver,
+        progress,
         token_digest: digest(token.as_bytes()),
         sender_id: None,
         permits: Arc::new(Semaphore::new(8)),
         observer,
+        readings,
     };
     Ok(Router::new()
         .route("/v2/capabilities", get(capabilities))
         .route("/v2/device-profile", post(exchange_device_profile))
+        .route("/v2/device-status", get(device_readings))
         .route("/v2/assets", post(register))
+        .route("/v2/status-events", post(status_events))
         .route("/v2/bundles", post(bundle::receive))
         .route("/v2/assets/{id}", get(status))
         .route("/v2/assets/{id}/commit", post(commit))
@@ -111,6 +148,29 @@ pub fn shared_router_observed(
         .layer(DefaultBodyLimit::max(MAX_CHUNK_BYTES))
         .layer(middleware::from_fn_with_state(state.clone(), authorize))
         .with_state(state))
+}
+async fn device_readings(
+    State(state): State<ServerState>,
+) -> std::result::Result<Json<DeviceReadings>, ApiError> {
+    let mut readings = state
+        .readings
+        .lock()
+        .map_err(|_| Error::Storage("device readings lock".into()))?
+        .clone();
+    if readings
+        .temperature_observed_at_ms
+        .is_none_or(|time| observation_time_ms().saturating_sub(time) > 120_000)
+    {
+        readings.temperature_deci_celsius = None;
+        readings.temperature_observed_at_ms = None;
+    }
+    readings.free_bytes = state
+        .receiver
+        .lock()
+        .map_err(|_| Error::Storage("receiver lock".into()))?
+        .overview()?["free_bytes"]
+        .as_u64();
+    Ok(Json(readings))
 }
 async fn authorize(
     State(mut state): State<ServerState>,
@@ -204,6 +264,65 @@ async fn with_receiver<T: Send + 'static>(
 }
 async fn capabilities() -> Json<Capabilities> {
     Json(Capabilities::default())
+}
+
+#[derive(Deserialize, Serialize)]
+struct StatusEventsRequest {
+    after: u64,
+    timeout_ms: u64,
+    assets: Vec<String>,
+}
+async fn status_events(
+    State(state): State<ServerState>,
+    Json(request): Json<StatusEventsRequest>,
+) -> std::result::Result<Json<backupduck_store::progress::ProgressSnapshot>, ApiError> {
+    if request.assets.len() > 128 || request.assets.iter().any(|id| !valid_digest(id)) {
+        return Err(Error::Invalid("status event scope".into()).into());
+    }
+    tokio::task::spawn_blocking(move || {
+        let mut snapshot = state.progress.wait(
+            request.after,
+            std::time::Duration::from_millis(if request.after == 0 {
+                0
+            } else {
+                request.timeout_ms.min(1000)
+            }),
+        );
+        snapshot
+            .items
+            .retain(|item| request.assets.contains(&item.id));
+        // Reconcile old receptions and a restarted feed, without exposing other senders' IDs.
+        let missing = request
+            .assets
+            .iter()
+            .filter(|id| !snapshot.items.iter().any(|item| &item.id == *id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            let receiver = state
+                .receiver
+                .lock()
+                .map_err(|_| Error::Storage("receiver lock poisoned".into()))?;
+            for id in missing {
+                if let (Ok(asset), Ok(status)) = (receiver.asset(&id), receiver.status(&id)) {
+                    snapshot
+                        .items
+                        .push_back(backupduck_store::progress::ProgressItem {
+                            id,
+                            total_bytes: asset.resources.iter().map(|r| r.size).sum(),
+                            confirmed_bytes: status.resources.iter().map(|r| r.offset).sum(),
+                            received: status.receipt == ReceiptState::Received,
+                            processing: status.processing,
+                            processing_error: status.processing_error,
+                        });
+                }
+            }
+        }
+        Ok::<_, Error>(Json(snapshot))
+    })
+    .await
+    .map_err(|_| ApiError(Error::Storage("worker unavailable".into())))?
+    .map_err(ApiError)
 }
 async fn exchange_device_profile(
     State(s): State<ServerState>,
@@ -362,6 +481,21 @@ impl Client {
         )
         .await
     }
+    /// Additive metadata route; older receivers may not implement it.
+    pub async fn device_readings(&self) -> Result<Option<DeviceReadings>> {
+        let response = self
+            .http
+            .get(format!("{}/v2/device-status", self.base))
+            .bearer_auth(&self.token)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .map_err(network)?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        Self::decode(response).await
+    }
     /// Optional display metadata, exchanged only over the authenticated channel.
     /// Legacy receivers return 404; this never changes the transfer protocol.
     pub async fn exchange_device_profile(
@@ -467,6 +601,28 @@ impl Client {
                 .map_err(network)?,
         )
         .await
+    }
+    pub async fn status_events(
+        &self,
+        after: u64,
+        assets: Vec<String>,
+    ) -> Result<backupduck_store::progress::ProgressSnapshot> {
+        let response = self
+            .http
+            .post(format!("{}/v2/status-events", self.base))
+            .bearer_auth(&self.token)
+            .json(&StatusEventsRequest {
+                after,
+                timeout_ms: 1000,
+                assets,
+            })
+            .send()
+            .await
+            .map_err(network)?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(Error::Unsupported("status events unavailable".into()));
+        }
+        Self::decode(response).await
     }
     /// Reference foreground executor. Native background engines use the same actions.
     /// Re-running after interruption resumes from receiver-confirmed offsets.

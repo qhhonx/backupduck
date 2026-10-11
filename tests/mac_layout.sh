@@ -31,6 +31,7 @@ mkdir -p "$app/Contents/Frameworks"
 ditto build/dependencies/sparkle/Sparkle.framework "$app/Contents/Frameworks/Sparkle.framework"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
 cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
+cp apps/apple/Resources/DuckMenuBar.pdf "$app/Contents/Resources/"
 sources=(apps/apple/Shared/*.swift)
 for file in apps/macos/BackupDuck/*.swift; do
   if [[ "$file" != */BackupDuckMacApp.swift ]]; then sources+=("$file"); fi
@@ -42,7 +43,7 @@ xcrun --sdk macosx swiftc -swift-version 5 -Onone -module-cache-path build/Swift
   "${sources[@]}" "$work/BackupDuckMacApp.swift" tests/render_macos.swift \
   "$native_library" \
   -framework Security -framework SystemConfiguration -framework AppKit -framework SwiftUI \
-  -framework Photos -framework Vision -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -lsqlite3 -lz -liconv -o "$app/Contents/MacOS/LayoutCheck"
+  -framework Photos -framework PhotosUI -framework AVKit -framework Vision -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -lsqlite3 -lz -liconv -o "$app/Contents/MacOS/LayoutCheck"
 codesign --force --sign - "$app"
 for language in en zh-Hans; do
   "$app/Contents/MacOS/LayoutCheck" "$work/screenshots/$language" -AppleLanguages "($language)" "$@"

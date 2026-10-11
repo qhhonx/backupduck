@@ -1,0 +1,15 @@
+<resources>
+<string name="receiver_refinement_logs">运行记录</string>
+<string name="receiver_refinement_clear_filters">清除筛选</string>
+<string name="receiver_refinement_filtered_empty">没有符合筛选条件的记录</string>
+<string name="receiver_refinement_copy_missing">相册副本暂不可用。保存记录不表示云端已上传。</string>
+<string name="receiver_refinement_preview_failed">预览暂不可用，仍可打开已核对存在的本机相册副本。</string>
+<string name="receiver_refinement_staging">应用中转文件</string>
+<string name="receiver_refinement_originals_note">这里只计算备份鸭已完整接收并保留的原件副本。</string>
+<string name="receiver_refinement_partial">未接收完成</string>
+<string name="receiver_refinement_published">已发布副本</string>
+<string name="receiver_refinement_pending">等待发布副本</string>
+<string name="receiver_refinement_protection">保护与回收</string>
+<string name="receiver_refinement_records">记录与导出</string>
+<string name="receiver_refinement_reclaim_note">只回收系统相册副本校验通过的应用中转原件。</string>
+</resources>

@@ -37,8 +37,8 @@ class PhotosProbeService : AccessibilityService() {
         internal fun begin(): Boolean = instance?.let { it.observe(); true } ?: false
         internal fun stop() { instance?.end("stopped") }
         internal val cleanupRunning: Boolean get() = mutableState.value.running && mutableState.value.mode == "cleanup"
-        internal fun clean(bind: Boolean = false): Boolean = instance?.let {
-            if (!mutableState.value.running) { it.operate(bind); true } else false
+        internal fun clean(bind: Boolean = false, returnRoute: String? = null): Boolean = instance?.let {
+            if (!mutableState.value.running) { it.operate(bind, returnRoute); true } else false
         } ?: false
         private val fields = setOf("selected_account_disc", "og_bento_card_title", "safetyTip", "free_up_button",
             "free_up_space_completed_title", "done_button", "title", "close_button", "free_up_space_progress_text")
@@ -93,7 +93,7 @@ class PhotosProbeService : AccessibilityService() {
             mutableState.value = mutableState.value.copy(running = false, secondsLeft = 0, observation = "expired")
         }
     }
-    private fun operate(bind: Boolean) {
+    private fun operate(bind: Boolean, returnRoute: String?) {
         if (!bind && cleanup.account.isEmpty()) { cleanup.report("account_unavailable"); return }
         mutableState.value = PhotosProbeState(connected = true, running = true, mode = if (bind) "bind" else "cleanup", observation = "opening")
         cleanupJob = scope.launch {
@@ -196,6 +196,20 @@ class PhotosProbeService : AccessibilityService() {
                 withContext(NonCancellable + Dispatchers.IO) { runCatching {
                     ReceiverHolds.sync(this@PhotosProbeService)
                 } }
+                // User-initiated flows return to their result page. Automatic
+                // runs do not open our UI, and leaving Photos or locking the
+                // device suppresses the return so we do not steal focus.
+                if (returnRoute in setOf("bind", "progress") &&
+                    !getSystemService(KeyguardManager::class.java).isKeyguardLocked) {
+                    val root = rootInActiveWindow
+                    val photosIsForeground = try { root?.packageName?.toString() == PHOTOS_PACKAGE }
+                        finally { @Suppress("DEPRECATION") root?.recycle() }
+                    if (photosIsForeground) runCatching {
+                        startActivity(Intent(this@PhotosProbeService, PhotosProbeActivity::class.java)
+                            .putExtra("route", returnRoute)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                    }
+                }
             }
         }
     }

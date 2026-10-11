@@ -10,6 +10,10 @@ struct TransferConcurrencySettings: View {
         ForEach(1...4, id: \.self) { Text($0.formatted()).tag($0) }
       }.accessibilityIdentifier("settings.transfer_concurrency")
         .disabled(!model.ready || model.savingConcurrency)
+      if let error = model.concurrencyError {
+        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
+          .accessibilityIdentifier("settings.transfer_concurrency_error")
+      }
     } header: {
       Text("transfer_settings")
     } footer: {

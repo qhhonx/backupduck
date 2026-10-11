@@ -20,7 +20,7 @@ import java.security.MessageDigest
 internal data class AppRelease(val version: String, val build: Long, val url: String, val sha256: String, val size: Long)
 internal object AppUpdates {
     private const val API = "https://api.github.com/repos/qhhonx/backupduck/releases?per_page=30"
-    private const val SITE_API = "https://backupduck.vercel.app/api/releases"
+    private const val SITE_API = "https://backupduck.app/releases.json"
     private const val PREFIX = "https://github.com/qhhonx/backupduck/releases/download/"
     private const val MAX_APK = 250L * 1024 * 1024
     private val TAG = Regex("v[0-9]+\\.[0-9]+\\.[0-9]+(?:-(?:alpha|beta|rc)\\.[0-9]+)?")
@@ -139,15 +139,15 @@ class UpdatesActivity:AppCompatActivity() {
         super.onCreate(savedInstanceState)
         nativeDetailPage(R.string.updates_title) {panel ->
             val group=duckGroup(panel)
-            duckSetting(group,getString(R.string.settings_version,installedVersion),control=duckText("",13))
+            duckSetting(group,getString(R.string.settings_version,receiverVersionLabel()),control=duckText("",13))
             duckSetting(group,getString(R.string.updates_automatic),getString(R.string.updates_note),duckSwitch(AppUpdates.preferences(this).getBoolean("automatic",true)) {
                 AppUpdates.preferences(this).edit().putBoolean("automatic",it).apply()
             })
             feedback=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};panel.addView(feedback)
             button=duckButton(getString(R.string.updates_check),true) {perform()};panel.addView(button,LinearLayout.LayoutParams(-1,-2))
-            panel.addView(duckLink(getString(R.string.official_website)) {
-                runCatching {startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://backupduck.vercel.app")))}.onFailure {showMessage(getString(R.string.updates_check_failed),true)}
-            })
+            panel.addView(duckButton(getString(R.string.official_website)) {
+                runCatching {startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://backupduck.app")))}.onFailure {showMessage(getString(R.string.updates_check_failed),true)}
+            },LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         }
         check()
     }

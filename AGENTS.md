@@ -1,46 +1,84 @@
-# BackupDuck development conventions
+# BackupDuck contributor and agent conventions
 
-## Product UI and interaction
+## Scope and ownership
 
-Before changing a product interface, read `design/README.md`,
-`design/backupduck-v1/specification.md` and `design/backupduck-v1/motion.md`.
-The approved design baseline is v1.1. Match the page structure, action hierarchy,
-state semantics and light/dark behavior; use platform-native controls and materials.
+The 0.3.0 UI baseline covers the iPhone/iPad sender, macOS sender and Android
+receiver. Android and Windows sender hosts remain separate, unfinished work.
+Do not expand a focused change into those platforms without an explicit scope.
 
-- Colors come from `design/backupduck-v1/tokens.json`. Run
-  `python3 scripts/export-design-tokens.py` after changing them; do not edit the
-  generated Apple, Android or browser color files. CI checks generated output.
-- Reuse shared design components before adding page-specific styling. Do not use
-  a WebView for native photo grids or transfer lists. Preserve virtualization,
-  thumbnail cancellation/cache, paging, stable IDs and scroll/selection state.
-- Receipt, successful Pixel gallery publication and Google Photos cloud upload
-  are separate facts. Never present receipt alone as gallery or cloud success.
-  Do not invent missing dates, progress, device temperature or storage readings.
-- Keep activity/progress geometry stable. Progress is an overlay, not an extra
-  layout row; errors remain actionable and visible. Automatic backup settings
-  and pausing the current queue must have distinct labels and behavior.
-- Yellow is a brand/illustration or labeled storage-category accent. Use the
-  semantic success, attention and failure colors for state, with text and icons.
-- Apple system materials must respect Reduce Transparency/Increase Contrast and
-  fall back on older systems. Android/browser use solid surfaces; old Pixel
-  performance takes precedence over decoration.
+Rust owns asset/request identity, receiver ownership, durable preparation and
+transfer queues, concurrency, retry, receipt and processing observations. Hosts
+provide media access, permissions, native UI, credentials and OS execution.
+Do not create a second business queue or infer cloud backup from receipt.
+See `docs/architecture.md` and `docs/sender-host-contract.md`.
 
-## Verification and intentional design changes
+## Design changes
 
-Follow `design/iteration-checklist.md` for the affected platforms. Run relevant
-native builds and existing interaction/layout tests. Capture representative
-light/dark, small-screen and failure states using synthetic data; keep private
-photos, pairing credentials and account details out of fixtures and the repo.
+Read `design/README.md`, `design/backupduck-v1/specification.md`,
+`design/ui-content-rules.md` and `design/backupduck-v1/motion.md` before UI work.
+Use current component contracts when a historical prototype differs; update the
+prototype in the same change rather than reverting the implementation.
 
-If an iteration changes a design rule, update the specification, tokens/components
-and relevant reference images together, record the reason/version, and explicitly
-describe the change in the PR. A prototype is a reference, not proof of native
-behavior or performance. Report outstanding real-device checks honestly.
+- Reuse shared components. Components own inner padding and alignment; pages
+  own section spacing. Store justified density differences in platform metrics.
+- Apple preference rows use 52 pt on iPhone and 48 pt on Mac, growing for wrapped
+  or accessibility text. Check group edges and complete page compositions.
+- Semantic colors come from `design/backupduck-v1/tokens.json`. Run
+  `python3 scripts/export-design-tokens.py` after edits and `--check` to verify.
+  Do not edit generated platform colors by hand.
+- Native grids and lists retain virtualization, cancellation/cache, stable IDs,
+  paging, sorting, selection and scrolling. Do not replace them with WebViews.
+- Keep progress geometry stable. Progress overlays do not add layout rows.
+  Queue pause, automatic discovery and existing-library scope are distinct.
+- Pending original preparation is part of the normal task feed: active while
+  waiting, attention on failure. Scan records are not transfer jobs; show scan
+  progress with its controls rather than adding ordinary navigation entries.
+- Working pages show current state, next action and relevant consequences once.
+  Internal terminology belongs in help or diagnostics. Errors stay actionable.
+- Confirmations save durable intent. Downloads, export and transfer continue on
+  task screens after registration; failure preserves input and selection.
+- Derive system brand marks from `assets/AppIcon.png`; do not redraw a substitute.
+- Respect reduced motion/transparency, contrast and platform fallbacks. Android
+  and browser surfaces remain solid; old-device performance takes priority.
+- Receipt, phone-gallery publication and cloud upload are independent facts.
+  Never invent missing progress, dates, device readings or cloud confirmation.
 
-For Android UI work, follow `design/android-v1.2/native-acceptance.md` before
-handoff. Extract component and state contracts from prototype source, verify
-feedback in the current window, and inspect actual native screenshots. Run the
-covered emulator checks with `scripts/verify-android-ui.py`; extend them when a
-new component or state is implemented. Report which flows remain uncovered and
-which Pixel checks are pending. Do not treat compilation, text existence or
-non-overlapping View rectangles as complete visual acceptance.
+New navigation or workflows require an interactive reference before implementation.
+Component refinements update components, contracts and affected references in one
+change. Inspect similar uses before treating feedback as a single-screen fix.
+
+## Verification
+
+Follow `design/iteration-checklist.md`; Android also uses
+`design/android-v1.2/native-acceptance.md`. Run affected builds and existing checks,
+then inspect active native windows for light/dark, narrow layouts, large text,
+long localized content, failure and recovery. View rectangles or text existence
+alone do not prove visible, correctly aligned feedback.
+
+Physical release acceptance must use the production app identity, release build
+and expected release signing certificate. Verify these before installation.
+Validation packages supplement tests and do not replace production acceptance.
+
+Use synthetic data for repeatable fixtures. Record prototype checks, native
+checks and physical-device observations separately. State uncovered behavior
+honestly. Preserve application data during updates; never uninstall or clear data
+without explicit authorization. Re-identify the target device before installation.
+
+## Public source
+
+Follow `docs/public-source-policy.md`. Contributor documents and code comments
+use English. Keep product localization and explicitly labeled translated user
+guides. Personal acceptance narratives, chat attachments, installation logs,
+private machine details and agent handoffs are local-only.
+
+Run `python3 scripts/audit-public.py --documentation` before preparing source,
+then `--staged --documentation` against the entire candidate index. Ignore rules
+do not remove tracked files. Keep temporary evidence in ignored local storage.
+
+`release.json` is the version/build authority. Update platform metadata and release
+notes together. Builds increase monotonically.
+Preserve installed-client trust anchors and legacy update endpoints; consult
+`docs/upgrading.md` before changing app identities, certificates or feeds.
+A push to `main` may publish apps and deploy the website: do not merge, tag or
+publish without explicit authorization.
+Do not rewrite published history as part of routine source cleanup.
