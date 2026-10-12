@@ -56,11 +56,121 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.buttons["transfers.sort"].label.contains(label))
   }
 
+  @MainActor func testMediaPreviewNavigationAndInformation() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    app.buttons["library.filter"].tap(); app.buttons["Photos"].tap()
+    let grid = app.collectionViews["library.grid"]
+    guard grid.waitForExistence(timeout: 10), grid.cells.count >= 2 else {
+      throw XCTSkip("Requires an isolated simulator with at least two synthetic photos")
+    }
+    try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
+    recordWindow(app, "After preview tap")
+    guard app.buttons["library.preview.close"].waitForExistence(timeout: 5) else {
+      XCTFail("Preview did not open"); return
+    }
+    let photo = app.images["library.preview.photo"]
+    XCTAssertTrue(photo.waitForExistence(timeout: 10))
+    photo.doubleTap()
+    app.buttons["library.preview.info"].tap()
+    XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "1200")).firstMatch.waitForExistence(timeout: 5))
+    recordWindow(app, "Preview information")
+    app.buttons["Done"].firstMatch.tap()
+    app.buttons["library.preview.next"].tap()
+    XCTAssertTrue(photo.waitForExistence(timeout: 10))
+    app.buttons["library.preview.previous"].tap()
+    XCTAssertTrue(photo.waitForExistence(timeout: 10))
+    recordWindow(app, "High quality photo preview")
+    app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+  }
+
+  @MainActor func testBackupScopeConfigurationPersists() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    navigation(app, 1).tap()
+    let more = app.buttons["backup.manage_source"]
+    for _ in 0..<5 { if more.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(more.isHittable); more.tap()
+    let photo = app.switches["backup.scope.type.photo"]
+    for _ in 0..<6 { if photo.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(photo.isHittable)
+    if photo.value as? String == "1" { photo.tap() }
+    let only = app.switches["backup.scope.albums_only"]
+    for _ in 0..<4 { if only.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(only.isHittable)
+    if only.value as? String != "1" { only.tap() }
+    recordWindow(app, "Backup scope and albums")
+    app.terminate(); launchIsolated(app)
+    navigation(app, 1).tap()
+    for _ in 0..<5 { if more.isHittable { break }; app.swipeUp() }
+    more.tap()
+    for _ in 0..<6 { if photo.isHittable { break }; app.swipeUp() }
+    XCTAssertEqual(photo.value as? String, "0")
+    for _ in 0..<4 { if only.isHittable { break }; app.swipeUp() }
+    XCTAssertEqual(only.value as? String, "1")
+    // Restore the isolated fixture's default scope for subsequent tests.
+    only.tap()
+    app.swipeDown(); if photo.isHittable { photo.tap() }
+  }
+
+  @MainActor func testTimelineViewsAndPinchPreservePhotoContext() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    guard grid.waitForExistence(timeout: 10), grid.cells.count >= 2 else {
+      throw XCTSkip("Requires the isolated synthetic photo library")
+    }
+    let first = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
+    let id = first.identifier
+    let mode = app.buttons["library.view_mode"]
+    mode.tap(); app.buttons["Days"].tap()
+    XCTAssertTrue(app.staticTexts["library.timeline.date"].waitForExistence(timeout: 5))
+    XCTAssertTrue(grid.cells[id].isHittable)
+    let dayWidth = grid.cells[id].frame.width
+    recordWindow(app, "Library day view")
+    grid.cells[id].pinch(withScale: 0.6, velocity: -1)
+    XCTAssertTrue(grid.cells[id].waitForExistence(timeout: 5))
+    XCTAssertLessThan(grid.cells[id].frame.width, dayWidth)
+    recordWindow(app, "Library month view after pinch")
+    mode.tap(); app.buttons["All photos"].tap()
+    recordWindow(app, "Library all view after month")
+    XCTAssertTrue(NSPredicate(format: "hittable == true").evaluate(with: grid.cells[id]))
+    grid.cells[id].tap()
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 10))
+    app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(grid.cells[id].isHittable)
+  }
+
+  @MainActor func testNativeVideoPreviewAndLargeDarkLibrary() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-duckAppearance", "dark",
+      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+    launchIsolated(app)
+    let filter = app.buttons["library.filter"]
+    XCTAssertTrue(filter.waitForExistence(timeout: 10)); filter.tap(); app.buttons["Videos"].tap()
+    let grid = app.collectionViews["library.grid"]
+    guard grid.waitForExistence(timeout: 10), grid.cells.count > 0 else {
+      throw XCTSkip("Requires a synthetic local video in the isolated simulator")
+    }
+    recordWindow(app, "Large dark gallery and navigation")
+    try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
+    XCTAssertTrue(app.descendants(matching: .any)["library.preview.video"].firstMatch.waitForExistence(timeout: 10))
+    recordWindow(app, "Native local video preview")
+    app.buttons["library.preview.info"].tap()
+    recordWindow(app, "Native video information")
+    app.buttons["Done"].firstMatch.tap(); app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+  }
+
   @MainActor func testDesignReviewScreens() {
     continueAfterFailure = false
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
-    app.launch()
+    launchIsolated(app)
     XCTAssertTrue(navigation(app, 1).waitForExistence(timeout: 20))
     for (index, name) in [(1, "backup"), (2, "receiver"), (3, "settings"), (0, "library")] {
       navigation(app, index).tap()

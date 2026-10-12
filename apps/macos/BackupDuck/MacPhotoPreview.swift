@@ -4,90 +4,86 @@ import Photos
 import PhotosUI
 import SwiftUI
 
-enum MacLocalPreviewPolicy {
-  static func imageOptions() -> PHImageRequestOptions {
-    let value = PHImageRequestOptions(); value.isNetworkAccessAllowed = false; value.deliveryMode = .highQualityFormat
-    return value
-  }
-  static func videoOptions() -> PHVideoRequestOptions {
-    let value = PHVideoRequestOptions(); value.isNetworkAccessAllowed = false
-    return value
-  }
-  static func liveOptions() -> PHLivePhotoRequestOptions {
-    let value = PHLivePhotoRequestOptions(); value.isNetworkAccessAllowed = false; value.deliveryMode = .highQualityFormat
-    return value
-  }
-}
-
-/// Preview only locally available PhotoKit media. It does not export an original
-/// or create a backup task; every PhotoKit request forbids network access.
 struct MacPhotoPreview: View {
-  let asset: PHAsset
+  @ObservedObject var library: PhotoLibraryModel
+  @StateObject private var preview: MediaPreviewModel
+  @ObservedObject private var policy = PreviewNetworkPolicy.shared
   @Environment(\.dismiss) private var dismiss
-  @State private var image: NSImage?
-  @State private var livePhoto: PHLivePhoto?
-  @State private var player: AVPlayer?
   @State private var showingDetails = false
-  @State private var unavailable = false
-  @State private var requests: [PHImageRequestID] = []
-  @State private var active = false
   @State private var playRequest = 0
+  @State private var zoom: CGFloat = 1
+  @GestureState private var magnification: CGFloat = 1
+  @State private var moving = false
+  init(asset: PHAsset, library: PhotoLibraryModel) {
+    self.library = library; _preview = StateObject(wrappedValue: MediaPreviewModel(asset: asset))
+  }
   var body: some View {
     VStack(spacing: 0) {
-      HStack(spacing: 12) {
-        Text("library_preview").font(.system(size: 22, weight: .semibold)).frame(maxWidth: .infinity, alignment: .leading)
-        Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 32, height: 32) }
-          .buttonStyle(.plain).accessibilityLabel(Text("close"))
+      HStack {
+        Text(preview.asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? NSLocalizedString("library_preview", comment: "")).font(.title2)
+        Spacer()
+        Button("settings_done") { dismiss() }.duckSecondaryAction().keyboardShortcut(.cancelAction)
+          .accessibilityIdentifier("library.preview.close")
       }.padding(20)
       Divider()
-      VStack(spacing: 12) {
-        Group {
-          if let player { VideoPlayer(player: player).accessibilityIdentifier("library.preview.video") }
-          else if let livePhoto {
-            VStack(spacing: 12) {
-              MacLivePhotoPreview(photo: livePhoto, playRequest: playRequest)
+      HStack(spacing: 0) {
+        VStack(spacing: 12) {
+          Group {
+            if let player = preview.player { VideoPlayer(player: player).accessibilityIdentifier("library.preview.video") }
+            else if let photo = preview.livePhoto {
+              MacLivePhotoPreview(photo: photo, playRequest: playRequest)
+                .accessibilityIdentifier("library.preview.live")
               Button("mac_library_play_live") { playRequest += 1 }.duckSecondaryAction()
-            }.accessibilityIdentifier("library.preview.live")
-          } else if let image { Image(nsImage: image).resizable().scaledToFit().accessibilityIdentifier("library.preview.photo") }
-          else if !unavailable { ProgressView("library_loading") }
-        }.frame(maxWidth: .infinity, maxHeight: .infinity)
-        if unavailable { DuckNotice(title: "mac_library_preview_unavailable", tone: .attention).accessibilityIdentifier("library.preview.unavailable") }
-        Text("mac_library_preview_local_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
-      }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity).background(DuckColors.canvas)
-      Divider()
-      HStack { Button("apple_photo_detail") { showingDetails = true }.duckSecondaryAction(); Spacer(); Button("settings_done") { dismiss() }.duckSecondaryAction().keyboardShortcut(.cancelAction).accessibilityIdentifier("library.preview.close") }.padding(20)
-    }.background(MacSheetInitialFocus().frame(width: 0, height: 0)).frame(width: 760, height: 600).foregroundStyle(DuckColors.text).background(DuckColors.surface)
-      .sheet(isPresented: $showingDetails) { DuckPhotoDetail(asset: asset) }
-      .onAppear(perform: load).onDisappear {
-        active = false
-        requests.forEach { PHImageManager.default().cancelImageRequest($0) }
-        requests.removeAll(); player?.pause(); player = nil; livePhoto = nil; image = nil
-      }
-  }
-  private func load() {
-    guard !active else { return }; active = true
-    let size = CGSize(width: 1600, height: 1600)
-    let photoOptions = MacLocalPreviewPolicy.imageOptions()
-    requests.append(PHImageManager.default().requestImage(for: asset, targetSize: size, contentMode: .aspectFit, options: photoOptions) { result, _ in
-      Task { @MainActor in
-        guard active else { return }; image = result
-        if result == nil && player == nil && livePhoto == nil { unavailable = true }
-      }
-    })
-    if asset.mediaType == .video {
-      let options = MacLocalPreviewPolicy.videoOptions()
-      requests.append(PHImageManager.default().requestPlayerItem(forVideo: asset, options: options) { item, _ in
-        Task { @MainActor in
-          guard active else { return }
-          if let item { player = AVPlayer(playerItem: item); unavailable = false }
-          else { unavailable = true }
+            } else if let image = preview.image {
+              GeometryReader { geometry in
+                ScrollView([.horizontal, .vertical]) {
+                  Image(nsImage: image).resizable().scaledToFit()
+                    .frame(width: geometry.size.width * min(4, max(1, zoom * magnification)), height: geometry.size.height * min(4, max(1, zoom * magnification)))
+                    .accessibilityIdentifier("library.preview.photo")
+                }.gesture(MagnificationGesture().updating($magnification) { value, state, _ in state = value }.onEnded { zoom = min(4, max(1, zoom * $0)) })
+              }
+            }
+          }.frame(maxWidth: .infinity, maxHeight: .infinity)
+          BurstPreviewControls(preview: preview)
+          if preview.loading { ProgressView(value: preview.progress > 0 ? preview.progress : nil) }
+          if preview.cloudNeeded {
+            Button(policy.allowed ? "retry_task" : "preview_cloud_allow") {
+              if !policy.allowed { policy.decide(true) }; preview.load()
+            }.duckSecondaryAction()
+          }
+          if preview.failure { DuckNotice(title: "library_preview_unavailable", tone: .attention) }
+        }.padding(20)
+        if showingDetails {
+          Divider()
+          ScrollView { PhotoMetadataPanel(preview: preview).padding(20) }.frame(width: 290)
         }
-      })
-    } else if asset.mediaSubtypes.contains(.photoLive) {
-      let options = MacLocalPreviewPolicy.liveOptions()
-      requests.append(PHImageManager.default().requestLivePhoto(for: asset, targetSize: size, contentMode: .aspectFit, options: options) { result, _ in
-        Task { @MainActor in guard active else { return }; livePhoto = result; unavailable = result == nil }
-      })
+      }.frame(maxWidth: .infinity, maxHeight: .infinity)
+      Divider()
+      HStack {
+        Button("preview_previous") { move(-1) }.duckSecondaryAction().keyboardShortcut(.leftArrow, modifiers: [])
+          .disabled(moving || library.previewIndex(of: preview.asset) == 0)
+          .accessibilityIdentifier("library.preview.previous")
+        Button("preview_next") { move(1) }.duckSecondaryAction().keyboardShortcut(.rightArrow, modifiers: [])
+          .disabled(moving || (!library.hasMoreRows && library.previewIndex(of: preview.asset) == library.loaded - 1))
+          .accessibilityIdentifier("library.preview.next")
+        Spacer()
+        if preview.kind == "photo" || preview.kind == "burst" {
+          Button { zoom = zoom > 1 ? 1 : 2 } label: { Image(systemName: zoom > 1 ? "minus.magnifyingglass" : "plus.magnifyingglass") }.duckSecondaryAction()
+        }
+        Button("apple_photo_detail") { showingDetails.toggle() }.duckSecondaryAction()
+          .accessibilityIdentifier("library.preview.info")
+      }.padding(20)
+    }.frame(minWidth: 640, idealWidth: 900, minHeight: 500, idealHeight: 650)
+      .foregroundStyle(DuckColors.text).background(DuckColors.canvas)
+      .onAppear { preview.load() }.onDisappear { preview.cancel() }
+      .onChange(of: policy.choice) { _, _ in preview.load(); if showingDetails { preview.loadMetadata() } }
+      .previewCloudConsent()
+  }
+  private func move(_ direction: Int) {
+    guard !moving else { return }; moving = true
+    Task {
+      if let asset = await library.previewNeighbor(of: preview.asset, direction: direction) { zoom = 1; preview.load(asset) }
+      moving = false
     }
   }
 }

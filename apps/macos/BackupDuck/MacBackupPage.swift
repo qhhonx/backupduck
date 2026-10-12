@@ -87,6 +87,7 @@ struct MacBackupPreferences: View {
   var body: some View {
     DuckSheetLayout(title: "backup_settings", busy: busy) {
       MacPreferenceGroup(title: "source_system_library") { DuckLibrarySource(model: model, compactMac: true) }
+      BackupScopeSettings()
       MacPreferenceGroup(title: "transfer_settings", layout: .content) { MacConcurrencyPanel(model: model) }
       MacPreferenceGroup(title: "history_title", layout: .content) { HistoricalImportSettings(model: model) }
     } actions: {

@@ -3,6 +3,74 @@ import UIKit
 @testable import BackupDuck
 
 final class LibraryPresentationTests: XCTestCase {
+  func testMetadataStreamingKeepsBoundedPrefixAndExactByteCount() {
+    let buffer = PreviewMetadataBytes()
+    for _ in 0..<12 { buffer.append(Data(repeating: 42, count: 262144)) }
+    let snapshot = buffer.snapshot()
+    XCTAssertEqual(snapshot.0.count, 1048576)
+    XCTAssertEqual(snapshot.1, 3145728)
+  }
+
+  func testTimelineDateGroupingAndBoundedVisibilityDoNotChangeMembership() {
+    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let first = calendar.date(from: DateComponents(year: 2026, month: 10, day: 12))!
+    let second = calendar.date(from: DateComponents(year: 2026, month: 10, day: 11))!
+    let dates: [Date?] = [first, first, second, nil, nil]
+    let days = LibraryTimelineGeometry(dates: dates, mode: .days, width: 390, target: 135, inset: 8, gap: 3, headerHeight: 44, calendar: calendar)
+    let months = LibraryTimelineGeometry(dates: dates, mode: .months, width: 390, target: 80, inset: 8, gap: 3, headerHeight: 44, calendar: calendar)
+    XCTAssertEqual(days.items.count, dates.count); XCTAssertEqual(months.items.count, dates.count)
+    XCTAssertEqual(days.headers.map(\.firstItem), [0, 2, 3])
+    XCTAssertEqual(months.headers.map(\.firstItem), [0, 3])
+    XCTAssertLessThan(months.items[0].width, days.items[0].width)
+    let large = LibraryTimelineGeometry(dates: Array(repeating: first, count: 10000), mode: .days, width: 390, target: 135, inset: 8, gap: 3, headerHeight: 44)
+    let rect = CGRect(x: 0, y: 1000, width: 390, height: 800)
+    let visible = large.visibleItems(in: rect)
+    XCTAssertLessThan(visible.count, 30)
+    XCTAssertTrue(visible.allSatisfy { large.items[$0].intersects(rect) })
+    let empty = LibraryTimelineGeometry(dates: [], mode: .months, width: 390, target: 80, inset: 8, gap: 3, headerHeight: 44)
+    XCTAssertTrue(empty.visibleItems(in: rect).isEmpty)
+  }
+
+  func testBackupScopeIntersectsTypesAndAlbumUnionAndEmptyScope() {
+    var scope = BackupScopeRule(types: [.photo, .motion], restrictAlbums: true, albums: ["family", "travel"])
+    XCTAssertTrue(scope.includes(kind: .photo, id: "a", albumMembers: ["a", "b"]))
+    XCTAssertFalse(scope.includes(kind: .video, id: "a", albumMembers: ["a", "b"]))
+    XCTAssertFalse(scope.includes(kind: .photo, id: "outside", albumMembers: ["a", "b"]))
+    XCTAssertFalse(scope.includes(kind: .photo, id: "a", albumMembers: []))
+    scope.restrictAlbums = false
+    XCTAssertTrue(scope.includes(kind: .motion, id: "outside", albumMembers: []))
+    scope.types = []; XCTAssertFalse(scope.includes(kind: .photo, id: "a", albumMembers: ["a"]))
+    XCTAssertEqual(BackupMediaKind.classify(image: true, video: false, live: true, burst: false), .motion)
+    XCTAssertEqual(BackupMediaKind.classify(image: true, video: false, live: false, burst: true), .burst)
+    XCTAssertNil(BackupMediaKind.classify(image: false, video: false, live: false, burst: false))
+  }
+  @MainActor func testBackupScopePersistsAndUnreadablePolicyFailsClosed() throws {
+    let name = "scope-test-" + UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let store = BackupScopeStore(defaults: defaults)
+    XCTAssertEqual(store.rule.types.count, 4)
+    store.save(BackupScopeRule(types: [.video], restrictAlbums: true, albums: ["family"]))
+    XCTAssertEqual(BackupScopeStore(defaults: defaults).rule, store.rule)
+    defaults.set(Data("invalid".utf8), forKey: "photoBackupScope")
+    let broken = BackupScopeStore(defaults: defaults)
+    XCTAssertTrue(broken.loadFailed); XCTAssertTrue(broken.rule.types.isEmpty)
+  }
+
+  @MainActor func testPreviewConsentPersistsRefusalAndDoesNotAskRepeatedly() throws {
+    let name = "preview-test-" + UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let policy = PreviewNetworkPolicy(defaults: defaults)
+    XCTAssertFalse(policy.allowed)
+    policy.requestConsent(); XCTAssertTrue(policy.asking)
+    policy.decide(false); policy.requestConsent(); XCTAssertFalse(policy.asking)
+    let restored = PreviewNetworkPolicy(defaults: defaults)
+    XCTAssertEqual(restored.choice, "deny")
+    restored.decide(true)
+    XCTAssertTrue(PreviewNetworkPolicy(defaults: defaults).allowed)
+  }
+
   func testRangeSelectionRestoresBacktrackedItemsAndPreservesOutsideSnapshot() {
     let drag = LibraryRangeSelection(baseline: ["outside", "b"], adding: true)
     XCTAssertEqual(drag.applying(["a", "b", "c"]), ["outside", "a", "b", "c"])

@@ -47,6 +47,9 @@
 		D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		EC71D3762A45B460A3B79DBA /* BackgroundLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */; };
 		F69787C40DFA7D9F1C0FCB75 /* LibraryPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */; };
+		8B4E86843C1B09A147DAA3A7 /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A675DFAEF5D84F32428C88A /* MediaPreview.swift */; };
+		C773006428C64B522824BF4F /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5167F5DA77927EE0BE9BB5 /* BackupScope.swift */; };
+		3F6EB47DCC81648C22870335 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34531F647CEFAA305205A1FD /* LibraryTimeline.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +116,9 @@
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
+		0A675DFAEF5D84F32428C88A /* MediaPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPreview.swift; sourceTree = "<group>"; };
+		CE5167F5DA77927EE0BE9BB5 /* BackupScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupScope.swift; sourceTree = "<group>"; };
+		34531F647CEFAA305205A1FD /* LibraryTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTimeline.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -205,6 +211,9 @@
 				7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */,
 				790522FA25588024EE51100B /* PhotoLibraryChanges.swift */,
 				F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */,
+				34531F647CEFAA305205A1FD /* LibraryTimeline.swift */,
+				CE5167F5DA77927EE0BE9BB5 /* BackupScope.swift */,
+				0A675DFAEF5D84F32428C88A /* MediaPreview.swift */,
 				E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */,
 				831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */,
 				2DD73467DFE30B87BA715C9D /* StorageModel.swift */,
@@ -408,6 +417,9 @@
 				C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */,
 				BA114F060234BD9171C23F24 /* PhotoLibraryChanges.swift in Sources */,
 				994F060A2FD375E01DFF8334 /* PhotoLibraryModel.swift in Sources */,
+				3F6EB47DCC81648C22870335 /* LibraryTimeline.swift in Sources */,
+				C773006428C64B522824BF4F /* BackupScope.swift in Sources */,
+				8B4E86843C1B09A147DAA3A7 /* MediaPreview.swift in Sources */,
 				03588CE5C11BE87A090609A4 /* ReceiverAvailability.swift in Sources */,
 				9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */,
 				262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */,

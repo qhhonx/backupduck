@@ -746,48 +746,25 @@ struct DuckProgressTrack: View {
 struct DuckPhotoDetail: View {
   let asset: PHAsset
   @Environment(\.dismiss) private var dismiss
-  @State private var image: LibraryImage?
-  @State private var unavailable = false
-  @State private var request: PHImageRequestID = PHInvalidImageRequestID
-  @State private var generation = UUID()
-  private static let pipeline = ThumbnailPipeline()
-  private var kind: String {
-    asset.burstIdentifier != nil ? "burst" : asset.mediaType == .video ? "video" : asset.mediaSubtypes.contains(.photoLive) ? "motion" : "photo"
-  }
+  @StateObject private var preview: MediaPreviewModel
+  @ObservedObject private var policy = PreviewNetworkPolicy.shared
+  init(asset: PHAsset) { self.asset = asset; _preview = StateObject(wrappedValue: MediaPreviewModel(asset: asset)) }
   var body: some View {
     DuckSheetLayout(title: "apple_photo_detail") {
-      if let image {
+      if let image = preview.image {
         #if os(macOS)
-          Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 300)
+        Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 300)
         #else
-          Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 300)
+        Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 300)
         #endif
-      } else if unavailable {
-        DuckNotice(title: "apple_photo_preview_unavailable", tone: .attention, symbol: "photo")
-      } else { ProgressView("library_loading").frame(maxWidth: .infinity, minHeight: 120) }
-      VStack(alignment: .leading, spacing: 12) {
-        if let filename = PHAssetResource.assetResources(for: asset).first?.originalFilename {
-          Text(filename).font(.headline).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-        }
-        LabeledContent("design_file_type", value: NSLocalizedString("library_filter_" + kind, comment: ""))
-        LabeledContent("design_capture_time", value: asset.creationDate?.formatted(date: .abbreviated, time: .shortened) ?? NSLocalizedString("design_capture_unknown", comment: ""))
-        LabeledContent("apple_photo_dimensions", value: "\(asset.pixelWidth) × \(asset.pixelHeight)")
-        if asset.mediaType == .video { LabeledContent("apple_photo_duration", value: videoDurationLabel(asset.duration)) }
-      }
+      } else if preview.failure { DuckNotice(title: "apple_photo_preview_unavailable", tone: .attention, symbol: "photo") }
+      else if preview.loading { ProgressView("library_loading") }
+      PhotoMetadataPanel(preview: preview)
       DuckNotice(title: "apple_photo_source_note", symbol: "cloud")
-    } actions: {
-      Button("settings_done") { dismiss() }.duckSecondaryAction()
-    }
-    .task(id: asset.localIdentifier) {
-      Self.pipeline.cancel(request)
-      image = nil; unavailable = false; generation = UUID()
-      let expected = generation
-      request = Self.pipeline.request(asset, pixels: 1000) { value, _ in
-        guard generation == expected else { return }
-        if let value { image = value; unavailable = false }
-        else if image == nil { unavailable = true }
-      }
-    }.onDisappear { generation = UUID(); Self.pipeline.cancel(request) }
+    } actions: { Button("settings_done") { dismiss() }.duckSecondaryAction() }
+      .task(id: asset.localIdentifier) { preview.load(asset); preview.loadMetadata() }
+      .onChange(of: policy.choice) { _, _ in preview.load(); preview.loadMetadata() }
+      .onDisappear { preview.cancel() }.previewCloudConsent()
   }
 }
 

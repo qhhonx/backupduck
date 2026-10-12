@@ -7,6 +7,44 @@ import XCTest
 
 /// Run only on a disposable simulator; fixtures remain available for UI checks.
 @MainActor final class LibraryTests: XCTestCase {
+  func testBackupScopeUsesActualAlbumMembershipAndFrozenSnapshot() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("This fixture is simulator-only")
+    #endif
+    guard PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized else {
+      throw XCTSkip("Authorize only the disposable simulator's synthetic library first")
+    }
+    let images = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    let videos = PHAsset.fetchAssets(with: .video, options: photoLibraryFetchOptions())
+    guard images.count > 0, videos.count > 0 else { throw XCTSkip("Synthetic image/video fixtures required") }
+    let photo = images.object(at: 0), video = videos.object(at: 0)
+    var albumIDs: [String] = []
+    try await PHPhotoLibrary.shared().performChanges {
+      let a = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: "Scope fixture A")
+      a.addAssets([photo, video] as NSArray)
+      let b = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: "Scope fixture B")
+      b.addAssets([photo] as NSArray)
+      albumIDs = [a.placeholderForCreatedAssetCollection.localIdentifier, b.placeholderForCreatedAssetCollection.localIdentifier]
+    }
+    // Keep these synthetic albums for subsequent native settings inspection.
+    var rule = BackupScopeRule(types: [.photo], restrictAlbums: true, albums: Set(albumIDs))
+    let union = await Task.detached { rule.selectedIDs() }.value
+    XCTAssertEqual(union, [photo.localIdentifier], "Overlapping albums must not duplicate the asset")
+    rule.types = [.video]; rule.albums = [albumIDs[1]]
+    let excluded = await Task.detached { rule.selectedIDs() }.value
+    XCTAssertTrue(excluded.isEmpty)
+    rule.albums = [albumIDs[0]]
+    let store = BackupScopeStore.shared, previous = store.rule
+    store.save(rule); defer { store.save(previous) }
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("scope-snapshot-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let id = try await HistoricalScanCursor.capture(root: root, receiver: "scope-fixture")
+    store.save(BackupScopeRule(types: []))
+    let cursor = try await HistoricalScanCursor.load(root: root, receiver: "scope-fixture", run: 1, snapshotID: id)
+    XCTAssertEqual(cursor.ids, [video.localIdentifier], "Changing settings cannot change an existing frozen scan")
+  }
+
   func testPhotosIncludesLivePhotosAndCountsTheDisplayedFetch() async throws {
     #if !targetEnvironment(simulator)
       throw XCTSkip("PhotoKit acceptance is simulator-only")

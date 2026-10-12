@@ -55,6 +55,9 @@ struct IOSSettingsPage: View {
                 IOSPreferenceValue(value: Locale.current.localizedString(forLanguageCode: Locale.current.language.languageCode?.identifier ?? "en") ?? "—", indicator: nil)
               }.accessibilityIdentifier("settings.language")
             }
+            IOSPreferenceSection(title: "nav_library") {
+              PreviewCloudSetting().padding(.horizontal, 16).frame(minHeight: DuckPreferenceMetrics.rowHeight)
+            }
             IOSPreferenceSection(title: "apple_local_storage") {
               NavigationLink {
                 IOSPrototypeDestination(title: "settings_cache") {
@@ -145,6 +148,7 @@ struct IOSBackupPreferences: View {
             if model.discoveryPending > 0 { LabeledContent("discovery_pending", value: model.discoveryPending.formatted()).padding(16) }
             if model.historyUnavailable { DuckNotice(title: "error_history_unavailable", tone: .attention).padding(16) }
           }
+          BackupScopeSettings()
           IOSPreferenceSection(title: "transfer_settings") {
             IOSPreferenceRow(title: "transfer_concurrency", note: "transfer_concurrency_note", controlColumnWidth: 120) {
             Menu {

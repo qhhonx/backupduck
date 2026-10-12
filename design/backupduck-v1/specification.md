@@ -73,8 +73,8 @@ mapping. Retry submission is not success. Preparation is not byte transfer.
 
 ## Files, previews and persistence
 
-Library browsing previews available local media without fetching cloud originals
-solely for preview. Selection, sorting, pagination, expanded folders and scroll
+Library browsing uses local media first. Network preview loading requires explicit
+preview consent, persisted separately from backup authorization. Selection, sorting, pagination, expanded folders and scroll
 positions survive background state updates. Native grids/lists are virtualized
 with stable identities and bounded thumbnail work.
 

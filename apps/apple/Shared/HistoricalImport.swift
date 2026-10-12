@@ -52,6 +52,7 @@ struct HistoricalImportStatus: Decodable, Equatable {
   /// Capture identifiers at the button press. Insertions during enumeration
   /// are removed using the persistent change token captured beforehand.
   @discardableResult static func capture(root: URL, receiver: String) async throws -> String {
+    let rule = BackupScopeStore.shared.rule
     let ids = try await Task.detached(priority: .utility) { () throws -> [String] in
       let token = try NSKeyedArchiver.archivedData(
         withRootObject: PHPhotoLibrary.shared().currentChangeToken, requiringSecureCoding: true)
@@ -63,8 +64,9 @@ struct HistoricalImportStatus: Decodable, Equatable {
       var result = [String]()
       result.reserveCapacity(assets.count)
       assets.enumerateObjects { asset, _, _ in result.append(asset.localIdentifier) }
+      let included = rule.selectedIDs(from: Set(result))
       let inserted = try PhotoLibraryChanges.changes(since: token).1
-      return result.filter { !inserted.contains($0) }
+      return result.filter { included.contains($0) && !inserted.contains($0) }
     }.value
     return try persistSnapshot(root: root, receiver: receiver, ids: ids)
   }

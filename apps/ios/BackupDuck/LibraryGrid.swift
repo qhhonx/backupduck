@@ -6,6 +6,7 @@ import UIKit
 
 struct IOSLibraryGrid: UIViewRepresentable {
   @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject var networkPolicy = PreviewNetworkPolicy.shared
   var preparationRevision: String = ""
   var queueRevision: Int64
   var receiverID: String?
@@ -22,7 +23,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     layout.sectionInset = showSupplementaryContent
       ? UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
       : UIEdgeInsets(top: 4, left: 8, bottom: 16, right: 8)
-    let view = LibraryCollectionView(frame: .zero, collectionViewLayout: layout)
+    let view = LibraryCollectionView(frame: .zero, collectionViewLayout: showSupplementaryContent ? layout : LibraryTimelineLayout(library: library, mode: library.viewMode))
     view.backgroundColor = .clear
     // The viewport extends beneath the native tab/accessory chrome; UIKit still
     // reserves its real safe area so the final asset can scroll above controls.
@@ -33,20 +34,32 @@ struct IOSLibraryGrid: UIViewRepresentable {
     view.register(PhotoCell.self, forCellWithReuseIdentifier: "photo")
     view.register(LibrarySupplementaryView.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "library.header")
     view.register(LibrarySupplementaryView.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionFooter, withReuseIdentifier: "library.footer")
+    view.register(TimelineDateHeader.self, forSupplementaryViewOfKind: LibraryTimelineLayout.headerKind, withReuseIdentifier: "timeline")
     view.dataSource = context.coordinator
     view.delegate = context.coordinator
     let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
     press.minimumPressDuration = 0.4
     press.cancelsTouchesInView = true
     view.addGestureRecognizer(press)
+    if !showSupplementaryContent {
+      let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinch(_:)))
+      view.addGestureRecognizer(pinch)
+    }
     context.coordinator.collection = view
     return view
   }
   func updateUIView(_ view: UICollectionView, context: Context) {
     let c = context.coordinator
     c.parent = self
-    if c.generation != library.generation { c.stopDrag(revert: true) }
+    if c.generation != library.generation {
+      c.stopDrag(revert: true)
+      if c.transition != nil { view.cancelInteractiveTransition() }
+    }
+    if c.generation < 0 { c.viewMode = library.viewMode }
     c.updateSupplementaryContent()
+    if c.generation >= 0 && c.viewMode != library.viewMode && c.transition == nil && !showSupplementaryContent {
+      c.changeTimelineMode(library.viewMode)
+    }
     if c.generation != library.generation {
       c.clearPresentationCache()
       let sameFilter = (c.filter == nil || c.filter == library.filter)
@@ -99,6 +112,10 @@ struct IOSLibraryGrid: UIViewRepresentable {
       view.insertItems(at: (old..<c.count).map { IndexPath(item: $0, section: 0) })
       view.setNeedsLayout()
     }
+    if c.networkAllowed != networkPolicy.allowed {
+      c.networkAllowed = networkPolicy.allowed
+      for path in view.indexPathsForVisibleItems { if let cell = view.cellForItem(at: path) as? PhotoCell { c.configure(cell, path: path) } }
+    }
     if c.contentGeneration != library.contentGeneration {
       c.clearPresentationCache()
       c.contentGeneration = library.contentGeneration
@@ -137,6 +154,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
   }
   static func dismantleUIView(_ view: UICollectionView, coordinator: Coordinator) {
     coordinator.stopDrag(revert: true)
+    if coordinator.transition != nil { view.cancelInteractiveTransition() }
     coordinator.rememberScroll()
     coordinator.refresh.cancel()
     coordinator.parent.library.thumbnails.clear()
@@ -152,6 +170,10 @@ struct IOSLibraryGrid: UIViewRepresentable {
     var contentGeneration = -1
     var queueRevision: Int64 = -2
     var receiverID: String?
+    var viewMode: LibraryViewMode = .all
+    var transition: UICollectionViewTransitionLayout?
+    private var transitionTarget: LibraryViewMode?
+    var networkAllowed = false
     var restored = false
     var applyingSelection = false
     var appliedSelection: Set<String>?
@@ -165,6 +187,68 @@ struct IOSLibraryGrid: UIViewRepresentable {
     private var dragLink: CADisplayLink?
     private var dragTime: CFTimeInterval = 0
     init(_ parent: IOSLibraryGrid) { self.parent = parent }
+    func changeTimelineMode(_ mode: LibraryViewMode) {
+      guard let collection else { return }
+      stopDrag(revert: true); rememberScroll(); viewMode = mode
+      let next = LibraryTimelineLayout(library: parent.library, mode: mode)
+      next.anchorID = parent.library.scrollAnchorID; next.anchorInset = parent.library.scrollAnchorInset
+      collection.setCollectionViewLayout(next, animated: !UIAccessibility.isReduceMotionEnabled) { [weak self] _ in
+        next.prepare()
+        collection.setContentOffset(next.targetContentOffset(forProposedContentOffset: collection.contentOffset), animated: false)
+        collection.layoutIfNeeded()
+        self?.refreshTimelineImages()
+      }
+    }
+    private func refreshTimelineImages() {
+      guard let collection else { return }
+      for path in collection.indexPathsForVisibleItems { if let cell = collection.cellForItem(at: path) as? PhotoCell { configure(cell, path: path) } }
+      if let layout = collection.collectionViewLayout as? LibraryTimelineLayout {
+        layout.prepare()
+        for path in collection.indexPathsForVisibleSupplementaryElements(ofKind: LibraryTimelineLayout.headerKind) {
+          (collection.supplementaryView(forElementKind: LibraryTimelineLayout.headerKind, at: path) as? TimelineDateHeader)?.setTitle(layout.title(at: path.item))
+        }
+      }
+      rememberScroll(); scrolled()
+    }
+    @objc func pinch(_ recognizer: UIPinchGestureRecognizer) {
+      guard let collection, !parent.selectionEnabled else { return }
+      if UIAccessibility.isReduceMotionEnabled {
+        if recognizer.state == .ended && abs(log(recognizer.scale)) > 0.14 {
+          parent.library.viewMode = recognizer.scale < 1 ? .months : .days
+        }
+        return
+      }
+      switch recognizer.state {
+      case .began: stopDrag(revert: true); rememberScroll()
+      case .changed:
+        if transition == nil {
+          let target: LibraryViewMode = recognizer.scale < 1 ? .months : .days
+          guard target != viewMode, abs(log(recognizer.scale)) > 0.025 else { return }
+          transitionTarget = target
+          let next = LibraryTimelineLayout(library: parent.library, mode: target)
+          next.anchorID = parent.library.scrollAnchorID; next.anchorInset = parent.library.scrollAnchorInset
+          transition = collection.startInteractiveTransition(to: next) { [weak self] _, completed in
+            guard let self else { return }
+            if completed, let mode = self.transitionTarget { self.viewMode = mode; self.parent.library.viewMode = mode }
+            self.transition = nil; self.transitionTarget = nil
+            if let layout = collection.collectionViewLayout as? LibraryTimelineLayout {
+              layout.prepare(); collection.setContentOffset(layout.targetContentOffset(forProposedContentOffset: collection.contentOffset), animated: false)
+            }
+            collection.layoutIfNeeded(); self.refreshTimelineImages()
+          }
+        }
+        transition?.transitionProgress = min(1, abs(log(recognizer.scale)) / 0.4)
+        transition?.invalidateLayout()
+      case .ended:
+        if let transition {
+          if transition.transitionProgress > 0.35 { collection.finishInteractiveTransition() }
+          else { collection.cancelInteractiveTransition() }
+        }
+      case .cancelled, .failed:
+        if transition != nil { collection.cancelInteractiveTransition() }
+      default: break
+      }
+    }
     func clearPresentationCache() { presentation.removeAll(keepingCapacity: true) }
     private var headerHeight: CGFloat = 0
     private let headerSizer = UIHostingController(rootView: AnyView(EmptyView()))
@@ -186,6 +270,11 @@ struct IOSLibraryGrid: UIViewRepresentable {
       }
     }
     func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
+      if kind == LibraryTimelineLayout.headerKind {
+        let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "timeline", for: indexPath) as! TimelineDateHeader
+        header.setTitle((collectionView.collectionViewLayout as? LibraryTimelineLayout)?.title(at: indexPath.item) ?? "")
+        return header
+      }
       let reuse = kind == UICollectionView.elementKindSectionHeader ? "library.header" : "library.footer"
       let view = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: reuse, for: indexPath) as! LibrarySupplementaryView
       view.setContent(headerContent)
@@ -242,7 +331,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
           return true
         })]
         cell.showsSelection = parent.selectionEnabled
-        cell.configure(asset, pipeline: parent.library.thumbnails, pixels: 400,
+        cell.configure(asset, pipeline: parent.library.thumbnails, pixels: max(128, cell.bounds.width * (collection?.traitCollection.displayScale ?? UIScreen.main.scale)),
           identifier: parent.library.identifier(at: path.item))
         if let cached = presentation[presentationKey(asset)] {
           cell.setGroup(count: cached.count, state: cached.state)
@@ -278,7 +367,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     }
     func stopDrag(revert: Bool) {
       dragLink?.invalidate(); dragLink = nil
-      if revert, let snapshot = dragSelection { parent.library.selection = snapshot.baseline }
+      if revert, dragGeneration == parent.library.generation, parent.library.authorized, let snapshot = dragSelection { parent.library.selection = snapshot.baseline }
       dragStart = nil; dragSelection = nil; dragTime = 0
     }
     private func applyDrag(at point: CGPoint) {
@@ -368,7 +457,9 @@ struct IOSLibraryGrid: UIViewRepresentable {
           parent.library.asset(at: path.item).map { (path, $0.localIdentifier) }
         })
         if last >= parent.library.loaded - 36 { parent.library.loadMore() }
-        let range = max(0, first - 18)..<min(parent.library.loaded, last + 37)
+        let lower = min(parent.library.loaded, max(0, first - 18))
+        let upper = max(lower, min(parent.library.loaded, last + 37))
+        let range = lower..<upper
         parent.library.thumbnails.preheat(
           range.compactMap { parent.library.asset(at: $0) }, pixels: 400)
         let visible = paths.compactMap { parent.library.asset(at: $0.item) }
@@ -449,6 +540,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     duration.backgroundColor = .black.withAlphaComponent(0.55)
     duration.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
     duration.textAlignment = .center
+    duration.adjustsFontSizeToFitWidth = true
     duration.layer.cornerRadius = 5
     duration.clipsToBounds = true
     duration.isHidden = true
@@ -467,10 +559,12 @@ struct IOSLibraryGrid: UIViewRepresentable {
   override func layoutSubviews() {
     super.layoutSubviews()
     photo.frame = contentView.bounds
-    media.frame = CGRect(x: 6, y: 6, width: 22, height: 22)
+    let badge: CGFloat = bounds.width < 100 ? 16 : 22
+    media.frame = CGRect(x: 6, y: 6, width: badge, height: badge)
     burstCount.frame = CGRect(x: 31, y: 6, width: 42, height: 22)
-    let durationWidth = min(bounds.width - 12, max(42, duration.intrinsicContentSize.width + 12))
-    duration.frame = CGRect(x: 31, y: 6, width: durationWidth, height: 22)
+    let durationX = 6 + badge + 4
+    let durationWidth = max(1, min(bounds.width - durationX - 6, max(42, duration.intrinsicContentSize.width + 12)))
+    duration.frame = CGRect(x: durationX, y: 6, width: durationWidth, height: badge)
     cloud.frame = CGRect(x: 6, y: bounds.height - 28, width: 22, height: 22)
     status.frame = CGRect(x: bounds.width - 27, y: 6, width: 21, height: 21)
     selection.frame = CGRect(x: bounds.width - 30, y: bounds.height - 30, width: 24, height: 24)
@@ -498,7 +592,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
   func configure(_ asset: PHAsset, pipeline: ThumbnailPipeline, pixels: CGFloat, identifier: String? = nil) {
     presentationID = identifier ?? asset.localIdentifier
     accessibilityIdentifier = "library.asset." + (presentationID ?? asset.localIdentifier)
-    let next = asset.localIdentifier + PhotoLibraryModel.revision(asset)
+    let next = asset.localIdentifier + PhotoLibraryModel.revision(asset) + "|\(Int(pixels))|\(PreviewNetworkPolicy.shared.allowed)|\(pipeline.epoch)"
     guard key != next else { return }
     let sameAsset = assetID == asset.localIdentifier
     cancel()
@@ -506,7 +600,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     key = next
     assetID = asset.localIdentifier
     let expected = token
-    photo.image = nil
+    if !sameAsset { photo.image = nil }
     cloud.isHidden = true
     let symbol =
       asset.burstIdentifier != nil ? "square.stack" : asset.mediaSubtypes.contains(.photoLive)
@@ -591,12 +685,14 @@ struct IOSLibraryPage: View {
             }, onBeginSelection: { index in
               guard let id = library.identifier(at: index) else { return }
               library.selection.insert(id); selecting = true
-            }).frame(maxWidth: 640).ignoresSafeArea(.container, edges: .bottom)
+            }).frame(maxWidth: 640).duckLibraryViewport()
         }
       }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
       .task { await library.open() }
+      .onAppear { library.refreshVisiblePreviews() }
+      .onDisappear { library.thumbnails.clear() }
       .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
-      .fullScreenCover(item: $preview) { IOSPhotoPreview(asset: $0.asset) }
+      .fullScreenCover(item: $preview) { IOSPhotoPreview(asset: $0.asset, library: library) }
 
     }
   }
@@ -641,17 +737,29 @@ struct IOSLibraryPage: View {
       }.buttonStyle(.plain).foregroundStyle(DuckColors.action).accessibilityIdentifier("library.filter")
     }
   }
+  private var viewMenu: some View {
+    Menu {
+      Picker("library_view_mode", selection: $library.viewMode) {
+        ForEach(LibraryViewMode.allCases) { mode in Text(LocalizedStringKey(mode.title)).tag(mode) }
+      }.pickerStyle(.inline)
+    } label: {
+      Image(systemName: "calendar").frame(width: 44, height: 44)
+    }.buttonStyle(.plain).foregroundStyle(DuckColors.action)
+      .accessibilityLabel(Text("library_view_mode"))
+      .accessibilityValue(Text(LocalizedStringKey(library.viewMode.title)))
+      .accessibilityIdentifier("library.view_mode")
+  }
   @ViewBuilder private var libraryToolbar: some View {
     if textSize.isAccessibilitySize {
       VStack(alignment: .leading, spacing: 4) {
         if selecting { selectionTitle } else { browsingTitle }
-        HStack { Spacer(minLength: 0); if selecting { selectionActions } else { typeMenu } }
+        HStack { Spacer(minLength: 0); if selecting { selectionActions } else { typeMenu; viewMenu } }
       }
     } else {
       HStack(spacing: 8) {
         if selecting { selectionTitle } else { browsingTitle }
         Spacer(minLength: 4)
-        if selecting { selectionActions } else { typeMenu }
+        if selecting { selectionActions } else { typeMenu; viewMenu }
       }
     }
   }
@@ -722,79 +830,126 @@ private struct IOSPreviewItem: Identifiable {
   var id: String { asset.localIdentifier }
 }
 
-/// Browsing is separate from backup preparation: only locally available media
-/// is requested here, and requests/playback are cancelled on dismissal.
 private struct IOSPhotoPreview: View {
-  let asset: PHAsset
+  @ObservedObject var library: PhotoLibraryModel
+  @StateObject private var preview: MediaPreviewModel
+  @ObservedObject private var policy = PreviewNetworkPolicy.shared
   @Environment(\.dismiss) private var dismiss
-  @State private var image: UIImage?
-  @State private var livePhoto: PHLivePhoto?
-  @State private var player: AVPlayer?
-  @State private var unavailable = false
-  @State private var requests: [PHImageRequestID] = []
-  @State private var active = false
+  @State private var information = false
+  @State private var zoomed = false
+  @State private var moving = false
+  init(asset: PHAsset, library: PhotoLibraryModel) {
+    self.library = library
+    _preview = StateObject(wrappedValue: MediaPreviewModel(asset: asset))
+  }
   var body: some View {
     NavigationStack {
-      VStack(spacing: 12) {
-        if let player { VideoPlayer(player: player) }
-        else if let livePhoto { IOSLivePhotoPreview(photo: livePhoto) }
-        else if let image { Image(uiImage: image).resizable().scaledToFit() }
-        else if !unavailable { Text("library_loading").foregroundStyle(DuckColors.textSecondary) }
-        if unavailable { Text("library_preview_unavailable").font(.callout).padding().foregroundStyle(DuckColors.textSecondary) }
-      }.frame(maxWidth: .infinity, maxHeight: .infinity).background(DuckColors.canvas)
-        .navigationTitle("library_preview").navigationBarTitleDisplayMode(.inline)
+      VStack(spacing: 0) {
+        GeometryReader { geometry in
+          ZStack {
+            if let player = preview.player { VideoPlayer(player: player).accessibilityIdentifier("library.preview.video") }
+            else if let photo = preview.livePhoto { IOSLivePhotoPreview(photo: photo) }
+            else if let image = preview.image { IOSZoomPhoto(image: image, zoomed: $zoomed) }
+            if preview.loading { ProgressView(value: preview.progress > 0 ? preview.progress : nil).padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) }
+          }.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+            .simultaneousGesture(DragGesture(minimumDistance: 40).onEnded { value in
+              guard !zoomed, value.startLocation.y < geometry.size.height * 0.75 else { return }
+              let x = value.translation.width, y = value.translation.height
+              if abs(x) > 70 && abs(x) > abs(y) * 1.5 { move(x < 0 ? 1 : -1) }
+              else if y < -60 && abs(y) > abs(x) * 1.5 { information = true }
+            })
+        }
+        BurstPreviewControls(preview: preview)
+        if preview.cloudNeeded {
+          Button(policy.allowed ? "retry_task" : "preview_cloud_allow") {
+            if !policy.allowed { policy.decide(true) }; preview.load()
+          }.duckSecondaryAction().padding(12)
+        }
+        if preview.failure { Text("library_preview_unavailable").font(.callout).padding(12) }
+        HStack {
+          Button { move(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+            .disabled(moving || library.previewIndex(of: preview.asset) == 0)
+            .accessibilityLabel(Text("preview_previous")).accessibilityIdentifier("library.preview.previous")
+          Spacer()
+          Button { information = true } label: { Label("apple_photo_detail", systemImage: "info.circle").frame(minHeight: 44) }
+            .accessibilityIdentifier("library.preview.info")
+          Spacer()
+          Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+            .disabled(moving || (!library.hasMoreRows && library.previewIndex(of: preview.asset) == library.loaded - 1))
+            .accessibilityLabel(Text("preview_next")).accessibilityIdentifier("library.preview.next")
+        }.padding(.horizontal, 16).background(DuckColors.surface)
+      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text)
+        .navigationTitle(preview.asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? NSLocalizedString("library_preview", comment: ""))
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) {
           Button("settings_done") { dismiss() }.accessibilityIdentifier("library.preview.close")
         } }
-        .onAppear { load() }
-        .onDisappear {
-          active = false
-          requests.forEach { PHImageManager.default().cancelImageRequest($0) }
-          requests.removeAll(); player?.pause(); player = nil
+        .onAppear { preview.load() }.onDisappear { preview.cancel() }
+        .onChange(of: policy.choice) { _, _ in preview.load(); if information { preview.loadMetadata() } }
+        .sheet(isPresented: $information) {
+          NavigationStack {
+            ScrollView { PhotoMetadataPanel(preview: preview).padding(24) }
+              .navigationTitle("apple_photo_detail").navigationBarTitleDisplayMode(.inline)
+              .toolbar { ToolbarItem(placement: .confirmationAction) { Button("settings_done") { information = false } } }
+          }.previewCloudConsent().presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
         }
+        .previewCloudConsent()
     }
   }
-  private func load() {
-    guard !active else { return }
-    active = true
-    let size = CGSize(width: 1600, height: 1600)
-    let options = PHImageRequestOptions()
-    options.isNetworkAccessAllowed = false
-    options.deliveryMode = .highQualityFormat
-    requests.append(PHImageManager.default().requestImage(for: asset, targetSize: size,
-      contentMode: .aspectFit, options: options) { result, _ in
-      Task { @MainActor in
-        guard active else { return }
-        image = result
-        // Video/Live Photo requests own their full-media availability. A
-        // poster callback must not overwrite a later playback result.
-        if asset.mediaType != .video && !asset.mediaSubtypes.contains(.photoLive) {
-          unavailable = result == nil
-        }
+  private func move(_ direction: Int) {
+    guard !moving else { return }; moving = true
+    Task {
+      if let asset = await library.previewNeighbor(of: preview.asset, direction: direction) {
+        zoomed = false; preview.load(asset)
       }
-    })
-    if asset.mediaType == .video {
-      let options = PHVideoRequestOptions()
-      options.isNetworkAccessAllowed = false
-      requests.append(PHImageManager.default().requestPlayerItem(forVideo: asset, options: options) { item, _ in
-        Task { @MainActor in
-          guard active else { return }
-          if let item { player = AVPlayer(playerItem: item); unavailable = false }
-          else { unavailable = true }
-        }
-      })
-    } else if asset.mediaSubtypes.contains(.photoLive) {
-      let options = PHLivePhotoRequestOptions()
-      options.isNetworkAccessAllowed = false
-      options.deliveryMode = .highQualityFormat
-      requests.append(PHImageManager.default().requestLivePhoto(for: asset, targetSize: size,
-        contentMode: .aspectFit, options: options) { photo, _ in
-        Task { @MainActor in
-          guard active else { return }
-          livePhoto = photo
-          unavailable = photo == nil
-        }
-      })
+      moving = false
+    }
+  }
+}
+private struct IOSZoomPhoto: UIViewRepresentable {
+  let image: UIImage
+  @Binding var zoomed: Bool
+  func makeCoordinator() -> Coordinator { Coordinator(self) }
+  func makeUIView(context: Context) -> UIScrollView {
+    let scroll = PhotoZoomScroll(); scroll.delegate = context.coordinator
+    scroll.minimumZoomScale = 1; scroll.maximumZoomScale = 4
+    scroll.showsHorizontalScrollIndicator = false; scroll.showsVerticalScrollIndicator = false
+    let photo = context.coordinator.photo; photo.contentMode = .scaleAspectFit
+    photo.image = image; photo.isAccessibilityElement = true; photo.accessibilityIdentifier = "library.preview.photo"; photo.accessibilityTraits = .image; scroll.photo = photo; scroll.addSubview(photo)
+    let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTap(_:)))
+    doubleTap.numberOfTapsRequired = 2; scroll.addGestureRecognizer(doubleTap)
+    return scroll
+  }
+  func updateUIView(_ scroll: UIScrollView, context: Context) {
+    context.coordinator.parent = self
+    if context.coordinator.photo.image !== image {
+      scroll.setZoomScale(1, animated: false); context.coordinator.photo.image = image
+    }
+    if scroll.zoomScale == 1 { context.coordinator.photo.frame = scroll.bounds; scroll.contentSize = scroll.bounds.size }
+  }
+  final class Coordinator: NSObject, UIScrollViewDelegate {
+    var parent: IOSZoomPhoto
+    let photo = UIImageView()
+    init(_ parent: IOSZoomPhoto) { self.parent = parent }
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { photo }
+    func scrollViewDidZoom(_ scrollView: UIScrollView) { parent.zoomed = scrollView.zoomScale > 1.01 }
+    @objc func doubleTap(_ recognizer: UITapGestureRecognizer) {
+      guard let scroll = recognizer.view as? UIScrollView else { return }
+      if scroll.zoomScale > 1 { scroll.setZoomScale(1, animated: !UIAccessibility.isReduceMotionEnabled) }
+      else {
+        let p = recognizer.location(in: photo), size = CGSize(width: scroll.bounds.width / 2.5, height: scroll.bounds.height / 2.5)
+        scroll.zoom(to: CGRect(x: p.x - size.width / 2, y: p.y - size.height / 2, width: size.width, height: size.height), animated: !UIAccessibility.isReduceMotionEnabled)
+      }
+    }
+  }
+}
+@MainActor private final class PhotoZoomScroll: UIScrollView {
+  weak var photo: UIImageView?
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if zoomScale <= 1.01, bounds.width > 0, bounds.height > 0 {
+      photo?.frame = CGRect(origin: .zero, size: bounds.size)
+      contentSize = bounds.size
     }
   }
 }

@@ -64,6 +64,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   @Published private(set) var requestingPermission = false
   @Published private(set) var filter: LibraryFilter = .all
   private var requestedFilter: LibraryFilter = .all
+  @Published var viewMode: LibraryViewMode = .all
   @Published var selection: Set<String> = []
   @Published var message: String?
   private(set) var fetch: PHFetchResult<PHAsset>?
@@ -203,6 +204,23 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       if result.1 { generation += 1 }
     }
   }
+  func previewIndex(of asset: PHAsset) -> Int? {
+    index(of: asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier)
+  }
+  func previewNeighbor(of asset: PHAsset, direction: Int) async -> PHAsset? {
+    guard let current = previewIndex(of: asset), current + direction >= 0 else { return nil }
+    if current + direction >= loaded, hasMoreRows {
+      loadMore()
+      for _ in 0..<200 {
+        if current + direction < loaded || !loadingPage { break }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        if Task.isCancelled { return nil }
+      }
+    }
+    guard let refreshed = previewIndex(of: asset) else { return nil }
+    return self.asset(at: refreshed + direction)
+  }
+  func refreshVisiblePreviews() { contentGeneration &+= 1 }
   func asset(at index: Int) -> PHAsset? {
     guard let fetch, presentation.rows.indices.contains(index) else { return nil }
     return fetch.object(at: presentation.rows[index].rawIndex)
@@ -338,23 +356,26 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   private var pending: [PHImageRequestID: Pending] = [:]
   private var cloudQueue: [PHImageRequestID] = []
   private var activeCloud: Set<PHImageRequestID> = []
+  private var policyObservation: AnyCancellable?
   private var sequence: PHImageRequestID = 0
+  private(set) var epoch = 0
   private(set) var requestsStarted = 0
   private(set) var requestsCancelled = 0
   init() {
     cache.totalCostLimit = 64 * 1024 * 1024
     cache.countLimit = 500
-    manager.allowsCachingHighQualityImages = false
+    manager.allowsCachingHighQualityImages = true
+    policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in self?.clear() }
   }
   func size(_ requested: CGFloat) -> CGSize {
-    let edge = min(640, max(128, (requested / 64).rounded(.up) * 64))
+    let edge = min(1024, max(128, (requested / 64).rounded(.up) * 64))
     return CGSize(width: edge, height: edge)
   }
   private func options(network: Bool = false, video: Bool = false) -> PHImageRequestOptions {
     let options = PHImageRequestOptions()
     options.isNetworkAccessAllowed = network
     options.deliveryMode = video ? .highQualityFormat : .opportunistic
-    options.resizeMode = video ? .exact : .fast
+    options.resizeMode = .exact
     return options
   }
   @discardableResult func request(
@@ -389,10 +410,14 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
           item.completion(image, false)
         }
         guard !degraded else { return }
-        if image == nil && cloud && !network && !item.hasImage {
+        if image == nil && cloud && !network {
           item.completion(nil, true)
-          self.cloudQueue.append(id)
-          self.pumpCloud()
+          if PreviewNetworkPolicy.shared.allowed {
+            self.cloudQueue.append(id); self.pumpCloud()
+          } else {
+            PreviewNetworkPolicy.shared.requestConsent()
+            self.pending.removeValue(forKey: id)
+          }
         } else {
           if image == nil && !item.hasImage { item.completion(nil, cloud) }
           self.pending.removeValue(forKey: id)
@@ -426,7 +451,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       preheated.removeAll()
       preheatSize = target
     }
-    let next = Dictionary(assets.prefix(180).map { ($0.localIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
+    let next = Dictionary(assets.prefix(48).map { ($0.localIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
     let removed = preheated.filter { next[$0.key] == nil }.map(\.value)
     let added = next.filter { preheated[$0.key] == nil }.map(\.value)
     // Match the visible request's quality while keeping preheating batched.
@@ -445,6 +470,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     preheated = next
   }
   func clear() {
+    epoch &+= 1
     let requests = pending.values.map(\.native)
     pending.removeAll(); cloudQueue.removeAll(); activeCloud.removeAll()
     requests.forEach { manager.cancelImageRequest($0) }

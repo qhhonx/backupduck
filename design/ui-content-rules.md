@@ -68,6 +68,11 @@ unseen features, and do not add a global badge for every actionable status.
 
 ## Layout ownership
 
+Root Apple navigation owns its background across all tabs. On iOS before 26,
+standard and scroll-edge tab appearances use the same opaque semantic surface;
+media grids respect the legacy tab safe area. Newer system material navigation
+retains native rendering. Never fix transparency by painting a single page.
+
 Components own row height, internal padding and icon alignment. Pages own the
 spacing between components. Preference groups must not inherit the extra vertical
 padding of general content cards. Keep headings and their content together;
@@ -131,3 +136,51 @@ Automatic background operations do not open a result page without user intent.
    for new states; checking that text exists is not a visibility check.
 5. Separate build results, installation, observed behavior and physical-device
    coverage. Document limitations without personal development narratives.
+
+## Sender media browsing
+
+Preview uses the current filtered/sorted library context and stable asset identity.
+Previous/next navigation preserves selection and the parent's scroll anchor.
+Photos support fit/zoom, Live Photos use PhotosUI playback, videos use AVKit.
+Information shows real capture date, dimensions, format, available EXIF and location;
+missing fields are omitted, never guessed. Information access is read-only.
+
+Grid image targets use cell size times display density, with bounded quality caches
+and visible requests. Detail targets are high quality and bounded to 4096 pixels.
+Local previews work without cloud consent. The first unavailable iCloud preview
+requests explicit consent; refusal persists until the user changes the setting.
+Consent covers preview network loading, including cellular access under the OS
+network policy, and never starts or authorizes backup. Settings can revoke it;
+revocation cancels outstanding preview requests and clears their image cache.
+EXIF reads occur only when information is opened. No private file-size API is used.
+
+## Photo backup scope
+
+Persistent backup scope is separate from temporary gallery filters and explicit
+manual selection. Still photos, Live Photos, video and bursts are disjoint
+categories. Multiple types/albums form a union within that dimension; type and
+album dimensions intersect. No selected types, or restricted albums with no
+accessible matches, means an empty scope, never the whole library.
+
+The scope applies at new-media discovery and existing-scan snapshot capture.
+Changing it does not start historical work or rewrite persisted preparations;
+paused/resumed scans use their frozen IDs. Deleted/restricted albums remain
+visible as unavailable configuration until the user changes their selection.
+Manual selected-item backup follows the explicit selection instead of silently
+excluding items. Folder rules remain source-specific, separate from Photos albums.
+
+## Library time views
+
+All/Days/Months are presentation modes over the same filtered, sorted asset IDs.
+Days group by local-calendar capture day; Months group by capture month and use
+denser thumbnails. Missing capture dates form an explicitly unknown group.
+Changing mode preserves the visible asset anchor and selection. At the beginning
+of the library, retain the top so the new date heading remains visible.
+
+iPhone pinch drives a native collection transition between day/month layouts;
+short/reversed gestures cancel without changing mode. Disable this gesture during
+range selection, and cancel obsolete transitions before replacing membership.
+Reduce Motion uses immediate mode changes. Desktop uses native animated layout
+updates, a view picker and a trackpad magnification shortcut. Date headings and
+image target sizes refresh with the layout, not just with data-source reloads.
+Virtualization uses bounded visible-rectangle lookup for both cells and headings.

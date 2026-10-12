@@ -48,3 +48,12 @@ physical-device behavior. See [validation](../docs/native-validation.md).
 Public documentation explains reproducible behavior and contribution requirements.
 Personal acceptance notes, device-installation logs and development handoffs do
 not belong in the source release. See [public-source policy](../docs/public-source-policy.md).
+
+## Apple library extension
+
+Apple senders share consent-aware high-quality media loading, an information
+panel, source-level type/album backup scope and calendar grid geometry. Native
+collections retain stable asset IDs through all/day/month view changes. See
+[component rules](ui-content-rules.md#sender-media-browsing) for ownership and
+[time-view motion](backupduck-v1/motion.md) for native transitions. These changes
+do not extend the unfinished Android/Windows senders or imply cloud backup.

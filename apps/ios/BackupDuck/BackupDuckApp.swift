@@ -1,6 +1,16 @@
 import SwiftUI
 
 @main struct BackupDuckApp: App {
+  init() {
+    if #available(iOS 26.0, *) { } else {
+      // Legacy scroll-edge appearance must not turn transparent above media.
+      let appearance = UITabBarAppearance()
+      appearance.configureWithOpaqueBackground()
+      appearance.backgroundColor = UIColor(DuckColors.surface)
+      UITabBar.appearance().standardAppearance = appearance
+      UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+  }
   @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @StateObject private var model = BackupModel.shared
   @StateObject private var library = PhotoLibraryModel()
@@ -19,19 +29,20 @@ import SwiftUI
   var body: some Scene {
     WindowGroup {
       TabView {
-        IOSLibraryPage(library: library, model: model).tabItem {
+        IOSLibraryPage(library: library, model: model).duckTabSurface().tabItem {
           Label("nav_library", systemImage: "photo.on.rectangle")
         }
-        IOSBackupPage(model: model).tabItem {
+        IOSBackupPage(model: model).duckTabSurface().tabItem {
           Label("nav_backup", systemImage: "arrow.triangle.2.circlepath")
         }
-        IOSReceiverPage(model: model).tabItem {
+        IOSReceiverPage(model: model).duckTabSurface().tabItem {
           Label("nav_receiver", systemImage: "externaldrive.badge.wifi")
         }
-        IOSSettingsPage(model: model).tabItem {
+        IOSSettingsPage(model: model).duckTabSurface().tabItem {
           Label("nav_settings", systemImage: "gearshape")
         }
       }.background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
+        .previewCloudConsent()
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake
@@ -50,5 +61,19 @@ import SwiftUI
           }
         }
     }
+  }
+}
+
+extension View {
+  @ViewBuilder func duckTabSurface() -> some View {
+    if #available(iOS 26.0, *) { self }
+    else {
+      self.toolbarBackground(DuckColors.surface, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+    }
+  }
+  @ViewBuilder func duckLibraryViewport() -> some View {
+    if #available(iOS 26.0, *) { self.ignoresSafeArea(.container, edges: .bottom) }
+    else { self }
   }
 }

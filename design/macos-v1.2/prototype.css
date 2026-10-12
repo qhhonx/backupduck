@@ -62,3 +62,5 @@
 .content-section>.card{margin-bottom:0}
 .content-section>.file:first-of-type{padding-top:0}
 [data-screen="backup"]>.hero .card{margin-bottom:0}
+
+.gallery[data-timeline="months"]{grid-template-columns:repeat(5,minmax(0,1fr))}.timeline-heading{grid-column:1/-1;padding:12px 4px 4px}.timeline-controls .button[aria-pressed="true"]{background:var(--action);color:var(--surface)}

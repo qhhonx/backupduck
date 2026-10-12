@@ -191,10 +191,11 @@ struct MacWorkspace: View {
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
+    .previewCloudConsent()
     .sheet(isPresented: $pairSheet) { MacPairingSheet(model: model) }
     .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
     .sheet(isPresented: Binding(get: { previewAsset != nil }, set: { if !$0 { previewAsset = nil } })) {
-      if let previewAsset { MacPhotoPreview(asset: previewAsset) }
+      if let previewAsset { MacPhotoPreview(asset: previewAsset, library: library) }
     }
     .sheet(isPresented: Binding(get: { selectedPhotoDetails != nil }, set: { if !$0 { selectedPhotoDetails = nil } })) {
       if let selectedPhotoDetails { DuckPhotoDetail(asset: selectedPhotoDetails) }
@@ -216,7 +217,7 @@ struct MacWorkspace: View {
       if library.authorized {
       MacLibraryToolbar(total: library.total, selected: library.selection.count,
         selecting: $librarySelecting, filter: Binding(get: { library.filter }, set: { value in Task { await library.changeFilter(value) } }),
-        tileSize: $tileSize, canBackup: !library.selection.isEmpty && !model.importing && model.pairing != nil,
+        viewMode: $library.viewMode, tileSize: $tileSize, canBackup: !library.selection.isEmpty && !model.importing && model.pairing != nil,
         finish: { library.selection.removeAll() }, backup: { rebackupReceivedSelection = false; confirmSelectedBackup = true })
         .padding(.horizontal, 28).padding(.vertical, 12)
 

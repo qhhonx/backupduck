@@ -36,3 +36,9 @@ Inspect transfer, pause, failure, completion and offline transitions in actual
 native windows. Check long lists, narrow screens, large text and reduced motion.
 Prototype transitions are references, not proof of native execution or old-device
 frame-rate performance.
+
+Library time-view changes animate existing native collection attributes while
+retaining asset identity and the scroll anchor. iPhone pinch controls transition
+progress directly; reversal cancels, completion adopts the new mode. Date labels
+refresh after layout adoption. Reduce Motion skips spatial interpolation. Mac
+uses a 220 ms native layout transition; it does not imitate a touch-only control.

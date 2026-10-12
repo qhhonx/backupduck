@@ -4,6 +4,7 @@ import SwiftUI
 
 struct MacLibraryGrid: NSViewRepresentable {
   @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject var networkPolicy = PreviewNetworkPolicy.shared
   var preparationRevision: String = ""
   var queueRevision: Int64
   var receiverID: String?
@@ -13,10 +14,7 @@ struct MacLibraryGrid: NSViewRepresentable {
   var enterSelection: () -> Void = {}
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeNSView(context: Context) -> NSScrollView {
-    let layout = NSCollectionViewFlowLayout()
-    layout.minimumInteritemSpacing = 10
-    layout.minimumLineSpacing = 10
-    layout.sectionInset = NSEdgeInsets(top: 20, left: 28, bottom: 28, right: 28)
+    let layout = LibraryTimelineLayout(library: library, mode: library.viewMode, target: itemSize)
     let collection = LibraryCollectionView()
     collection.collectionViewLayout = layout
     collection.autoresizingMask = [.width]
@@ -24,6 +22,7 @@ struct MacLibraryGrid: NSViewRepresentable {
     collection.isSelectable = selecting
     collection.allowsMultipleSelection = true
     collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
+    collection.register(TimelineDateHeader.self, forSupplementaryViewOfKind: LibraryTimelineLayout.headerKind, withIdentifier: .init("timeline"))
     collection.dataSource = context.coordinator
     collection.delegate = context.coordinator
     collection.toggleSelection = { [weak coordinator = context.coordinator] path in
@@ -38,6 +37,8 @@ struct MacLibraryGrid: NSViewRepresentable {
     press.minimumPressDuration = 0.4
     press.delaysPrimaryMouseButtonEvents = true
     collection.addGestureRecognizer(press)
+    let magnify = NSMagnificationGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.magnify(_:)))
+    collection.addGestureRecognizer(magnify)
     let scroll = LibraryScrollView()
     scroll.hasVerticalScroller = true
     scroll.drawsBackground = false
@@ -55,16 +56,31 @@ struct MacLibraryGrid: NSViewRepresentable {
     let c = context.coordinator
     c.parent = self
     guard let collection = c.collection,
-      let layout = collection.collectionViewLayout as? NSCollectionViewFlowLayout
+      let layout = collection.collectionViewLayout as? LibraryTimelineLayout
     else { return }
     collection.isSelectable = selecting
     for path in collection.indexPathsForVisibleItems() {
       (collection.item(at: path) as? PhotoCell)?.setSelectionVisible(selecting)
     }
-    if layout.itemSize.width != itemSize {
-      layout.itemSize = NSSize(width: itemSize, height: itemSize)
-      layout.invalidateLayout()
-      c.refreshVisibleImages()
+    if layout.target != itemSize || layout.mode != library.viewMode {
+      c.rememberScroll()
+      let anchor = library.scrollAnchorID, inset = library.scrollAnchorInset
+      c.restoring = true
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.22
+        collection.performBatchUpdates({
+          layout.target = itemSize; layout.mode = library.viewMode; layout.invalidateLayout()
+        }) { _ in
+          layout.prepare()
+          if let index = library.index(of: anchor),
+            let frame = layout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame {
+            let maximum = max(0, layout.collectionViewContentSize.height - scroll.contentView.bounds.height)
+            scroll.contentView.scroll(to: CGPoint(x: 0, y: min(maximum, max(0, frame.minY + inset))))
+            scroll.reflectScrolledClipView(scroll.contentView)
+          }
+          c.restoring = false; c.refreshVisibleImages(); c.scrolled()
+        }
+      }
     }
     if c.generation != library.generation {
       let sameFilter = (c.filter == nil || c.filter == library.filter)
@@ -107,6 +123,9 @@ struct MacLibraryGrid: NSViewRepresentable {
       c.appliedSelection = nil
       collection.insertItems(at: Set((old..<c.count).map { IndexPath(item: $0, section: 0) }))
     }
+    if c.networkAllowed != networkPolicy.allowed {
+      c.networkAllowed = networkPolicy.allowed; c.refreshVisibleImages()
+    }
     if c.contentGeneration != library.contentGeneration {
       c.contentGeneration = library.contentGeneration
       c.refreshVisibleImages()
@@ -136,6 +155,7 @@ struct MacLibraryGrid: NSViewRepresentable {
   }
   @MainActor final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate
   {
+    var networkAllowed = false
     var parent: MacLibraryGrid
     weak var collection: NSCollectionView?
     var observer: NSObjectProtocol?
@@ -153,6 +173,15 @@ struct MacLibraryGrid: NSViewRepresentable {
     var receiverID: String?
     var visibleIdentifiers: [IndexPath: String] = [:]
     init(_ parent: MacLibraryGrid) { self.parent = parent }
+    @objc func magnify(_ recognizer: NSMagnificationGestureRecognizer) {
+      guard !parent.selecting, recognizer.state == .ended, abs(recognizer.magnification) > 0.12 else { return }
+      parent.library.viewMode = recognizer.magnification < 0 ? .months : .days
+    }
+    func collectionView(_ collectionView: NSCollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> NSView {
+      let header = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: .init("timeline"), for: indexPath) as! TimelineDateHeader
+      header.setTitle((collectionView.collectionViewLayout as? LibraryTimelineLayout)?.title(at: indexPath.item) ?? "")
+      return header
+    }
     func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int)
       -> Int
     { count }
@@ -399,7 +428,7 @@ struct MacLibraryGrid: NSViewRepresentable {
   func configure(_ asset: PHAsset, pipeline: ThumbnailPipeline, pixels: CGFloat, identifier: String? = nil) {
     presentationID = identifier ?? asset.localIdentifier
     let key =
-      "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(pipeline.size(pixels).width)"
+      "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(pipeline.size(pixels).width)|\(PreviewNetworkPolicy.shared.allowed)|\(pipeline.epoch)"
     guard imageKey != key else { return }
     cancel()
     self.pipeline = pipeline

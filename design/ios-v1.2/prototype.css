@@ -73,3 +73,5 @@ body.dark{--canvas:#131922;--surface:#1D2633;--subtle:#242E3D;--text:#EFF3F8;--m
 
 /* 2026-10-10: user acceptance trial, iPhone single-line settings 52pt. */
 [data-screen="settings"] .row,[data-screen="cache-settings"] .row,[data-screen="log-retention"] .row,[data-screen="backup"] .switch-row:not(:has(small)),[data-screen="cache-settings"] .switch-row:not(:has(small)){min-height:52px}
+
+.gallery[data-timeline="months"]{grid-template-columns:repeat(5,minmax(0,1fr))}.timeline-heading{grid-column:1/-1;padding:12px 4px 4px}.timeline-controls .button[aria-pressed="true"]{background:var(--action);color:var(--surface)}

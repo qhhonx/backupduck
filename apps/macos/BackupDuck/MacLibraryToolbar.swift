@@ -6,6 +6,7 @@ struct MacLibraryToolbar: View {
   let selected: Int
   @Binding var selecting: Bool
   @Binding var filter: LibraryFilter
+  @Binding var viewMode: LibraryViewMode
   @Binding var tileSize: Double
   var canBackup: Bool
   var finish: () -> Void
@@ -26,6 +27,9 @@ struct MacLibraryToolbar: View {
         Picker("media_type", selection: $filter) {
           ForEach(LibraryFilter.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
         }.labelsHidden().frame(width: 110).controlSize(.regular)
+        Picker("library_view_mode", selection: $viewMode) {
+          ForEach(LibraryViewMode.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
+        }.labelsHidden().frame(width: 120).accessibilityIdentifier("library.view_mode")
         HStack(spacing: 8) {
           Image(systemName: "square.grid.3x3").foregroundStyle(DuckColors.textSecondary)
           Slider(value: $tileSize, in: 100...260, step: 20).frame(width: 80).help("thumbnail_size")

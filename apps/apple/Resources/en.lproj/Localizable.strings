@@ -1114,3 +1114,45 @@
 "receiver_indicator_connected" = "Connected";
 
 "updates_store_note" = "Updates for this version are managed by TestFlight or the App Store.";
+
+"preview_cloud_setting" = "Load previews from iCloud";
+"preview_cloud_title" = "Load from iCloud?";
+"preview_cloud_note" = "Allow network access to load photo and video previews. This does not start a backup. You can change this in Settings.";
+"preview_cloud_allow" = "Allow loading";
+"preview_cloud_not_now" = "Not now";
+"preview_previous" = "Previous";
+"preview_next" = "Next";
+"preview_file_size" = "File size";
+"preview_format" = "Format";
+"preview_camera" = "Camera";
+"preview_lens" = "Lens";
+"preview_aperture" = "Aperture";
+"preview_exposure" = "Exposure";
+"preview_iso" = "ISO";
+"preview_location" = "Location";
+
+"scope_title" = "Backup scope";
+"scope_type_photo" = "Still photos";
+"scope_type_motion" = "Live Photos";
+"scope_type_video" = "Videos";
+"scope_type_burst" = "Bursts";
+"scope_empty" = "No media types selected";
+"scope_album_count" = "%d selected albums";
+"scope_all_albums" = "All albums";
+"scope_restrict_albums" = "Use selected albums only";
+"scope_album_unavailable" = "Album unavailable or access restricted";
+"scope_albums_empty" = "No accessible albums";
+"scope_note" = "Back up selected media types within the selected albums. This applies to newly discovered items and the next existing-library scan. Changing the scope does not start a scan or alter queued work. Manually selected items are backed up as selected.";
+"scope_load_failed" = "Backup scope could not be read. Select the intended scope before continuing.";
+"library_request_access" = "Allow photo access";
+
+"library_view_mode" = "Library view";
+"library_view_all" = "All photos";
+"library_view_days" = "Days";
+"library_view_months" = "Months";
+"preview_still_file_size" = "Still photo size";
+"preview_loading_info" = "Loading photo information";
+"preview_info_unavailable" = "Some photo information is unavailable.";
+"preview_burst_index" = "Frame %d of %d";
+"preview_burst_previous" = "Previous burst frame";
+"preview_burst_next" = "Next burst frame";

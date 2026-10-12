@@ -138,13 +138,23 @@ import CryptoKit
     guard version == revision, state.closingToken == cutoff else {
       throw Bridge.Failure(code: "conflict")
     }
+    let included = await filteredDiscovery(changes.1)
+    guard version == revision, state.closingToken == cutoff else { throw Bridge.Failure(code: "conflict") }
     var next = state
     next.pending.removeAll { changes.2.contains($0.id) }
     let known = Set(next.pending.map(\.id))
-    next.pending.append(contentsOf: changes.1.subtracting(known).map { Pending(id: $0) })
+    next.pending.append(contentsOf: included.subtracting(known).map { Pending(id: $0) })
     next.token = cutoff
     next.closingToken = nil
     try persist(next)
+  }
+  private func filteredDiscovery(_ ids: Set<String>) async -> Set<String> {
+    // Freeze policy for this discovery pass; already persisted handoffs retain
+    // their original membership when the user changes settings.
+    let scope = BackupScopeStore.shared.rule
+    if ids.isEmpty || scope.types.isEmpty { return [] }
+    if !scope.restrictAlbums && scope.types == Set(BackupMediaKind.allCases) { return ids }
+    return await Task.detached(priority: .utility) { scope.selectedIDs(from: ids) }.value
   }
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor in await BackupModel.shared.discoverPhotos() }
@@ -174,11 +184,12 @@ import CryptoKit
           let changes = try await readChanges(savedToken, nil)
           guard version == revision, !Task.isCancelled else { return }
           if let token = changes.0 {
+            let included = await filteredDiscovery(changes.1)
+            guard version == revision, state.token == savedToken, !Task.isCancelled else { return }
             var next = state
             next.pending.removeAll { changes.2.contains($0.id) }
             let known = Set(next.pending.map(\.id))
-            next.pending.append(
-              contentsOf: changes.1.subtracting(known).map { Pending(id: $0) })
+            next.pending.append(contentsOf: included.subtracting(known).map { Pending(id: $0) })
             next.token = token
             try persist(next)
           }
