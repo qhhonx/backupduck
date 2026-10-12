@@ -89,6 +89,13 @@ own archive through the external TestFlight post-action. Verify the intended
 platform/build is awaiting beta review or available, not merely uploaded. Handle
 superseded review submissions as part of release work without waiting for a user
 to discover a stale build. Apple approval remains a separate external outcome.
+Enable and verify automatic tester notification for each new iOS and macOS
+external-test build. This is a per-build setting, not an app-wide switch. Manual
+submission must select Automatically notify testers; API distribution must verify
+that build's `autoNotifyEnabled` is true. A Cloud external-testing post-action alone
+does not prove the flag or tester availability. Approved with Notify Testers still
+visible is pending distribution; Testing in the intended external group is the
+availability gate. Respect any user instruction to handle a current build manually.
 Never move an existing release marker to force a retry; start Cloud manually.
 A push to `main` may publish apps and deploy the website: do not merge, tag or
 publish without explicit authorization.

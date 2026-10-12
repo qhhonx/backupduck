@@ -64,6 +64,24 @@ when required. It must use the new archive rather than select an older uploaded
 build by marketing version alone. Apple approval and App Store submission remain
 separate from a successful upload.
 
+### Automatic tester notification
+
+Automatic notification belongs to each build's beta details, not a global app or
+external-group preference. Enable it for every new iOS and macOS external-test
+build. In a manual submission, select **Automatically notify testers**. An API
+distribution flow must verify the exact build's `autoNotifyEnabled` is true.
+Keep the Cloud external-testing post-action tied to its archive and intended
+group, but do not infer the notification flag merely from that workflow action.
+
+After Beta App Review, **Approved** with **Notify Testers** still available means
+distribution is pending. Verify **Testing** in the intended external group before
+reporting tester availability. If notification was left off, complete distribution
+unless the user explicitly reserved that build's manual notification for themselves.
+Do not upload another build or start Cloud merely to verify this setting.
+
+References: [notify external testers after approval](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/),
+[per-build beta details](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-buildbetadetails).
+
 If a previous build of the same platform/version is still under beta review,
 Apple may block a replacement. Release acceptance includes checking the exact
 build number in the external group and its review state. Withdraw the superseded
