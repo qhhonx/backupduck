@@ -1,6 +1,20 @@
 import XCTest
 
 final class InteractionTests: XCTestCase {
+    func testScopeChoicesUseStableRowsAndThreeColumnCovers() {
+        let app = XCUIApplication(); app.launch()
+        app.tabBars.buttons["设置"].tap()
+        app.tables.cells.element(boundBy: 0).tap()
+        let row = app.tables.cells.element(boundBy: 0), frame = row.frame
+        row.tap(); XCTAssertEqual(row.frame,frame); row.tap(); XCTAssertEqual(row.frame,frame)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.tables.cells.element(boundBy: 1).tap()
+        let covers = app.collectionViews.firstMatch.cells
+        XCTAssertTrue(covers.element(boundBy: 2).waitForExistence(timeout: 5))
+        XCTAssertEqual(covers.element(boundBy: 0).frame.minY,covers.element(boundBy: 2).frame.minY,accuracy: 1)
+        covers.element(boundBy: 0).tap()
+        let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Three-column album choices"; screenshot.lifetime = .keepAlways; add(screenshot)
+    }
     func testContinuousPagingScrubbingInformationAndReturn() {
         let app = XCUIApplication(); app.launch()
         let grid = app.collectionViews["preview.grid"]

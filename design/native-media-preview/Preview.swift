@@ -59,9 +59,9 @@ final class PreviewScene: UIResponder, UIWindowSceneDelegate {
 private final class PictureCell: UICollectionViewCell {
     let photo = UIImageView()
     let mark = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
-    override init(frame: CGRect) { super.init(frame: frame); photo.contentMode = .scaleAspectFill; photo.clipsToBounds = true; contentView.addSubview(photo); mark.tintColor = actionColor; mark.isHidden = true; contentView.addSubview(mark) }
+    override init(frame: CGRect) { super.init(frame: frame); photo.contentMode = .scaleAspectFill; photo.clipsToBounds = true; contentView.addSubview(photo); mark.tintColor = actionColor; mark.backgroundColor = .white; mark.layer.cornerRadius = 11.5; mark.clipsToBounds = true; mark.isHidden = true; contentView.addSubview(mark) }
     required init?(coder: NSCoder) { fatalError() }
-    override func layoutSubviews() { super.layoutSubviews(); photo.frame = contentView.bounds; mark.frame = CGRect(x: bounds.width-30,y: 8,width: 22,height: 22) }
+    override func layoutSubviews() { super.layoutSubviews(); photo.frame = contentView.bounds; mark.frame = CGRect(x: bounds.width-29,y: bounds.height-29,width: 23,height: 23) }
 }
 private final class DateHeader: UICollectionReusableView {
     let title = text("",size: 17,weight: .semibold)
@@ -419,11 +419,17 @@ private final class PhotoTransition: NSObject, UIViewControllerAnimatedTransitio
 }
 private final class SettingsController: UITableViewController {
     override func viewDidLoad() { super.viewDidLoad(); tableView.backgroundColor = canvas; tableView.register(UITableViewCell.self,forCellReuseIdentifier: "row") }
-    override func tableView(_ tableView: UITableView,numberOfRowsInSection section: Int) -> Int { 2 }
+    override func tableView(_ tableView: UITableView,numberOfRowsInSection section: Int) -> Int { 3 }
     override func tableView(_ tableView: UITableView,cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let c = tableView.dequeueReusableCell(withIdentifier: "row",for: indexPath); var config = c.defaultContentConfiguration(); config.text = indexPath.row == 0 ? "媒体类型" : "相簿"; config.secondaryText = indexPath.row == 0 ? "全部类型" : "全部相簿"; c.contentConfiguration = config; c.accessoryType = .disclosureIndicator; return c
+        let c = tableView.dequeueReusableCell(withIdentifier: "row",for: indexPath); var config = c.defaultContentConfiguration();
+        if indexPath.row == 2 {
+            config.text = "从 iCloud 加载预览"; config.secondaryText = "浏览时加载清晰预览，可能使用蜂窝数据；不会开始备份。关闭后仅加载本机可用的预览。"
+            c.contentConfiguration = config; c.accessoryView = UISwitch(); return c
+        }
+        c.accessoryView = nil; config.text = indexPath.row == 0 ? "媒体类型" : "指定相簿"; config.secondaryText = indexPath.row == 0 ? "全部类型" : "全部相簿"; config.secondaryText = indexPath.row == 0 ? "全部类型" : "全部相簿"; c.contentConfiguration = config; c.accessoryType = .disclosureIndicator; return c
     }
     override func tableView(_ tableView: UITableView,didSelectRowAt indexPath: IndexPath) {
+        guard indexPath.row < 2 else { return }
         navigationController?.pushViewController(indexPath.row == 0 ? TypesController() : AlbumsController(),animated: true)
     }
 }
@@ -432,30 +438,30 @@ private final class TypesController: UITableViewController {
     override func viewDidLoad() { super.viewDidLoad(); title = "媒体类型"; tableView.backgroundColor = canvas; tableView.register(UITableViewCell.self,forCellReuseIdentifier: "row") }
     override func tableView(_ tableView: UITableView,numberOfRowsInSection section: Int) -> Int { 4 }
     override func tableView(_ tableView: UITableView,cellForRowAt p: IndexPath) -> UITableViewCell {
-        let c = tableView.dequeueReusableCell(withIdentifier: "row",for: p); c.textLabel?.text = ["照片","实况","视频","连拍"][p.row]; c.accessoryType = selected.contains(p.row) ? .checkmark : .none; return c
+        let c = tableView.dequeueReusableCell(withIdentifier: "row",for: p); c.textLabel?.text = ["照片","实况","视频","连拍"][p.row]; c.selectionStyle = .none; c.accessoryType = selected.contains(p.row) ? .checkmark : .none; return c
     }
-    override func tableView(_ tableView: UITableView,didSelectRowAt p: IndexPath) { if selected.contains(p.row) { selected.remove(p.row) } else { selected.insert(p.row) }; tableView.reloadRows(at: [p],with: .none) }
+    override func tableView(_ tableView: UITableView,didSelectRowAt p: IndexPath) { if selected.contains(p.row) { selected.remove(p.row) } else { selected.insert(p.row) }; tableView.cellForRow(at: p)?.accessoryType = selected.contains(p.row) ? .checkmark : .none; tableView.deselectRow(at: p,animated: false) }
 }
 private final class AlbumCell: UICollectionViewCell {
-    let photo = UIImageView(), name = text("",size: 16,weight: .medium), count = text("",size: 13,color: .secondaryLabel), check = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
+    let photo = UIImageView(), name = text("",size: 13,weight: .medium), count = text("",size: 13,color: .secondaryLabel), check = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
     override init(frame: CGRect) { super.init(frame: frame); photo.contentMode = .scaleAspectFill; photo.clipsToBounds = true; photo.layer.cornerRadius = 12
-        [photo,name,count,check].forEach { contentView.addSubview($0) }; check.tintColor = actionColor }
+        [photo,name,count,check].forEach { contentView.addSubview($0) }; check.tintColor = actionColor; check.backgroundColor = .white; check.layer.cornerRadius = 11.5; check.clipsToBounds = true }
     required init?(coder: NSCoder) { fatalError() }
-    override func layoutSubviews() { super.layoutSubviews(); photo.frame = CGRect(x: 0,y: 0,width: bounds.width,height: bounds.height-52); name.frame = CGRect(x: 0,y: bounds.height-46,width: bounds.width,height: 24); count.frame = CGRect(x: 0,y: bounds.height-22,width: bounds.width,height: 20); check.frame = CGRect(x: bounds.width-30,y: 8,width: 22,height: 22) }
+    override func layoutSubviews() { super.layoutSubviews(); photo.frame = CGRect(x: 0,y: 0,width: bounds.width,height: bounds.height-52); name.frame = CGRect(x: 0,y: bounds.height-46,width: bounds.width,height: 24); count.frame = CGRect(x: 0,y: bounds.height-22,width: bounds.width,height: 20); check.frame = CGRect(x: bounds.width-29,y: photo.frame.maxY-29,width: 23,height: 23) }
 }
 private final class AlbumsController: UICollectionViewController, UISearchResultsUpdating {
     var selected = Set<Int>(), visible = Array(0..<80)
     init() { let l = UICollectionViewFlowLayout(); l.minimumInteritemSpacing = 12; l.minimumLineSpacing = 16; l.sectionInset = UIEdgeInsets(top: 16,left: 16,bottom: 16,right: 16); super.init(collectionViewLayout: l) }
     required init?(coder: NSCoder) { fatalError() }
-    override func viewDidLoad() { super.viewDidLoad(); title = "相簿"; collectionView.backgroundColor = canvas; collectionView.register(AlbumCell.self,forCellWithReuseIdentifier: "album")
+    override func viewDidLoad() { super.viewDidLoad(); title = "指定相簿"; collectionView.backgroundColor = canvas; collectionView.register(AlbumCell.self,forCellWithReuseIdentifier: "album")
         let search = UISearchController(searchResultsController: nil); search.searchResultsUpdater = self; search.obscuresBackgroundDuringPresentation = false; search.searchBar.placeholder = "搜索相簿"; navigationItem.searchController = search; navigationItem.hidesSearchBarWhenScrolling = false
     }
-    override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); (collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize = CGSize(width: (view.bounds.width-44)/2,height: 160) }
+    override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); let side = (view.bounds.width-56)/3; (collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize = CGSize(width: side,height: side+52) }
     func updateSearchResults(for searchController: UISearchController) { let q = searchController.searchBar.text ?? ""; visible = (0..<80).filter { q.isEmpty || "相簿 \($0+1)".contains(q) }; collectionView.reloadData() }
     override func collectionView(_ cv: UICollectionView,numberOfItemsInSection section: Int) -> Int { visible.count }
     override func collectionView(_ cv: UICollectionView,cellForItemAt p: IndexPath) -> UICollectionViewCell {
         let c = cv.dequeueReusableCell(withReuseIdentifier: "album",for: p) as! AlbumCell, i = visible[p.item]
-        c.photo.image = pictures[i%pictures.count]; c.name.text = "相簿 \(i+1)"; c.count.text = "\((i+1)*37) 项"; c.check.isHidden = !selected.contains(i); return c
+        c.photo.image = pictures[i%pictures.count]; c.name.text = "相簿 \(i+1)"; c.count.text = "\((i+1)*37) 个项目"; c.check.isHidden = !selected.contains(i); c.photo.alpha = selected.contains(i) ? 0.72 : 1; c.accessibilityIdentifier = "reference.album.\(i)"; c.isAccessibilityElement = true; c.accessibilityTraits = selected.contains(i) ? [.button,.selected] : .button; return c
     }
-    override func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { let i = visible[p.item]; if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }; collectionView.reloadItems(at: [p]); navigationItem.prompt = "已选择 \(selected.count) 个相簿" }
+    override func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { let i = visible[p.item]; if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }; if let cell = collectionView.cellForItem(at: p) as? AlbumCell { cell.check.isHidden = !selected.contains(i); cell.photo.alpha = selected.contains(i) ? 0.72 : 1 }; navigationItem.prompt = selected.isEmpty ? "全部相簿" : "\(selected.count) 个指定相簿" }
 }

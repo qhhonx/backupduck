@@ -391,8 +391,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   private(set) var epoch = 0
   private(set) var requestsStarted = 0
   private(set) var requestsCancelled = 0
-  init() {
-    cache.totalCostLimit = 64 * 1024 * 1024
+  init(cacheBudget: Int = 64 * 1024 * 1024) {
+    cache.totalCostLimit = cacheBudget
     // Tiny mosaics can expose thousands of 64-pixel images. Keep the byte
     // budget authoritative instead of evicting still-visible tiles at 500 items.
     cache.countLimit = 8192

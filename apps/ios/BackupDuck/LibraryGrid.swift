@@ -607,10 +607,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     media.isHidden = true
     media.backgroundColor = .black.withAlphaComponent(0.35)
     media.layer.cornerRadius = 5; media.clipsToBounds = true
-    selection.image = UIImage(systemName: "circle")
-    selection.tintColor = .white; selection.backgroundColor = .black.withAlphaComponent(0.35)
-    selection.layer.cornerRadius = 12; selection.clipsToBounds = true
-    selection.contentMode = .scaleAspectFit; contentView.addSubview(selection)
+    DuckMediaSelection.configure(selection); contentView.addSubview(selection)
     isAccessibilityElement = true
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -630,17 +627,15 @@ struct IOSLibraryGrid: UIViewRepresentable {
     duration.frame = CGRect(x: durationX, y: 6, width: durationWidth, height: badge)
     cloud.frame = CGRect(x: 6, y: bounds.height - 28, width: 22, height: 22)
     status.frame = CGRect(x: bounds.width - 27, y: 6, width: 21, height: 21)
-    selection.frame = CGRect(x: bounds.width - 30, y: bounds.height - 30, width: 24, height: 24)
+    selection.frame = DuckMediaSelection.frame(in: bounds)
   }
   override var isSelected: Bool {
     didSet { updateSelectionAppearance() }
   }
   private func updateSelectionAppearance() {
       let selected = showsSelection && isSelected
-      contentView.layer.borderWidth = selected ? 3 : 0
-      contentView.layer.borderColor = UIColor(DuckColors.action).cgColor
-      selection.image = UIImage(systemName: selected ? "checkmark" : "circle")
-      selection.backgroundColor = selected ? UIColor(DuckColors.action) : .black.withAlphaComponent(0.35)
+      contentView.layer.borderWidth = 0
+      DuckMediaSelection.apply(selected, enabled: showsSelection, badge: selection, image: photo)
       accessibilityTraits = selected ? [.button, .selected] : [.button]
   }
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

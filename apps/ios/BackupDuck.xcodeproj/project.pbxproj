@@ -20,6 +20,7 @@
 		3B2C0F7A0931F23825434A1E /* BackgroundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E0025F00086FE962B3096D /* BackgroundTests.swift */; };
 		3B86BCA72A3126C4EFBC0DCC /* TransferDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */; };
 		3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
+		3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */; };
 		3F7A401A51B7FF461CB0368B /* NetworkProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */; };
 		3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
@@ -97,6 +98,7 @@
 		74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupDuckApp.swift; sourceTree = "<group>"; };
 		78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		790522FA25588024EE51100B /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
+		7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopeAlbumGrid.swift; sourceTree = "<group>"; };
 		7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBackupOrder.swift; sourceTree = "<group>"; };
 		805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPresentationTests.swift; sourceTree = "<group>"; };
 		831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverDiscovery.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */,
 				48543A6804607508613E2435 /* PairingScanner.swift */,
 				D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */,
+				7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */,
 				B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */,
 			);
 			path = BackupDuck;
@@ -435,6 +438,7 @@
 				03588CE5C11BE87A090609A4 /* ReceiverAvailability.swift in Sources */,
 				9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */,
 				262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */,
+				3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */,
 				0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
 				3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */,

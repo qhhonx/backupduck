@@ -1159,7 +1159,7 @@
 
 "scope_media_types" = "Media types";
 "scope_all_types" = "All media types";
-"scope_albums_title" = "Albums";
+"scope_albums_title" = "Specified albums";
 "scope_search_albums" = "Search albums";
 "scope_my_albums" = "My albums";
 "scope_system_albums" = "System albums";
@@ -1191,3 +1191,11 @@
 "calendar_select_items" = "Select Items";
 
 "calendar_muted_video" = "Muted video preview";
+
+"scope_album_items" = "%@ items";
+
+"scope_existing_albums" = "Existing specified albums";
+
+"preview_cloud_setting_note" = "Load clear photo and video previews while browsing. This may use cellular data and does not start a backup. When off, only previews available on this device load.";
+
+"scope_album_item" = "%@ item";

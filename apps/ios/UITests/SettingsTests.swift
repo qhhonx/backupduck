@@ -106,7 +106,7 @@ final class SettingsTests: XCTestCase {
     app.buttons["backup.scope.albums"].tap()
     let search = app.textFields["backup.scope.album_search"]
     XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("Scope fixture A")
-    let album = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Scope fixture A")).firstMatch
+    let album = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "backup.scope.album.", "Scope fixture A")).firstMatch
     XCTAssertTrue(album.waitForExistence(timeout: 5)); album.tap()
     recordWindow(app, "Searchable album editor — separate destination")
     app.terminate(); launchIsolated(app)
@@ -117,6 +117,65 @@ final class SettingsTests: XCTestCase {
     app.buttons["page.header.back"].tap(); app.buttons["backup.scope.albums"].tap()
     app.buttons["backup.scope.all_albums"].tap()
     XCTAssertTrue(app.buttons["backup.scope.all_albums"].isSelected)
+  }
+
+  @MainActor func testScopeAlbumGridAndPreviewSettingExplanation() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    navigation(app,1).tap()
+    let source = app.buttons["backup.manage_source"]
+    for _ in 0..<6 { if source.isHittable { break }; app.swipeUp() }; source.tap()
+    let albums = app.buttons["backup.scope.albums"]
+    for _ in 0..<6 { if albums.isHittable { break }; app.swipeUp() }; albums.tap()
+    let all = app.buttons["backup.scope.all_albums"]
+    XCTAssertTrue(all.waitForExistence(timeout: 8)); all.tap()
+    XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"All albums")
+    let choices = app.collectionViews["backup.scope.choices"]
+    XCTAssertTrue(choices.waitForExistence(timeout: 8))
+    XCTAssertFalse(app.staticTexts["System albums"].exists)
+    let cells = choices.cells.allElementsBoundByIndex.filter { $0.isHittable }
+    XCTAssertGreaterThanOrEqual(cells.count,3,"Seed at least three synthetic user albums")
+    XCTAssertEqual(cells[0].frame.minY,cells[2].frame.minY,accuracy: 1)
+    XCTAssertTrue((cells[0].value as? String)?.contains("items") == true)
+    let original = cells[0].frame
+    cells[0].tap(); XCTAssertTrue(cells[0].isSelected); XCTAssertEqual(cells[0].frame,original)
+    recordWindow(app,"Three-column album covers — shared media selection")
+    cells[0].tap(); XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"All albums")
+    app.buttons["page.header.back"].tap(); app.buttons["page.header.back"].tap()
+    navigation(app,3).tap()
+    let toggle = app.switches["settings.preview_cloud"]
+    for _ in 0..<5 { if toggle.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(toggle.isHittable)
+    let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "This may use cellular data")).firstMatch
+    XCTAssertTrue(note.isHittable)
+    recordWindow(app,"Preview network setting — purpose and consequence")
+  }
+
+  @MainActor func testScopeChoicesChineseDarkAccessibility() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN", "-duckAppearance", "dark",
+      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+    launchIsolated(app); navigation(app,1).tap()
+    let source = app.buttons["backup.manage_source"]
+    for _ in 0..<8 { if source.isHittable { break }; app.swipeUp() }; source.tap()
+    let types = app.buttons["backup.scope.types"]
+    for _ in 0..<8 { if types.isHittable { break }; app.swipeUp() }; types.tap()
+    let photo = app.buttons["backup.scope.type.photo"], before = photo.frame, selected = photo.isSelected
+    photo.tap(); XCTAssertEqual(photo.isSelected,!selected); XCTAssertEqual(photo.frame,before)
+    photo.tap(); XCTAssertEqual(photo.isSelected,selected)
+    recordWindow(app,"Chinese large media choices — stable check rows")
+    app.buttons["page.header.back"].tap()
+    let albums = app.buttons["backup.scope.albums"]
+    for _ in 0..<8 { if albums.isHittable { break }; app.swipeUp() }; albums.tap()
+    let choices = app.collectionViews["backup.scope.choices"]
+    XCTAssertTrue(choices.waitForExistence(timeout: 8))
+    XCTAssertGreaterThan(choices.cells.count,0)
+    let cover = try XCTUnwrap(choices.cells.allElementsBoundByIndex.first { $0.isHittable })
+    XCTAssertTrue((cover.value as? String)?.contains("个项目") == true)
+    recordWindow(app,"Chinese accessibility album choices — readable list")
   }
 
   @MainActor func testCloudConsentUsesSharedSheetAndCanDecline() throws {

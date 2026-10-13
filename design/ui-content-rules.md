@@ -197,7 +197,27 @@ obsolete motion before replacing membership. Reduce Motion adopts the anchored
 layout immediately. Desktop magnification also updates during the gesture.
 Virtualization uses bounded visible-rectangle lookup for cells and headings.
 
-Backup scope shows two summary destinations, Media types and Albums. Album
+Backup scope shows two summary destinations, Media types and Specified albums.
+No album IDs means All albums; removing the final explicit choice restores that
+mode. Retained but unavailable selected albums never widen the scope. Show user
+albums initially; fetch previously selected system albums only to preserve edits.
+iPhone album covers use three reusable native columns (a readable list at
+accessibility sizes), explicit item-count units, and display-scale thumbnail targets. Album
 selection is searchable and virtualized; it never expands the parent page.
 Independent choices use checkmarks. Persistent Booleans use leading-label,
 trailing-switch preference rows, including preview network consent on Mac.
+
+## Media selection cells
+
+iPhone image-based choices share one selection treatment across gallery, album
+covers and selected-item review: a 23 pt blue filled check circle with a white
+backing, inset 6 pt at bottom trailing. Only selected cells show the mark. Selected
+media opacity is 0.72; the cover bounds, caption and image request identity stay
+unchanged. Do not add a second border or top-corner check. Form preference rows
+retain a trailing plain checkmark and a fixed slot; selection changes neither
+fade the row nor replace it. Pressing a scope choice does not dim its entire label.
+
+Album cover requests use the gallery thumbnail pipeline: exact, display-density
+size, revision-aware bounded cache, reuse/offscreen cancellation, local first,
+and existing preview consent for network fallbacks. Never reset an unchanged
+cover to its placeholder on a selection update.

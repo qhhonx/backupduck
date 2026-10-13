@@ -384,10 +384,7 @@ final class CalendarGridCell: UICollectionViewCell {
     label.font = .systemFont(ofSize: 23, weight: .semibold)
     label.textColor = .white
     contentView.addSubview(label)
-    check.tintColor = UIColor(DuckColors.action)
-    check.backgroundColor = .white
-    check.layer.cornerRadius = 11
-    check.clipsToBounds = true
+    DuckMediaSelection.configure(check)
     contentView.addSubview(check)
     duration.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
     duration.textColor = .white
@@ -417,7 +414,7 @@ final class CalendarGridCell: UICollectionViewCell {
     placeholder.frame = CGRect(x: bounds.midX - 16, y: bounds.midY - 16, width: 32, height: 32)
     scrim.frame = CGRect(x: 0, y: 0, width: bounds.width, height: min(110, bounds.height))
     label.frame = CGRect(x: 16, y: 12, width: max(1, bounds.width - 32), height: 32)
-    check.frame = CGRect(x: bounds.width - 29, y: bounds.height - 29, width: 23, height: 23)
+    check.frame = DuckMediaSelection.frame(in: bounds)
     duration.frame = CGRect(x: bounds.width - 55, y: bounds.height - 24, width: 49, height: 18)
     duration.isHidden = duration.text == nil || bounds.width < 80
     stateMark.frame = CGRect(x: bounds.width - 26, y: 6, width: 20, height: 20)
@@ -431,9 +428,7 @@ final class CalendarGridCell: UICollectionViewCell {
     placeholder.image = UIImage(systemName: cloud ? "icloud" : "photo")
   }
   func selection(_ selected: Bool, enabled: Bool) {
-    check.image = UIImage(systemName: selected ? "checkmark.circle.fill" : "circle")
-    check.isHidden = !enabled || !selected
-    image.alpha = selected ? 0.72 : 1
+    DuckMediaSelection.apply(selected, enabled: enabled, badge: check, image: image)
     accessibilityTraits = selected ? [.button, .selected] : [.button]
   }
   func backupState(_ state: String?, visible: Bool) {

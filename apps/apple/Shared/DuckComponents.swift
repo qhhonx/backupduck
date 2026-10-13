@@ -788,3 +788,34 @@ private extension View {
   }
 }
 #endif
+
+/// Selection changes the mark, never the identity or opacity of a form row.
+struct DuckChoiceButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View { configuration.label }
+}
+
+#if os(iOS)
+/// Shared image-choice treatment for gallery, album covers and selected review.
+@MainActor enum DuckMediaSelection {
+  static let size: CGFloat = 23
+  static let inset: CGFloat = 6
+  static let selectedOpacity: CGFloat = 0.72
+  static func configure(_ badge: UIImageView) {
+    badge.image = UIImage(systemName: "checkmark.circle.fill")
+    badge.tintColor = UIColor(DuckColors.action)
+    badge.backgroundColor = .white
+    badge.layer.cornerRadius = size/2
+    badge.clipsToBounds = true
+    badge.contentMode = .scaleAspectFit
+    badge.isAccessibilityElement = false
+  }
+  static func frame(in bounds: CGRect) -> CGRect {
+    CGRect(x: bounds.maxX-inset-size,y: bounds.maxY-inset-size,width: size,height: size)
+  }
+  static func apply(_ selected: Bool, enabled: Bool, badge: UIImageView, image: UIImageView) {
+    configure(badge)
+    badge.isHidden = !enabled || !selected
+    image.alpha = selected && enabled ? selectedOpacity : 1
+  }
+}
+#endif

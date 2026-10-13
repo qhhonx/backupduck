@@ -28,9 +28,11 @@ Backup scope has two summary rows: media types and albums. Both open a separate
 editor; the parent never expands an unbounded album list. Type names and icons
 match the library filter vocabulary. Photos, Live Photos, videos and bursts are
 disjoint selectable categories in both browsing and backup scope. The All
-filter includes every category. Album selection has search, user/system sections,
+filter includes every category. Album selection has search, user albums with any previously specified system choices,
 selection count, local cover thumbnails, unavailable selections and a clear
-All albums option. Selection is checkmarks, not a switch per album.
+All albums option. No specified IDs means All albums; unavailable retained IDs
+remain restrictive. iPhone uses three reusable cover columns and an item-count
+unit. Media-cell selection follows the shared bottom-trailing badge contract.
 
 Type and album dimensions intersect; changes apply to new discovery and the next
 existing-library snapshot, not queued jobs. Manual selection remains authoritative.

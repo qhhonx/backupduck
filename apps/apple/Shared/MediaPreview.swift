@@ -44,9 +44,9 @@ struct PreviewCloudSetting: View {
   @ObservedObject private var policy = PreviewNetworkPolicy.shared
   var body: some View {
     #if os(macOS)
-    MacPreferenceRow(title: "preview_cloud_setting") { control }
+    MacPreferenceRow(title: "preview_cloud_setting", note: "preview_cloud_setting_note") { control }
     #else
-    IOSPreferenceRow(title: "preview_cloud_setting") { control }
+    IOSPreferenceRow(title: "preview_cloud_setting", note: "preview_cloud_setting_note") { control }
     #endif
   }
   private var control: some View {

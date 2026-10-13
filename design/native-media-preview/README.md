@@ -31,8 +31,8 @@ xcodegen generate --spec design/native-media-preview/project.yml --project build
   opened and location exists; there is no extra reveal-map action. Only actual
   metadata may populate the production information view.
 - Settings secondary screens keep the root tab bar. No hide/show transition on
-  push/pop. Album choices use two-column covers, names, counts, selected marks
-  and search. Accessibility sizes must fall back to a denser readable list.
+  push/pop. Album choices use three-column covers, names, counts, selected marks
+  and search. Selected cover marks share the gallery bottom-trailing position. Accessibility sizes must fall back to a denser readable list.
 
 ## Deliberate limitations
 

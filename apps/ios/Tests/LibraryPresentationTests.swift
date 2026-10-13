@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import Combine
 @testable import BackupDuck
 
 final class LibraryPresentationTests: XCTestCase {
@@ -55,6 +56,59 @@ final class LibraryPresentationTests: XCTestCase {
     defaults.set(Data("invalid".utf8), forKey: "photoBackupScope")
     let broken = BackupScopeStore(defaults: defaults)
     XCTAssertTrue(broken.loadFailed); XCTAssertTrue(broken.rule.types.isEmpty)
+  }
+
+  @MainActor func testNoSpecifiedAlbumsRestoresAllAndUnavailableChoicesStayRestricted() throws {
+    let name = "scope-empty-"+UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    let store = BackupScopeStore(defaults: defaults)
+    store.save(BackupScopeRule(types: [.photo],restrictAlbums: true,albums: ["missing"]))
+    XCTAssertFalse(store.rule.includes(kind: .photo,id: "outside",albumMembers: []))
+    store.save(BackupScopeRule(types: [.photo],restrictAlbums: true,albums: []))
+    XCTAssertFalse(store.rule.restrictAlbums)
+    XCTAssertTrue(store.rule.includes(kind: .photo,id: "outside",albumMembers: []))
+    XCTAssertEqual(BackupScopeStore(defaults: defaults).rule,store.rule)
+    var updates = 0
+    let observation = store.objectWillChange.sink { updates += 1 }
+    store.save(store.rule)
+    XCTAssertEqual(updates,0,"A choice that does not change scope must not redraw the page")
+    observation.cancel()
+  }
+  @MainActor func testAlbumSelectionPreservesCoverGeometryAtDisplayScale() {
+    let pipeline = ThumbnailPipeline()
+    let cell = ScopeAlbumCell(frame: CGRect(x: 0,y: 0,width: 112,height: 174))
+    let album = ScopeAlbum(id: "fixture",name: "Family",count: 12,system: false,cover: nil)
+    cell.configure(album,selected: false,listMode: false,scale: 3,pipeline: pipeline)
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 384,height: 384)).image { _ in }
+    cell.photo.image = image
+    let rectangle = cell.photo.frame
+    cell.configure(album,selected: true,listMode: false,scale: 3,pipeline: pipeline)
+    XCTAssertTrue(cell.photo.image === image)
+    XCTAssertEqual(cell.photo.frame,rectangle)
+    XCTAssertEqual(cell.check.frame,DuckMediaSelection.frame(in: rectangle))
+    XCTAssertEqual(cell.photo.alpha,DuckMediaSelection.selectedOpacity,accuracy: 0.0001)
+    XCTAssertEqual(cell.count.text,albumItemCount(12))
+    XCTAssertGreaterThanOrEqual(pipeline.size(112*3).width,336)
+    cell.configure(album,selected: false,listMode: false,scale: 3,pipeline: pipeline)
+    XCTAssertTrue(cell.check.isHidden); XCTAssertEqual(cell.photo.alpha,1)
+  }
+
+  @MainActor func testAlbumCollectionReusesVisibleCoverForSelectionOnlyUpdates() throws {
+    let controller = ScopeAlbumController()
+    controller.loadViewIfNeeded(); controller.view.frame = CGRect(x: 0,y: 0,width: 402,height: 650)
+    let rows = (0..<1000).map { ScopeAlbum(id: "album-\($0)",name: "Album \($0)",count: $0,system: false,cover: nil) }
+    func state(_ selected: Set<String>) -> ScopeAlbumGrid {
+      ScopeAlbumGrid(albums: rows,selected: selected,search: "",listMode: false,allSelected: selected.isEmpty,chooseAll: {},choose: { _ in })
+    }
+    controller.apply(state([])); controller.view.setNeedsLayout(); controller.view.layoutIfNeeded(); controller.collection.layoutIfNeeded()
+    let original = try XCTUnwrap(controller.collection.cellForItem(at: IndexPath(item: 0,section: 0)) as? ScopeAlbumCell)
+    let rectangle = original.photo.frame
+    controller.apply(state(["album-0"]))
+    XCTAssertTrue(controller.collection.cellForItem(at: IndexPath(item: 0,section: 0)) === original)
+    XCTAssertEqual(original.photo.frame,rectangle)
+    XCTAssertFalse(original.check.isHidden)
+    XCTAssertLessThan(controller.collection.visibleCells.count,30,"Album covers remain virtualized")
   }
 
   @MainActor func testPreviewConsentPersistsRefusalAndDoesNotAskRepeatedly() throws {

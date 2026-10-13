@@ -1115,7 +1115,7 @@
 
 "updates_store_note" = "此版本由 TestFlight 或 App Store 管理更新。";
 
-"preview_cloud_setting" = "允许从 iCloud 加载预览";
+"preview_cloud_setting" = "从 iCloud 加载预览";
 "preview_cloud_title" = "从 iCloud 加载预览";
 "preview_cloud_note" = "允许加载照片和视频的清晰预览，不会开始备份。你可以在设置中更改。";
 "preview_cloud_allow" = "允许加载";
@@ -1159,7 +1159,7 @@
 
 "scope_media_types" = "媒体类型";
 "scope_all_types" = "全部类型";
-"scope_albums_title" = "相簿";
+"scope_albums_title" = "指定相簿";
 "scope_search_albums" = "搜索相簿";
 "scope_my_albums" = "我的相簿";
 "scope_system_albums" = "系统相簿";
@@ -1191,3 +1191,11 @@
 "calendar_select_items" = "选中项目";
 
 "calendar_muted_video" = "静音视频预览";
+
+"scope_album_items" = "%@ 个项目";
+
+"scope_existing_albums" = "已有指定相簿";
+
+"preview_cloud_setting_note" = "浏览时通过网络加载照片和视频的清晰预览，可能使用蜂窝数据；不会开始备份。关闭后仅加载本机可用的预览。";
+
+"scope_album_item" = "%@ 个项目";
