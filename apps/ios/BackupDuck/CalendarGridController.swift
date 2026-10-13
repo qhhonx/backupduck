@@ -354,7 +354,7 @@ final class CalendarGridCell: UICollectionViewCell {
   }
   func selection(_ selected: Bool, enabled: Bool) {
     check.image = UIImage(systemName: selected ? "checkmark.circle.fill" : "circle")
-    check.isHidden = !enabled
+    check.isHidden = !enabled || !selected
     image.alpha = selected ? 0.72 : 1
     accessibilityTraits = selected ? [.button, .selected] : [.button]
   }
@@ -459,17 +459,17 @@ final class CalendarRangeGesture: UILongPressGestureRecognizer {
 
 /// Native accessories own placement; content supplies only its controls.
 final class CalendarSelectionControls: UIView {
-  let countButton = UIButton(type: .system), backupButton = UIButton(type: .system)
+  let countButton = UIButton(type: .system)
   override init(frame: CGRect) {
     super.init(frame: frame)
     addSubview(countButton)
-    addSubview(backupButton)
   }
   required init?(coder: NSCoder) { fatalError() }
   override func layoutSubviews() {
     super.layoutSubviews()
-    countButton.frame = CGRect(x: 0, y: 0, width: max(1, bounds.width - 58), height: bounds.height)
-    backupButton.frame = CGRect(x: bounds.width - 50, y: 0, width: 50, height: bounds.height)
+    let width = min(bounds.width - 32, max(130, countButton.intrinsicContentSize.width + 32))
+    countButton.frame = CGRect(
+      x: (bounds.width - width) / 2, y: 0, width: width, height: bounds.height)
   }
 }
 @available(iOS 26.0, *)
@@ -516,6 +516,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var level = CalendarGridLevel.all, columns = 3, originalAspect = false, selecting = false
   let layout = CalendarGridLayout(), titleLabel = UILabel(), subtitleLabel = UILabel()
   lazy var grid = UICollectionView(frame: .zero, collectionViewLayout: layout)
+  let headerBackdrop = UIView(), headerFade = CAGradientLayer()
   let titleView = UIView(),
     dock = UISegmentedControl(items: [
       NSLocalizedString("calendar_years", comment: ""),
@@ -526,12 +527,19 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   let browsingControls = UIView(), selectionControls = CalendarSelectionControls(),
     periodSurface = UIVisualEffectView()
   var selectedButton: UIButton { selectionControls.countButton }
-  var backupButton: UIButton { selectionControls.backupButton }
+  var accessoryCheck: DispatchWorkItem?
+  let transitionImages = NSCache<NSString, UIImage>()
+  var thumbnailModeIsDense = false
+  var subtitleRange: ClosedRange<Int>?
+  var subtitleAtRecentEdge: Bool?
+  var subtitleIndexing: Bool?, subtitleTotal: Int?
+  var denseDateLabels: [Date: String] = [:]
   enum Chrome { case navigation, browsing, selection }
   var nativeAccessory: AnyObject?, installingAccessory = false
   var chrome: Chrome = .navigation, chromeMotion: UIViewPropertyAnimator?,
     expandedNavigation = false
-  var filterItem: UIBarButtonItem!, selectItem: UIBarButtonItem!, closeItem: UIBarButtonItem!
+  var filterItem: UIBarButtonItem!, selectItem: UIBarButtonItem!, closeItem: UIBarButtonItem!,
+    backupItem: UIBarButtonItem!
   var headerSelecting: Bool?
   weak var tabOwner: UITabBarController?
   weak var contentOwner: UIViewController?
@@ -558,6 +566,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   let columnStops = [1, 3, 5, 10, 20, 30]
   override func viewDidLoad() {
     super.viewDidLoad()
+    transitionImages.totalCostLimit = 24 * 1024 * 1024
+    transitionImages.countLimit = 8192
     view.backgroundColor = UIColor(DuckColors.canvas)
     grid.backgroundColor = .clear
     grid.dataSource = self
@@ -589,17 +599,21 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     titleLabel.font = .systemFont(ofSize: 32, weight: .bold)
     titleLabel.textColor = UIColor(DuckColors.text)
     subtitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
-      for: .systemFont(ofSize: 15), maximumPointSize: 20)
+      for: .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 20)
     subtitleLabel.adjustsFontSizeToFitWidth = true
     subtitleLabel.minimumScaleFactor = 0.8
-    subtitleLabel.textColor = UIColor(DuckColors.textSecondary)
+    subtitleLabel.textColor = UIColor(DuckColors.text)
     subtitleLabel.accessibilityIdentifier = "library.count"
     titleView.addSubview(titleLabel)
-    titleView.addSubview(subtitleLabel)
+    // The subtitle belongs below the native navigation bar, not in an oversized
+    // 72-point bar item. A semantic edge fade keeps it legible over light media.
+    headerBackdrop.isUserInteractionEnabled = false
+    headerBackdrop.layer.addSublayer(headerFade)
+    view.addSubview(headerBackdrop)
+    view.addSubview(subtitleLabel)
     titleView.frame = CGRect(
-      x: 0, y: 0, width: max(105, min(160, view.bounds.width - 238)), height: 72)
+      x: 0, y: 0, width: max(105, min(160, view.bounds.width - 238)), height: 44)
     titleLabel.frame = CGRect(x: 0, y: 0, width: titleView.bounds.width, height: 39)
-    subtitleLabel.frame = CGRect(x: 0, y: 41, width: titleView.bounds.width, height: 23)
     let titleItem = UIBarButtonItem(customView: titleView)
     if #available(iOS 26.0, *) { titleItem.hidesSharedBackground = true }
     navigationItem.leftBarButtonItem = titleItem
@@ -647,10 +661,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     selectedButton.addAction(
       UIAction { [weak self] _ in self?.reviewSelection() }, for: .touchUpInside)
     selectedButton.accessibilityIdentifier = "calendar.review_selected"
-    backupButton.setImage(UIImage(systemName: "arrow.up.doc"), for: .normal)
-    backupButton.accessibilityLabel = NSLocalizedString("calendar_backup_action", comment: "")
-    backupButton.addAction(UIAction { [weak self] _ in self?.onBackup() }, for: .touchUpInside)
-    backupButton.accessibilityIdentifier = "calendar.backup_selected"
+    backupItem = UIBarButtonItem(
+      image: UIImage(systemName: "arrow.up.doc"), style: .plain, target: self,
+      action: #selector(backUpSelected))
+    backupItem.accessibilityLabel = NSLocalizedString("calendar_backup_action", comment: "")
+    backupItem.accessibilityIdentifier = "calendar.backup_selected"
     view.addSubview(selectionControls)
     var normal: UIButton.Configuration
     if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
@@ -669,12 +684,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     selectedButton.configuration = normal
     libraryButton.configuration = normal
-    var primary = normal
-    primary.baseForegroundColor = UIColor(DuckColors.action)
-    primary.baseBackgroundColor = UIColor(DuckColors.surface)
-    backupButton.configuration = primary
     browsingControls.isHidden = true
     selectionControls.isHidden = true
+  }
+  @objc func backUpSelected() {
+    guard canBackup, !selected.isEmpty else { return }
+    onBackup()
   }
   func refreshMenu() {
     filterItem?.menu = displayMenu()
@@ -683,7 +698,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard headerSelecting != selecting else { return }
     headerSelecting = selecting
     navigationItem.setRightBarButtonItems(
-      selecting ? [closeItem, filterItem] : [selectItem, filterItem],
+      selecting ? [closeItem, backupItem, filterItem] : [selectItem, filterItem],
       animated: animated && !UIAccessibility.isReduceMotionEnabled)
   }
   override func viewDidAppear(_ animated: Bool) {
@@ -707,6 +722,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if tabOwner?.selectedViewController !== contentOwner { restoreNavigation() }
   }
   func restoreNavigation() {
+    accessoryCheck?.cancel()
     if #available(iOS 26.0, *) {
       tabOwner?.setBottomAccessory(nil, animated: false)
       tabOwner?.tabBarMinimizeBehavior = .never
@@ -721,17 +737,28 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let titleWidth = max(105, min(160, view.bounds.width - 238))
     titleView.frame.size.width = titleWidth
     titleLabel.frame.size.width = titleWidth
-    subtitleLabel.frame.size.width = titleWidth
+    let subtitleHeight = subtitleLabel.font.lineHeight + 4
+    subtitleLabel.frame = CGRect(
+      x: 16, y: view.safeAreaInsets.top + 2,
+      width: view.bounds.width - 32, height: subtitleHeight)
+    headerBackdrop.frame = CGRect(
+      x: 0, y: 0, width: view.bounds.width,
+      height: subtitleLabel.frame.maxY + 16)
+    headerFade.frame = headerBackdrop.bounds
+    headerBackdrop.isHidden = level != .all
+    subtitleLabel.isHidden = level != .all
+    updateHeaderFade()
     titleLabel.adjustsFontSizeToFitWidth = true
     titleLabel.minimumScaleFactor = 0.75
     let home = view.window?.safeAreaInsets.bottom ?? 34
     grid.contentInset = UIEdgeInsets(
-      top: view.safeAreaInsets.top + 4, left: 0, bottom: home + 72, right: 0)
+      top: view.safeAreaInsets.top + (level == .all ? subtitleHeight + 8 : 4), left: 0,
+      bottom: home + 72, right: 0)
     let frame = CGRect(
-      x: 0, y: view.bounds.height - home - 60, width: view.bounds.width, height: 50)
+      x: 0, y: view.bounds.height - home - 60, width: view.bounds.width, height: 44)
     browsingControls.frame = frame
     if selectionControls.superview === view {
-      selectionControls.frame = frame.insetBy(dx: 16, dy: 0)
+      selectionControls.frame = frame
     }
     libraryButton.frame = CGRect(x: 16, y: 0, width: 50, height: 50)
     periodSurface.frame = CGRect(x: 78, y: 0, width: view.bounds.width - 94, height: 50)
@@ -741,6 +768,20 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     rebuildIfNeeded()
     updateChrome()
   }
+  func updateHeaderFade() {
+    let canvas = UIColor(DuckColors.canvas)
+    headerFade.colors = [
+      canvas.withAlphaComponent(0.98).cgColor,
+      canvas.withAlphaComponent(0.96).cgColor, canvas.withAlphaComponent(0).cgColor,
+    ]
+    headerFade.locations = [0, 0.8, 1]
+  }
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+      updateHeaderFade()
+    }
+  }
   func replaceAssets(_ values: [CalendarGridAsset]) {
     let remembered = focusedAsset()
     stopRange(revert: false)
@@ -749,6 +790,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     geometryVersion = UUID()
     geometryCache = [:]
     assets = values
+    transitionImages.removeAllObjects()
+    denseDateLabels = [:]
+    subtitleRange = nil
+    subtitleAtRecentEdge = nil
     width = 0
     hasPosition = false
     if isViewLoaded {
@@ -840,12 +885,24 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       cell.assetID = asset.id
       cell.photo.contentMode = originalAspect ? .scaleAspectFit : .scaleAspectFill
       cell.accessibilityIdentifier = "library.asset." + asset.id
-      cell.accessibilityLabel = asset.date?.formatted(date: .abbreviated, time: .shortened)
+      cell.accessibilityLabel = nil
+      if let date = asset.date {
+        let day = Calendar.current.startOfDay(for: date)
+        if denseDateLabels[day] == nil {
+          if denseDateLabels.count > 512 { denseDateLabels.removeAll(keepingCapacity: true) }
+          denseDateLabels[day] = day.formatted(date: .abbreviated, time: .omitted)
+        }
+        cell.accessibilityLabel = denseDateLabels[day]
+      }
+      cell.photo.image = transitionImages.object(forKey: asset.id as NSString)
       cell.cancel = requestImage(
         asset, max(40, layout.frame(path.item).width * view.traitCollection.displayScale)
-      ) { [weak cell] image, _ in
+      ) { [weak self, weak cell] image, _ in
         guard cell?.assetID == asset.id else { return }
-        if let image { cell?.photo.image = image }
+        if let image {
+          self?.rememberImage(image, for: asset.id)
+          cell?.photo.image = image
+        }
       }
       return cell
     }
@@ -869,13 +926,21 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     cell.selection(selected.contains(asset.id), enabled: selecting && level == .all)
     cell.duration.text = asset.videoDuration
     cell.backupState(photoStates[asset.id], visible: !selecting && level == .all)
+    cell.thumbnail(transitionImages.object(forKey: asset.id as NSString), cloud: false)
     cell.cancel = requestImage(
       asset, max(40, layout.frame(path.item).width * view.traitCollection.displayScale)
-    ) { [weak cell] image, cloud in
+    ) { [weak self, weak cell] image, cloud in
       guard cell?.assetID == asset.id else { return }
+      if let image { self?.rememberImage(image, for: asset.id) }
       cell?.thumbnail(image, cloud: cloud)
     }
     return cell
+  }
+  func rememberImage(_ image: UIImage, for id: String) {
+    let cost =
+      image.cgImage.map { $0.bytesPerRow * $0.height }
+      ?? Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+    transitionImages.setObject(image, forKey: id as NSString, cost: cost)
   }
   func collectionView(
     _ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell,
@@ -1034,6 +1099,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     displayLink?.invalidate()
     displayLink = nil
     changing = false
+    grid.panGestureRecognizer.isEnabled = true
   }
   func displayMenu() -> UIMenu {
     let zoomIn = UIAction(
@@ -1071,6 +1137,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func density(columns target: Int, at item: Int?) {
     guard level == .all, !selecting, !assets.isEmpty else { return }
     stopMotion()
+    thumbnailModeIsDense = columns >= 10
     captureAnchor(item: item)
     let frozen = layout.freeze()
     releaseX = layout.translationX
@@ -1153,13 +1220,17 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     layout.translationX = 0
     layout.progress = 1
     layout.invalidateLayout()
-    grid.reloadData()
+    // A density settle is a layout update, not new media. Only replace cells
+    // when crossing the lightweight mosaic boundary; seed them with loaded pixels.
+    if thumbnailModeIsDense != (columns >= 10) { grid.reloadData() }
+    grid.panGestureRecognizer.isEnabled = true
     grid.layoutIfNeeded()
     // UICollectionView may adjust its offset when rebuilt cells adopt the final
     // row geometry. Reapply the same tracked anchor after that adjustment.
     placeAnchor()
     announceDensity()
     updateChrome()
+    attachNativeAccessory()
   }
   func announceDensity() {
     grid.accessibilityValue = String(
@@ -1170,6 +1241,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     switch gesture.state {
     case .began:
       stopMotion()
+      thumbnailModeIsDense = columns >= 10
+      // Pinch owns scale only. Stop scroll/deceleration and retain its initial
+      // focal point; moving two fingers together must not drag a canvas.
+      grid.setContentOffset(grid.contentOffset, animated: false)
+      grid.panGestureRecognizer.isEnabled = false
       captureAnchor(
         point: (gesture as? CalendarPinchGesture)?.focus(in: grid) ?? gesture.location(in: grid))
       startColumns = columns
@@ -1179,7 +1255,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       pinchDestination = nil
       pinchSource = layout.freeze()
     case .changed:
-      guard let focus = (gesture as? CalendarPinchGesture)?.focus(in: grid),
+      guard (gesture as? CalendarPinchGesture)?.focus(in: grid) != nil,
         !UIAccessibility.isReduceMotionEnabled,
         let source = pinchSource
       else { return }
@@ -1205,12 +1281,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       let b = destination.tiles.first?.frame.width ?? 1
       let desired = a * gesture.scale
       layout.progress = a == b ? 0 : min(1, max(0, (desired - a) / (b - a)))
-      if let anchor {
-        let f = layout.frame(anchor).offsetBy(dx: -layout.translationX, dy: 0)
-        anchorPoint = CGPoint(
-          x: focus.x, y: focus.y - grid.contentOffset.y)
-        layout.translationX = anchorPoint.x - f.minX - f.width * anchorFraction.x
-      }
+      layout.translationX = 0
       layout.invalidateLayout()
       placeAnchor()
     case .ended, .cancelled, .failed:
@@ -1242,7 +1313,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
   }
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    if !changing {
+    if !changing, pinchSource == nil, displayLink == nil {
       updateChrome()
       onVisibleChange()
     }
@@ -1257,30 +1328,46 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let recent = bottomY - grid.contentOffset.y < 24
     let visible = grid.indexPathsForVisibleItems.compactMap { path -> Int? in
       guard layout.geometry.tiles.indices.contains(path.item) else { return nil }
-      let f = grid.convert(layout.frame(path.item), to: view)
-      return f.maxY > view.safeAreaInsets.top + 12
-        && f.minY < view.bounds.height - view.safeAreaInsets.bottom - 50
+      let f = layout.frame(path.item)
+      return f.maxY > grid.contentOffset.y + view.safeAreaInsets.top + 12
+        && f.minY < grid.contentOffset.y + view.bounds.height - view.safeAreaInsets.bottom - 50
         ? layout.geometry.tiles[path.item].asset : nil
-    }.sorted()
-    if indexing {
-      subtitleLabel.text = NSLocalizedString("library_loading", comment: "")
-    } else if recent {
-      subtitleLabel.text = String(
-        format: NSLocalizedString("library_count_compact", comment: ""),
-        (displayedTotal ?? assets.count).formatted())
-    } else if let first = visible.first, let last = visible.last, let a = assets[first].date,
-      let b = assets[last].date
-    {
-      subtitleLabel.text =
-        Calendar.current.isDate(a, inSameDayAs: b)
-        ? a.formatted(date: .abbreviated, time: .omitted) : intervalFormatter.string(from: a, to: b)
-    } else {
-      subtitleLabel.text = ""
+    }
+    let range = visible.min().flatMap { first in visible.max().map { first...$0 } }
+    let total = displayedTotal ?? assets.count
+    let needsSubtitle =
+      subtitleRange != range || subtitleAtRecentEdge != recent
+      || subtitleIndexing != indexing || subtitleTotal != total
+    subtitleIndexing = indexing
+    subtitleTotal = total
+    subtitleRange = range
+    subtitleAtRecentEdge = recent
+    if needsSubtitle {
+      if indexing {
+        subtitleLabel.text = NSLocalizedString("library_loading", comment: "")
+      } else if recent {
+        subtitleLabel.text = String(
+          format: NSLocalizedString("library_count_compact", comment: ""),
+          (displayedTotal ?? assets.count).formatted())
+      } else if let range, let a = assets[range.lowerBound].date,
+        let b = assets[range.upperBound].date
+      {
+        subtitleLabel.text =
+          Calendar.current.isDate(a, inSameDayAs: b)
+          ? a.formatted(date: .abbreviated, time: .omitted)
+          : intervalFormatter.string(from: a, to: b)
+      } else {
+        subtitleLabel.text = ""
+      }
     }
     selectedButton.setTitle(
-      String(format: NSLocalizedString("calendar_show_selected", comment: ""), selected.count),
+      selected.isEmpty
+        ? NSLocalizedString("calendar_select_items", comment: "")
+        : String(format: NSLocalizedString("calendar_show_selected", comment: ""), selected.count),
       for: .normal)
-    backupButton.isEnabled = canBackup && !selected.isEmpty
+    selectedButton.isEnabled = !selected.isEmpty
+    backupItem.isEnabled = canBackup && !selected.isEmpty
+    selectionControls.setNeedsLayout()
     updateHeader(animated: true)
     let next: Chrome =
       selecting
@@ -1294,26 +1381,43 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { attachNativeAccessory() }
   func attachNativeAccessory() {
     guard active, !selecting, chrome == .browsing, !installingAccessory else { return }
-    if #available(iOS 26.0, *), let tabs = tabBarController, tabs.bottomAccessory == nil {
+    if #available(iOS 26.0, *), let tabs = tabBarController {
+      if let current = tabs.bottomAccessory {
+        if let content = current.contentView as? CalendarAccessoryContent {
+          checkAccessoryAfterTransition(content)
+        }
+        return
+      }
       let content = CalendarAccessoryContent(dock)
       let accessory = UITabAccessory(contentView: content)
-      content.onEnvironment = { [weak self, weak tabs, weak content] in
-        guard let self, !self.installingAccessory, !self.selecting, let tabs, let content,
-          content.traitCollection.tabAccessoryEnvironment == .regular
-        else { return }
-        tabs.setBottomAccessory(nil, animated: false)
-        self.nativeAccessory = nil
+      content.onEnvironment = { [weak self, weak content] in
+        guard let self, let content else { return }
+        self.checkAccessoryAfterTransition(content)
       }
       installingAccessory = true
-      tabs.setBottomAccessory(accessory, animated: true)
-      tabs.view.layoutIfNeeded()
-      if content.traitCollection.tabAccessoryEnvironment == .inline {
-        nativeAccessory = accessory
-      } else {
-        tabs.setBottomAccessory(nil, animated: false)
-      }
+      nativeAccessory = accessory
+      tabs.setBottomAccessory(accessory, animated: !UIAccessibility.isReduceMotionEnabled)
       installingAccessory = false
+      checkAccessoryAfterTransition(content)
     }
+  }
+  @available(iOS 26.0, *)
+  func checkAccessoryAfterTransition(_ content: CalendarAccessoryContent) {
+    accessoryCheck?.cancel()
+    // Installation and native minimization briefly report a regular environment.
+    // Do not tear down the very control UIKit is still moving into its inline slot.
+    let check = DispatchWorkItem { [weak self, weak content] in
+      guard let self, self.active, !self.selecting, let content,
+        let tabs = self.tabBarController,
+        tabs.bottomAccessory === self.nativeAccessory as? UITabAccessory,
+        content.traitCollection.tabAccessoryEnvironment == .regular,
+        !self.grid.isDragging, !self.grid.isDecelerating
+      else { return }
+      tabs.setBottomAccessory(nil, animated: !UIAccessibility.isReduceMotionEnabled)
+      self.nativeAccessory = nil
+    }
+    accessoryCheck = check
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: check)
   }
 
   func adoptChrome(_ next: Chrome) {
@@ -1321,6 +1425,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if #available(iOS 26.0, *), let tabs = tabBarController {
       if tabs.tabBarMinimizeBehavior != .onScrollUp { tabs.tabBarMinimizeBehavior = .onScrollUp }
       if next == .selection {
+        accessoryCheck?.cancel()
         if tabs.bottomAccessory != nil { tabs.setBottomAccessory(nil, animated: false) }
         nativeAccessory = nil
         if selectionControls.superview !== view { view.addSubview(selectionControls) }

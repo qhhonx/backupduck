@@ -1187,3 +1187,5 @@
 "calendar_grid_columns" = "%d columns";
 
 "calendar_zoom_changing" = "Adjusting zoom";
+
+"calendar_select_items" = "Select Items";

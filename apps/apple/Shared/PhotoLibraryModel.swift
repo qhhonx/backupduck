@@ -380,6 +380,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     var hasImage = false
   }
   private var pending: [PHImageRequestID: Pending] = [:]
+  private var localQueue: [PHImageRequestID] = []
+  private var localCursor = 0
+  private var activeLocal: Set<PHImageRequestID> = []
+  private var localPumpScheduled = false
   private var cloudQueue: [PHImageRequestID] = []
   private var activeCloud: Set<PHImageRequestID> = []
   private var policyObservation: AnyCancellable?
@@ -389,7 +393,9 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   private(set) var requestsCancelled = 0
   init() {
     cache.totalCostLimit = 64 * 1024 * 1024
-    cache.countLimit = 500
+    // Tiny mosaics can expose thousands of 64-pixel images. Keep the byte
+    // budget authoritative instead of evicting still-visible tiles at 500 items.
+    cache.countLimit = 8192
     posters.countLimit = 80; posters.totalCostLimit = 24 * 1024 * 1024
     manager.allowsCachingHighQualityImages = true
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in self?.clear() }
@@ -420,8 +426,37 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let id = sequence
     requestsStarted += 1
     pending[id] = Pending(asset: asset, target: target, key: key, contentMode: contentMode, completion: completion)
-    start(id, network: false)
+    localQueue.append(id)
+    pumpLocal()
     return id
+  }
+  /// PhotoKit submission itself runs on the main actor. Dense scenes must not
+  /// submit thousands of native requests in a single layout pass. Deferring a
+  /// small bounded batch also lets reused/offscreen cells cancel before work starts.
+  private func pumpLocal() {
+    guard !localPumpScheduled, localCursor < localQueue.count, activeLocal.count < 24 else { return }
+    localPumpScheduled = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.localPumpScheduled = false
+      var submitted = 0
+      while self.localCursor < self.localQueue.count, self.activeLocal.count < 24, submitted < 8 {
+        let id = self.localQueue[self.localCursor]
+        self.localCursor += 1
+        guard self.pending[id] != nil else { continue }
+        self.activeLocal.insert(id)
+        self.start(id, network: false)
+        submitted += 1
+      }
+      if self.localCursor >= self.localQueue.count {
+        self.localQueue.removeAll(keepingCapacity: true)
+        self.localCursor = 0
+      } else if self.localCursor > 256 {
+        self.localQueue.removeFirst(self.localCursor)
+        self.localCursor = 0
+      }
+      self.pumpLocal()
+    }
   }
   private func start(_ id: PHImageRequestID, network: Bool) {
     guard let item = pending[id] else { return }
@@ -440,6 +475,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
           item.completion(image, false)
         }
         guard !degraded else { return }
+        if !network { self.activeLocal.remove(id); self.pumpLocal() }
         if image == nil && cloud && !network {
           item.completion(nil, true)
           if PreviewNetworkPolicy.shared.allowed {
@@ -470,7 +506,9 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   func cancel(_ request: PHImageRequestID) {
     guard let item = pending.removeValue(forKey: request) else { return }
     requestsCancelled += 1
-    manager.cancelImageRequest(item.native)
+    if item.native != PHInvalidImageRequestID { manager.cancelImageRequest(item.native) }
+    activeLocal.remove(request)
+    pumpLocal()
     cloudQueue.removeAll { $0 == request }
     activeCloud.remove(request)
     pumpCloud()
@@ -504,7 +542,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     epoch &+= 1
     let requests = pending.values.map(\.native)
     pending.removeAll(); cloudQueue.removeAll(); activeCloud.removeAll()
-    requests.forEach { manager.cancelImageRequest($0) }
+    localQueue.removeAll(); localCursor = 0; activeLocal.removeAll()
+    requests.filter { $0 != PHInvalidImageRequestID }.forEach { manager.cancelImageRequest($0) }
     cache.removeAllObjects(); posters.removeAllObjects()
     manager.stopCachingImagesForAllAssets()
     preheated.removeAll()

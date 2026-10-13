@@ -63,5 +63,43 @@ final class CalendarGridTests: XCTestCase {
       CalendarGridController.geometryKey(
         .all, width: width, columns: 5, aspect: false, leading: leading))
   }
+  @MainActor func testSelectionMarksOnlySelectedMediaAndKeepsZeroPromptCompact() {
+    let cell = CalendarGridCell(frame: CGRect(x: 0, y: 0, width: 130, height: 130))
+    cell.selection(false, enabled: true)
+    XCTAssertTrue(cell.check.isHidden)
+    cell.selection(true, enabled: true)
+    XCTAssertFalse(cell.check.isHidden)
+    cell.selection(true, enabled: false)
+    XCTAssertTrue(cell.check.isHidden)
+    let controls = CalendarSelectionControls(frame: CGRect(x: 0, y: 0, width: 402, height: 44))
+    controls.countButton.setTitle("Select Items", for: .normal)
+    controls.layoutIfNeeded()
+    XCTAssertLessThan(controls.countButton.frame.width, 300)
+    XCTAssertEqual(controls.countButton.frame.midX, 201)
+  }
+  @MainActor func testSameDensityClassSettlePreservesLoadedCellAndPixels() throws {
+    let c = CalendarGridController()
+    c.assets = (0..<100).map { CalendarGridAsset(id: "test-\($0)", date: nil, aspect: 1) }
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { ctx in
+      UIColor.systemBlue.setFill()
+      ctx.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+    }
+    c.requestImage = { _, _, done in
+      done(image, false)
+      return {}
+    }
+    c.loadViewIfNeeded()
+    c.view.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+    c.view.setNeedsLayout()
+    c.view.layoutIfNeeded()
+    let path = try XCTUnwrap(c.grid.indexPathsForVisibleItems.first)
+    let cell = try XCTUnwrap(c.grid.cellForItem(at: path) as? CalendarGridCell)
+    XCTAssertNotNil(cell.image.image)
+    c.thumbnailModeIsDense = false
+    c.finishDensity()
+    XCTAssertTrue(
+      c.grid.cellForItem(at: path) === cell, "Layout settling must not replace loaded media cells")
+    XCTAssertTrue(cell.image.image === image)
+  }
 
 }

@@ -33,20 +33,21 @@ On supported iPhones, the chronological collection is registered with the native
 TabBar controller and uses `onScrollUp` because its newest edge is bottom aligned.
 The system owns minimization, the compact Library button and expansion; do not
 replace that shape change with whole-bar hiding. Years/Months/All is attached as
-`UITabAccessory` content only in its inline environment, then detached when the
-native bar expands. Full navigation must not acquire a second accessory row.
+`UITabAccessory` content only in its inline environment, then detached after the
+native bar expansion settles. Full navigation must not acquire a second accessory row.
 A compact native Library button can expand navigation without moving photos.
 No return-to-latest arrow is added. The subtitle's latest-edge state is independent
 of the system's bar-restoration timing.
 
 Navigation actions are native `UIBarButtonItem` values. Browsing uses a separate
-Select action and filter. Selection uses the native Close action alongside the
+Select action and filter. Selection uses the native Close and confirmed-backup actions alongside the
 existing filter; update the items with the animated navigation-item API.
 The system owns group materials, sizing and transitions; custom button containers
 must not imitate them. The app still owns selection state, wording and menus.
 
-Selected-count/review and backup controls retain the app action surface while the
-tab bar is hidden for selection. The app owns its readable material, count,
+A compact centered count/review control retains the app action surface while the
+tab bar is hidden for selection. Zero selection displays Select Items; only selected
+media have a check mark. Backup stays beside the filter in the native header. The app owns its readable material, count,
 presentation timing and review destination. Legacy systems retain an interruptible
 navigation/browsing/selection fallback with readable material or solid controls.
 Semantic text and surface colors preserve the BackupDuck theme. Reduced
@@ -63,12 +64,14 @@ A cover transition resolves the destination by the actual asset's member range,
 uses a bounded visible-scene snapshot plus the selected cover, and releases both
 on completion or interruption. Native property animators settle the hierarchy.
 Menu/gesture density transitions retain a current geometry snapshot, update
-collection attributes and content offset together, follow a two-axis pinch focus,
+collection attributes and content offset together, retain the initial pinch focal point,
 and settle the column edges at release. The destination's first-row slot offset
 keeps the touched asset near its current column, instead of translating the entire
 grid offscreen when column remainders change. Every real asset retains its identity
 and membership; no placeholder assets are inserted. Gesture cancellation restores its start
 density; a remaining single finger does not replace the final two-finger center.
+Pinch suspends collection panning; translating both fingers cannot drag a canvas.
+Loaded pixels survive density settling, and unchanged cell classes are not reloaded.
 A second finger cancels range selection and restores its baseline before pinch.
 Content boundaries constrain vertical anchoring. Reduced Motion adopts
 the destination and anchor immediately.

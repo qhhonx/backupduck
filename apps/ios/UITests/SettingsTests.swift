@@ -172,6 +172,40 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
   }
 
+  @MainActor func testCalendarControlsRemainTappableAfterNativeTransition() throws {
+    guard #available(iOS 26.0, *) else { throw XCTSkip("Native tab minimization requires iOS 26") }
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    grid.swipeDown()
+    let years = app.buttons["Years"]
+    XCTAssertTrue(years.waitForExistence(timeout: 5))
+    let disappears = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !years.isHittable }, object: years)
+    disappears.isInverted = true
+    XCTAssertEqual(XCTWaiter.wait(for: [disappears], timeout: 3), .completed, "Calendar actions must survive the settled native transition")
+    years.tap()
+    app.buttons["Months"].tap()
+    app.buttons["All"].tap()
+    XCTAssertTrue(app.buttons["Years"].isHittable)
+    app.buttons["library.select_mode"].tap()
+    let review = app.buttons["calendar.review_selected"]
+    XCTAssertEqual(review.label, "Select Items")
+    XCTAssertFalse(review.isEnabled)
+    XCTAssertLessThan(review.frame.width, grid.frame.width * 0.75)
+    let upload = app.buttons["calendar.backup_selected"]
+    XCTAssertTrue(upload.exists)
+    XCTAssertLessThan(upload.frame.midY, 220, "Backup belongs beside the filter in the native header")
+    let photo = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 260 && $0.frame.midY < 600 })
+    photo.tap()
+    XCTAssertTrue(review.isEnabled)
+    XCTAssertTrue(review.label.contains("1"))
+    XCTAssertLessThan(review.frame.width, grid.frame.width * 0.85)
+    recordWindow(app, "Compact selected review with top backup action")
+  }
+
   @MainActor func testLibraryNativeChromeAndSelectionGroups() throws {
     guard #available(iOS 26.0, *) else { throw XCTSkip("Native tab morphing requires iOS 26") }
     continueAfterFailure = false
@@ -233,7 +267,7 @@ final class SettingsTests: XCTestCase {
     app.buttons["Deselect All"].tap()
     XCTAssertTrue(app.navigationBars.staticTexts.containing(NSPredicate(format:"label CONTAINS '0'")).firstMatch.exists)
     app.navigationBars.buttons.element(boundBy:0).tap()
-    XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("0"))
+    XCTAssertEqual(app.buttons["calendar.review_selected"].label, "Select Items")
   }
 
   @MainActor func testCalendarDisplayOptionsDarkAndLargeText() throws {
@@ -1263,7 +1297,7 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.buttons["library.select_mode"].waitForExistence(timeout: 5))
     XCTAssertGreaterThanOrEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 4)
     let backup = app.buttons["calendar.backup_selected"]
-    XCTAssertTrue(backup.exists);XCTAssertGreaterThan(backup.frame.minY,grid.frame.midY,"Backup stays in the bottom selection controls")
+    XCTAssertTrue(backup.exists);XCTAssertLessThan(backup.frame.maxY,220,"Backup stays beside the filter in the native header")
     let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Native continuous selection toolbar"; image.lifetime = .keepAlways; add(image)
     first.press(forDuration: 0.5, thenDragTo: fourth, withVelocity: .slow, thenHoldForDuration: 0)
     XCTAssertEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 0, "Dragging from an already selected item removes that range")

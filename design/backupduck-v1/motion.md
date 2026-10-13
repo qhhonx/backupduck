@@ -41,7 +41,7 @@ Library density changes update stable native collection attributes and the scrol
 anchor together on every gesture frame. Gesture progress follows image scale;
 release uses a normalized critically damped response over 320 ms, cancellation
 over 300 ms, and menu changes over 420 ms. Mac changes use the same response
-over 260 ms. Phone pinch focus follows both axes during the gesture, then
+over 260 ms. Phone pinch retains its initial focal point during the gesture, then
 settles the column edges while preserving vertical context. Date headings crossfade
 when grouping changes. Never restore the anchor only after the animation ends.
 Phone detail paging uses native scroll deceleration and neighbouring live views,
@@ -56,6 +56,6 @@ Density settles over 380 ms with a normalized critically damped response. Bottom
 chrome minimization and calendar-accessory placement use the system transition
 on supported iPhones. Navigation-item updates retain native sizing and group
 transitions without adding operations. Legacy chrome uses an interruptible
-300 ms settle; reversal continues from the visible pose. A final single touch cannot move the two-finger focus. Range
+300 ms settle; reversal continues from the visible pose. Two-finger translation and a final single touch cannot move the pinch focal point. Range
 selection yields to a second finger and restores its baseline. Native media
 detail behavior remains a separate interaction.

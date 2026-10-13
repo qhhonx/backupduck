@@ -11,7 +11,11 @@ changes stay inside All. On iOS 26+, native TabBar minimization owns the
 full-bar-to-compact-button motion. Its inline accessory holds Years/Months/All;
 no second accessory row remains above full navigation. Native navigation items
 provide the existing filter and Select/Close actions with native sizing and
-transitions. Selected-item actions retain the app action surface. Older systems retain a
+transitions. A compact centered selection review retains the app action surface, with Select Items
+at zero selection and check marks only on selected photos. Backup sits beside the
+filter in the native header. Native accessory traits are checked after transition
+settling, so temporary regular placement cannot remove inline controls. Pinch
+retains its initial focal point and suspends panning; loaded pixels survive reflow. Older systems retain a
 readable material-based navigation/browsing/selection fallback.
 
 A scroll-dependent subtitle shows the visible capture range away from the recent
