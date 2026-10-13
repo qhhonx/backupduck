@@ -3,6 +3,21 @@ import XCTest
 @testable import BackupDuck
 
 final class CalendarGridTests: XCTestCase {
+  @MainActor func testMediaPosterReplacementKeepsAssetFittedRectangle() {
+    let media = MediaZoomScroll(frame: CGRect(x: 0,y: 0,width: 390,height: 650))
+    media.mediaSize = CGSize(width: 3024,height: 4032)
+    media.photo.image = UIGraphicsImageRenderer(size: CGSize(width: 128,height: 128)).image { _ in }
+    media.layoutIfNeeded()
+    let original = media.media.frame, originalInset = media.contentInset
+    media.photo.image = UIGraphicsImageRenderer(size: CGSize(width: 600,height: 800)).image { _ in }
+    media.setNeedsLayout(); media.layoutIfNeeded()
+    XCTAssertEqual(media.media.frame,original,"The cropped grid poster cannot determine the detail aspect ratio")
+    XCTAssertEqual(media.contentInset,originalInset)
+    XCTAssertEqual(media.media.bounds.width/media.media.bounds.height,0.75,accuracy: 0.001)
+    media.media.transform = CGAffineTransform(translationX: 30,y: 80).scaledBy(x: 0.92,y: 0.92)
+    XCTAssertEqual(media.frame,CGRect(x: 0,y: 0,width: 390,height: 650),"Only media moves; the letterboxed viewport stays fixed")
+    XCTAssertEqual(media.media.transform.ty,80)
+  }
   func testCalendarHierarchyKeepsEveryMemberAndCoverWithinItsPeriod() {
     let calendar = Calendar(identifier: .gregorian)
     let assets = (0..<120).map { i in
@@ -15,7 +30,7 @@ final class CalendarGridTests: XCTestCase {
     for level in [CalendarGridLevel.years, .months, .all] {
       let g = CalendarGridGeometry(
         assets: assets, level: level, width: 390, columns: 5, originalAspect: false)
-      XCTAssertEqual(g.tiles.flatMap { Array($0.members) }, Array(assets.indices))
+      XCTAssertEqual(g.tiles.flatMap { Array($0.members) }.sorted(), Array(assets.indices))
       XCTAssertTrue(g.tiles.allSatisfy { $0.members.contains($0.asset) })
       XCTAssertTrue(g.tiles.allSatisfy { $0.frame.minX >= 0 && $0.frame.maxX <= 391 })
       for y in stride(from: 0.0, to: Double(g.height), by: 500) {
@@ -77,7 +92,7 @@ final class CalendarGridTests: XCTestCase {
     XCTAssertLessThan(controls.countButton.frame.width, 300)
     XCTAssertEqual(controls.countButton.frame.midX, 201)
   }
-  @MainActor func testSameDensityClassSettlePreservesLoadedCellAndPixels() throws {
+  @MainActor func testSnapshotSettlePreservesPreparedDestinationCellAndPixels() throws {
     let c = CalendarGridController()
     c.assets = (0..<100).map { CalendarGridAsset(id: "test-\($0)", date: nil, aspect: 1) }
     let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { ctx in
@@ -92,14 +107,125 @@ final class CalendarGridTests: XCTestCase {
     c.view.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
     c.view.setNeedsLayout()
     c.view.layoutIfNeeded()
+    c.beginSceneZoom(point: CGPoint(x: 201, y: c.grid.bounds.midY))
+    c.prepareZoomDestination(.all, columns: 5)
     let path = try XCTUnwrap(c.grid.indexPathsForVisibleItems.first)
     let cell = try XCTUnwrap(c.grid.cellForItem(at: path) as? CalendarGridCell)
     XCTAssertNotNil(cell.image.image)
-    c.thumbnailModeIsDense = false
-    c.finishDensity()
+    c.zoomSourceColumns = 3
+    c.zoomDestinationColumns = 5
+    c.zoomProgress = 1
+    c.finishSceneZoom(commit: true)
+    c.spring?.stopAnimation(false)
+    c.spring?.finishAnimation(at: .end)
     XCTAssertTrue(
-      c.grid.cellForItem(at: path) === cell, "Layout settling must not replace loaded media cells")
+      c.grid.cellForItem(at: path) === cell,
+      "Snapshot settling must not replace prepared media cells")
     XCTAssertTrue(cell.image.image === image)
+
+  }
+  func testMonthMosaicsCoverOneThroughSixAndMirrorWithoutOverlap() {
+    let calendar = Calendar(identifier: .gregorian)
+    for month in [1, 2] {
+      for count in 1...31 {
+        let assets = (1...count).map { day in
+          CalendarGridAsset(
+            id: "day-\(day)",
+            date: calendar.date(from: DateComponents(year: 2026, month: month, day: day)), aspect: 1
+          )
+        }
+        let g = CalendarGridGeometry(
+          assets: assets, level: .months, width: 402, columns: 3, originalAspect: false)
+        XCTAssertEqual(g.tiles.flatMap { Array($0.members) }.sorted(), Array(assets.indices))
+        for (i, tile) in g.tiles.enumerated() {
+          XCTAssertGreaterThanOrEqual(tile.frame.minX, 19.999)
+          XCTAssertLessThanOrEqual(tile.frame.maxX, 382.1)
+          for other in g.tiles.dropFirst(i + 1) {
+            XCTAssertFalse(tile.frame.intersects(other.frame))
+          }
+        }
+        if count == 2 {
+          XCTAssertEqual(g.tiles[0].frame.height / g.tiles[0].frame.width, 4.0 / 3, accuracy: 0.01)
+        }
+        if count == 3 {
+          let hero = g.tiles.max { $0.frame.width < $1.frame.width }!
+          XCTAssertEqual(hero.asset, month == 1 ? 0 : 2)
+        }
+      }
+    }
+  }
+  @MainActor func testDensePeriodCaptionsAvoidOverlapAtShortBoundaries() {
+    let assets = (0..<100).map { i in
+      CalendarGridAsset(
+        id: "year-\(i)",
+        date: Calendar.current.date(from: DateComponents(year: 2000 + i / 5, month: 1, day: 1)),
+        aspect: 1)
+    }
+    let layout = CalendarGridLayout()
+    layout.geometry = CalendarGridGeometry(
+      assets: assets, level: .all, width: 402, columns: 20, originalAspect: false)
+    let grid = UICollectionView(
+      frame: CGRect(x: 0, y: 0, width: 402, height: 874), collectionViewLayout: layout)
+    _ = grid
+    let captions = layout.visibleHeadings(in: CGRect(x: 0, y: 0, width: 402, height: 874))
+      .compactMap { layout.heading($0)?.frame }
+    for i in 1..<captions.count {
+      XCTAssertGreaterThanOrEqual(captions[i].minY, captions[i - 1].maxY + 10)
+    }
+    XCTAssertLessThan(captions.count, layout.geometry.headings.count)
+  }
+  @MainActor func testSnapshotZoomKeepsDestinationGeometryFixedAndCancelRestoresContext() throws {
+    let c = CalendarGridController()
+    c.assets = (0..<300).map { CalendarGridAsset(id: "photo-\($0)", date: nil, aspect: 1) }
+    c.loadViewIfNeeded()
+    c.view.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+    c.view.setNeedsLayout()
+    c.view.layoutIfNeeded()
+    let offset = c.grid.contentOffset
+    c.beginSceneZoom(point: CGPoint(x: 201, y: c.grid.bounds.midY))
+    c.prepareZoomDestination(.all, columns: 5)
+    let frame = c.layout.frame(200)
+    let scene = try XCTUnwrap(c.zoomScene)
+    scene.apply(0.2)
+    let startScale = scene.source.transform.a
+    scene.apply(0.8)
+    XCTAssertNotEqual(scene.source.transform.a, startScale)
+    XCTAssertEqual(
+      c.layout.frame(200), frame, "Held scale changes snapshots, not individual photo positions")
+    c.finishSceneZoom(commit: false)
+    c.spring?.stopAnimation(false)
+    c.spring?.finishAnimation(at: .end)
+    XCTAssertEqual(c.columns, 3)
+    XCTAssertEqual(c.grid.contentOffset, offset)
+    XCTAssertNil(c.zoomScene)
+    XCTAssertTrue(c.grid.panGestureRecognizer.isEnabled)
+    XCTAssertEqual(c.columnStops.last, 20, "The year overview is the terminal zoom level")
+  }
+  @MainActor func testHeldPinchCrossesSeveralStopsAndReversesAroundOneAsset() throws {
+    let c = CalendarGridController()
+    c.assets = (0..<500).map { CalendarGridAsset(id: "photo-\($0)", date: nil, aspect: 1) }
+    c.loadViewIfNeeded()
+    c.view.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+    c.view.setNeedsLayout()
+    c.view.layoutIfNeeded()
+    c.beginSceneZoom(point: CGPoint(x: 201, y: c.grid.bounds.midY))
+    let focus = c.anchorPoint
+    let photo = c.zoomStartAsset
+    c.continuousZoom(scale: 0.2)
+    XCTAssertEqual(c.zoomDestinationColumns, 20)
+    XCTAssertEqual(c.zoomStartAsset, photo)
+    XCTAssertEqual(c.anchorPoint, focus)
+    c.continuousZoom(scale: 0.65)
+    XCTAssertEqual(c.zoomSourceColumns, 3)
+    XCTAssertEqual(c.zoomDestinationColumns, 5)
+    XCTAssertEqual(c.zoomStartAsset, photo)
+    XCTAssertEqual(c.anchorPoint, focus)
+    XCTAssertLessThanOrEqual(c.zoomFrames.count, 3)
+    c.finishSceneZoom(commit: false)
+    c.spring?.stopAnimation(false)
+    c.spring?.finishAnimation(at: .end)
+    XCTAssertEqual(c.columns, 3)
+    XCTAssertNil(c.zoomScene)
   }
 
 }

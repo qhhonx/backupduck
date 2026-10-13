@@ -1,6 +1,50 @@
 import XCTest
 
 final class GridInteractions: XCTestCase {
+  func testCalendarCoverVideoAndPinchHierarchy() {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["--movie-cover"]; app.launch()
+    let grid = app.collectionViews["calendar.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 5)); grid.swipeDown()
+    app.buttons["Years"].tap()
+    let playing = grid.cells.matching(NSPredicate(format: "value == %@", "Muted video preview")).firstMatch
+    XCTAssertTrue(playing.waitForExistence(timeout: 5), "The generated calendar cover renders actual muted video")
+    let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Generated year-cover movie"; screenshot.lifetime = .keepAlways; add(screenshot)
+    grid.pinch(withScale: 1.5, velocity: 0.6)
+    XCTAssertTrue(app.buttons["Months"].isSelected)
+    grid.pinch(withScale: 1.5, velocity: 0.6)
+    XCTAssertTrue(app.buttons["All"].isSelected)
+  }
+
+  func testSnapshotZoomAndRepeatedLibraryTab() {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launch()
+    let grid = app.collectionViews["calendar.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    grid.swipeDown()
+    if #available(iOS 26.0, *) { app.buttons["Library"].tap() }
+    else { app.buttons["calendar.navigation"].tap() }
+    app.tabBars.buttons["Library"].tap()
+    let newest = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "1,440"), object: app.staticTexts["calendar.subtitle"])
+    XCTAssertEqual(XCTWaiter.wait(for: [newest], timeout: 5), .completed)
+    grid.swipeDown()
+    for columns in [5, 10, 20] {
+      grid.pinch(withScale: 0.55, velocity: -0.7)
+      let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "\(columns) columns"), object: grid)
+      XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed, "Actual settled value: \(String(describing: grid.value))")
+    }
+    XCTAssertFalse(app.staticTexts["calendar.subtitle"].isHittable)
+    grid.pinch(withScale: 0.55, velocity: -0.7)
+    let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "20 columns"), object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 5), .completed)
+    let captions = app.staticTexts.matching(identifier: "calendar.period_heading").allElementsBoundByIndex.filter { $0.isHittable }.sorted { $0.frame.minY < $1.frame.minY }
+    for i in 1..<captions.count { XCTAssertGreaterThanOrEqual(captions[i].frame.minY, captions[i - 1].frame.maxY) }
+    let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Terminal overview with separated captions"; image.lifetime = .keepAlways; add(image)
+    grid.pinch(withScale: 1.7, velocity: 0.7)
+    let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "10 columns"), object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+  }
+
   func testNativeTabMinimization() {
     continueAfterFailure = false
     let app = XCUIApplication()

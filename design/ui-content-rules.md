@@ -153,6 +153,9 @@ and visible requests. Detail targets are high quality and bounded to 4096 pixels
 Local previews work without cloud consent. An explicit attempt to open an unavailable iCloud preview
 requests consent using the shared application sheet; passive thumbnail loading
 never presents it. refusal persists until the user changes the setting.
+Preview consent keeps the shared fitted/large detents and system grabber. Phone
+actions use the same 16 pt type, 52 pt minimum and 10 pt vertical inset as other
+shared confirmations; labels add no second minimum height.
 Consent covers preview network loading, including cellular access under the OS
 network policy, and never starts or authorizes backup. Settings can revoke it;
 revocation cancels outstanding preview requests and clears their image cache.

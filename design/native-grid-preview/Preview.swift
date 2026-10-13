@@ -1,3 +1,4 @@
+import AVFoundation
 import UIKit
 
 @main final class GridPreviewApp: UIResponder, UIApplicationDelegate {
@@ -13,12 +14,23 @@ import UIKit
 final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
   let images = NSCache<NSString, UIImage>()
+  var previewMovie: URL?
   func scene(
     _ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions
   ) {
     guard let scene = scene as? UIWindowScene else { return }
     images.totalCostLimit = 24 * 1024 * 1024
     let grid = CalendarGridController()
+    if ProcessInfo.processInfo.arguments.contains("--movie-cover") {
+      let url = FileManager.default.temporaryDirectory.appendingPathComponent("grid-preview.mov")
+      DispatchQueue.global(qos: .utility).async { [weak self] in
+        GridPreviewMovie.make(url) { Task { @MainActor in self?.previewMovie = url } }
+      }
+    }
+    grid.requestVideo = { [weak self] _, done in
+      done(self?.previewMovie.map { AVPlayerItem(url: $0) })
+      return {}
+    }
     let count = ProcessInfo.processInfo.arguments.contains("--long-library") ? 55000 : 1440
     grid.assets = (0..<count).map { i in
       let date =
@@ -30,7 +42,9 @@ final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
           ))
       return CalendarGridAsset(
         id: "example-\(i)", date: date, aspect: i % 4 == 0 ? 0.75 : 1.5,
-        videoDuration: i % 11 == 0 ? "0:32" : nil, live: i % 7 == 0)
+        videoDuration: i % 11 == 0
+          || (ProcessInfo.processInfo.arguments.contains("--movie-cover") && i % 360 == 359)
+          ? "0:32" : nil, live: i % 7 == 0)
     }
     let allAssets = grid.assets
     var filter = 0
@@ -115,5 +129,53 @@ final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
     window.rootViewController = tabs
     window.makeKeyAndVisible()
     self.window = window
+  }
+}
+
+/// A small generated movie for the standalone study, not user media.
+private enum GridPreviewMovie {
+  static func make(_ url: URL, completion: @escaping () -> Void) {
+    try? FileManager.default.removeItem(at: url)
+    guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return }
+    let input = AVAssetWriterInput(
+      mediaType: .video,
+      outputSettings: [
+        AVVideoCodecKey: AVVideoCodecType.h264,
+        AVVideoWidthKey: 128, AVVideoHeightKey: 128,
+      ])
+    let adapter = AVAssetWriterInputPixelBufferAdaptor(
+      assetWriterInput: input,
+      sourcePixelBufferAttributes: [
+        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+        kCVPixelBufferWidthKey as String: 128, kCVPixelBufferHeightKey as String: 128,
+      ])
+    writer.add(input)
+    writer.startWriting()
+    writer.startSession(atSourceTime: .zero)
+    for frame in 0..<60 {
+      while !input.isReadyForMoreMediaData && writer.status == .writing {
+        Thread.sleep(forTimeInterval: 0.01)
+      }
+      var value: CVPixelBuffer?
+      CVPixelBufferCreate(nil, 128, 128, kCVPixelFormatType_32ARGB, nil, &value)
+      guard let value else { continue }
+      CVPixelBufferLockBaseAddress(value, [])
+      if let base = CVPixelBufferGetBaseAddress(value),
+        let context = CGContext(
+          data: base, width: 128, height: 128,
+          bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(value),
+          space: CGColorSpaceCreateDeviceRGB(),
+          bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
+      {
+        context.setFillColor(UIColor.systemBlue.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: 128, height: 128))
+        context.setFillColor(UIColor.white.cgColor)
+        context.fillEllipse(in: CGRect(x: CGFloat(frame) * 1.4, y: 38, width: 40, height: 40))
+      }
+      CVPixelBufferUnlockBaseAddress(value, [])
+      _ = adapter.append(value, withPresentationTime: CMTime(value: Int64(frame), timescale: 30))
+    }
+    input.markAsFinished()
+    writer.finishWriting { if writer.status == .completed { completion() } }
   }
 }

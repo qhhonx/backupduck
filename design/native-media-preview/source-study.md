@@ -73,7 +73,7 @@ are separate requirements; neither screenshots nor test labels establish feel.
    media container. Check portrait/landscape and offscreen destinations.
 3. Coordinate native page progress and thumbnail scrubbing without feedback
    loops or controller replacement during a drag. Zoomed content owns panning.
-4. Give consent a fixed content-sized presentation and one owner; loading and
+4. Give consent the shared content-sized and expandable presentation with one owner; loading and
    retry states belong to the current asset. Remove overlapping central notices.
 5. Rework grouped grid zoom as a distinct layout algorithm. Preserve focal
    asset geometry, not only final scroll offset; compare uninterrupted and

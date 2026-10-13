@@ -1,4 +1,5 @@
 import Photos
+import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -26,6 +27,20 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
           ? .aspectFit : .aspectFill
       ) { image, cloud in done(image, cloud) }
       return { [weak c] in c?.parent.library.thumbnails.cancel(request) }
+    }
+    grid.requestVideo = { [weak c] media, done in
+      guard let c, let asset = c.asset(media.id), asset.mediaType == .video else {
+        done(nil); return {}
+      }
+      let gate = CalendarCoverRequestGate()
+      let options = PHVideoRequestOptions()
+      options.isNetworkAccessAllowed = c.parent.policy.allowed
+      options.deliveryMode = .fastFormat
+      let manager = PHImageManager.default()
+      let request = manager.requestPlayerItem(forVideo: asset, options: options) { item, _ in
+        Task { @MainActor in if gate.active { done(item) } }
+      }
+      return { gate.active = false; manager.cancelImageRequest(request) }
     }
     grid.onSelection = { [weak c] selection in c?.parent.library.selection = selection }
     grid.onPreview = { [weak c] item, frame in
@@ -75,6 +90,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     if c.fetch !== library.fetch { c.rebuild() }
     if c.networkAllowed != policy.allowed {
       c.networkAllowed = policy.allowed
+      grid.stopCoverPlayback()
       grid.grid.reloadData()
     }
     if c.filter != library.filter {
@@ -219,3 +235,5 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     }
   }
 }
+
+@MainActor private final class CalendarCoverRequestGate { var active = true }

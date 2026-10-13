@@ -1,3 +1,4 @@
+import AVFoundation
 import UIKit
 
 struct CalendarGridAsset: Equatable {
@@ -18,6 +19,7 @@ struct CalendarGridTile {
 struct CalendarGridGeometry {
   var tiles: [CalendarGridTile] = []
   var headings: [(String, CGRect)] = []
+  var coverChoices: [String: [Int]] = [:]
   var height: CGFloat = 0
   var maximumTileHeight: CGFloat = 1
   var leadingSlots = 0
@@ -93,6 +95,7 @@ struct CalendarGridGeometry {
         let title =
           date.map { $0.formatted(.dateTime.year()) }
           ?? "Unknown date"
+        coverChoices["year:\(title)"] = buckets(.month, range: range).map { $0.1.upperBound - 1 }
         let rect = CGRect(x: 20, y: y, width: width - 40, height: (width - 40) * 0.76)
         tiles.append(
           CalendarGridTile(
@@ -110,36 +113,77 @@ struct CalendarGridGeometry {
         y += 48
         let days = buckets(.day, range: range)
         var cursor = 0
+        var block = 0
         while cursor < days.count {
           let remaining = days.count - cursor
-          let count = remaining >= 3 ? 3 : remaining
+          var count = min(6, remaining)
+          if remaining > 6 {
+            count = block % 2 == 0 ? 5 : 6
+            if remaining - count < 4 { count = remaining - 4 }
+          }
+          let content = width - 40
+          let gap: CGFloat = 6
+          let u = (content - gap * 2) / 3
+          var frames: [CGRect] = []
+          func tile(_ x: Int, _ row: Int, _ w: Int = 1, _ h: Int = 1) -> CGRect {
+            CGRect(
+              x: 20 + CGFloat(x) * (u + gap), y: y + CGFloat(row) * (u + gap),
+              width: CGFloat(w) * u + CGFloat(w - 1) * gap,
+              height: CGFloat(h) * u + CGFloat(h - 1) * gap)
+          }
+          switch count {
+          case 6:
+            frames = [tile(0, 0, 2, 2), tile(2, 0), tile(2, 1), tile(0, 2), tile(1, 2), tile(2, 2)]
+          case 5:
+            frames = [tile(0, 0, 2, 2), tile(2, 0), tile(2, 1), tile(0, 2, 2), tile(2, 2)]
+          case 4:
+            frames = [tile(0, 0, 3, 2), tile(0, 2), tile(1, 2), tile(2, 2)]
+          case 3:
+            frames = [tile(0, 0, 2, 2), tile(2, 0), tile(2, 1)]
+          case 2:
+            let half = (content - gap) / 2
+            frames = [
+              CGRect(x: 20, y: y, width: half, height: half * 4 / 3),
+              CGRect(x: 20 + half + gap, y: y, width: half, height: half * 4 / 3),
+            ]
+          default:
+            frames = [CGRect(x: 20, y: y, width: content, height: content * 0.65)]
+          }
+          if (block + (month.map { calendar.component(.month, from: $0) } ?? 1)) % 2 == 0,
+            count >= 3, count != 4
+          {
+            frames = frames.map {
+              CGRect(
+                x: width - 20 - ($0.maxX - 20), y: $0.minY,
+                width: $0.width, height: $0.height)
+            }
+          }
+          // Mirrored mosaics read down the small left column before the large cover.
+          if (block + (month.map { calendar.component(.month, from: $0) } ?? 1)) % 2 == 0,
+            count >= 3, count != 4
+          {
+            frames.sort { $0.minX == $1.minX ? $0.minY < $1.minY : $0.minX < $1.minX }
+          }
           for slot in 0..<count {
             let day = days[cursor + slot]
-            let cover = day.1.upperBound - 1
+            let cover = days[cursor + slot].1.upperBound - 1
             let label = day.0.map { $0.formatted(.dateTime.day()) } ?? "—"
-            let rect: CGRect
-            if count == 3 {
-              rect =
-                slot == 0
-                ? CGRect(x: 20, y: y, width: unit * 2 + 6, height: unit * 2 + 6)
-                : CGRect(
-                  x: 32 + unit * 2, y: y + CGFloat(slot - 1) * (unit + 6), width: unit, height: unit
-                )
-            } else {
-              rect = CGRect(
-                x: 20 + CGFloat(slot)
-                  * ((width - 40 - CGFloat(count - 1) * 6) / CGFloat(count) + 6), y: y,
-                width: (width - 40 - CGFloat(count - 1) * 6) / CGFloat(count),
-                height: count == 1 ? (width - 40) * 0.65 : unit * 1.6)
-            }
             tiles.append(
               CalendarGridTile(
-                id: "day:\(cover)", asset: cover, members: day.1, label: label, frame: rect))
+                id: "day:\(cover)", asset: cover, members: day.1,
+                label: label, frame: frames[slot]))
           }
-          y += count == 3 ? unit * 2 + 22 : (count == 1 ? (width - 40) * 0.65 : unit * 1.6) + 16
+          y = (frames.map(\.maxY).max() ?? y) + 16
           cursor += count
+          block += 1
         }
         y += 16
+      }
+    }
+    if level == .months {
+      tiles.sort {
+        $0.frame.minY == $1.frame.minY
+          ? $0.frame.minX < $1.frame.minX : $0.frame.minY < $1.frame.minY
       }
     }
     height = y + 16
@@ -170,39 +214,12 @@ final class CalendarGridLayout: UICollectionViewLayout {
   static let headingKind = "calendar.heading"
   var geometry = CalendarGridGeometry(
     assets: [], level: .all, width: 1, columns: 3, originalAspect: false)
-  var source: CalendarGridGeometry?
-  var progress: CGFloat = 1
-  var translationX: CGFloat = 0
   var level = CalendarGridLevel.all
   func frame(_ i: Int) -> CGRect {
-    guard geometry.tiles.indices.contains(i) else { return .zero }
-    let b = geometry.tiles[i].frame
-    guard let source, source.tiles.indices.contains(i) else {
-      return b.offsetBy(dx: translationX, dy: 0)
-    }
-    let a = source.tiles[i].frame
-    let t = progress
-    return CGRect(
-      x: a.minX + (b.minX - a.minX) * t + translationX, y: a.minY + (b.minY - a.minY) * t,
-      width: a.width + (b.width - a.width) * t, height: a.height + (b.height - a.height) * t)
-  }
-  func freeze() -> CalendarGridGeometry {
-    var copy = geometry
-    for i in copy.tiles.indices {
-      let old = copy.tiles[i]
-      copy.tiles[i] = CalendarGridTile(
-        id: old.id, asset: old.asset, members: old.members, label: old.label,
-        frame: frame(i).offsetBy(dx: -translationX, dy: 0))
-    }
-    copy.height = collectionViewContentSize.height
-    copy.maximumTileHeight = copy.tiles.map { $0.frame.height }.max() ?? 1
-    return copy
+    geometry.tiles.indices.contains(i) ? geometry.tiles[i].frame : .zero
   }
   override var collectionViewContentSize: CGSize {
-    CGSize(
-      width: collectionView?.bounds.width ?? 1,
-      height: source.map { $0.height + (geometry.height - $0.height) * progress } ?? geometry.height
-    )
+    CGSize(width: collectionView?.bounds.width ?? 1, height: geometry.height)
   }
   override func layoutAttributesForItem(at path: IndexPath) -> UICollectionViewLayoutAttributes? {
     guard geometry.tiles.indices.contains(path.item) else { return nil }
@@ -212,45 +229,46 @@ final class CalendarGridLayout: UICollectionViewLayout {
   }
   override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]?
   {
-    let indices: Range<Int>
-    if source != nil {
-      let maxHeight = max(geometry.maximumTileHeight, source?.maximumTileHeight ?? 1)
-      var low = 0
-      var high = geometry.tiles.count
-      while low < high {
-        let mid = (low + high) / 2
-        if frame(mid).minY < rect.minY - maxHeight { low = mid + 1 } else { high = mid }
-      }
-      let first = low
-      high = geometry.tiles.count
-      while low < high {
-        let mid = (low + high) / 2
-        if frame(mid).minY < rect.maxY { low = mid + 1 } else { high = mid }
-      }
-      indices = first..<max(first, low)
-    } else {
-      indices = geometry.visible(in: rect)
-    }
+    let indices = geometry.visible(in: rect)
     var out = indices.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) }
-    if source == nil {
-      for i in geometry.headings.indices {
-        if let a = heading(i), a.frame.intersects(rect) { out.append(a) }
-      }
+    for i in visibleHeadings(in: rect) {
+      if let a = heading(i) { out.append(a) }
     }
     return out
+  }
+  func visibleHeadings(in rect: CGRect) -> [Int] {
+    guard !geometry.headings.isEmpty else { return [] }
+    let pin =
+      (collectionView?.bounds.minY ?? rect.minY) + (collectionView?.adjustedContentInset.top ?? 0)
+      + 4
+    var low = 0
+    var high = geometry.headings.count
+    while low < high {
+      let mid = (low + high) / 2
+      if geometry.headings[mid].1.minY <= pin { low = mid + 1 } else { high = mid }
+    }
+    let first = max(0, low - 1)
+    var visible: [Int] = []
+    var bottom = -CGFloat.greatestFiniteMagnitude
+    for i in first..<geometry.headings.count {
+      guard let a = heading(i) else { continue }
+      if a.frame.minY >= rect.maxY { break }
+      if a.frame.maxY > rect.minY, a.frame.minY >= bottom + 10 {
+        visible.append(i)
+        bottom = a.frame.maxY
+      }
+    }
+    return visible
   }
   func heading(_ i: Int) -> UICollectionViewLayoutAttributes? {
     guard geometry.headings.indices.contains(i) else { return nil }
     let a = UICollectionViewLayoutAttributes(
-      forSupplementaryViewOfKind: Self.headingKind, with: IndexPath(item: i, section: 0))
+      forSupplementaryViewOfKind: Self.headingKind,
+      with: IndexPath(item: i, section: 0))
     a.frame = geometry.headings[i].1
     if let view = collectionView {
-      let next =
-        i + 1 < geometry.headings.count
-        ? geometry.headings[i + 1].1.minY : CGFloat.greatestFiniteMagnitude
-      a.frame.origin.y = min(
-        next - a.frame.height - 4,
-        max(a.frame.minY, view.bounds.minY + view.adjustedContentInset.top + 4))
+      let pin = view.bounds.minY + view.adjustedContentInset.top + 4
+      a.frame.origin.y = max(a.frame.minY, pin)
     }
     a.zIndex = 30
     return a
@@ -258,7 +276,9 @@ final class CalendarGridLayout: UICollectionViewLayout {
   override func layoutAttributesForSupplementaryView(ofKind kind: String, at path: IndexPath)
     -> UICollectionViewLayoutAttributes?
   { heading(path.item) }
-  override func shouldInvalidateLayout(forBoundsChange bounds: CGRect) -> Bool { true }
+  override func shouldInvalidateLayout(forBoundsChange bounds: CGRect) -> Bool {
+    bounds.width != collectionView?.bounds.width || !geometry.headings.isEmpty
+  }
 }
 
 final class CalendarGlassHeading: UICollectionReusableView {
@@ -278,6 +298,26 @@ final class CalendarGlassHeading: UICollectionReusableView {
     label.textColor = .label
     label.accessibilityIdentifier = "calendar.date_badge"
   }
+  func title(_ text: String, dense: Bool, yearly: Bool) {
+    glass.overrideUserInterfaceStyle = dense ? .dark : .unspecified
+    label.font = .systemFont(ofSize: dense ? 15 : 20, weight: .semibold)
+    label.accessibilityIdentifier = "calendar.period_heading"
+    if dense {
+      let title = NSMutableAttributedString(
+        string: text, attributes: [.foregroundColor: UIColor.white])
+      if !yearly, let year = text.range(of: "[0-9]{4}年?", options: .regularExpression) {
+        title.addAttribute(
+          .foregroundColor, value: UIColor.white.withAlphaComponent(0.55),
+          range: NSRange(year, in: text))
+      }
+      label.attributedText = title
+    } else {
+      label.attributedText = nil
+      label.textColor = .label
+      label.text = text
+    }
+    setNeedsLayout()
+  }
   required init?(coder: NSCoder) { fatalError() }
   override func layoutSubviews() {
     super.layoutSubviews()
@@ -291,7 +331,44 @@ final class CalendarGridCell: UICollectionViewCell {
   let image = UIImageView(), placeholder = UIImageView(), label = UILabel(), check = UIImageView(),
     duration = UILabel(), scrim = CAGradientLayer()
   let stateMark = UIImageView(), liveMark = UIImageView()
-  var cancel: (() -> Void)?, assetID = ""
+  var cancel: (() -> Void)?, assetID = "", coverAsset: Int?
+  let videoLayer = AVPlayerLayer()
+  var videoLoop: NSObjectProtocol?
+  var videoReady: NSKeyValueObservation?
+  func playCover(_ item: AVPlayerItem) {
+    stopCover()
+    let player = AVPlayer(playerItem: item)
+    player.isMuted = true
+    videoLayer.player = player
+    videoLayer.videoGravity = .resizeAspectFill
+    image.layer.addSublayer(videoLayer)
+    videoLayer.frame = image.bounds
+    videoLoop = NotificationCenter.default.addObserver(
+      forName: .AVPlayerItemDidPlayToEndTime,
+      object: item, queue: .main
+    ) { [weak player] _ in
+      player?.seek(to: .zero)
+      player?.play()
+    }
+    videoReady = videoLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) {
+      [weak self] layer, _ in
+      Task { @MainActor in
+        if layer.isReadyForDisplay, self?.videoLayer.player != nil {
+          self?.accessibilityValue = "Muted video preview"
+        }
+      }
+    }
+    player.play()
+  }
+  func stopCover() {
+    videoReady = nil
+    accessibilityValue = nil
+    videoLayer.player?.pause()
+    videoLayer.player = nil
+    videoLayer.removeFromSuperlayer()
+    if let videoLoop { NotificationCenter.default.removeObserver(videoLoop) }
+    videoLoop = nil
+  }
   override init(frame: CGRect) {
     super.init(frame: frame)
     image.contentMode = .scaleAspectFill
@@ -336,6 +413,7 @@ final class CalendarGridCell: UICollectionViewCell {
   override func layoutSubviews() {
     super.layoutSubviews()
     image.frame = contentView.bounds
+    videoLayer.frame = image.bounds
     placeholder.frame = CGRect(x: bounds.midX - 16, y: bounds.midY - 16, width: 32, height: 32)
     scrim.frame = CGRect(x: 0, y: 0, width: bounds.width, height: min(110, bounds.height))
     label.frame = CGRect(x: 16, y: 12, width: max(1, bounds.width - 32), height: 32)
@@ -379,6 +457,8 @@ final class CalendarGridCell: UICollectionViewCell {
     super.prepareForReuse()
     cancel?()
     cancel = nil
+    stopCover()
+    coverAsset = nil
     assetID = ""
     image.image = nil
     placeholder.isHidden = false
@@ -492,6 +572,115 @@ final class CalendarAccessoryContent: UIView {
   }
 }
 
+final class CalendarZoomScene: UIView {
+  let source = UIImageView(), destination = UIImageView()
+  var ratio: CGFloat = 1, progress: CGFloat = 0
+  init(frame: CGRect, image: UIImage, focus: CGPoint) {
+    super.init(frame: frame)
+    isUserInteractionEnabled = false
+    backgroundColor = .systemBackground
+    clipsToBounds = true
+    for imageView in [destination, source] {
+      imageView.bounds = bounds
+      imageView.layer.anchorPoint = CGPoint(
+        x: focus.x / max(1, bounds.width), y: focus.y / max(1, bounds.height))
+      imageView.layer.position = focus
+      imageView.contentMode = .scaleToFill
+      addSubview(imageView)
+    }
+    source.image = image
+    destination.alpha = 0
+  }
+  required init?(coder: NSCoder) { fatalError() }
+  func faces(
+    source image: UIImage, destination next: UIImage, sourcePoint: CGPoint,
+    destinationPoint: CGPoint, focus: CGPoint
+  ) {
+    source.image = image
+    destination.image = next
+    for (view, point) in [(source, sourcePoint), (destination, destinationPoint)] {
+      view.transform = .identity
+      view.layer.anchorPoint = CGPoint(
+        x: point.x / max(1, bounds.width), y: point.y / max(1, bounds.height))
+      view.layer.position = focus
+    }
+  }
+  func apply(_ value: CGFloat) {
+    progress = min(1, max(0, value))
+    let scale = 1 + (ratio - 1) * progress
+    source.transform = CGAffineTransform(scaleX: scale, y: scale)
+    destination.transform = CGAffineTransform(
+      scaleX: scale / max(0.01, ratio), y: scale / max(0.01, ratio))
+    let fade = progress * progress * (3 - 2 * progress)
+    source.alpha = 1 - fade
+    destination.alpha = fade
+  }
+}
+
+/// Forward the owning TabView delegate instead of replacing its navigation logic.
+final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
+  weak var owner: CalendarGridController?
+  weak var previous: UITabBarControllerDelegate?
+  weak var tabs: UITabBarController?
+  weak var lastSelected: UIViewController?
+  var beganCompact = false
+  func tabBarController(
+    _ tabBarController: UITabBarController, shouldSelect viewController: UIViewController
+  ) -> Bool {
+    let compact: Bool
+    if #available(iOS 26.0, *), let accessory = owner?.nativeAccessory as? UITabAccessory {
+      compact = accessory.contentView.traitCollection.tabAccessoryEnvironment == .inline
+    } else {
+      compact = owner?.chrome == .browsing
+    }
+    beganCompact = compact
+    let allowed =
+      previous?.tabBarController?(tabBarController, shouldSelect: viewController) ?? true
+    return allowed
+  }
+  func tabBarController(
+    _ tabBarController: UITabBarController, didSelect viewController: UIViewController
+  ) {
+    if lastSelected === viewController, !beganCompact { owner?.returnToLatest() }
+    lastSelected = viewController
+    beganCompact = false
+    previous?.tabBarController?(tabBarController, didSelect: viewController)
+  }
+  @available(iOS 18.0, *)
+  func tabBarController(_ tabBarController: UITabBarController, shouldSelectTab tab: UITab) -> Bool
+  {
+    if #available(iOS 26.0, *), let accessory = owner?.nativeAccessory as? UITabAccessory {
+      beganCompact = accessory.contentView.traitCollection.tabAccessoryEnvironment == .inline
+    } else {
+      beganCompact = owner?.chrome == .browsing
+    }
+    return previous?.tabBarController?(tabBarController, shouldSelectTab: tab)
+      ?? tab.viewController.flatMap {
+        previous?.tabBarController?(tabBarController, shouldSelect: $0)
+      } ?? true
+  }
+  @available(iOS 18.0, *)
+  func tabBarController(
+    _ tabBarController: UITabBarController, didSelectTab selectedTab: UITab, previousTab: UITab?
+  ) {
+    if selectedTab === previousTab, !beganCompact { owner?.returnToLatest() }
+    beganCompact = false
+    let selector = #selector(
+      UITabBarControllerDelegate.tabBarController(_:didSelectTab:previousTab:))
+    if previous?.responds(to: selector) == true {
+      previous?.tabBarController?(
+        tabBarController, didSelectTab: selectedTab, previousTab: previousTab)
+    } else if let controller = selectedTab.viewController {
+      previous?.tabBarController?(tabBarController, didSelect: controller)
+    }
+  }
+  override func responds(to selector: Selector!) -> Bool {
+    super.responds(to: selector) || (previous?.responds(to: selector) ?? false)
+  }
+  override func forwardingTarget(for selector: Selector!) -> Any? { previous }
+  func restore() { if tabs?.delegate === self { tabs?.delegate = previous } }
+}
+
 final class CalendarGridController: UIViewController, UICollectionViewDataSource,
   UICollectionViewDelegate, UIGestureRecognizerDelegate
 {
@@ -507,6 +696,30 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var onSelection: (Set<String>) -> Void = { _ in }
   var onBackup: () -> Void = {}
   var menu: (() -> [UIMenuElement])?
+  var requestVideo: (CalendarGridAsset, @escaping (AVPlayerItem?) -> Void) -> (() -> Void) = {
+    _, done in
+    done(nil)
+    return {}
+  }
+  var zoomScene: CalendarZoomScene?, zoomRefresh: DispatchWorkItem?
+  var zoomStartLevel = CalendarGridLevel.all, zoomTargetLevel = CalendarGridLevel.all
+  var zoomStartOffset = CGPoint.zero, zoomStartAsset = 0, zoomSourceWidth: CGFloat = 1
+  struct ZoomFrame {
+    var image: UIImage
+    let point: CGPoint
+    let width: CGFloat
+  }
+  var zoomFrames: [Int: ZoomFrame] = [:]
+  var zoomSourceColumns = 3, zoomDestinationColumns = 5
+  var zoomInitialWidth: CGFloat = 1
+  var zoomProgress: CGFloat = 0
+  var coverTimer: Timer?, coverCancel: (() -> Void)?, coverPlaybackID: String?
+  weak var playingCoverCell: CalendarGridCell?
+  var focusedCoverPeriod: String?
+  var coverIndices: [String: Int] = [:]
+  var lastCoverChange: CFTimeInterval = 0
+  var tabReselection: CalendarTabReselection?
+  var motionSourceIDs = Set<String>(), motionDestinationIDs = Set<String>()
   var canBackup = false
   var indexing = false
   var displayedTotal: Int?
@@ -529,7 +742,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var selectedButton: UIButton { selectionControls.countButton }
   var accessoryCheck: DispatchWorkItem?
   let transitionImages = NSCache<NSString, UIImage>()
-  var thumbnailModeIsDense = false
   var subtitleRange: ClosedRange<Int>?
   var subtitleAtRecentEdge: Bool?
   var subtitleIndexing: Bool?, subtitleTotal: Int?
@@ -543,12 +755,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var headerSelecting: Bool?
   weak var tabOwner: UITabBarController?
   weak var contentOwner: UIViewController?
-  var spring: UIViewPropertyAnimator?, transitionOverlay: UIView?, displayLink: CADisplayLink?
-  var morphStarted: CFTimeInterval = 0, morphDuration: CFTimeInterval = 0.35, releaseX: CGFloat = 0
+  var spring: UIViewPropertyAnimator?, transitionOverlay: UIView?
   var anchor: Int?, anchorFraction = CGPoint(x: 0.5, y: 0.5), anchorPoint = CGPoint.zero
   var leadingSlots = 0, startLeadingSlots = 0
-  var startColumns = 3, pinchSource: CalendarGridGeometry?, pinchDestination: CalendarGridGeometry?,
-    pinchTarget = 3
+  var startColumns = 3
   var width: CGFloat = 0, hasPosition = false, changing = false, accessoryVisible = false
   var geometryCache: [String: CalendarGridGeometry] = [:], geometryVersion = UUID(),
     geometryWork: Task<Void, Never>?
@@ -563,7 +773,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var rangeLink: CADisplayLink?, rangeTime: CFTimeInterval = 0, rangePoint = CGPoint.zero
   var selectionBaseline = Set<String>(), selectionStart: Int?, selectionAdding = true,
     selectionModeBeforeRange = false
-  let columnStops = [1, 3, 5, 10, 20, 30]
+  let columnStops = [1, 3, 5, 10, 20]
   override func viewDidLoad() {
     super.viewDidLoad()
     transitionImages.totalCostLimit = 24 * 1024 * 1024
@@ -599,7 +809,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     titleLabel.font = .systemFont(ofSize: 32, weight: .bold)
     titleLabel.textColor = .label
     subtitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
-      for: .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 20)
+      for: .systemFont(ofSize: 14, weight: .semibold), maximumPointSize: 20)
     subtitleLabel.adjustsFontSizeToFitWidth = true
     subtitleLabel.minimumScaleFactor = 0.8
     subtitleLabel.textColor = .label
@@ -703,6 +913,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     active = true
+    startCoverClock()
+    installTabReselection()
     tabOwner = tabBarController
     contentOwner = tabBarController?.selectedViewController
     if #available(iOS 26.0, *), let tabs = tabBarController {
@@ -715,12 +927,22 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
     active = false
+    stopCoverPlayback()
+    coverTimer?.invalidate()
+    coverTimer = nil
+    tabReselection?.restore()
+    tabReselection = nil
     stopRange(revert: true)
     chromeMotion?.stopAnimation(true)
     chromeMotion = nil
     if tabOwner?.selectedViewController !== contentOwner { restoreNavigation() }
   }
   func restoreNavigation() {
+    tabReselection?.restore()
+    tabReselection = nil
+    coverTimer?.invalidate()
+    coverTimer = nil
+    stopCoverPlayback()
     accessoryCheck?.cancel()
     if #available(iOS 26.0, *) {
       tabOwner?.setBottomAccessory(nil, animated: false)
@@ -738,20 +960,23 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     titleLabel.frame.size.width = titleWidth
     let subtitleHeight = subtitleLabel.font.lineHeight + 4
     subtitleLabel.frame = CGRect(
-      x: 16, y: view.safeAreaInsets.top + 2,
+      x: 16, y: view.safeAreaInsets.top - 10,
       width: view.bounds.width - 32, height: subtitleHeight)
+    let headerLevel = zoomScene == nil ? level : zoomStartLevel
+    let headerColumns = zoomScene == nil ? columns : startColumns
+    let showsInterval = headerLevel == .all && headerColumns <= 5
     headerBackdrop.frame = CGRect(
       x: 0, y: 0, width: view.bounds.width,
-      height: subtitleLabel.frame.maxY + 16)
+      height: showsInterval ? subtitleLabel.frame.maxY + 16 : view.safeAreaInsets.top + 16)
     headerFade.frame = headerBackdrop.bounds
-    headerBackdrop.isHidden = level != .all
-    subtitleLabel.isHidden = level != .all
+    headerBackdrop.isHidden = headerLevel != .all
+    subtitleLabel.isHidden = !showsInterval
     updateHeaderFade()
     titleLabel.adjustsFontSizeToFitWidth = true
     titleLabel.minimumScaleFactor = 0.75
     let home = view.window?.safeAreaInsets.bottom ?? 34
     grid.contentInset = UIEdgeInsets(
-      top: view.safeAreaInsets.top + (level == .all ? subtitleHeight + 8 : 4), left: 0,
+      top: view.safeAreaInsets.top + (showsInterval ? subtitleHeight - 4 : 4), left: 0,
       bottom: home + 72, right: 0)
     let frame = CGRect(
       x: 0, y: view.bounds.height - home - 60, width: view.bounds.width, height: 44)
@@ -764,6 +989,22 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if dock.superview === periodSurface.contentView {
       dock.frame = periodSurface.bounds.insetBy(dx: 4, dy: 4)
     }
+    // Exclude glass navigation from the collection's accessible interaction
+    // rectangle while keeping its visual viewport beneath the native bars.
+    var interactionBottom = view.bounds.height - home - 8
+    if let tabs = tabBarController, !tabs.tabBar.isHidden {
+      let bar = tabs.tabBar.convert(tabs.tabBar.bounds, to: view)
+      if bar.minY > view.safeAreaInsets.top { interactionBottom = min(interactionBottom, bar.minY) }
+    }
+    if !browsingControls.isHidden {
+      interactionBottom = min(interactionBottom, browsingControls.frame.minY)
+    }
+    if selecting { interactionBottom = min(interactionBottom, selectionControls.frame.minY) }
+    let interactionTop = view.safeAreaInsets.top + 8
+    grid.accessibilityFrame = UIAccessibility.convertToScreenCoordinates(
+      CGRect(
+        x: 0, y: interactionTop, width: view.bounds.width,
+        height: max(1, interactionBottom - interactionTop)), in: view)
     rebuildIfNeeded()
     updateChrome()
   }
@@ -789,6 +1030,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     geometryVersion = UUID()
     geometryCache = [:]
     assets = values
+    coverIndices = [:]
     transitionImages.removeAllObjects()
     denseDateLabels = [:]
     subtitleRange = nil
@@ -808,7 +1050,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     width = grid.bounds.width
     layout.level = level
     layout.geometry = geometry()
-    layout.source = nil
     grid.reloadData()
     grid.layoutIfNeeded()
     if !hasPosition {
@@ -910,7 +1151,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       as! CalendarGridCell
     guard layout.geometry.tiles.indices.contains(path.item) else { return cell }
     let tile = layout.geometry.tiles[path.item]
-    let asset = assets[tile.asset]
+    let displayed = coverIndices[tile.id] ?? tile.asset
+    let asset = assets[displayed]
+    cell.coverAsset = displayed
     cell.liveMark.image = asset.live ? UIImage(systemName: "livephoto") : nil
     cell.assetID = asset.id
     cell.image.contentMode = originalAspect && level == .all ? .scaleAspectFit : .scaleAspectFill
@@ -922,6 +1165,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     cell.accessibilityIdentifier = "calendar.asset." + asset.id
     cell.accessibilityLabel =
       tile.label.isEmpty ? asset.date?.formatted(date: .abbreviated, time: .shortened) : tile.label
+    cell.isHidden = changing && motionDestinationIDs.contains(asset.id)
     cell.selection(selected.contains(asset.id), enabled: selecting && level == .all)
     cell.duration.text = asset.videoDuration
     cell.backupState(photoStates[asset.id], visible: !selecting && level == .all)
@@ -946,6 +1190,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     forItemAt path: IndexPath
   ) {
     (cell as? CalendarGridCell)?.cancel?()
+    (cell as? CalendarGridCell)?.stopCover()
     (cell as? CalendarDenseCell)?.cancel?()
   }
   func collectionView(
@@ -955,7 +1200,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       view.dequeueReusableSupplementaryView(
         ofKind: kind, withReuseIdentifier: "calendar.heading", for: path) as! CalendarGlassHeading
     if layout.geometry.headings.indices.contains(path.item) {
-      h.label.text = layout.geometry.headings[path.item].0
+      h.title(layout.geometry.headings[path.item].0, dense: level == .all, yearly: columns >= 20)
       h.setNeedsLayout()
     }
     return h
@@ -964,7 +1209,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard layout.geometry.tiles.indices.contains(path.item) else { return }
     let tile = layout.geometry.tiles[path.item]
     if level != .all {
-      changeLevel(level == .years ? .months : .all, asset: tile.asset, from: path)
+      changeLevel(
+        level == .years ? .months : .all,
+        asset: (grid.cellForItem(at: path) as? CalendarGridCell)?.coverAsset ?? tile.asset,
+        from: path)
       return
     }
     if selecting {
@@ -997,6 +1245,105 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         -grid.contentInset.top,
         grid.contentSize.height - grid.bounds.height + grid.contentInset.bottom))
   }
+  func installTabReselection() {
+    guard let tabs = tabBarController else { return }
+    if let installed = tabReselection, tabs.delegate === installed { return }
+    let forwarding = CalendarTabReselection()
+    forwarding.owner = self
+    forwarding.tabs = tabs
+    forwarding.lastSelected = tabs.selectedViewController
+    forwarding.previous = tabs.delegate
+    tabReselection = forwarding
+    tabs.delegate = forwarding
+  }
+  func returnToLatest() {
+    stopMotion()
+    stopCoverPlayback()
+    grid.setContentOffset(
+      CGPoint(x: 0, y: clampedOffset(.greatestFiniteMagnitude)),
+      animated: !UIAccessibility.isReduceMotionEnabled)
+  }
+  func startCoverClock() {
+    coverTimer?.invalidate()
+    coverTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      self?.refreshCoverPlayback()
+    }
+  }
+  func stopCoverPlayback() {
+    guard coverCancel != nil || coverPlaybackID != nil || playingCoverCell != nil else { return }
+    coverCancel?()
+    coverCancel = nil
+    coverPlaybackID = nil
+    playingCoverCell?.stopCover()
+    playingCoverCell = nil
+  }
+  func refreshCoverPlayback() {
+    guard active, level != .all, !changing, !grid.isDragging, !grid.isTracking,
+      !grid.isDecelerating,
+      !UIAccessibility.isReduceMotionEnabled, !ProcessInfo.processInfo.isLowPowerModeEnabled,
+      view.window?.windowScene?.activationState == .foregroundActive
+    else {
+      stopCoverPlayback()
+      return
+    }
+    guard
+      let path = grid.indexPathsForVisibleItems.filter({
+        grid.convert(layout.frame($0.item), to: view).intersects(
+          view.bounds.insetBy(dx: 0, dy: 100))
+      }).min(by: {
+        abs(layout.frame($0.item).midY - grid.bounds.midY)
+          < abs(layout.frame($1.item).midY - grid.bounds.midY)
+      }),
+      let cell = grid.cellForItem(at: path) as? CalendarGridCell
+    else { return }
+    let tile = layout.geometry.tiles[path.item]
+    if focusedCoverPeriod != tile.id {
+      focusedCoverPeriod = tile.id
+      lastCoverChange = CACurrentMediaTime()
+    }
+    if level == .years, CACurrentMediaTime() - lastCoverChange > 5 {
+      let candidates = layout.geometry.coverChoices[tile.id] ?? [tile.asset]
+      let previous = coverIndices[tile.id] ?? tile.asset
+      if candidates.count > 1 {
+        let index = candidates[((candidates.firstIndex(of: previous) ?? -1) + 1) % candidates.count]
+        let asset = assets[index]
+        lastCoverChange = CACurrentMediaTime()
+        coverIndices[tile.id] = index
+        stopCoverPlayback()
+        cell.cancel?()
+        cell.assetID = asset.id
+        cell.coverAsset = index
+        cell.cancel = requestImage(asset, cell.bounds.width * traitCollection.displayScale) {
+          [weak self, weak cell] image, cloud in
+          guard let cell, cell.assetID == asset.id else { return }
+          if let image {
+            self?.rememberImage(image, for: asset.id)
+            UIView.transition(
+              with: cell.image, duration: 0.6,
+              options: [.transitionCrossDissolve, .allowUserInteraction]
+            ) {
+              cell.thumbnail(image, cloud: cloud)
+            }
+          }
+        }
+      }
+    }
+    guard let index = cell.coverAsset, assets[index].videoDuration != nil else {
+      if coverPlaybackID != nil { stopCoverPlayback() }
+      return
+    }
+    let asset = assets[index]
+    guard coverPlaybackID != asset.id else { return }
+    stopCoverPlayback()
+    coverPlaybackID = asset.id
+    coverCancel = requestVideo(asset) { [weak self, weak cell] item in
+      guard let self, self.active, self.coverPlaybackID == asset.id, cell?.assetID == asset.id,
+        !self.grid.isDragging, !self.grid.isDecelerating, let item
+      else { return }
+      self.playingCoverCell = cell
+      cell?.playCover(item)
+    }
+  }
   func scrollToLatest() {
     grid.layoutIfNeeded()
     grid.setContentOffset(
@@ -1011,93 +1358,152 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   }
   func changeLevel(_ next: CalendarGridLevel, asset: Int, from: IndexPath?) {
     guard !assets.isEmpty, level != next else { return }
-    // An interruption begins from the visible pose; a cover drill removes the
-    // source and destination images from the scenes while one image travels.
-    let interrupted = changing
-    var old = interrupted ? grid.snapshotView(afterScreenUpdates: false) : nil
-    let oldFrame = from.map { grid.convert(layout.frame($0.item), to: view) }
     stopMotion()
-    changing = true
-    let oldCell = from.flatMap { grid.cellForItem(at: $0) as? CalendarGridCell }
-    let poster = interrupted ? nil : oldCell?.image.image
-    if old == nil {
-      oldCell?.isHidden = poster != nil
-      old = grid.snapshotView(afterScreenUpdates: true)
-      oldCell?.isHidden = false
+    stopCoverPlayback()
+    // Resolve real photo identities in the current viewport before rebuilding.
+    struct Pose {
+      let id: String
+      let asset: Int
+      let frame: CGRect
+      let image: UIImage
     }
-    let oldPosition =
-      oldFrame ?? CGRect(x: view.bounds.midX - 40, y: view.bounds.midY - 40, width: 80, height: 80)
+    let source = grid.indexPathsForVisibleItems.compactMap { path -> Pose? in
+      guard let cell = grid.cellForItem(at: path) as? CalendarGridCell,
+        let image = cell.image.image, let index = cell.coverAsset
+      else { return nil }
+      let frame = grid.convert(layout.frame(path.item), to: view)
+      guard frame.intersects(view.bounds) else { return nil }
+      return Pose(id: cell.assetID, asset: index, frame: frame, image: image)
+    }
+    let sourceByID = Dictionary(source.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    let old = grid.snapshotView(afterScreenUpdates: false)
     level = next
     dock.selectedSegmentIndex = next.rawValue
     layout.level = next
     layout.geometry = geometry()
-    layout.source = nil
-    layout.invalidateLayout()
     navigationController?.setNavigationBarHidden(next != .all, animated: false)
     grid.reloadData()
     view.layoutIfNeeded()
     grid.layoutIfNeeded()
     locateAsset(asset)
-    let targetPath = layout.geometry.tiles.firstIndex(where: { $0.members.contains(asset) }).map {
-      IndexPath(item: $0, section: 0)
+    var pairs: [(Pose, IndexPath)] = []
+    for path in grid.indexPathsForVisibleItems {
+      let tile = layout.geometry.tiles[path.item]
+      let index = coverIndices[tile.id] ?? tile.asset
+      if let pose = sourceByID[assets[index].id] { pairs.append((pose, path)) }
     }
-    let destination =
-      targetPath.map { grid.convert(layout.frame($0.item), to: view) } ?? oldPosition
-    let targetCell = targetPath.flatMap { grid.cellForItem(at: $0) as? CalendarGridCell }
-    let targetID = targetCell?.assetID
-    targetCell?.isHidden = poster != nil
-    let flight = poster.map { UIImageView(image: $0) }
-    flight?.contentMode = .scaleAspectFill
-    flight?.clipsToBounds = true
-    flight?.frame = oldPosition
-    flight?.layer.cornerRadius = 12
-    if let old {
-      old.isUserInteractionEnabled = false
-      old.frame = grid.frame
-      view.insertSubview(old, aboveSubview: grid)
-      transitionOverlay = old
+    // Different posters inside one period can still explain year/month hierarchy.
+    // Crossfade their actual pixels inside one moving cover, never pretend IDs match.
+    if pairs.isEmpty,
+      let path = grid.indexPathsForVisibleItems.first(where: {
+        layout.geometry.tiles[$0.item].members.contains(asset)
+      }), let pose = source.min(by: { abs($0.asset - asset) < abs($1.asset - asset) })
+    {
+      pairs.append((pose, path))
     }
-    if let flight { view.insertSubview(flight, aboveSubview: old ?? grid) }
+    pairs = Array(pairs.prefix(12))
+    changing = true
+    motionSourceIDs = Set(pairs.map { $0.0.id })
+    motionDestinationIDs = Set(
+      pairs.map { pair in
+        let tile = layout.geometry.tiles[pair.1.item]
+        return assets[coverIndices[tile.id] ?? tile.asset].id
+      })
+    // Mask matched photos out of the bounded source snapshot to avoid duplicate ghosts.
+    let matchedOld = old
+    let overlay = UIView(frame: view.bounds)
+    overlay.isUserInteractionEnabled = false
+    if let matchedOld {
+      matchedOld.frame = grid.frame
+      overlay.addSubview(matchedOld)
+      let mask = CAShapeLayer()
+      let path = UIBezierPath(rect: matchedOld.bounds)
+      for (pose, _) in pairs {
+        path.append(
+          UIBezierPath(rect: pose.frame.offsetBy(dx: -grid.frame.minX, dy: -grid.frame.minY)))
+      }
+      mask.path = path.cgPath
+      mask.fillRule = .evenOdd
+      matchedOld.layer.mask = mask
+    }
+    view.insertSubview(overlay, aboveSubview: grid)
+    transitionOverlay = overlay
+    var flights: [(UIView, CGRect, CGFloat)] = []
+    for (pose, path) in pairs {
+      let target = grid.cellForItem(at: path) as? CalendarGridCell
+      let frame = grid.convert(layout.frame(path.item), to: view)
+      let flight = UIView(frame: pose.frame)
+      flight.clipsToBounds = true
+      flight.layer.cornerRadius = next == .all ? 12 : 0
+      let image = UIImageView(image: pose.image)
+      image.contentMode = .scaleAspectFill
+      image.frame = flight.bounds
+      image.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      flight.addSubview(image)
+      if let nextImage = target?.image.image, target?.assetID != pose.id {
+        let replacement = UIImageView(image: nextImage)
+        replacement.contentMode = .scaleAspectFill
+        replacement.frame = flight.bounds
+        replacement.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        replacement.alpha = 0
+        flight.addSubview(replacement)
+      }
+      target?.isHidden = true
+      overlay.addSubview(flight)
+      flights.append((flight, frame, next == .all ? 0 : 12))
+    }
     grid.alpha = 0
-    grid.transform = CGAffineTransform(
-      scaleX: next.rawValue > 0 ? 0.94 : 1.04, y: next.rawValue > 0 ? 0.94 : 1.04)
-    let cleanup: () -> Void = { [weak self, weak targetCell] in
-      old?.removeFromSuperview()
-      flight?.removeFromSuperview()
-      if targetCell?.assetID == targetID { targetCell?.isHidden = false }
-      self?.transitionOverlay = nil
-      self?.grid.transform = .identity
-      self?.grid.alpha = 1
-      self?.changing = false
-      self?.spring = nil
-      self?.updateChrome()
+    // Unmatched scenes fade in place. Only real matched covers travel.
+    let cleanup: () -> Void = { [weak self] in
+      guard let self else { return }
+      overlay.removeFromSuperview()
+      self.motionSourceIDs = []
+      self.motionDestinationIDs = []
+      for cell in self.grid.visibleCells { cell.isHidden = false }
+      self.transitionOverlay = nil
+      self.grid.alpha = 1
+      self.changing = false
+      self.spring = nil
+      self.updateChrome()
+      self.refreshCoverPlayback()
     }
     if UIAccessibility.isReduceMotionEnabled {
       cleanup()
       return
     }
-    let animation = UIViewPropertyAnimator(duration: 0.46, dampingRatio: 0.92)
+    let animation = UIViewPropertyAnimator(duration: 0.42, curve: .easeInOut)
     animation.addAnimations {
-      old?.alpha = 0
+      matchedOld?.alpha = 0
       self.grid.alpha = 1
-      self.grid.transform = .identity
-      flight?.frame = destination
-      flight?.layer.cornerRadius = next == .all ? 0 : 12
+      for (flight, frame, radius) in flights {
+        flight.frame = frame
+        flight.layer.cornerRadius = radius
+        if flight.subviews.count > 1 { flight.subviews.last?.alpha = 1 }
+      }
     }
     animation.addCompletion { _ in cleanup() }
     spring = animation
     animation.startAnimation()
     updateChrome()
   }
+
   func stopMotion() {
     spring?.stopAnimation(false)
     spring?.finishAnimation(at: .current)
     spring = nil
     transitionOverlay?.removeFromSuperview()
     transitionOverlay = nil
-    displayLink?.invalidate()
-    displayLink = nil
     changing = false
+    zoomRefresh?.cancel()
+    zoomRefresh = nil
+    if zoomScene != nil {
+      zoomScene?.removeFromSuperview()
+      zoomScene = nil
+      grid.alpha = 1
+      subtitleLabel.alpha = 1
+      grid.accessibilityElementsHidden = false
+      announceDensity()
+    }
     grid.panGestureRecognizer.isEnabled = true
   }
   func displayMenu() -> UIMenu {
@@ -1112,7 +1518,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let zoomOut = UIAction(
       title: "Zoom Out",
       image: UIImage(systemName: "minus.magnifyingglass"),
-      attributes: columns == 30 ? .disabled : []
+      attributes: columns == 20 ? .disabled : []
     ) { [weak self] _ in
       guard let self else { return }
       let i = self.columnStops.firstIndex(of: self.columns) ?? 1
@@ -1133,21 +1539,224 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
           children: [zoomIn, zoomOut, aspect])
       ])
   }
+  func sceneImage() -> UIImage {
+    let previousAlpha = grid.alpha
+    grid.alpha = 1
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = min(2, traitCollection.displayScale)
+    let image = UIGraphicsImageRenderer(size: grid.bounds.size, format: format).image { _ in
+      grid.drawHierarchy(
+        in: CGRect(origin: .zero, size: grid.bounds.size), afterScreenUpdates: true)
+    }
+    grid.alpha = previousAlpha
+    return image
+  }
+  func beginSceneZoom(point: CGPoint? = nil, item: Int? = nil) {
+    stopMotion()
+    stopCoverPlayback()
+    captureAnchor(item: item, point: point)
+    zoomStartLevel = level
+    zoomTargetLevel = level
+    startColumns = columns
+    startLeadingSlots = leadingSlots
+    zoomStartOffset = grid.contentOffset
+    if let anchor, layout.geometry.tiles.indices.contains(anchor) {
+      let tile = layout.geometry.tiles[anchor]
+      zoomStartAsset = coverIndices[tile.id] ?? tile.asset
+      zoomSourceWidth = layout.frame(anchor).width
+    }
+    let scene = CalendarZoomScene(frame: grid.frame, image: sceneImage(), focus: anchorPoint)
+    zoomScene = scene
+    zoomInitialWidth = zoomSourceWidth
+    zoomFrames = [
+      columns: ZoomFrame(image: scene.source.image!, point: anchorPoint, width: zoomSourceWidth)
+    ]
+    view.insertSubview(scene, aboveSubview: grid)
+    grid.panGestureRecognizer.isEnabled = false
+    grid.accessibilityElementsHidden = true
+    grid.alpha = 0
+    changing = true
+    grid.accessibilityValue = "Adjusting zoom"
+  }
+  func prepareZoomDestination(_ next: CalendarGridLevel, columns target: Int) {
+    guard let scene = zoomScene else { return }
+    zoomRefresh?.cancel()
+    zoomTargetLevel = next
+    level = next
+    columns = target
+    if next == .all { anchor = zoomStartAsset }
+    leadingSlots = next == .all ? alignedLeadingSlots(columns: target) : 0
+    layout.level = next
+    layout.geometry = geometry()
+    layout.invalidateLayout()
+    grid.reloadData()
+    grid.layoutIfNeeded()
+    anchor = layout.geometry.tiles.firstIndex { $0.members.contains(zoomStartAsset) }
+    placeAnchor()
+    if next != zoomStartLevel {
+      scene.ratio = next.rawValue > zoomStartLevel.rawValue ? 1.6 : 0.65
+    } else if let anchor {
+      scene.ratio = max(0.1, layout.frame(anchor).width / max(1, zoomSourceWidth))
+    }
+    scene.destination.image = sceneImage()
+    // One early refresh admits already-requested visible posters. There is no
+    // per-frame image or layout reconstruction while the fingers are held.
+    let refresh = DispatchWorkItem { [weak self, weak scene] in
+      guard let self, self.zoomScene === scene, let scene else { return }
+      let image = self.sceneImage()
+      scene.destination.image = image
+      if var cached = self.zoomFrames[self.columns] {
+        cached.image = image
+        self.zoomFrames[self.columns] = cached
+      }
+    }
+    zoomRefresh = refresh
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: refresh)
+  }
+  func continuousZoom(scale: CGFloat) {
+    guard let scene = zoomScene else { return }
+    let desired = zoomInitialWidth * scale
+    func side(_ count: Int) -> CGFloat {
+      (width - CGFloat(count - 1) * (count >= 10 ? 1 : 2)) / CGFloat(count)
+    }
+    let sourceIndex = columnStops.lastIndex(where: { side($0) >= desired }) ?? 0
+    let destinationIndex = min(columnStops.count - 1, sourceIndex + 1)
+    let a = columnStops[sourceIndex]
+    let b = columnStops[destinationIndex]
+    func frame(_ count: Int) -> ZoomFrame {
+      if let cached = zoomFrames[count] { return cached }
+      prepareZoomDestination(.all, columns: count)
+      let rect = anchor.map { layout.frame($0) } ?? .zero
+      let point = CGPoint(
+        x: rect.minX + rect.width * anchorFraction.x,
+        y: rect.minY + rect.height * anchorFraction.y - grid.contentOffset.y)
+      let frame = ZoomFrame(
+        image: scene.destination.image ?? scene.source.image!, point: point, width: side(count))
+      zoomFrames[count] = frame
+      return frame
+    }
+    if zoomSourceColumns != a || zoomDestinationColumns != b || scene.destination.image == nil {
+      let source = frame(a)
+      let destination = frame(b)
+      zoomSourceColumns = a
+      zoomDestinationColumns = b
+      scene.faces(
+        source: source.image, destination: destination.image,
+        sourcePoint: source.point, destinationPoint: destination.point, focus: anchorPoint)
+      scene.ratio = destination.width / source.width
+      zoomFrames = zoomFrames.filter { $0.key == startColumns || $0.key == a || $0.key == b }
+    }
+    zoomProgress = a == b ? 1 : min(1, max(0, (desired - side(a)) / (side(b) - side(a))))
+    scene.apply(zoomProgress)
+    if startColumns <= 5 {
+      subtitleLabel.alpha = a >= 10 ? 0 : b > 5 ? 1 - zoomProgress : 1
+    }
+  }
+  func finishSceneZoom(commit: Bool) {
+    guard let scene = zoomScene else { return }
+    zoomRefresh?.cancel()
+    zoomRefresh = nil
+    let end: CGFloat
+    if commit, zoomStartLevel == .all {
+      let target = zoomProgress >= 0.5 ? zoomDestinationColumns : zoomSourceColumns
+      end = target == zoomDestinationColumns ? 1 : 0
+      // The real collection adopts only the final chosen scene beneath the snapshots.
+      let needsCollection = level != .all || columns != target
+      level = .all
+      columns = target
+      anchor = zoomStartAsset
+      leadingSlots = alignedLeadingSlots(columns: target)
+      layout.level = .all
+      layout.geometry = geometry()
+      layout.invalidateLayout()
+      if needsCollection { grid.reloadData() }
+      grid.layoutIfNeeded()
+      placeAnchor()
+    } else if !commit, let original = zoomFrames[startColumns] {
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = min(2, traitCollection.displayScale)
+      let held = UIGraphicsImageRenderer(size: scene.bounds.size, format: format).image { _ in
+        scene.drawHierarchy(in: scene.bounds, afterScreenUpdates: false)
+      }
+      scene.faces(
+        source: held, destination: original.image,
+        sourcePoint: anchorPoint, destinationPoint: original.point, focus: anchorPoint)
+      scene.ratio = 1
+      scene.apply(0)
+      end = 1
+    } else {
+      end = commit ? 1 : 0
+    }
+    let cleanup: () -> Void = { [weak self] in
+      guard let self else { return }
+      if !commit {
+        self.level = self.zoomStartLevel
+        self.columns = self.startColumns
+        self.leadingSlots = self.startLeadingSlots
+        self.layout.level = self.level
+        self.layout.geometry = self.geometry()
+        self.layout.invalidateLayout()
+        self.grid.reloadData()
+        self.grid.layoutIfNeeded()
+        self.grid.setContentOffset(self.zoomStartOffset, animated: false)
+      }
+      self.zoomScene = nil
+      self.subtitleLabel.alpha = 1
+      self.navigationController?.setNavigationBarHidden(self.level != .all, animated: false)
+      self.dock.selectedSegmentIndex = self.level.rawValue
+      self.view.layoutIfNeeded()
+      if commit { self.placeAnchor() }
+      self.grid.alpha = 1
+      self.grid.accessibilityElementsHidden = false
+      self.grid.panGestureRecognizer.isEnabled = true
+      scene.removeFromSuperview()
+      self.zoomScene = nil
+      self.zoomFrames = [:]
+      self.changing = false
+      self.spring = nil
+      self.announceDensity()
+      self.refreshMenu()
+      self.updateChrome()
+      self.attachNativeAccessory()
+      self.refreshCoverPlayback()
+    }
+    if UIAccessibility.isReduceMotionEnabled {
+      scene.apply(end)
+      cleanup()
+      return
+    }
+    let settle = UIViewPropertyAnimator(
+      duration: 0.28,
+      timingParameters:
+        UICubicTimingParameters(
+          controlPoint1: CGPoint(x: 0.2, y: 0.8), controlPoint2: CGPoint(x: 0.2, y: 1)))
+    let settledPoint: CGPoint
+    if commit, let anchor {
+      let rect = layout.frame(anchor)
+      settledPoint = CGPoint(
+        x: rect.minX + rect.width * anchorFraction.x,
+        y: rect.minY + rect.height * anchorFraction.y - grid.contentOffset.y)
+    } else {
+      settledPoint = anchorPoint
+    }
+    settle.addAnimations {
+      scene.apply(end)
+      scene.source.center = settledPoint
+      scene.destination.center = settledPoint
+    }
+    settle.addCompletion { _ in cleanup() }
+    spring = settle
+    settle.startAnimation()
+  }
   func density(columns target: Int, at item: Int?) {
     guard level == .all, !selecting, !assets.isEmpty else { return }
-    stopMotion()
-    thumbnailModeIsDense = columns >= 10
-    captureAnchor(item: item)
-    let frozen = layout.freeze()
-    releaseX = layout.translationX
-    columns = target
-    leadingSlots = alignedLeadingSlots(columns: target)
-    grid.accessibilityValue = "Adjusting zoom"
-    layout.geometry = geometry()
-    layout.source = frozen
-    layout.progress = 0
-    startSettle()
-    refreshMenu()
+    beginSceneZoom(item: item)
+    prepareZoomDestination(.all, columns: target)
+    zoomSourceColumns = startColumns
+    zoomDestinationColumns = target
+    zoomScene?.apply(0)
+    zoomProgress = 1
+    finishSceneZoom(commit: true)
   }
   /// Keep the anchor near its screen column instead of translating the entire
   /// destination grid offscreen when its item remainder changes with density.
@@ -1190,129 +1799,69 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     grid.contentOffset.y = clampedOffset(f.minY + f.height * anchorFraction.y - anchorPoint.y)
     grid.layoutIfNeeded()
   }
-  func startSettle() {
-    morphStarted = CACurrentMediaTime()
-    morphDuration = 0.38
-    if UIAccessibility.isReduceMotionEnabled {
-      layout.progress = 1
-      finishDensity()
-      return
-    }
-    let link = CADisplayLink(target: self, selector: #selector(settleFrame))
-    link.add(to: .main, forMode: .common)
-    displayLink = link
-  }
-  @objc func settleFrame() {
-    let t = min(1, (CACurrentMediaTime() - morphStarted) / morphDuration)
-    let k = 8.0
-    let e = (1 - (1 + k * t) * exp(-k * t)) / (1 - (1 + k) * exp(-k))
-    layout.progress = CGFloat(e)
-    layout.translationX = releaseX * (1 - CGFloat(e))
-    layout.invalidateLayout()
-    placeAnchor()
-    if t >= 1 { finishDensity() }
-  }
-  func finishDensity() {
-    displayLink?.invalidate()
-    displayLink = nil
-    layout.source = nil
-    layout.translationX = 0
-    layout.progress = 1
-    layout.invalidateLayout()
-    // A density settle is a layout update, not new media. Only replace cells
-    // when crossing the lightweight mosaic boundary; seed them with loaded pixels.
-    if thumbnailModeIsDense != (columns >= 10) { grid.reloadData() }
-    grid.panGestureRecognizer.isEnabled = true
-    grid.layoutIfNeeded()
-    // UICollectionView may adjust its offset when rebuilt cells adopt the final
-    // row geometry. Reapply the same tracked anchor after that adjustment.
-    placeAnchor()
-    announceDensity()
-    updateChrome()
-    attachNativeAccessory()
-  }
   func announceDensity() {
     grid.accessibilityValue = String(
       format: "%d columns", columns)
   }
   @objc func pinch(_ gesture: UIPinchGestureRecognizer) {
-    guard level == .all, !selecting else { return }
+    guard !selecting, !assets.isEmpty else { return }
     switch gesture.state {
     case .began:
-      stopMotion()
-      thumbnailModeIsDense = columns >= 10
-      // Pinch owns scale only. Stop scroll/deceleration and retain its initial
-      // focal point; moving two fingers together must not drag a canvas.
-      grid.setContentOffset(grid.contentOffset, animated: false)
-      grid.panGestureRecognizer.isEnabled = false
-      captureAnchor(
-        point: (gesture as? CalendarPinchGesture)?.focus(in: grid) ?? gesture.location(in: grid))
-      startColumns = columns
-      startLeadingSlots = leadingSlots
-      grid.accessibilityValue = "Adjusting zoom"
-      pinchTarget = columns
-      pinchDestination = nil
-      pinchSource = layout.freeze()
-    case .changed:
-      guard (gesture as? CalendarPinchGesture)?.focus(in: grid) != nil,
-        !UIAccessibility.isReduceMotionEnabled,
-        let source = pinchSource
-      else { return }
-      let target =
-        gesture.scale < 1
-        ? columnStops[
-          min(columnStops.count - 1, (columnStops.firstIndex(of: startColumns) ?? 1) + 1)]
-        : columnStops[max(0, (columnStops.firstIndex(of: startColumns) ?? 1) - 1)]
-      if pinchTarget != target || pinchDestination == nil {
-        pinchTarget = target
-        let old = columns
-        let oldLeading = leadingSlots
-        columns = target
-        leadingSlots = alignedLeadingSlots(columns: target)
-        pinchDestination = geometry()
-        columns = old
-        leadingSlots = oldLeading
+      if gesture.scale < 1 && ((level == .all && columns == columnStops.last) || level == .years) {
+        return
       }
-      guard let destination = pinchDestination else { return }
-      layout.source = source
-      layout.geometry = destination
-      let a = source.tiles.first?.frame.width ?? 1
-      let b = destination.tiles.first?.frame.width ?? 1
-      let desired = a * gesture.scale
-      layout.progress = a == b ? 0 : min(1, max(0, (desired - a) / (b - a)))
-      layout.translationX = 0
-      layout.invalidateLayout()
-      placeAnchor()
+      beginSceneZoom(
+        point: (gesture as? CalendarPinchGesture)?.focus(in: grid) ?? gesture.location(in: grid))
+      zoomProgress = 0
+    case .changed:
+      guard (gesture as? CalendarPinchGesture)?.focus(in: grid) != nil, let scene = zoomScene else {
+        return
+      }
+      if zoomStartLevel == .all {
+        continuousZoom(scale: gesture.scale)
+        return
+      }
+      var next = zoomStartLevel
+      var target = startColumns
+      let outward = gesture.scale > 1
+      if zoomStartLevel == .years {
+        if outward { next = .months }
+      } else if zoomStartLevel == .months {
+        next = outward ? .all : .years
+        target = 5
+      } else {
+        let i = columnStops.firstIndex(of: startColumns) ?? 1
+        target = columnStops[min(columnStops.count - 1, max(0, i + (outward ? -1 : 1)))]
+      }
+      if next != zoomTargetLevel || target != columns || scene.destination.image == nil {
+        prepareZoomDestination(next, columns: target)
+      }
+      if next == zoomStartLevel && target == startColumns {
+        zoomProgress = 0
+      } else {
+        let ratio = scene.ratio
+        // A hierarchy change may use a differently shaped cover. Keep its gesture
+        // threshold practical without losing the direct scale response.
+        let endScale = ratio
+        zoomProgress = min(1, max(0, (gesture.scale - 1) / (endScale - 1)))
+      }
+      scene.apply(zoomProgress)
+      if zoomStartLevel == .all && startColumns <= 5 && columns > 5 {
+        subtitleLabel.alpha = 1 - zoomProgress
+      }
     case .ended, .cancelled, .failed:
-      let index = columnStops.firstIndex(of: startColumns) ?? 1
-      let reducedTarget =
-        gesture.scale < 0.85
-        ? columnStops[min(columnStops.count - 1, index + 1)]
-        : gesture.scale > 1.15 ? columnStops[max(0, index - 1)] : startColumns
-      let target =
-        gesture.state != .ended
-        ? startColumns
-        : UIAccessibility.isReduceMotionEnabled
-          ? reducedTarget : layout.progress > 0.45 ? pinchTarget : startColumns
-      let frozen = layout.freeze()
-      releaseX = layout.translationX
-      columns = target
-      leadingSlots =
-        target == startColumns
-        ? startLeadingSlots
-        : (pinchDestination?.leadingSlots ?? alignedLeadingSlots(columns: target))
-      layout.geometry = geometry()
-      layout.source = frozen
-      layout.progress = 0
-      pinchSource = nil
-      pinchDestination = nil
-      startSettle()
-      refreshMenu()
+      // UIKit's terminal scale can arrive after one touch has ended. The focus
+      // remains fixed, so consume scale without consulting a one-finger center.
+      if gesture.state == .ended, zoomStartLevel == .all, zoomScene != nil {
+        continuousZoom(scale: gesture.scale)
+      }
+      finishSceneZoom(
+        commit: gesture.state == .ended && (zoomStartLevel == .all || zoomProgress > 0.45))
     default: break
     }
   }
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    if !changing, pinchSource == nil, displayLink == nil {
+    if !changing {
       updateChrome()
       onVisibleChange()
     }
@@ -1325,7 +1874,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       -grid.contentInset.top,
       grid.contentSize.height - grid.bounds.height + grid.contentInset.bottom)
     let recent = bottomY - grid.contentOffset.y < 24
-    let visible = grid.indexPathsForVisibleItems.compactMap { path -> Int? in
+    let visible = (level == .all && columns <= 5 ? grid.indexPathsForVisibleItems : []).compactMap {
+      path -> Int? in
       guard layout.geometry.tiles.indices.contains(path.item) else { return nil }
       let f = layout.frame(path.item)
       return f.maxY > grid.contentOffset.y + view.safeAreaInsets.top + 12
@@ -1341,7 +1891,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     subtitleTotal = total
     subtitleRange = range
     subtitleAtRecentEdge = recent
-    if needsSubtitle {
+    if needsSubtitle, level == .all, columns <= 5 {
       if indexing {
         subtitleLabel.text = "Loading library…"
       } else if recent {
@@ -1371,8 +1921,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       ? .selection : ((!recent || level != .all) && !expandedNavigation ? .browsing : .navigation)
     adoptChrome(next)
   }
-  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { expandedNavigation = false }
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    expandedNavigation = false
+    stopCoverPlayback()
+  }
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    // Attach while inertia has begun, instead of waiting for deceleration to finish.
     attachNativeAccessory()
   }
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { attachNativeAccessory() }
@@ -1393,8 +1947,17 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       }
       installingAccessory = true
       nativeAccessory = accessory
+      dock.alpha = 0
+      dock.transform = CGAffineTransform(translationX: 0, y: 16)
       tabs.setBottomAccessory(accessory, animated: !UIAccessibility.isReduceMotionEnabled)
       installingAccessory = false
+      UIView.animate(
+        withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.28,
+        delay: 0, options: [.beginFromCurrentState, .curveEaseOut]
+      ) {
+        self.dock.alpha = 1
+        self.dock.transform = .identity
+      }
       checkAccessoryAfterTransition(content)
     }
   }
@@ -1507,11 +2070,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   }
   func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
     if gesture is UILongPressGestureRecognizer {
-      return gesture.numberOfTouches == 1 && level == .all && displayLink == nil && !changing
+      return gesture.numberOfTouches == 1 && level == .all && !changing
     }
     if gesture is UIPinchGestureRecognizer {
       if selectionStart != nil { stopRange(revert: true) }
-      return level == .all && !selecting
+      return !selecting
     }
     return true
   }

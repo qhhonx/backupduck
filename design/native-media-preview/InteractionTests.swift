@@ -14,7 +14,7 @@ final class InteractionTests: XCTestCase {
         let strip = app.collectionViews["preview.filmstrip"]
         strip.coordinate(withNormalizedOffset: CGVector(dx: 0.8,dy: 0.5)).press(forDuration: 0.05,thenDragTo: strip.coordinate(withNormalizedOffset: CGVector(dx: 0.2,dy: 0.5)),withVelocity: .slow,thenHoldForDuration: 0.2)
         XCTAssertFalse(app.staticTexts["14:02 · 示例 3"].exists)
-        app.buttons["照片信息"].tap()
+        pager.swipeUp()
         XCTAssertTrue(app.staticTexts["拍摄位置 · 示例位置"].waitForExistence(timeout: 3))
         app.buttons["关闭信息"].tap()
         XCTAssertTrue(app.buttons["返回图库"].waitForExistence(timeout: 3))

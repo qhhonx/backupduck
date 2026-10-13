@@ -73,8 +73,8 @@ final class SettingsTests: XCTestCase {
     }
     let photo = app.images["library.preview.photo"]
     XCTAssertTrue(photo.waitForExistence(timeout: 10))
-    photo.doubleTap()
-    app.buttons["library.preview.info"].tap()
+    photo.doubleTap(); photo.doubleTap()
+    app.scrollViews["library.preview.pager"].swipeUp()
     XCTAssertTrue(app.staticTexts["preview.info.dimensions"].waitForExistence(timeout: 5))
     recordWindow(app, "Preview information")
     app.buttons["preview.info.close"].tap()
@@ -131,12 +131,13 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(allow.waitForExistence(timeout: 5))
     XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
     XCTAssertFalse(app.alerts.firstMatch.exists)
-    let originalButtonY = allow.frame.minY
+    let originalTitleY = app.staticTexts["Load previews from iCloud"].frame.minY
     let title = app.staticTexts["Load previews from iCloud"]
     XCTAssertTrue(title.exists)
     title.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.05,
       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.15)),withVelocity: .slow,thenHoldForDuration: 0.1)
-    XCTAssertEqual(allow.frame.minY,originalButtonY,accuracy: 8,"A short confirmation has no expandable empty detent")
+    XCTAssertGreaterThan(originalTitleY-title.frame.minY,8,"Consent keeps the shared native expandable sheet behavior")
+    XCTAssertEqual(allow.frame.height,52,accuracy: 2,"Consent actions share the confirmation component height")
     recordWindow(app,"Application cloud consent — shared sheet contract")
     app.buttons["preview.cloud.decline"].tap()
     XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
@@ -167,7 +168,7 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Mid-library pinch — same asset under the fingers")
     changed.pinch(withScale: 1.5,velocity: 0.6)
     let expanded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "3 columns"), object: grid)
-    XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed, "Actual density after reverse pinch: \(String(describing: grid.value))")
     XCTAssertTrue(grid.cells[id].isHittable)
     recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
   }
@@ -301,10 +302,11 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
     recordWindow(app,"Preview consent — Chinese accessibility text")
     app.buttons["preview.cloud.decline"].tap()
-    XCTAssertTrue(app.buttons["library.preview.info"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["library.preview.info"].exists)
     XCTAssertTrue(app.buttons["library.preview.close"].isHittable)
     recordWindow(app,"Preview header — Chinese accessibility text")
-    app.buttons["library.preview.info"].tap()
+    app.scrollViews["library.preview.pager"].swipeUp()
     XCTAssertTrue(app.buttons["preview.info.close"].waitForExistence(timeout: 5))
     app.buttons["preview.info.close"].tap(); app.buttons["library.preview.close"].tap()
     XCTAssertTrue(grid.waitForExistence(timeout: 5))
@@ -336,7 +338,7 @@ final class SettingsTests: XCTestCase {
     let scrubbed = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable }?.value as? String)
     XCTAssertNotEqual(scrubbed,next)
     recordWindow(app,"Native filmstrip after scrubbing")
-    app.buttons["library.preview.info"].tap()
+    app.scrollViews["library.preview.pager"].swipeUp()
     XCTAssertTrue(app.staticTexts["preview.info.dimensions"].waitForExistence(timeout: 5))
     app.buttons["preview.info.close"].tap()
     pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.3)).press(forDuration: 0.05,thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.85)),withVelocity: .slow,thenHoldForDuration: 0.1)
@@ -423,9 +425,9 @@ final class SettingsTests: XCTestCase {
     try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
     XCTAssertTrue(app.descendants(matching: .any)["library.preview.video"].firstMatch.waitForExistence(timeout: 10))
     recordWindow(app, "Native local video preview")
-    app.buttons["library.preview.info"].tap()
+    app.scrollViews["library.preview.pager"].swipeUp()
     recordWindow(app, "Native video information")
-    app.buttons["Done"].firstMatch.tap(); app.buttons["library.preview.close"].tap()
+    app.buttons["preview.info.close"].tap(); app.buttons["library.preview.close"].tap()
     XCTAssertTrue(grid.waitForExistence(timeout: 5))
   }
 

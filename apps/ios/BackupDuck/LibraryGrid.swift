@@ -1021,11 +1021,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   let backdrop = UIView(), stage = UIView(), pager = UIScrollView(), header = UIView(), footer = UIView()
   let date = UILabel(), status = UILabel(), progress = UIProgressView(progressViewStyle: .default)
   let spinner = UIActivityIndicatorView(style: .medium), retry = UIButton(type: .system)
-  lazy var strip: UICollectionView = {
-    let layout = UICollectionViewFlowLayout(); layout.scrollDirection = .horizontal
-    layout.itemSize = CGSize(width: 30, height: 42); layout.minimumLineSpacing = 4
-    return UICollectionView(frame: .zero, collectionViewLayout: layout)
-  }()
+  let stripLayout = MediaFilmstripLayout()
+  lazy var strip = UICollectionView(frame: .zero, collectionViewLayout: stripLayout)
   let information = UIView(), infoHeader = UIView()
   var informationHost: UIHostingController<AnyView>?
   var pages: [UIHostingController<IOSPreviewPageContent>] = []
@@ -1036,6 +1033,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   var suppress = false, closing = false, flying = true, chrome = true, infoHeight: CGFloat = 0
   var index: Int = 0, verticalKind = 0, startInfo: CGFloat = 0, lastSize = CGSize.zero
   var pendingAsset: PHAsset?
+  var mediaClipping: [(UIView,Bool)] = []
   init(item: IOSPreviewItem, session: MediaPreviewSession, close: @escaping () -> Void) {
     self.item = item; self.session = session; closeViewer = close; super.init(nibName: nil, bundle: nil)
   }
@@ -1052,8 +1050,6 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     stage.addGestureRecognizer(pan); pager.panGestureRecognizer.require(toFail: pan)
     let back = icon("chevron.left", label: "settings_done", id: "library.preview.close") { [weak self] in self?.dismissViewer() }
     back.tag = 1; header.addSubview(back)
-    let info = icon("info.circle", label: "apple_photo_detail", id: "library.preview.info") { [weak self] in self?.setInfo(true) }
-    info.tag = 2; header.addSubview(info)
     date.font = .preferredFont(forTextStyle: .subheadline); date.textColor = .white; date.textAlignment = .center
     date.numberOfLines = 2; date.adjustsFontForContentSizeCategory = true
     date.accessibilityIdentifier = "library.preview.date"; header.addSubview(date)
@@ -1064,7 +1060,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     retry.titleLabel?.font = .preferredFont(forTextStyle: .caption1); retry.tintColor = UIColor(DuckColors.action)
     retry.addAction(UIAction { [weak self] _ in
       guard let self else { return }
-      if PreviewNetworkPolicy.shared.allowed { self.session.current.load() } else { PreviewNetworkPolicy.shared.asking = true }
+      self.session.current.load()
     }, for: .touchUpInside); header.addSubview(retry)
     strip.backgroundColor = .clear; strip.showsHorizontalScrollIndicator = false
     strip.dataSource = self; strip.delegate = self; strip.accessibilityIdentifier = "library.preview.filmstrip"
@@ -1097,15 +1093,14 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     backdrop.frame = b
     header.frame = CGRect(x: 0,y: top,width: b.width,height: headerHeight)
     header.viewWithTag(1)?.frame = CGRect(x: 8,y: 4,width: 44,height: 44)
-    header.viewWithTag(2)?.frame = CGRect(x: b.width-52,y: 4,width: 44,height: 44)
     date.frame = CGRect(x: 58,y: 5,width: b.width-116,height: dateHeight)
     status.frame = CGRect(x: 70,y: statusY,width: b.width-140,height: statusHeight)
     progress.frame = CGRect(x: b.midX-54,y: headerHeight-11,width: 108,height: 2)
     spinner.frame = CGRect(x: 30,y: statusY,width: 20,height: 20)
     retry.frame = CGRect(x: 60,y: statusY-3,width: b.width-120,height: max(28,statusHeight+6))
     footer.frame = CGRect(x: 0,y: b.height-bottom-58,width: b.width,height: 58)
-    strip.frame = footer.bounds.insetBy(dx: 16,dy: 8)
-    strip.contentInset = UIEdgeInsets(top: 0,left: max(0,strip.bounds.width/2-15),bottom: 0,right: max(0,strip.bounds.width/2-15))
+    strip.frame = footer.bounds.insetBy(dx: 16,dy: 6)
+    strip.contentInset = UIEdgeInsets(top: 0,left: strip.bounds.width/2,bottom: 0,right: strip.bounds.width/2)
     let reserved = infoHeight > 0 ? infoHeight : bottom+58
     stage.frame = CGRect(x: 0,y: top+headerHeight,width: b.width,height: max(1,b.height-top-headerHeight-reserved))
     suppress = true; pager.frame = stage.bounds
@@ -1125,8 +1120,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     let controller = UIHostingController(rootView: IOSPreviewPageContent(preview: session.model(for: asset), session: session, zoom: { [weak self] zoomed in
       guard let self, self.session.current.asset.localIdentifier == asset.localIdentifier else { return }
       if self.session.zoomed != zoomed { DispatchQueue.main.async { self.session.zoomed = zoomed } }
-    }, tap: { [weak self] in self?.toggleChrome() }))
-    controller.view.backgroundColor = .clear; if cache { pageCache[asset.localIdentifier] = controller }; return controller
+    }, tap: { [weak self] in self?.toggleChrome() }, info: { [weak self] in self?.setInfo(true) }))
+    controller.safeAreaRegions = []; controller.view.backgroundColor = .clear; if cache { pageCache[asset.localIdentifier] = controller }; return controller
   }
   func installPages() {
     suppress = true
@@ -1140,12 +1135,16 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     pager.isScrollEnabled = true; layoutMedia(); suppress = false
   }
   func currentChanged(_ model: MediaPreviewModel) {
-    guard !closing else { return }
+    guard !closing, model === session.current else { return }
     if pager.isDragging || pager.isDecelerating { pendingAsset = model.asset; return }
     index = session.library.previewIndex(of: model.asset) ?? index
     if pageAssets.count != 3 || pageAssets[1].localIdentifier != model.asset.localIdentifier { installPages() }
     if !strip.isDragging && !strip.isDecelerating { strip.reloadData(); centerStrip() }
     else { for path in strip.indexPathsForVisibleItems { if let cell = strip.cellForItem(at: path) as? PreviewStripCell { cell.setSelected(path.item == index) } } }
+    stripLayout.current = index
+    stripLayout.aspect = CGFloat(max(1,model.asset.pixelWidth))/CGFloat(max(1,model.asset.pixelHeight))
+    stripLayout.invalidateLayout(); strip.layoutIfNeeded()
+    if !strip.isDragging && !strip.isDecelerating { centerStrip() }
     observeMedia(); refreshInformation()
   }
   func observeMedia() {
@@ -1157,8 +1156,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     let model = session.current
     date.text = model.asset.creationDate?.formatted(date: .abbreviated,time: .omitted) ?? NSLocalizedString("library_preview",comment: "")
     status.text = model.asset.creationDate?.formatted(date: .omitted,time: .shortened)
-    retry.isHidden = PreviewNetworkPolicy.shared.asking || !(model.failure || model.cloudNeeded)
-    retry.setTitle(NSLocalizedString(model.cloudNeeded ? "preview_cloud_allow" : "retry_task",comment: ""),for: .normal)
+    retry.isHidden = PreviewNetworkPolicy.shared.asking || !model.failure
+    retry.setTitle(NSLocalizedString("retry_task",comment: ""),for: .normal)
     status.isHidden = !retry.isHidden
     if model.loading { spinner.startAnimating(); status.text = NSLocalizedString("preview_loading",comment: "") } else { spinner.stopAnimating() }
     progress.isHidden = !model.loading || model.progress <= 0 || model.progress >= 1
@@ -1179,17 +1178,17 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   }
   func centerStrip() {
     guard !strip.isDragging && !strip.isDecelerating else { return }
-    suppress = true; strip.contentOffset.x = CGFloat(index)*34-strip.contentInset.left; suppress = false
+    suppress = true; strip.contentOffset.x = stripLayout.center(index)-strip.bounds.width/2; suppress = false
   }
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard !suppress, !flying, !closing else { return }
     if scrollView === pager {
       session.paging = true
       if !strip.isDragging && !strip.isDecelerating {
-        suppress = true; strip.contentOffset.x = (CGFloat(index)+pager.contentOffset.x/max(1,pager.bounds.width)-1)*34-strip.contentInset.left; suppress = false
+        suppress = true; strip.contentOffset.x = stripLayout.center(index)+(pager.contentOffset.x/max(1,pager.bounds.width)-1)*stripLayout.pitch-strip.bounds.width/2; suppress = false
       }
     } else if scrollView === strip, strip.isDragging || strip.isDecelerating {
-      let next = max(0,min(session.library.loaded-1,Int(round((strip.contentOffset.x+strip.contentInset.left)/34))))
+      let next = max(0,min(session.library.loaded-1,stripLayout.nearest(strip.contentOffset.x+strip.bounds.width/2)))
       if next != index, let asset = session.library.asset(at: next) {
         index = next; session.activate(asset)
       }
@@ -1197,15 +1196,32 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   }
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { settle(scrollView) } }
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { settle(scrollView) }
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    guard scrollView === strip || scrollView === pager else { return }
+    stripLayout.expansion = 0; stripLayout.invalidateLayout(); strip.layoutIfNeeded()
+    suppress = true; strip.contentOffset.x = stripLayout.center(index)-strip.bounds.width/2; suppress = false
+  }
   func settle(_ scrollView: UIScrollView) {
     if scrollView === pager {
       let shift = Int(round(pager.contentOffset.x/max(1,pager.bounds.width)))-1
-      if shift != 0, let asset = session.library.asset(at: index+shift) { session.activate(asset) }
-      suppress = true; pager.contentOffset.x = pager.bounds.width; suppress = false
+      // Adopt the settled neighbouring controller and offset in the same update.
+      // Resetting the old centre before asynchronous model delivery flashes it.
+      UIView.performWithoutAnimation {
+        if shift != 0, let asset = session.library.asset(at: index+shift) {
+          session.activate(asset); pendingAsset = nil; currentChanged(session.current)
+        }
+        suppress = true; pager.contentOffset.x = pager.bounds.width; suppress = false
+      }
       session.paging = false
       if let pendingAsset { self.pendingAsset = nil; currentChanged(session.model(for: pendingAsset)) }
     }
-    centerStrip()
+    guard !strip.isTracking else { return }
+    stripLayout.current = index
+    let changes = {
+      self.stripLayout.expansion = 1; self.stripLayout.invalidateLayout(); self.strip.layoutIfNeeded(); self.centerStrip()
+    }
+    if UIAccessibility.isReduceMotionEnabled { changes() }
+    else { UIView.animate(withDuration: 0.25,delay: 0,options: [.beginFromCurrentState,.curveEaseOut],animations: changes) }
   }
   func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
     guard !flying, !closing, !session.zoomed, !pager.isDragging, !pager.isDecelerating, !PreviewNetworkPolicy.shared.asking else { return false }
@@ -1223,15 +1239,17 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     case .began:
       animator?.stopAnimation(true); interruptInformation()
       startInfo = infoHeight; verticalKind = infoHeight > 0 || velocity.y < 0 ? 2 : 1
+      if verticalKind == 1 { unclipMedia() }
     case .changed:
       if verticalKind == 1 {
-        stage.transform = CGAffineTransform(translationX: point.x*0.2,y: max(0,point.y))
+        let scale = max(0.65,1-max(0,point.y)/1000)
+        mediaSurface()?.transform = CGAffineTransform(translationX: point.x,y: max(0,point.y)).scaledBy(x: scale,y: scale)
         backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha
       } else { ensureInformation(); infoHeight = max(0,min(view.bounds.height*0.7,startInfo-point.y)); layoutMedia() }
     case .ended, .cancelled, .failed:
       if verticalKind == 1 {
-        if gesture.state == .ended && (point.y > view.bounds.height*0.14 || velocity.y > 750) { dismissViewer(velocity: velocity.y) }
-        else { animate { self.stage.transform = .identity; self.backdrop.alpha = 1; self.layoutMedia() } }
+        if gesture.state == .ended && (point.y > 12 && velocity.y > -120) { dismissViewer(velocity: velocity.y) }
+        else { animate(changes: { self.mediaSurface()?.transform = .identity; self.backdrop.alpha = 1; self.layoutMedia() }) { self.restoreMediaClipping() } }
       } else {
         setInfo(gesture.state == .ended ? infoHeight-velocity.y*0.12 > 140 : startInfo > 0)
       }
@@ -1295,7 +1313,21 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     let animation = UIViewPropertyAnimator(duration: duration,timingParameters: timing)
     animation.addAnimations(changes); animation.addCompletion { _ in completion?() }; animator = animation; animation.startAnimation()
   }
+  func unclipMedia() {
+    guard mediaClipping.isEmpty else { return }
+    var node = mediaSurface()?.superview
+    while let ancestor = node, ancestor !== view {
+      mediaClipping.append((ancestor,ancestor.clipsToBounds)); ancestor.clipsToBounds = false; node = ancestor.superview
+    }
+  }
+  func restoreMediaClipping() {
+    for (node,clipped) in mediaClipping { node.clipsToBounds = clipped }
+    mediaClipping.removeAll()
+  }
+  func mediaSurface() -> UIView? { pages.count == 3 ? pages[1].view.viewWithTag(902) : nil }
   func imageRect() -> CGRect {
+    pages.forEach { $0.view.layoutIfNeeded() }
+    if let surface = mediaSurface(), surface.bounds.width > 0 { return surface.convert(surface.bounds,to: view) }
     let asset = session.current.asset; let size = CGSize(width: max(1,asset.pixelWidth),height: max(1,asset.pixelHeight))
     let scale = min(stage.bounds.width/size.width,stage.bounds.height/size.height)
     let frame = CGRect(x: stage.bounds.midX-size.width*scale/2,y: stage.bounds.midY-size.height*scale/2,width: size.width*scale,height: size.height*scale)
@@ -1312,11 +1344,28 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   func dismissViewer(velocity: CGFloat = 0) {
     guard !flying && !closing else { return }; closing = true; pager.isScrollEnabled = false
     let destination = session.library.previewFrame?(session.current.asset.localIdentifier)
-    if let image = session.current.image, let destination, infoHeight == 0 {
-      let proxy = UIImageView(image: image); proxy.contentMode = .scaleAspectFill; proxy.clipsToBounds = true
-      proxy.frame = imageRect(); view.addSubview(proxy); stage.alpha = 0
+    if let surface = mediaSurface(), let destination, infoHeight == 0 {
+      unclipMedia()
+      let held = surface.transform
+      surface.transform = .identity
+      let base = surface.convert(surface.bounds,to: view), size = surface.bounds.size
+      surface.transform = held
+      let target = view.convert(destination,from: nil)
+      let factor = max(target.width/max(1,size.width),target.height/max(1,size.height))
+      let mask = CAShapeLayer(); mask.frame = surface.bounds
+      let startPath = UIBezierPath(rect: surface.bounds).cgPath
+      let targetPath = UIBezierPath(rect: CGRect(x: (size.width-target.width/factor)/2,y: (size.height-target.height/factor)/2,width: target.width/factor,height: target.height/factor)).cgPath
+      mask.path = targetPath; surface.layer.mask = mask
+      if !UIAccessibility.isReduceMotionEnabled {
+        let crop = CABasicAnimation(keyPath: "path"); crop.fromValue = startPath; crop.toValue = targetPath
+        crop.duration = 0.36; crop.timingFunction = CAMediaTimingFunction(name: .easeOut); mask.add(crop,forKey: "media.crop")
+      }
+      for page in pages where page !== pages[1] { page.view.alpha = 0 }
+      // Preserve UIKit controller ownership and live playback. Only transform
+      // and crop the existing media node; no player view changes parent.
       animate(velocity: velocity,changes: {
-        proxy.frame = self.view.convert(destination,from: nil); self.backdrop.alpha = 0; self.header.alpha = 0; self.footer.alpha = 0
+        surface.transform = CGAffineTransform(translationX: target.midX-base.midX,y: target.midY-base.midY).scaledBy(x: factor,y: factor)
+        self.backdrop.alpha = 0; self.header.alpha = 0; self.footer.alpha = 0
       }) { self.session.stop(); self.closeViewer() }
     } else { animate(duration: 0.2,changes: { self.view.alpha = 0 }) { self.session.stop(); self.closeViewer() } }
   }
@@ -1348,16 +1397,46 @@ private struct IOSPreviewPageContent: View {
   @ObservedObject var session: MediaPreviewSession
   let zoom: (Bool) -> Void
   let tap: () -> Void
+  let info: () -> Void
+  private var mediaSize: CGSize { CGSize(width: max(1,preview.asset.pixelWidth),height: max(1,preview.asset.pixelHeight)) }
   var body: some View {
-    ZStack {
-      if let player = preview.player { VideoPlayer(player: player).accessibilityIdentifier("library.preview.video") }
-      else if let image = preview.image { IOSZoomMedia(image: image, live: preview.livePhoto, active: session.current === preview, identity: preview.asset.localIdentifier, fitRevision: session.fitRevision, zoom: zoom, tap: tap) }
-
-    }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black)
+    GeometryReader { geometry in
+      let factor = min(geometry.size.width/mediaSize.width,geometry.size.height/mediaSize.height)
+      if let player = preview.player {
+        IOSPreviewVideo(player: player,tap: tap)
+          .frame(width: mediaSize.width*factor,height: mediaSize.height*factor)
+          .position(x: geometry.size.width/2,y: geometry.size.height/2)
+          .accessibilityIdentifier("library.preview.video")
+      } else if let image = preview.image {
+        IOSZoomMedia(image: image, mediaSize: mediaSize, live: preview.livePhoto, active: session.current === preview, identity: preview.asset.localIdentifier, fitRevision: session.fitRevision, zoom: zoom, tap: tap)
+      }
+    }.frame(maxWidth: .infinity,maxHeight: .infinity)
+      .accessibilityAction(named: Text("apple_photo_detail"), info)
+  }
+}
+private struct IOSPreviewVideo: UIViewControllerRepresentable {
+  let player: AVPlayer
+  let tap: () -> Void
+  func makeCoordinator() -> Coordinator { Coordinator(tap: tap) }
+  func makeUIViewController(context: Context) -> AVPlayerViewController {
+    let controller = AVPlayerViewController(); controller.player = player; controller.videoGravity = .resizeAspect
+    controller.view.backgroundColor = .clear; controller.view.tag = 902
+    let gesture = UITapGestureRecognizer(target: context.coordinator,action: #selector(Coordinator.tapped))
+    gesture.cancelsTouchesInView = false; controller.view.addGestureRecognizer(gesture)
+    return controller
+  }
+  func updateUIViewController(_ controller: AVPlayerViewController,context: Context) {
+    if controller.player !== player { controller.player = player }
+  }
+  final class Coordinator: NSObject {
+    let tap: () -> Void
+    init(tap: @escaping () -> Void) { self.tap = tap }
+    @objc func tapped() { tap() }
   }
 }
 private struct IOSZoomMedia: UIViewRepresentable {
   let image: UIImage
+  let mediaSize: CGSize
   let live: PHLivePhoto?
   let active: Bool
   let identity: String
@@ -1380,6 +1459,7 @@ private struct IOSZoomMedia: UIViewRepresentable {
   func updateUIView(_ scroll: MediaZoomScroll, context: Context) {
     context.coordinator.parent = self
     if active && (!scroll.active || scroll.fitRevision != fitRevision) { scroll.setZoomScale(1,animated: false) }
+    scroll.mediaSize = mediaSize
     scroll.fitRevision = fitRevision
     scroll.active = active; scroll.photo.accessibilityValue = identity
     if scroll.photo.image !== image { scroll.photo.image = image; scroll.setNeedsLayout() }
@@ -1405,21 +1485,24 @@ private struct IOSZoomMedia: UIViewRepresentable {
     }
   }
 }
-@MainActor private final class MediaZoomScroll: UIScrollView {
+@MainActor final class MediaZoomScroll: UIScrollView {
   let media = UIView(), photo = UIImageView(), live = PHLivePhotoView()
+  var mediaSize = CGSize.zero
   var active = false
   var fitRevision = -1
   private var lastBounds = CGSize.zero
   private var lastImage: CGSize = .zero
   override init(frame: CGRect) {
     super.init(frame: frame); addSubview(media); media.addSubview(photo); media.addSubview(live)
-    photo.contentMode = .scaleAspectFit; live.contentMode = .scaleAspectFit
-    backgroundColor = .black
+    media.tag = 902
+    photo.contentMode = .scaleAspectFill; photo.clipsToBounds = true; live.contentMode = .scaleAspectFit
+    photo.autoresizingMask = [.flexibleWidth,.flexibleHeight]; live.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+    backgroundColor = .clear
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override func layoutSubviews() {
     super.layoutSubviews()
-    let size = photo.image?.size ?? .zero
+    let size = mediaSize
     if bounds.size != lastBounds || size != lastImage {
       let wasZoomed = zoomScale > 1.01
       if !wasZoomed { fit(size) }
@@ -1436,4 +1519,40 @@ private struct IOSZoomMedia: UIViewRepresentable {
   func centerMedia() {
     contentInset = UIEdgeInsets(top: max(0,(bounds.height-contentSize.height)/2), left: max(0,(bounds.width-contentSize.width)/2), bottom: 0, right: 0)
   }
+}
+
+/// A bounded filmstrip layout. Only the settled current item expands; dragging
+/// uses a uniform pitch so scrub position has one unambiguous owner.
+@MainActor final class MediaFilmstripLayout: UICollectionViewLayout {
+    let pitch: CGFloat = 27
+    var current = 0, expansion: CGFloat = 1, aspect: CGFloat = 1
+    var count: Int { collectionView?.numberOfItems(inSection: 0) ?? 0 }
+    var selectedWidth: CGFloat { 24 + (min(52,max(26,44*aspect))-24)*expansion }
+    var extra: CGFloat { selectedWidth-24+16*expansion }
+    func center(_ index: Int) -> CGFloat {
+        CGFloat(index)*pitch + (index == current ? 8*expansion+selectedWidth/2 : 12+(index > current ? extra : 0))
+    }
+    func nearest(_ x: CGFloat) -> Int {
+        max(0,min(count-1,Int(round((x-12)/pitch))))
+    }
+    override var collectionViewContentSize: CGSize {
+        CGSize(width: max(0,CGFloat(count)*pitch-3+extra),height: collectionView?.bounds.height ?? 44)
+    }
+    override func layoutAttributesForItem(at path: IndexPath) -> UICollectionViewLayoutAttributes? {
+        guard let collectionView, path.item < count else { return nil }
+        let selected = path.item == current
+        let width: CGFloat = selected ? selectedWidth : 24
+        let height: CGFloat = selected ? 36+8*expansion : 36
+        let attributes = UICollectionViewLayoutAttributes(forCellWith: path)
+        attributes.frame = CGRect(x: center(path.item)-width/2,y: (collectionView.bounds.height-height)/2,width: width,height: height)
+        return attributes
+    }
+    override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
+        guard count > 0 else { return [] }
+        let first = max(0,Int(floor((rect.minX-extra)/pitch))-2)
+        let last = min(count-1,Int(ceil(rect.maxX/pitch))+2)
+        guard first <= last else { return [] }
+        return (first...last).compactMap { layoutAttributesForItem(at: IndexPath(item: $0,section: 0)) }.filter { $0.frame.intersects(rect) }
+    }
+    override func shouldInvalidateLayout(forBoundsChange bounds: CGRect) -> Bool { bounds.size != collectionView?.bounds.size }
 }

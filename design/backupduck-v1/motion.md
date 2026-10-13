@@ -50,12 +50,21 @@ See [Apple media interactions](../apple-media-interactions.md) for reversal,
 zoom ownership, scope navigation and accessibility acceptance.
 
 The focused [iPhone calendar Grid contract](../iphone-calendar-grid.md) supersedes
-the older phone coupling of calendar grouping and density. Its cover transition
-uses one image between actual member anchors while the bounded old scene fades.
-Density settles over 380 ms with a normalized critically damped response. Bottom
-chrome minimization and calendar-accessory placement use the system transition
-on supported iPhones. Navigation-item updates retain native sizing and group
-transitions without adding operations. Legacy chrome uses an interruptible
-300 ms settle; reversal continues from the visible pose. Two-finger translation and a final single touch cannot move the pinch focal point. Range
-selection yields to a second finger and restores its baseline. Native media
-detail behavior remains a separate interaction.
+the older phone coupling of calendar grouping/density and per-item interpolation.
+Period controls move only matching visible covers and fade unmatched content.
+Pinch scales canonical viewport scenes around one photo, crosses multiple density
+brackets without lifting, and settles scale/opacity over 280 ms. Three bounded
+scene images replace per-frame native-cell reflow. Cancellation restores the
+initial scene/context; Reduce Motion adopts state without spatial animation.
+Native bottom-bar minimization remains system-owned; period controls rise/fade
+into its inline accessory while inertia begins. Navigation actions retain native
+sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
+separate. Calendar cover videos are muted and only one is active; reduce motion,
+low power, scrolling and background pause cover motion.
+
+Phone media dismissal moves the fitted media node, not its letterboxed page.
+The player stays attached through drag and return flight. A deliberate downward
+drag commits above 12 pt unless reversed; a failed/cancelled gesture restores
+the node. Paging updates the settled controller and centre offset atomically.
+Filmstrip geometry compacts for dragging and expands the settled item over
+250 ms, with immediate adoption under Reduce Motion.

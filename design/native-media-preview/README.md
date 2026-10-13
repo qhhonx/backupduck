@@ -21,13 +21,12 @@ xcodegen generate --spec design/native-media-preview/project.yml --project build
   menu; the All/Day/Month choice remains named rather than an ambiguous calendar
   icon. Dates belong to pinned grid section headings. A filter-active badge and
   accessibility value are required in production.
-- Dark media canvas with a system back symbol, capture date and Info. No phone
+- Dark media canvas with a system back symbol, capture date and swipe-up information. No phone
   previous/next arrows. Desktop arrow-key navigation remains appropriate.
 - A native horizontal pager and independently draggable thumbnail strip. Both
   describe the same current item; strip movement is not a row of five buttons.
 - A compact, content-sized cloud confirmation, one explanation, two equal-width
-  actions with the primary action trailing. No second central prompt, drag handle
-  or expandable large detent. Loading belongs to the current item's header.
+  actions with the primary action trailing. Use the shared grabber and expandable large detent. Loading belongs to the current item's header.
 - Information moves into the photo context. A map is visible when information is
   opened and location exists; there is no extra reveal-map action. Only actual
   metadata may populate the production information view.
@@ -54,10 +53,9 @@ storage. See [source study](source-study.md).
 ## Production implementation boundary
 
 The sender implementation uses a UIKit-owned three-slot paging scroll view,
-separate virtualized scrubbing strip, interruptible information drawer and a
+separate virtualized scrubbing strip with a compact dragging state and expanded settled current item, interruptible information drawer and a
 current-asset return destination. It retains PhotoKit media and existing backup
-state; the standalone reference remains synthetic. Compact consent cannot
-expand into an empty second detent. Actual asset location opens a map with
+state; the standalone reference remains synthetic. Consent uses the shared fitted and large detents with a system grabber. Actual asset location opens a map with
 information. Album covers have cancellable local requests and a 24 MiB cache.
 The production calendar uses anchored collection attributes and a critically
 damped release response documented in the media interaction contract. None of

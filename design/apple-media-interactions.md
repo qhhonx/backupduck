@@ -4,7 +4,7 @@
 acceptance. The following describes that implementation, not an approved
 experience. See the [native revision study](native-media-preview/README.md) and
 [source-backed requirements](native-media-preview/source-study.md) before
-continuing implementation. Expandable consent, button-only thumbnails, mixed
+continuing implementation. Custom consent exceptions, button-only thumbnails, mixed
 modal coordinators and fixed calendar easing must be reconsidered together.
 
 This contract and [interactive reference](apple-media-interactions.html) refine
@@ -51,12 +51,18 @@ above fit scale. Horizontal paging must not hijack the video timeline or Live
 Photo press-to-play. Native deceleration handles paging; do not approximate it
 with an onEnded image replacement.
 
-An upward drag or Info opens an information drawer in the same viewport, moving
+On iPhone an upward drag opens an information drawer in the same viewport, moving
 the media into the remaining space. The photo remains visible. Use capture date,
 filename/type/dimensions, camera/exposure fields and an optional map for actual
 location. Missing EXIF is omitted. Location uses existing asset metadata and
 never asks for device-location permission; the map loads when the information panel opens. Dragging the drawer down closes it;
-a downward drag on fitted media dismisses the viewer. Reversal restores the
+a downward drag on fitted media moves only the actual media rectangle and dismisses the viewer.
+The media node remains live through the return flight. Its asset aspect ratio is
+stable from the initial poster through high-quality replacement; hosting safe
+areas cannot change the fitted rectangle at the transition handoff. Page identity,
+neighbour rotation and the new centre offset are adopted in one update at settle.
+The thumbnail strip uses uniform compact spacing while moving; the current item
+expands with side space after deceleration. Reversal restores the
 original state. Zoomed media pans instead of dismissing.
 
 Mac uses a large dark media stage, keyboard/trackpad navigation, unobtrusive edge

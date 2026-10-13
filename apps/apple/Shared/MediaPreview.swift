@@ -64,12 +64,22 @@ private struct PreviewConsent: ViewModifier {
       if ProcessInfo.processInfo.arguments.contains("--preview-consent-fixture") { policy.asking = true }
       #endif
     }.sheet(isPresented: $policy.asking) {
-      DuckSheetLayout(title: "preview_cloud_title", desktopMinHeight: 240, desktopIdealHeight: 300, expandable: false) {
+      DuckSheetLayout(title: "preview_cloud_title", desktopMinHeight: 240, desktopIdealHeight: 300) {
         Text("preview_cloud_note").fixedSize(horizontal: false, vertical: true)
       } actions: {
-        Button { policy.decide(false) } label: { Text("preview_cloud_not_now").frame(maxWidth: .infinity, minHeight: 32) }.duckSecondaryAction()
+        Button { policy.decide(false) } label: { Text("preview_cloud_not_now").frame(maxWidth: .infinity) }
+          #if os(iOS)
+            .iosPrototypeAction()
+          #else
+            .duckSecondaryAction()
+          #endif
           .accessibilityIdentifier("preview.cloud.decline")
-        Button { policy.decide(true) } label: { Text("preview_cloud_allow").frame(maxWidth: .infinity, minHeight: 32) }.duckPrimaryAction()
+        Button { policy.decide(true) } label: { Text("preview_cloud_allow").frame(maxWidth: .infinity) }
+          #if os(iOS)
+            .iosPrototypeAction(primary: true)
+          #else
+            .duckPrimaryAction()
+          #endif
           .accessibilityIdentifier("preview.cloud.allow")
       }.environment(\.colorScheme, appearance ?? inheritedAppearance).preferredColorScheme(appearance)
         .accessibilityElement(children: .contain).accessibilityIdentifier("preview.cloud.consent")
@@ -383,10 +393,9 @@ struct PhotoMetadataPanel: View {
       if preview.metadataLoading { ProgressView("preview_loading_info").font(.footnote) }
       if preview.metadataUnavailable {
         Text("preview_info_unavailable").font(.footnote).foregroundStyle(DuckColors.textSecondary)
-        Button(policy.allowed ? "retry_task" : "preview_cloud_allow") {
-          if !policy.allowed { PreviewNetworkPolicy.shared.requestConsent() }
-          else { preview.loadMetadata() }
-        }.duckSecondaryAction()
+        if policy.allowed {
+          Button("retry_task") { preview.loadMetadata() }.duckSecondaryAction()
+        }
       }
     }.textSelection(.enabled).foregroundStyle(DuckColors.text)
       .task(id: preview.asset.localIdentifier) { preview.loadMetadata() }.onDisappear { preview.cancelMetadata() }

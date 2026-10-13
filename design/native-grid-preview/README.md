@@ -6,8 +6,9 @@ no private photo, sync status, account or transfer data is embedded.
 
 Years use cover cards. Months group day covers into a mosaic. Tapping a cover
 preserves the chosen asset as the destination anchor at the next level. The All
-view remains a chronological, virtualized collection. Pinch and menu density
-changes stay inside All. On iOS 26+, native TabBar minimization owns the
+view remains a chronological, virtualized collection. Its held pinch can cross
+one/three/five columns and dense month/year overviews, with a terminal year
+overview. Cover-index pinch moves Years → Months → All separately. On iOS 26+, native TabBar minimization owns the
 full-bar-to-compact-button motion. Its inline accessory holds Years/Months/All;
 no second accessory row remains above full navigation. Native navigation items
 provide the existing filter and Select/Close actions with native sizing and
@@ -62,3 +63,17 @@ metadata items with a bounded generated-image cache; it is not a PhotoKit downlo
 or a physical-device performance claim. Keep recordings and test results under
 ignored local build storage. The production adapter uses the same interaction
 implementation with real PhotoKit IDs, cancellation and shared semantic colors.
+
+
+## Scene motion
+
+Period controls animate matching photo IDs and fade unmatched content. Dense
+pinch scales/crossfades bounded canonical viewport images around one stable photo;
+it does not interpolate individual rows. Keep at most three scene images, stop
+at the year overview, and avoid overlapping floating captions. Month compositions
+support one through six covers including mirrored modules.
+
+`--movie-cover` creates a small local synthetic movie and places it on calendar
+covers for native muted playback checks. Year slides use actual metadata month
+representatives. Playback/rotation pauses during scroll, reduced motion, low power
+or background. This fixture does not verify real PhotoKit/iCloud video loading.
