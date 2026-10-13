@@ -13,3 +13,11 @@ Keep platform controls native. Compare the same data and state in the prototype
 and actual host; inspect action order, density, visible alignment, cancellation,
 error/retry and parent-state preservation. Device observations and limitations
 belong in contributor-facing [validation](../../docs/native-validation.md).
+
+## Media interaction reference
+
+The [focused Apple media reference](../apple-media-interactions.html) supersedes
+older inline album switches and simple preview examples for these flows. Its
+[contract](../apple-media-interactions.md) defines separate searchable scope
+editors, shared consent sheets, dark media browsing, an information drawer/sidebar
+and anchored continuous density changes. Check the native host independently.

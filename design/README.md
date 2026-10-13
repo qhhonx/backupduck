@@ -57,3 +57,8 @@ collections retain stable asset IDs through all/day/month view changes. See
 [component rules](ui-content-rules.md#sender-media-browsing) for ownership and
 [time-view motion](backupduck-v1/motion.md) for native transitions. These changes
 do not extend the unfinished Android/Windows senders or imply cloud backup.
+
+The [Apple media interaction contract](apple-media-interactions.md) and its
+[focused interactive reference](apple-media-interactions.html) cover consent,
+searchable album scope, continuous media paging and anchored density changes.
+Use this reference for those flows instead of older inline scope/preview examples.

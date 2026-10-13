@@ -40,6 +40,11 @@ prototype in the same change rather than reverting the implementation.
 - Derive system brand marks from `assets/AppIcon.png`; do not redraw a substitute.
 - Respect reduced motion/transparency, contrast and platform fallbacks. Android
   and browser surfaces remain solid; old-device performance takes priority.
+- Application consent uses the shared sheet contract; system permissions remain
+  system-owned. Passive thumbnail loading must not interrupt browsing with consent.
+  Persistent Booleans use shared leading-label/trailing-switch preference rows.
+- Large choice sets open a searchable, virtualized secondary editor. Never expand
+  an unbounded album list into a preference group. Reuse library type vocabulary.
 - Receipt, phone-gallery publication and cloud upload are independent facts.
   Never invent missing progress, dates, device readings or cloud confirmation.
 
@@ -63,6 +68,11 @@ Use synthetic data for repeatable fixtures. Record prototype checks, native
 checks and physical-device observations separately. State uncovered behavior
 honestly. Preserve application data during updates; never uninstall or clear data
 without explicit authorization. Re-identify the target device before installation.
+
+For gesture changes, inspect complete reference interactions and define start,
+drag, reversal and settled states before implementation. Record synthetic native
+motion and inspect intermediate frames. Check a mid-library anchor and zoom/input
+ownership, not only final labels. Endpoint assertions do not prove motion quality.
 
 ## Public source
 

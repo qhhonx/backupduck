@@ -1156,3 +1156,15 @@
 "preview_burst_index" = "第 %d 张，共 %d 张";
 "preview_burst_previous" = "上一张连拍";
 "preview_burst_next" = "下一张连拍";
+
+"scope_media_types" = "媒体类型";
+"scope_all_types" = "全部类型";
+"scope_albums_title" = "相簿";
+"scope_search_albums" = "搜索相簿";
+"scope_my_albums" = "我的相簿";
+"scope_system_albums" = "系统相簿";
+"scope_summary_note" = "应用于新增照片和下一轮已有照片备份。";
+"preview_info_heading" = "照片信息";
+"preview_hide_info" = "关闭照片信息";
+
+"preview_show_map" = "查看地图";

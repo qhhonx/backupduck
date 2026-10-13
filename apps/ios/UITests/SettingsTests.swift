@@ -62,7 +62,8 @@ final class SettingsTests: XCTestCase {
     launchIsolated(app)
     app.buttons["library.filter"].tap(); app.buttons["Photos"].tap()
     let grid = app.collectionViews["library.grid"]
-    guard grid.waitForExistence(timeout: 10), grid.cells.count >= 2 else {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in grid.cells.count >= 2 }, object: grid)
+    guard grid.waitForExistence(timeout: 10), XCTWaiter.wait(for: [ready], timeout: 8) == .completed else {
       throw XCTSkip("Requires an isolated simulator with at least two synthetic photos")
     }
     try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
@@ -74,9 +75,9 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(photo.waitForExistence(timeout: 10))
     photo.doubleTap()
     app.buttons["library.preview.info"].tap()
-    XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "1200")).firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["preview.info.dimensions"].waitForExistence(timeout: 5))
     recordWindow(app, "Preview information")
-    app.buttons["Done"].firstMatch.tap()
+    app.buttons["preview.info.close"].tap()
     app.buttons["library.preview.next"].tap()
     XCTAssertTrue(photo.waitForExistence(timeout: 10))
     app.buttons["library.preview.previous"].tap()
@@ -94,26 +95,104 @@ final class SettingsTests: XCTestCase {
     let more = app.buttons["backup.manage_source"]
     for _ in 0..<5 { if more.isHittable { break }; app.swipeUp() }
     XCTAssertTrue(more.isHittable); more.tap()
-    let photo = app.switches["backup.scope.type.photo"]
-    for _ in 0..<6 { if photo.isHittable { break }; app.swipeUp() }
-    XCTAssertTrue(photo.isHittable)
-    if photo.value as? String == "1" { photo.tap() }
-    let only = app.switches["backup.scope.albums_only"]
-    for _ in 0..<4 { if only.isHittable { break }; app.swipeUp() }
-    XCTAssertTrue(only.isHittable)
-    if only.value as? String != "1" { only.tap() }
-    recordWindow(app, "Backup scope and albums")
+    let types = app.buttons["backup.scope.types"]
+    for _ in 0..<6 { if types.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(types.isHittable); types.tap()
+    let photo = app.buttons["backup.scope.type.photo"]
+    XCTAssertTrue(photo.waitForExistence(timeout: 5)); if photo.isSelected { photo.tap() }
+    XCTAssertFalse(photo.isSelected)
+    recordWindow(app, "Media type editor — library vocabulary")
+    app.buttons["page.header.back"].tap()
+    app.buttons["backup.scope.albums"].tap()
+    let search = app.textFields["backup.scope.album_search"]
+    XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("Scope fixture A")
+    let album = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Scope fixture A")).firstMatch
+    XCTAssertTrue(album.waitForExistence(timeout: 5)); album.tap()
+    recordWindow(app, "Searchable album editor — separate destination")
     app.terminate(); launchIsolated(app)
     navigation(app, 1).tap()
-    for _ in 0..<5 { if more.isHittable { break }; app.swipeUp() }
-    more.tap()
-    for _ in 0..<6 { if photo.isHittable { break }; app.swipeUp() }
-    XCTAssertEqual(photo.value as? String, "0")
-    for _ in 0..<4 { if only.isHittable { break }; app.swipeUp() }
-    XCTAssertEqual(only.value as? String, "1")
-    // Restore the isolated fixture's default scope for subsequent tests.
-    only.tap()
-    app.swipeDown(); if photo.isHittable { photo.tap() }
+    for _ in 0..<5 { if more.isHittable { break }; app.swipeUp() }; more.tap()
+    for _ in 0..<6 { if types.isHittable { break }; app.swipeUp() }; types.tap()
+    XCTAssertFalse(photo.isSelected); photo.tap()
+    app.buttons["page.header.back"].tap(); app.buttons["backup.scope.albums"].tap()
+    app.buttons["backup.scope.all_albums"].tap()
+    XCTAssertTrue(app.buttons["backup.scope.all_albums"].isSelected)
+  }
+
+  @MainActor func testCloudConsentUsesSharedSheetAndCanDecline() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "--preview-consent-fixture"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
+    let allow = app.buttons["preview.cloud.allow"]
+    XCTAssertTrue(allow.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
+    XCTAssertFalse(app.alerts.firstMatch.exists)
+    recordWindow(app,"Application cloud consent — shared sheet contract")
+    app.buttons["preview.cloud.decline"].tap()
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    app.buttons["library.preview.close"].tap()
+  }
+
+  @MainActor func testMidLibraryPinchKeepsTouchedPhotoInPlace() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    let total = Int(app.staticTexts["library.count"].label.filter(\.isNumber)) ?? 0
+    XCTAssertGreaterThan(total, 80, "Import the isolated long-library fixture before testing an interior anchor")
+    grid.swipeUp(); grid.swipeUp()
+    let middle = try XCTUnwrap(grid.cells.allElementsBoundByIndex.filter { $0.isHittable && $0.frame.midY > 280 && $0.frame.midY < 550 }.first)
+    let id = middle.identifier, y = middle.frame.midY, width = middle.frame.width
+    middle.pinch(withScale: 0.65, velocity: -0.6)
+    let changed = grid.cells[id]
+    XCTAssertTrue(changed.isHittable)
+    XCTAssertLessThan(changed.frame.width,width)
+    XCTAssertEqual(changed.frame.midY,y,accuracy: 35,"The touched photo must retain its vertical context inside a long library")
+    recordWindow(app,"Mid-library pinch — same asset under the fingers")
+    changed.pinch(withScale: 1.5,velocity: 0.6)
+    XCTAssertTrue(grid.cells[id].isHittable)
+    recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
+  }
+
+  @MainActor func testContinuousPagingDrawerAndDismissal() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    app.buttons["library.filter"].tap(); app.buttons["Photos"].tap()
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    let first = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
+    let initialID = first.identifier; first.tap()
+    let images = app.images.matching(identifier: "library.preview.photo")
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in images.allElementsBoundByIndex.contains { $0.isHittable } }, object: app)
+    XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 10),.completed)
+    let image = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable })
+    XCTAssertTrue(image.waitForExistence(timeout: 10))
+    let initial = image.value as? String
+    let from = image.coordinate(withNormalizedOffset: CGVector(dx: 0.85,dy: 0.5))
+    let to = image.coordinate(withNormalizedOffset: CGVector(dx: 0.05,dy: 0.5))
+    from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.5)
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    XCTAssertNotEqual(images.allElementsBoundByIndex.first { $0.isHittable }?.value as? String, initial)
+    recordWindow(app, "Native continuous page after held drag")
+    let current = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable })
+    current.doubleTap(); current.doubleTap()
+    current.swipeUp()
+    XCTAssertTrue(app.otherElements["preview.info.drawer"].waitForExistence(timeout: 5))
+    XCTAssertTrue(images.allElementsBoundByIndex.contains { $0.isHittable }, "Information keeps the photo in the viewport")
+    recordWindow(app, "Information drawer — photo remains visible")
+    app.buttons["preview.info.close"].tap()
+    try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable }).swipeDown()
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    let returned = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: grid.cells[initialID])
+    XCTAssertEqual(XCTWaiter.wait(for: [returned], timeout: 5), .completed)
   }
 
   @MainActor func testTimelineViewsAndPinchPreservePhotoContext() throws {
@@ -138,7 +217,7 @@ final class SettingsTests: XCTestCase {
     recordWindow(app, "Library month view after pinch")
     mode.tap(); app.buttons["All photos"].tap()
     recordWindow(app, "Library all view after month")
-    XCTAssertTrue(NSPredicate(format: "hittable == true").evaluate(with: grid.cells[id]))
+    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: grid.cells[id])], timeout: 5), .completed)
     grid.cells[id].tap()
     XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 10))
     app.buttons["library.preview.close"].tap()

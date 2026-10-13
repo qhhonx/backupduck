@@ -56,7 +56,7 @@ struct IOSSettingsPage: View {
               }.accessibilityIdentifier("settings.language")
             }
             IOSPreferenceSection(title: "nav_library") {
-              PreviewCloudSetting().padding(.horizontal, 16).frame(minHeight: DuckPreferenceMetrics.rowHeight)
+              PreviewCloudSetting()
             }
             IOSPreferenceSection(title: "apple_local_storage") {
               NavigationLink {

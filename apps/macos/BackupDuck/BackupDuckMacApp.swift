@@ -191,7 +191,6 @@ struct MacWorkspace: View {
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
-    .previewCloudConsent()
     .sheet(isPresented: $pairSheet) { MacPairingSheet(model: model) }
     .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
     .sheet(isPresented: Binding(get: { previewAsset != nil }, set: { if !$0 { previewAsset = nil } })) {
@@ -231,7 +230,7 @@ struct MacWorkspace: View {
         MacLibraryGrid(
           library: library, preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")", queueRevision: model.queueRevision,
           receiverID: model.pairing?.receiverID, itemSize: tileSize, selecting: librarySelecting,
-          preview: { previewAsset = $0 }, enterSelection: { librarySelecting = true })
+          preview: { previewAsset = $0 }, enterSelection: { librarySelecting = true }, resize: { tileSize = $0 })
       }
     }
   }

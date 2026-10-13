@@ -397,14 +397,14 @@ extension View {
     #if os(macOS)
     self.buttonStyle(DuckDesktopActionStyle(prominent: true)).duckAction()
     #else
-    self.buttonStyle(.borderedProminent).duckAction()
+    self.buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle).foregroundStyle(DuckColors.canvas).duckAction()
     #endif
   }
   func duckSecondaryAction() -> some View {
     #if os(macOS)
     self.buttonStyle(DuckDesktopActionStyle()).duckAction()
     #else
-    self.buttonStyle(.bordered).duckAction()
+    self.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle).foregroundStyle(DuckColors.action).duckAction()
     #endif
   }
 }
@@ -466,6 +466,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   var desktopWidth: CGFloat = 560
   var desktopMinHeight: CGFloat = 360
   var desktopIdealHeight: CGFloat = 560
+  var back: (() -> Void)? = nil
   @ViewBuilder var content: () -> Content
   @ViewBuilder var actions: () -> Actions
   @Environment(\.dismiss) private var dismiss
@@ -482,6 +483,11 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack(alignment: headerAlignment, spacing: 12) {
+        if let back {
+          Button(action: back) { Image(systemName: "chevron.left").frame(width: closeSize, height: closeSize) }
+            .buttonStyle(.plain).foregroundStyle(DuckColors.action)
+            .accessibilityLabel(Text("mac_fidelity_back")).accessibilityIdentifier("scope.back")
+        }
         #if os(iOS)
         Text(title).iosPrototypeText(size: titleSize, weight: .bold, lineHeight: 1.3).fixedSize(horizontal: false, vertical: true)
         #else

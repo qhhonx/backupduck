@@ -37,8 +37,12 @@ native windows. Check long lists, narrow screens, large text and reduced motion.
 Prototype transitions are references, not proof of native execution or old-device
 frame-rate performance.
 
-Library time-view changes animate existing native collection attributes while
-retaining asset identity and the scroll anchor. iPhone pinch controls transition
-progress directly; reversal cancels, completion adopts the new mode. Date labels
-refresh after layout adoption. Reduce Motion skips spatial interpolation. Mac
-uses a 220 ms native layout transition; it does not imitate a touch-only control.
+Library density changes update stable native collection attributes and the scroll
+anchor together on every gesture frame. Gesture progress follows image scale;
+release uses a 240 ms non-bouncing cubic curve (0.2, 0.8, 0.2, 1), and menu changes
+use 300 ms. Mac changes use the same curve over 260 ms. Date headings crossfade
+when grouping changes. Never restore the anchor only after the animation ends.
+Phone detail paging uses native scroll deceleration and neighbouring live views,
+not an onEnded replacement. Information opens within the same media viewport.
+See [Apple media interactions](../apple-media-interactions.md) for reversal,
+zoom ownership, scope navigation and accessibility acceptance.

@@ -141,14 +141,18 @@ Automatic background operations do not open a result page without user intent.
 
 Preview uses the current filtered/sorted library context and stable asset identity.
 Previous/next navigation preserves selection and the parent's scroll anchor.
+Phone paging tracks a drag continuously with adjacent pages; information stays
+in an in-place drawer. A zoomed image owns pan input. See the
+[media interaction contract](apple-media-interactions.md).
 Photos support fit/zoom, Live Photos use PhotosUI playback, videos use AVKit.
 Information shows real capture date, dimensions, format, available EXIF and location;
 missing fields are omitted, never guessed. Information access is read-only.
 
 Grid image targets use cell size times display density, with bounded quality caches
 and visible requests. Detail targets are high quality and bounded to 4096 pixels.
-Local previews work without cloud consent. The first unavailable iCloud preview
-requests explicit consent; refusal persists until the user changes the setting.
+Local previews work without cloud consent. An explicit attempt to open an unavailable iCloud preview
+requests consent using the shared application sheet; passive thumbnail loading
+never presents it. refusal persists until the user changes the setting.
 Consent covers preview network loading, including cellular access under the OS
 network policy, and never starts or authorizes backup. Settings can revoke it;
 revocation cancels outstanding preview requests and clears their image cache.
@@ -177,10 +181,15 @@ denser thumbnails. Missing capture dates form an explicitly unknown group.
 Changing mode preserves the visible asset anchor and selection. At the beginning
 of the library, retain the top so the new date heading remains visible.
 
-iPhone pinch drives a native collection transition between day/month layouts;
-short/reversed gestures cancel without changing mode. Disable this gesture during
-range selection, and cancel obsolete transitions before replacing membership.
-Reduce Motion uses immediate mode changes. Desktop uses native animated layout
-updates, a view picker and a trackpad magnification shortcut. Date headings and
-image target sizes refresh with the layout, not just with data-source reloads.
-Virtualization uses bounded visible-rectangle lookup for both cells and headings.
+Calendar grouping and density are distinct. Pinch progress updates native tile
+attributes and the vertical scroll anchor on every frame. Three/five/seven/nine
+phone columns provide progressively denser browsing; Months starts at seven.
+Grouping labels crossfade. Disable pinch during range selection, and cancel
+obsolete motion before replacing membership. Reduce Motion adopts the anchored
+layout immediately. Desktop magnification also updates during the gesture.
+Virtualization uses bounded visible-rectangle lookup for cells and headings.
+
+Backup scope shows two summary destinations, Media types and Albums. Album
+selection is searchable and virtualized; it never expands the parent page.
+Independent choices use checkmarks. Persistent Booleans use leading-label,
+trailing-switch preference rows, including preview network consent on Mac.

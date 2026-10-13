@@ -25,8 +25,10 @@ func photoLibraryFetchOptions(for filter: LibraryFilter) -> PHFetchOptions {
     options.predicate = NSPredicate(format: "mediaType == %d OR mediaType == %d",
       PHAssetMediaType.image.rawValue, PHAssetMediaType.video.rawValue)
   case .photo:
-    // Live Photos are image assets. Count and display the same inclusive set.
-    options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+    // PhotoKit treats mask-equals-zero differently for imported assets. Negate
+    // its supported positive mask predicate instead of losing ordinary stills.
+    options.predicate = NSPredicate(format: "mediaType == %d AND NOT ((mediaSubtype & %d) != 0) AND burstIdentifier == nil",
+      PHAssetMediaType.image.rawValue, PHAssetMediaSubtype.photoLive.rawValue)
   case .motion:
     options.predicate = NSPredicate(format: "mediaType == %d AND (mediaSubtype & %d) != 0",
       PHAssetMediaType.image.rawValue, PHAssetMediaSubtype.photoLive.rawValue)
@@ -65,6 +67,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   @Published private(set) var filter: LibraryFilter = .all
   private var requestedFilter: LibraryFilter = .all
   @Published var viewMode: LibraryViewMode = .all
+  @Published var phoneColumns = 3
   @Published var selection: Set<String> = []
   @Published var message: String?
   private(set) var fetch: PHFetchResult<PHAsset>?
@@ -342,6 +345,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 @MainActor final class ThumbnailPipeline {
   private let manager = PHCachingImageManager()
   private let cache = NSCache<NSString, LibraryImage>()
+  private let posters = NSCache<NSString, LibraryImage>()
   private var preheated: [String: PHAsset] = [:]
   private var preheatSize = CGSize.zero
   private struct Pending {
@@ -364,6 +368,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   init() {
     cache.totalCostLimit = 64 * 1024 * 1024
     cache.countLimit = 500
+    posters.countLimit = 80; posters.totalCostLimit = 24 * 1024 * 1024
     manager.allowsCachingHighQualityImages = true
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in self?.clear() }
   }
@@ -371,6 +376,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let edge = min(1024, max(128, (requested / 64).rounded(.up) * 64))
     return CGSize(width: edge, height: edge)
   }
+  func poster(for asset: PHAsset) -> LibraryImage? { posters.object(forKey: asset.localIdentifier as NSString) }
   private func options(network: Bool = false, video: Bool = false) -> PHImageRequestOptions {
     let options = PHImageRequestOptions()
     options.isNetworkAccessAllowed = network
@@ -406,6 +412,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
         guard let self, let item = self.pending[id], item.cloud == network, !cancelled else { return }
         if let image {
           self.pending[id]?.hasImage = true
+          self.posters.setObject(image, forKey: item.asset.localIdentifier as NSString, cost: Int(item.target.width * item.target.height * 4))
           if !degraded { self.cache.setObject(image, forKey: item.key, cost: Int(item.target.width * item.target.height * 4)) }
           item.completion(image, false)
         }
@@ -415,7 +422,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
           if PreviewNetworkPolicy.shared.allowed {
             self.cloudQueue.append(id); self.pumpCloud()
           } else {
-            PreviewNetworkPolicy.shared.requestConsent()
+            // Passive browsing never opens a permission sheet. An explicit
+            // attempt to open cloud-only media owns the consent decision.
             self.pending.removeValue(forKey: id)
           }
         } else {
@@ -474,7 +482,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let requests = pending.values.map(\.native)
     pending.removeAll(); cloudQueue.removeAll(); activeCloud.removeAll()
     requests.forEach { manager.cancelImageRequest($0) }
-    cache.removeAllObjects()
+    cache.removeAllObjects(); posters.removeAllObjects()
     manager.stopCachingImagesForAllAssets()
     preheated.removeAll()
   }

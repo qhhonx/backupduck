@@ -83,15 +83,25 @@ struct MacBackupPage: View {
 struct MacBackupPreferences: View {
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss
+  @State private var scopeDestination: BackupScopeDestination?
   private var busy: Bool { model.changingHistory || model.changingAutoBackup || model.savingConcurrency }
   var body: some View {
-    DuckSheetLayout(title: "backup_settings", busy: busy) {
+    DuckSheetLayout(title: LocalizedStringKey(scopeDestination?.title ?? "backup_settings"), busy: busy,
+      desktopMinHeight: scopeDestination == .types ? 340 : 360,
+      desktopIdealHeight: scopeDestination == .types ? 392 : scopeDestination == .albums ? 640 : 560,
+      back: scopeDestination == nil ? nil : { scopeDestination = nil }) {
+      if let scopeDestination {
+        BackupScopeEditor(destination: scopeDestination)
+      } else {
       MacPreferenceGroup(title: "source_system_library") { DuckLibrarySource(model: model, compactMac: true) }
-      BackupScopeSettings()
+      BackupScopeSettings(navigate: { scopeDestination = $0 })
       MacPreferenceGroup(title: "transfer_settings", layout: .content) { MacConcurrencyPanel(model: model) }
       MacPreferenceGroup(title: "history_title", layout: .content) { HistoricalImportSettings(model: model) }
+      }
     } actions: {
-      Button("settings_done") { dismiss() }.duckSecondaryAction().disabled(busy)
+      Button("settings_done") {
+        if scopeDestination != nil { scopeDestination = nil } else { dismiss() }
+      }.duckSecondaryAction().disabled(busy)
     }
   }
 }

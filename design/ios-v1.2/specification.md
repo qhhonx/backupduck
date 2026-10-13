@@ -21,3 +21,11 @@ share an opaque semantic surface in both standard and scroll-edge states.
 The media viewport respects legacy safe areas; newer native floating chrome may
 extend over scroll content. Inspect contrast over bright and dark thumbnails,
 not only empty pages. The fallback does not replace native tab interaction.
+
+## Media interaction reference
+
+The [focused Apple media reference](../apple-media-interactions.html) supersedes
+older inline album switches and simple preview examples for these flows. Its
+[contract](../apple-media-interactions.md) defines separate searchable scope
+editors, shared consent sheets, dark media browsing, an information drawer/sidebar
+and anchored continuous density changes. Check the native host independently.

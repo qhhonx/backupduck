@@ -28,3 +28,10 @@ regenerate unrelated screenshot matrices without a reason.
 For Android, also follow [native UI checks](android-v1.2/native-acceptance.md).
 Automation detects covered regressions; inspect rendered text, icons and feedback
 in the active window rather than relying only on view rectangles or text lookup.
+
+For media work, first study complete reference interactions and write the expected
+start, drag, reversal and settled states. Check a held partial page drag, a
+mid-library pinch, information open/close after zoom, and returning to the same
+grid context. Inspect shared consent and preference components in both native
+hosts. Passing endpoint assertions cannot establish motion quality; preserve a
+synthetic native recording and inspect intermediate frames as separate evidence.

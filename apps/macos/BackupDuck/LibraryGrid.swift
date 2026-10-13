@@ -12,6 +12,7 @@ struct MacLibraryGrid: NSViewRepresentable {
   var selecting = true
   var preview: (PHAsset) -> Void = { _ in }
   var enterSelection: () -> Void = {}
+  var resize: (CGFloat) -> Void = { _ in }
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeNSView(context: Context) -> NSScrollView {
     let layout = LibraryTimelineLayout(library: library, mode: library.viewMode, target: itemSize)
@@ -62,25 +63,9 @@ struct MacLibraryGrid: NSViewRepresentable {
     for path in collection.indexPathsForVisibleItems() {
       (collection.item(at: path) as? PhotoCell)?.setSelectionVisible(selecting)
     }
-    if layout.target != itemSize || layout.mode != library.viewMode {
-      c.rememberScroll()
-      let anchor = library.scrollAnchorID, inset = library.scrollAnchorInset
-      c.restoring = true
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.22
-        collection.performBatchUpdates({
-          layout.target = itemSize; layout.mode = library.viewMode; layout.invalidateLayout()
-        }) { _ in
-          layout.prepare()
-          if let index = library.index(of: anchor),
-            let frame = layout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame {
-            let maximum = max(0, layout.collectionViewContentSize.height - scroll.contentView.bounds.height)
-            scroll.contentView.scroll(to: CGPoint(x: 0, y: min(maximum, max(0, frame.minY + inset))))
-            scroll.reflectScrolledClipView(scroll.contentView)
-          }
-          c.restoring = false; c.refreshVisibleImages(); c.scrolled()
-        }
-      }
+    if !c.magnifying && (layout.target != itemSize || layout.mode != library.viewMode),
+      c.animationTarget?.0 != library.viewMode || c.animationTarget?.1 != itemSize {
+      c.animateLayout(mode: library.viewMode, target: itemSize)
     }
     if c.generation != library.generation {
       let sameFilter = (c.filter == nil || c.filter == library.filter)
@@ -148,6 +133,7 @@ struct MacLibraryGrid: NSViewRepresentable {
     }
   }
   static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+    coordinator.stopLayoutAnimation()
     coordinator.rememberScroll()
     coordinator.refresh.cancel()
     if let observer = coordinator.observer { NotificationCenter.default.removeObserver(observer) }
@@ -156,6 +142,16 @@ struct MacLibraryGrid: NSViewRepresentable {
   @MainActor final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate
   {
     var networkAllowed = false
+    var magnifying = false
+    var animationTarget: (LibraryViewMode, CGFloat)?
+    private var layoutTimer: Timer?
+    private var layoutStarted: CFTimeInterval = 0
+    private var anchor: Int?
+    private var anchorFraction: CGFloat = 0
+    private var anchorY: CGFloat = 0
+    private var keepsTop = false
+    private var magnifyBase: CGFloat = 140
+    private var magnifyMode: LibraryViewMode = .all
     var parent: MacLibraryGrid
     weak var collection: NSCollectionView?
     var observer: NSObjectProtocol?
@@ -173,9 +169,77 @@ struct MacLibraryGrid: NSViewRepresentable {
     var receiverID: String?
     var visibleIdentifiers: [IndexPath: String] = [:]
     init(_ parent: MacLibraryGrid) { self.parent = parent }
+    func stopLayoutAnimation() { layoutTimer?.invalidate(); layoutTimer = nil; animationTarget = nil; restoring = false }
+    private func captureAnchor(_ point: CGPoint? = nil) {
+      guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout, let scroll = collection.enclosingScrollView else { return }
+      let wasAtTop = point == nil && scroll.contentView.bounds.minY <= 1
+      let point = point ?? CGPoint(x: scroll.contentView.bounds.midX, y: scroll.contentView.bounds.midY)
+      let paths = collection.indexPathsForVisibleItems()
+      anchor = paths.min { a,b in
+        let ra = layout.frame(at: a.item), rb = layout.frame(at: b.item)
+        return hypot(ra.midX-point.x,ra.midY-point.y) < hypot(rb.midX-point.x,rb.midY-point.y)
+      }?.item
+      if let anchor {
+        let frame = layout.frame(at: anchor)
+        anchorFraction = min(1,max(0,(point.y-frame.minY)/max(1,frame.height)))
+        anchorY = point.y-scroll.contentView.bounds.minY
+      }
+      keepsTop = wasAtTop
+    }
+    private func positionAnchor() {
+      guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout, let scroll = collection.enclosingScrollView else { return }
+      collection.needsLayout = true; collection.layoutSubtreeIfNeeded()
+      if let anchor {
+        let frame = layout.frame(at: anchor), maximum = max(0,layout.collectionViewContentSize.height-scroll.contentView.bounds.height)
+        let y = frame.minY+anchorFraction*frame.height-anchorY
+        scroll.contentView.scroll(to: CGPoint(x: 0,y: keepsTop ? 0 : min(maximum,max(0,y)))); scroll.reflectScrolledClipView(scroll.contentView)
+      }
+      for path in collection.indexPathsForVisibleSupplementaryElements(ofKind: LibraryTimelineLayout.headerKind) {
+        (collection.supplementaryView(forElementKind: LibraryTimelineLayout.headerKind, at: path) as? TimelineDateHeader)?.setTitle(layout.title(at: path.item))
+      }
+    }
+    func animateLayout(mode: LibraryViewMode, target: CGFloat, retainAnchor: Bool = false) {
+      guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
+      stopLayoutAnimation(); if !retainAnchor { captureAnchor() }; restoring = true
+      animationTarget = (mode,target); layout.beginMorph(mode: mode, columns: layout.columns(for: target, mode: mode))
+      if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { layout.setProgress(1); finishLayoutAnimation(); return }
+      layoutStarted = CACurrentMediaTime()
+      let timer = Timer(timeInterval: 1/60, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated { self?.layoutFrame() }
+      }
+      RunLoop.main.add(timer, forMode: .common); layoutTimer = timer
+    }
+    private func layoutFrame() {
+      guard let layout = collection?.collectionViewLayout as? LibraryTimelineLayout else { stopLayoutAnimation(); return }
+      let value = CGFloat(min(1,(CACurrentMediaTime()-layoutStarted)/0.26))
+      layout.setProgress(LibraryMotion.easeOut(value)); positionAnchor()
+      if value >= 1 { finishLayoutAnimation() }
+    }
+    private func finishLayoutAnimation() {
+      guard let layout = collection?.collectionViewLayout as? LibraryTimelineLayout, let target = animationTarget else { return }
+      layout.target = target.1; layout.adopt(mode: target.0, columns: layout.columns(for: target.1,mode: target.0)); positionAnchor()
+      stopLayoutAnimation(); refreshVisibleImages(); scrolled()
+    }
     @objc func magnify(_ recognizer: NSMagnificationGestureRecognizer) {
-      guard !parent.selecting, recognizer.state == .ended, abs(recognizer.magnification) > 0.12 else { return }
-      parent.library.viewMode = recognizer.magnification < 0 ? .months : .days
+      guard !parent.selecting, let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
+      switch recognizer.state {
+      case .began:
+        stopLayoutAnimation(); magnifying = true; restoring = true; magnifyBase = layout.target; magnifyMode = layout.mode
+        captureAnchor(recognizer.location(in: collection)); keepsTop = false
+      case .changed:
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        let target = min(240,max(90,magnifyBase*(1+recognizer.magnification)))
+        let density = ((collection.enclosingScrollView?.contentSize.width ?? collection.bounds.width)-48)/(target+8)
+        layout.updateDensity(density, startMode: magnifyMode); positionAnchor()
+      case .ended:
+        let target = min(240,max(90,magnifyBase*(1+recognizer.magnification)))
+        let mode: LibraryViewMode = target < 110 ? .months : (magnifyMode == .all ? .all : .days)
+        magnifying = false; parent.resize(target); parent.library.viewMode = mode
+        animateLayout(mode: mode, target: target, retainAnchor: true)
+      case .cancelled, .failed:
+        magnifying = false; animateLayout(mode: magnifyMode,target: magnifyBase,retainAnchor: true)
+      default: break
+      }
     }
     func collectionView(_ collectionView: NSCollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> NSView {
       let header = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: .init("timeline"), for: indexPath) as! TimelineDateHeader

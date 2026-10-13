@@ -94,7 +94,7 @@ struct MacPreferences: View {
           }
         }
         settingsCard("nav_library") {
-          PreviewCloudSetting().padding(.horizontal, 20).frame(minHeight: DuckPreferenceMetrics.rowHeight)
+          PreviewCloudSetting()
         }
         settingsCard("apple_local_storage") {
           settingsLink("settings_cache", value: model.storage.map {

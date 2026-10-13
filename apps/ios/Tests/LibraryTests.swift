@@ -45,7 +45,21 @@ import XCTest
     XCTAssertEqual(cursor.ids, [video.localIdentifier], "Changing settings cannot change an existing frozen scan")
   }
 
-  func testPhotosIncludesLivePhotosAndCountsTheDisplayedFetch() async throws {
+  func testPhotoKitPredicatesIncludeImportedStillFixtures() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("Synthetic PhotoKit fixture only")
+    #endif
+    let all = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    var expected: Set<String> = []
+    all.enumerateObjects { asset,_,_ in if BackupMediaKind.kind(of: asset) == .photo { expected.insert(asset.localIdentifier) } }
+    XCTAssertGreaterThan(expected.count, 1, "Import synthetic still photos before this integration check")
+    let fetched = PHAsset.fetchAssets(with: photoLibraryFetchOptions(for: .photo))
+    var actual: Set<String> = []
+    fetched.enumerateObjects { asset,_,_ in actual.insert(asset.localIdentifier) }
+    XCTAssertEqual(actual, expected)
+  }
+
+  func testLibraryAndScopeTypesShareDisjointPhotoMembership() async throws {
     #if !targetEnvironment(simulator)
       throw XCTSkip("PhotoKit acceptance is simulator-only")
     #endif
@@ -56,20 +70,19 @@ import XCTest
     for subtype in [UInt(0), PHAssetMediaSubtype.photoLive.rawValue,
       PHAssetMediaSubtype.photoLive.union(.photoHDR).rawValue] {
       let metadata: [String: Any] = ["mediaType": PHAssetMediaType.image.rawValue, "mediaSubtype": subtype]
-      XCTAssertTrue(photoPredicate.evaluate(with: metadata), "Photos must include still and Live Photo image assets")
+      XCTAssertEqual(photoPredicate.evaluate(with: metadata), subtype == 0, "Library Photos and backup Photos use the same still-only category")
       XCTAssertEqual(livePredicate.evaluate(with: metadata), subtype != 0)
     }
     XCTAssertFalse(photoPredicate.evaluate(with: ["mediaType": PHAssetMediaType.video.rawValue]))
-    let expected = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    let expected = PHAsset.fetchAssets(with: photoLibraryFetchOptions(for: .photo))
     let model = PhotoLibraryModel()
     await model.open()
     await model.changeFilter(.photo)
     XCTAssertEqual(model.total, expected.count)
     XCTAssertEqual(model.total, model.fetch?.count)
     for index in 0..<model.loaded { XCTAssertEqual(model.asset(at: index)?.mediaType, .image) }
-    let photos = model.total
     await model.changeFilter(.motion)
-    XCTAssertLessThanOrEqual(model.total, photos)
+    XCTAssertGreaterThanOrEqual(model.total, 0)
     XCTAssertEqual(model.total, model.fetch?.count)
     for index in 0..<model.loaded { XCTAssertTrue(model.asset(at: index)?.mediaSubtypes.contains(.photoLive) == true) }
     let pending = Task { await model.changeFilter(.video) }
