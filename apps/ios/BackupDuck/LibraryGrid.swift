@@ -965,6 +965,22 @@ private struct IOSPreviewItem: Identifiable {
   var id: String { asset.localIdentifier }
 }
 
+/// The review owns its return geometry; the main library's scroll and frame
+/// provider remain untouched while this batch is being inspected.
+@MainActor func presentSelectedMediaReview(from review: CalendarSelectedController, assets: [PHAsset], library: PhotoLibraryModel) {
+  func key(_ asset: PHAsset) -> String { asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier }
+  guard let asset = assets.first(where: { key($0) == review.focusedID && review.selected.contains(key($0)) })
+    ?? assets.first(where: { review.selected.contains(key($0)) }),
+    let frame = review.previewFrame(key(asset)), review.presentedViewController == nil else { return }
+  let item = IOSPreviewItem(asset: asset,frame: frame,poster: library.thumbnails.poster(for: asset))
+  let viewer = UIHostingController(rootView: IOSPhotoPreview(item: item,library: library,reviewAssets: assets,review: review) { [weak review] in
+    review?.dismiss(animated: false)
+  })
+  viewer.overrideUserInterfaceStyle = .dark; viewer.view.backgroundColor = .clear
+  viewer.modalPresentationStyle = .overFullScreen; viewer.modalPresentationCapturesStatusBarAppearance = true
+  review.present(viewer,animated: false)
+}
+
 private struct IOSPreviewPresentation: UIViewControllerRepresentable {
   let item: IOSPreviewItem?
   let library: PhotoLibraryModel
@@ -991,21 +1007,23 @@ private struct IOSPreviewPresentation: UIViewControllerRepresentable {
 private struct IOSPhotoPreview: View {
   let item: IOSPreviewItem
   let close: () -> Void
+  let review: CalendarSelectedController?
   @StateObject private var session: MediaPreviewSession
-  init(item: IOSPreviewItem, library: PhotoLibraryModel, close: @escaping () -> Void) {
-    self.item = item; self.close = close
-    _session = StateObject(wrappedValue: MediaPreviewSession(asset: item.asset, library: library, poster: item.poster))
+  init(item: IOSPreviewItem, library: PhotoLibraryModel, reviewAssets: [PHAsset]? = nil, review: CalendarSelectedController? = nil, close: @escaping () -> Void) {
+    self.item = item; self.close = close; self.review = review
+    _session = StateObject(wrappedValue: MediaPreviewSession(asset: item.asset, library: library, poster: item.poster, reviewAssets: reviewAssets))
   }
   var body: some View {
-    IOSNativeViewer(item: item, session: session, close: close).ignoresSafeArea()
+    IOSNativeViewer(item: item, session: session, review: review, close: close).ignoresSafeArea()
       .previewCloudConsent(appearance: .dark).environment(\.colorScheme, .dark).preferredColorScheme(.dark)
   }
 }
 private struct IOSNativeViewer: UIViewControllerRepresentable {
   let item: IOSPreviewItem
   let session: MediaPreviewSession
+  let review: CalendarSelectedController?
   let close: () -> Void
-  func makeUIViewController(context: Context) -> NativeMediaViewer { NativeMediaViewer(item: item, session: session, close: close) }
+  func makeUIViewController(context: Context) -> NativeMediaViewer { NativeMediaViewer(item: item, session: session, review: review, close: close) }
   func updateUIViewController(_ controller: NativeMediaViewer, context: Context) {}
 }
 
@@ -1029,8 +1047,12 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   var index: Int = 0, verticalKind = 0, startInfo: CGFloat = 0, lastSize = CGSize.zero
   var pendingAsset: PHAsset?
   var mediaClipping: [(UIView,Bool)] = []
-  init(item: IOSPreviewItem, session: MediaPreviewSession, close: @escaping () -> Void) {
-    self.item = item; self.session = session; closeViewer = close; super.init(nibName: nil, bundle: nil)
+  weak var review: CalendarSelectedController?
+  let selectionButton = UIButton(type: .system), clearSelection = UIButton(type: .system)
+  let selectionBadge = UIImageView()
+  var completeReview = false
+  init(item: IOSPreviewItem, session: MediaPreviewSession, review: CalendarSelectedController? = nil, close: @escaping () -> Void) {
+    self.item = item; self.session = session; self.review = review; closeViewer = close; super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
@@ -1043,8 +1065,29 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     pager.accessibilityIdentifier = "library.preview.pager"
     let pan = UIPanGestureRecognizer(target: self, action: #selector(vertical(_:))); pan.delegate = self
     stage.addGestureRecognizer(pan); pager.panGestureRecognizer.require(toFail: pan)
-    let back = icon("chevron.left", label: "settings_done", id: "library.preview.close") { [weak self] in self?.dismissViewer() }
+    let back = icon("chevron.left", label: review == nil ? "settings_done" : "library_return_selected", id: "library.preview.close") { [weak self] in self?.dismissViewer() }
     back.tag = 1; header.addSubview(back)
+    if review != nil {
+      let done = icon("checkmark",label: "settings_done",id: "calendar.selected_preview_done") { [weak self] in
+        self?.completeReview = true; self?.dismissViewer()
+      }
+      done.tag = 7; done.tintColor = UIColor(DuckColors.action); header.addSubview(done)
+      selectionButton.accessibilityIdentifier = "calendar.selected_preview_toggle"
+      selectionButton.addAction(UIAction { [weak self] _ in
+        guard let self, let review = self.review else { return }
+        var ids = review.selected; let id = self.reviewID(self.session.current.asset)
+        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+        review.setSelection(ids); self.updateReviewSelection()
+      },for: .touchUpInside)
+      DuckMediaSelection.configure(selectionBadge); selectionButton.addSubview(selectionBadge)
+      view.addSubview(selectionButton)
+      clearSelection.setTitle(NSLocalizedString("library_deselect_all",comment: ""),for: .normal)
+      clearSelection.accessibilityIdentifier = "calendar.selected_preview_clear"
+      if #available(iOS 26.0, *) { clearSelection.configuration = .glass() }
+      else { clearSelection.configuration = .bordered() }
+      clearSelection.addAction(UIAction { [weak self] _ in self?.review?.setSelection([]); self?.updateReviewSelection() },for: .touchUpInside)
+      footer.addSubview(clearSelection)
+    }
     date.font = .preferredFont(forTextStyle: .subheadline); date.textColor = .white; date.textAlignment = .center
     date.numberOfLines = 2; date.adjustsFontForContentSizeCategory = true
     date.accessibilityIdentifier = "library.preview.date"; header.addSubview(date)
@@ -1072,7 +1115,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     session.$zoomed.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] zoomed in self?.pager.isScrollEnabled = !zoomed && !(self?.closing ?? true) }.store(in: &cancellables)
     PreviewNetworkPolicy.shared.$choice.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.session.reloadForPolicy() }.store(in: &cancellables)
     PreviewNetworkPolicy.shared.$asking.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.updateStatus() }.store(in: &cancellables)
-    index = session.library.previewIndex(of: session.current.asset) ?? 0; installPages(); observeMedia()
+    index = session.index(of: session.current.asset) ?? 0; installPages(); observeMedia()
   }
   override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if flying { session.start(); enter() } }
   override func viewDidLayoutSubviews() {
@@ -1093,10 +1136,14 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     progress.frame = CGRect(x: b.midX-54,y: headerHeight-11,width: 108,height: 2)
     spinner.frame = CGRect(x: 30,y: statusY,width: 20,height: 20)
     retry.frame = CGRect(x: 60,y: statusY-3,width: b.width-120,height: max(28,statusHeight+6))
-    footer.frame = CGRect(x: 0,y: b.height-bottom-58,width: b.width,height: 58)
-    strip.frame = footer.bounds.insetBy(dx: 16,dy: 6)
+    let action = calendarReviewActionSize(clearSelection,availableWidth: b.width-40)
+    let footerHeight: CGFloat = review == nil ? 58 : max(114,action.height+72)
+    footer.frame = CGRect(x: 0,y: b.height-bottom-footerHeight,width: b.width,height: footerHeight)
+    strip.frame = CGRect(x: 16,y: 6,width: b.width-32,height: 46)
+    clearSelection.frame = CGRect(x: b.midX-action.width/2,y: 60,width: action.width,height: action.height)
+    header.viewWithTag(7)?.frame = CGRect(x: b.width-52,y: 4,width: 44,height: 44)
     strip.contentInset = UIEdgeInsets(top: 0,left: strip.bounds.width/2,bottom: 0,right: strip.bounds.width/2)
-    let reserved = infoHeight > 0 ? infoHeight : bottom+58
+    let reserved = infoHeight > 0 ? infoHeight : bottom+footerHeight
     stage.frame = CGRect(x: 0,y: top+headerHeight,width: b.width,height: max(1,b.height-top-headerHeight-reserved))
     suppress = true; pager.frame = stage.bounds
     pager.contentSize = CGSize(width: stage.bounds.width*3,height: stage.bounds.height)
@@ -1108,6 +1155,10 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     infoHeader.viewWithTag(3)?.frame = CGRect(x: b.midX-18,y: 10,width: 36,height: 4)
     infoHeader.viewWithTag(4)?.frame = CGRect(x: b.width-52,y: 2,width: 44,height: 44)
     informationHost?.view.frame = CGRect(x: 0,y: 48,width: b.width,height: max(0,infoHeight-48))
+    let media = imageRect()
+    selectionButton.frame = CGRect(x: media.maxX-44,y: media.maxY-44,width: 44,height: 44)
+    selectionBadge.frame = CGRect(x: 10.5,y: 10.5,width: DuckMediaSelection.size,height: DuckMediaSelection.size)
+    selectionButton.alpha = chrome && !flying && infoHeight == 0 ? 1 : 0
     header.alpha = chrome && !flying ? 1 : 0; footer.alpha = chrome && infoHeight == 0 && !flying ? 1 : 0
   }
   func makePage(_ asset: PHAsset, cache: Bool = true) -> UIHostingController<IOSPreviewPageContent> {
@@ -1132,7 +1183,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   func currentChanged(_ model: MediaPreviewModel) {
     guard !closing, model === session.current else { return }
     if pager.isDragging || pager.isDecelerating { pendingAsset = model.asset; return }
-    index = session.library.previewIndex(of: model.asset) ?? index
+    index = session.index(of: model.asset) ?? index
     if pageAssets.count != 3 || pageAssets[1].localIdentifier != model.asset.localIdentifier { installPages() }
     if !strip.isDragging && !strip.isDecelerating { strip.reloadData(); centerStrip() }
     else { for path in strip.indexPathsForVisibleItems { if let cell = strip.cellForItem(at: path) as? PreviewStripCell { cell.setSelected(path.item == index) } } }
@@ -1140,7 +1191,19 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     stripLayout.aspect = CGFloat(max(1,model.asset.pixelWidth))/CGFloat(max(1,model.asset.pixelHeight))
     stripLayout.invalidateLayout(); strip.layoutIfNeeded()
     if !strip.isDragging && !strip.isDecelerating { centerStrip() }
-    observeMedia(); refreshInformation()
+    observeMedia(); refreshInformation(); updateReviewSelection()
+  }
+  func reviewID(_ asset: PHAsset) -> String { asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier }
+  func updateReviewSelection() {
+    guard let review else { return }
+    let selected = review.selected.contains(reviewID(session.current.asset))
+    selectionBadge.isHidden = !selected
+    selectionButton.setImage(selected ? nil : UIImage(systemName: "circle"),for: .normal)
+    selectionButton.tintColor = UIColor(DuckColors.action)
+    selectionButton.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 23),forImageIn: .normal)
+    selectionButton.accessibilityLabel = NSLocalizedString(selected ? "library_deselect_item" : "library_select_item",comment: "")
+    selectionButton.accessibilityTraits = selected ? [.button,.selected] : .button
+    clearSelection.isEnabled = !review.selected.isEmpty
   }
   func observeMedia() {
     mediaObservations.removeAll()
@@ -1160,15 +1223,15 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     if !flying && !closing && verticalKind == 0 && infoAnimator?.isRunning != true { layoutMedia() }
   }
   func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }
-  func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { session.library.loaded }
+  func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { session.count }
   func collectionView(_ collectionView: UICollectionView, cellForItemAt path: IndexPath) -> UICollectionViewCell {
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "preview.strip",for: path) as! PreviewStripCell
-    if let asset = session.library.asset(at: path.item) { cell.configure(asset, selected: path.item == index, pipeline: session.library.thumbnails) }
+    if let asset = session.asset(at: path.item) { cell.configure(asset, selected: path.item == index, pipeline: session.library.thumbnails) }
     return cell
   }
   func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) { (cell as? PreviewStripCell)?.cancel() }
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt path: IndexPath) {
-    guard !pager.isDragging && !pager.isDecelerating, let asset = session.library.asset(at: path.item) else { return }
+    guard !pager.isDragging && !pager.isDecelerating, let asset = session.asset(at: path.item) else { return }
     session.activate(asset)
   }
   func centerStrip() {
@@ -1183,8 +1246,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
         suppress = true; strip.contentOffset.x = stripLayout.center(index)+(pager.contentOffset.x/max(1,pager.bounds.width)-1)*stripLayout.pitch-strip.bounds.width/2; suppress = false
       }
     } else if scrollView === strip, strip.isDragging || strip.isDecelerating {
-      let next = max(0,min(session.library.loaded-1,stripLayout.nearest(strip.contentOffset.x+strip.bounds.width/2)))
-      if next != index, let asset = session.library.asset(at: next) {
+      let next = max(0,min(session.count-1,stripLayout.nearest(strip.contentOffset.x+strip.bounds.width/2)))
+      if next != index, let asset = session.asset(at: next) {
         index = next; session.activate(asset)
       }
     }
@@ -1202,7 +1265,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
       // Adopt the settled neighbouring controller and offset in the same update.
       // Resetting the old centre before asynchronous model delivery flashes it.
       UIView.performWithoutAnimation {
-        if shift != 0, let asset = session.library.asset(at: index+shift) {
+        if shift != 0, let asset = session.asset(at: index+shift) {
           session.activate(asset); pendingAsset = nil; currentChanged(session.current)
         }
         suppress = true; pager.contentOffset.x = pager.bounds.width; suppress = false
@@ -1239,7 +1302,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
       if verticalKind == 1 {
         let scale = max(0.65,1-max(0,point.y)/1000)
         mediaSurface()?.transform = CGAffineTransform(translationX: point.x,y: max(0,point.y)).scaledBy(x: scale,y: scale)
-        backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha
+        backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha; selectionButton.alpha = header.alpha
       } else { ensureInformation(); infoHeight = max(0,min(view.bounds.height*0.7,startInfo-point.y)); layoutMedia() }
     case .ended, .cancelled, .failed:
       if verticalKind == 1 {
@@ -1336,9 +1399,18 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
       guard let self else { return }; proxy.removeFromSuperview(); self.stage.alpha = 1; self.flying = false; self.layoutMedia()
     }
   }
+  func finishClosing() {
+    session.stop()
+    if completeReview, let review {
+      review.dismiss(animated: false) { [weak review] in review?.done() }
+    } else { closeViewer() }
+  }
   func dismissViewer(velocity: CGFloat = 0) {
     guard !flying && !closing else { return }; closing = true; pager.isScrollEnabled = false
-    let destination = session.library.previewFrame?(session.current.asset.localIdentifier)
+    let destination: CGRect?
+    if let review { destination = review.previewFrame(reviewID(session.current.asset)) }
+    else { destination = session.library.previewFrame?(session.current.asset.localIdentifier) }
+    selectionButton.alpha = 0
     if let surface = mediaSurface(), let destination, infoHeight == 0 {
       unclipMedia()
       let held = surface.transform
@@ -1361,8 +1433,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
       animate(velocity: velocity,changes: {
         surface.transform = CGAffineTransform(translationX: target.midX-base.midX,y: target.midY-base.midY).scaledBy(x: factor,y: factor)
         self.backdrop.alpha = 0; self.header.alpha = 0; self.footer.alpha = 0
-      }) { self.session.stop(); self.closeViewer() }
-    } else { animate(duration: 0.2,changes: { self.view.alpha = 0 }) { self.session.stop(); self.closeViewer() } }
+      }) { self.finishClosing() }
+    } else { animate(duration: 0.2,changes: { self.view.alpha = 0 }) { self.finishClosing() } }
   }
 }
 @MainActor private final class PreviewStripCell: UICollectionViewCell {

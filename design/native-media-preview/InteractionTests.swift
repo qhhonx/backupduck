@@ -1,6 +1,17 @@
 import XCTest
 
 final class InteractionTests: XCTestCase {
+    func testSelectedReviewReusesViewerWithinBatch() {
+        let app = XCUIApplication(); app.launch(); app.buttons["显示所选内容"].tap()
+        let grid = app.collectionViews["reference.selected_grid"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 5)); XCTAssertEqual(grid.cells.count,3)
+        XCTAssertEqual(grid.cells.element(boundBy: 0).frame.minY,grid.cells.element(boundBy: 2).frame.minY,accuracy: 1)
+        app.buttons["reference.selected_browse"].tap()
+        XCTAssertEqual(app.collectionViews["preview.filmstrip"].cells.count,3)
+        app.scrollViews["preview.pager"].swipeLeft()
+        XCTAssertTrue(app.staticTexts["14:01 · 示例 2"].waitForExistence(timeout: 3))
+        app.buttons["返回图库"].tap(); XCTAssertTrue(grid.waitForExistence(timeout: 3))
+    }
     func testScopeChoicesUseStableRowsAndThreeColumnCovers() {
         let app = XCUIApplication(); app.launch()
         app.tabBars.buttons["设置"].tap()

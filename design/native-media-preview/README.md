@@ -60,3 +60,11 @@ information. Album covers have cancellable local requests and a 24 MiB cache.
 The production calendar uses anchored collection attributes and a critically
 damped release response documented in the media interaction contract. None of
 these source changes constitutes physical-device or user acceptance.
+
+## Selected review
+
+The leading Show Selected action opens a three-column review of three synthetic
+items. Its leading browse icon reuses the same viewer and photo-flight animator
+with a bounded batch. Back and downward drag return to that review. Production
+adds the shared selection model, current-item toggle, Deselect All and Done;
+this reference does not access PhotoKit or backup data.

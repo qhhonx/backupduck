@@ -7,6 +7,31 @@ import XCTest
 
 /// Run only on a disposable simulator; fixtures remain available for UI checks.
 @MainActor final class LibraryTests: XCTestCase {
+  func testSelectedPreviewSessionKeepsBatchOrderAndLibraryContext() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("Synthetic PhotoKit fixture only")
+    #endif
+    let library = PhotoLibraryModel(); await library.open()
+    let fetch = PHAsset.fetchAssets(with: .image,options: photoLibraryFetchOptions())
+    guard fetch.count > 9 else { throw XCTSkip("Import synthetic photo fixtures first") }
+    let batch = [1,4,9].map { fetch.object(at: $0) }
+    library.selection = Set(batch.map(\.localIdentifier))
+    let total = library.total, loaded = library.loaded, selected = library.selection, filter = library.filter
+    let session = MediaPreviewSession(asset: batch[1],library: library,reviewAssets: batch)
+    XCTAssertEqual(session.count,3)
+    XCTAssertEqual(session.index(of: batch[1]),1)
+    XCTAssertEqual(session.adjacent(to: batch[1],direction: -1)?.localIdentifier,batch[0].localIdentifier)
+    XCTAssertEqual(session.adjacent(to: batch[1],direction: 1)?.localIdentifier,batch[2].localIdentifier)
+    XCTAssertNil(session.adjacent(to: batch[0],direction: -1))
+    XCTAssertNil(session.adjacent(to: batch[2],direction: 1))
+    XCTAssertNil(session.index(of: fetch.object(at: 2)))
+    library.selection.remove(batch[1].localIdentifier)
+    XCTAssertEqual(session.asset(at: 1)?.localIdentifier,batch[1].localIdentifier,"Selection editing must not shift the current page")
+    XCTAssertEqual(library.total,total); XCTAssertEqual(library.loaded,loaded); XCTAssertEqual(library.filter,filter)
+    XCTAssertEqual(library.selection,selected.subtracting([batch[1].localIdentifier]))
+    session.stop()
+  }
+
   func testBackupScopeUsesActualAlbumMembershipAndFrozenSnapshot() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("This fixture is simulator-only")

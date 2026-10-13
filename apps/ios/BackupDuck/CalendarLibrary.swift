@@ -57,6 +57,11 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         c.parent.onPreview(prepared, frame)
       }
     }
+    grid.onReviewBrowse = { [weak c] review in
+      guard let c else { return }
+      let photos = review.assets.compactMap { c.asset($0.id) }
+      presentSelectedMediaReview(from: review,assets: photos,library: c.parent.library)
+    }
     grid.onBackup = { [weak c] in c?.parent.onBackup() }
     grid.onVisibleChange = { [weak c] in c?.refreshStates() }
     grid.menu = { [weak c] in

@@ -80,6 +80,7 @@ private final class LibraryController: UIViewController, UICollectionViewDataSou
         super.viewDidLoad(); view.backgroundColor = canvas; view.tintColor = actionColor
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "line.3.horizontal.decrease.circle"),menu: UIMenu(title: "媒体类型",children: ["全部","照片","实况","视频","连拍"].map { name in UIAction(title: name,state: name == "全部" ? .on : .off) { _ in } }))
         navigationItem.prompt = "交互设计预览 · 示例图片"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "显示所选内容",primaryAction: UIAction { [weak self] _ in self?.present(UINavigationController(rootViewController: SelectedReference()),animated: true) })
         modes.selectedSegmentIndex = 0; modes.addAction(UIAction { [weak self] _ in self?.changeMode() },for: .valueChanged); view.addSubview(modes)
         grid.accessibilityIdentifier = "preview.grid"; grid.backgroundColor = canvas; grid.dataSource = self; grid.delegate = self
         grid.register(PictureCell.self,forCellWithReuseIdentifier: "photo"); grid.register(DateHeader.self,forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,withReuseIdentifier: "date")
@@ -155,6 +156,41 @@ private final class LibraryController: UIViewController, UICollectionViewDataSou
     }
     func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? { PhotoTransition(presenting: false) }
 }
+/// Selected review reuses the same viewer and photo-flight animator.
+private final class SelectedReference: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UIViewControllerTransitioningDelegate {
+    let ids = [1,7,14]
+    var selected = Set([1,7,14])
+    let flow = UICollectionViewFlowLayout()
+    lazy var grid = UICollectionView(frame: .zero,collectionViewLayout: flow)
+    override func viewDidLoad() {
+        super.viewDidLoad(); view.backgroundColor = canvas; title = "已选择 3 项"
+        flow.minimumLineSpacing = 2; flow.minimumInteritemSpacing = 2
+        grid.dataSource = self; grid.delegate = self; grid.backgroundColor = .clear
+        grid.accessibilityIdentifier = "reference.selected_grid"
+        grid.register(PictureCell.self,forCellWithReuseIdentifier: "selected"); view.addSubview(grid)
+        navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "rectangle.grid.1x2"),primaryAction: UIAction { [weak self] _ in self?.browse() })
+        navigationItem.leftBarButtonItem?.accessibilityIdentifier = "reference.selected_browse"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "checkmark"),primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) })
+    }
+    override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); let side = (view.bounds.width-4)/3; flow.itemSize = CGSize(width: side,height: side); grid.frame = view.bounds }
+    func collectionView(_ cv: UICollectionView,numberOfItemsInSection section: Int) -> Int { ids.count }
+    func collectionView(_ cv: UICollectionView,cellForItemAt p: IndexPath) -> UICollectionViewCell { let c = cv.dequeueReusableCell(withReuseIdentifier: "selected",for: p) as! PictureCell; c.photo.image = pictures[ids[p.item]]; c.mark.isHidden = !selected.contains(ids[p.item]); return c }
+    func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { let id = ids[p.item]; if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }; cv.reloadItems(at: [p]); title = "已选择 \(selected.count) 项" }
+    func browse() {
+        guard let first = ids.firstIndex(where: { selected.contains($0) }) else { return }
+        let viewer = ViewerController(index: first); viewer.pictureIDs = ids
+        viewer.modalPresentationStyle = .custom; viewer.transitioningDelegate = self
+        viewer.source = { [weak self] i in
+            guard let self else { return nil }; let p = IndexPath(item: i,section: 0)
+            self.grid.scrollToItem(at: p,at: .centeredVertically,animated: false); self.grid.layoutIfNeeded()
+            return (self.grid.cellForItem(at: p) as? PictureCell)?.photo
+        }
+        present(viewer,animated: true)
+    }
+    func animationController(forPresented presented: UIViewController,presenting: UIViewController,source: UIViewController) -> UIViewControllerAnimatedTransitioning? { PhotoTransition(presenting: true) }
+    func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? { PhotoTransition(presenting: false) }
+}
+
 private final class ZoomPage: UIScrollView, UIScrollViewDelegate {
     let image = UIImageView(); var changed: ((Bool) -> Void)?
     init(photo: UIImage) { super.init(frame: .zero); image.image = photo; image.contentMode = .scaleAspectFit; addSubview(image); delegate = self
@@ -212,6 +248,7 @@ private final class ZoomPage: UIScrollView, UIScrollViewDelegate {
 }
 
 private final class ViewerController: UIViewController, UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate, UIGestureRecognizerDelegate {
+    var pictureIDs = Array(pictures.indices)
     var index: Int, source: ((Int) -> UIImageView?)?
     let stage = UIView(), pager = UIScrollView(), header = UIView(), footer = UIView(), titleLabel = text("",size: 15,weight: .semibold,color: .white)
     let status = text("",size: 12,color: .lightGray), progress = UIProgressView(progressViewStyle: .default)
@@ -269,11 +306,11 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
     }
     func reloadPages(updateStrip: Bool = true) {
         for p in pages { p.removeFromSuperview() }; pages = []
-        for i in -1...1 { let actual = max(0,min(pictures.count-1,index+i)), p = ZoomPage(photo: pictures[actual]); p.changed = { [weak self] zoomed in self?.pager.isScrollEnabled = !zoomed }; pager.addSubview(p); pages.append(p) }
+        for i in -1...1 { let actual = max(0,min(pictureIDs.count-1,index+i)), p = ZoomPage(photo: pictures[pictureIDs[actual]]); p.changed = { [weak self] zoomed in self?.pager.isScrollEnabled = !zoomed }; pager.addSubview(p); pages.append(p) }
         pager.isScrollEnabled = true; layoutMedia(); stripLayout.current = index; stripLayout.invalidateLayout(); if updateStrip { strip.reloadData(); centerStrip(animated: false) }
     }
     func updateHeader() { titleLabel.text = "2026年10月11日"; status.text = "14:\(String(format: "%02d",index)) · 示例 \(index+1)" }
-    func go(_ i: Int, fromStrip: Bool = false) { let target = max(0,min(pictures.count-1,i)); guard target != index else { return }; index = target; loadingTask?.cancel(); progress.isHidden = true; reloadPages(updateStrip: !fromStrip); updateHeader() }
+    func go(_ i: Int, fromStrip: Bool = false) { let target = max(0,min(pictureIDs.count-1,i)); guard target != index else { return }; index = target; loadingTask?.cancel(); progress.isHidden = true; reloadPages(updateStrip: !fromStrip); updateHeader() }
     func scrollViewDidScroll(_ s: UIScrollView) {
         guard !suppress else { return }
         if s === pager {
@@ -298,9 +335,9 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
         stripLayout.expansion = 1; stripLayout.invalidateLayout(); strip.layoutIfNeeded(); centerStrip(animated: true)
     }
     func centerStrip(animated: Bool) { guard !strip.isDragging && !strip.isDecelerating else { return }; suppress = true; strip.setContentOffset(CGPoint(x: stripLayout.center(index)-strip.bounds.width/2,y: 0),animated: animated); suppress = false }
-    func collectionView(_ cv: UICollectionView,numberOfItemsInSection section: Int) -> Int { pictures.count }
+    func collectionView(_ cv: UICollectionView,numberOfItemsInSection section: Int) -> Int { pictureIDs.count }
     func collectionView(_ cv: UICollectionView,cellForItemAt p: IndexPath) -> UICollectionViewCell {
-        let c = cv.dequeueReusableCell(withReuseIdentifier: "strip",for: p) as! PictureCell; c.photo.image = pictures[p.item]; c.layer.cornerRadius = 4; c.clipsToBounds = true; c.layer.borderWidth = p.item == index ? 2 : 0; c.layer.borderColor = UIColor.white.cgColor; return c
+        let c = cv.dequeueReusableCell(withReuseIdentifier: "strip",for: p) as! PictureCell; c.photo.image = pictures[pictureIDs[p.item]]; c.layer.cornerRadius = 4; c.clipsToBounds = true; c.layer.borderWidth = p.item == index ? 2 : 0; c.layer.borderColor = UIColor.white.cgColor; return c
     }
     func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { go(p.item) }
     func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
@@ -405,8 +442,8 @@ private final class PhotoTransition: NSObject, UIViewControllerAnimatedTransitio
         let container = context.containerView; if presenting { viewer.view.frame = context.finalFrame(for: viewer); container.addSubview(viewer.view) }
         viewer.view.layoutIfNeeded()
         guard let thumb = viewer.source?(viewer.index) else { UIView.animate(withDuration: 0.18,animations: { viewer.view.alpha = self.presenting ? 1 : 0 }) { _ in context.completeTransition(!context.transitionWasCancelled) }; return }
-        let photo = viewer.transitionImage, proxy = UIImageView(image: pictures[viewer.index]); proxy.contentMode = .scaleAspectFill; proxy.clipsToBounds = true
-        let size = pictures[viewer.index].size, bounds = photo.bounds
+        let photo = viewer.transitionImage, proxy = UIImageView(image: pictures[viewer.pictureIDs[viewer.index]]); proxy.contentMode = .scaleAspectFill; proxy.clipsToBounds = true
+        let size = pictures[viewer.pictureIDs[viewer.index]].size, bounds = photo.bounds
         let scale = min(bounds.width/size.width,bounds.height/size.height)
         let fitted = CGRect(x: bounds.midX-size.width*scale/2,y: bounds.midY-size.height*scale/2,width: size.width*scale,height: size.height*scale)
         let big = photo.convert(fitted,to: container), small = thumb.convert(thumb.bounds,to: container)

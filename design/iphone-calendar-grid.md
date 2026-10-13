@@ -71,7 +71,14 @@ transparency and motion preserve state and location.
 
 Selection replaces browsing controls with a count/review action and the existing
 backup action. Review displays selected items only, supports deselection and
-shares one selection set with the main grid. No media deletion is added. Backup
+shares one selection set with the main grid. Review defaults to three columns.
+Its leading browse icon opens the same native media viewer over a stable snapshot
+of this review batch, in library order. It never pages into unrelated library
+items. Deselecting does not remove the current page; this permits reselecting it.
+Back or a downward media drag returns to the review grid's current-item frame;
+Done closes the review and retains the edited main-grid selection. The viewer
+uses the same entry, paging, zoom and filmstrip interactions as ordinary browsing.
+Current-item selection and Deselect All update the shared selection immediately. No media deletion is added. Backup
 continues through the existing confirmation and durable registration workflow.
 
 ## Motion and performance

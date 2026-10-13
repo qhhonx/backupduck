@@ -326,8 +326,68 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"iPhone calendar — selected items only")
     app.buttons["Deselect All"].tap()
     XCTAssertTrue(app.navigationBars.staticTexts.containing(NSPredicate(format:"label CONTAINS '0'")).firstMatch.exists)
-    app.navigationBars.buttons.element(boundBy:0).tap()
+    app.buttons["calendar.selected_done"].tap()
     XCTAssertEqual(app.buttons["calendar.review_selected"].label, "Select Items")
+  }
+
+  @MainActor func testSelectedReviewBrowsesOnlyItsBatchAndSharesSelection() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
+    launchIsolated(app)
+    let main = app.collectionViews["library.grid"]
+    XCTAssertTrue(main.waitForExistence(timeout: 10))
+    app.buttons["library.select_mode"].tap()
+    let visible = main.cells.allElementsBoundByIndex.filter { $0.isHittable }
+    XCTAssertGreaterThanOrEqual(visible.count,6)
+    for index in [0,2,5] { visible[index].tap() }
+    app.buttons["calendar.review_selected"].tap()
+    let review = app.collectionViews["calendar.selected_grid"]
+    XCTAssertTrue(review.waitForExistence(timeout: 5)); XCTAssertEqual(review.cells.count,3)
+    XCTAssertEqual(review.cells.element(boundBy: 0).frame.minY,review.cells.element(boundBy: 2).frame.minY,accuracy: 1)
+    XCTAssertEqual(review.cells.element(boundBy: 0).frame.width,review.frame.width/3,accuracy: 2)
+    recordWindow(app,"Selected review — three columns")
+    app.buttons["calendar.selected_browse"].tap()
+    let strip = app.collectionViews["library.preview.filmstrip"]
+    XCTAssertTrue(strip.waitForExistence(timeout: 5)); XCTAssertEqual(strip.cells.count,3)
+    let pager = app.scrollViews["library.preview.pager"]
+    pager.swipeLeft()
+    XCTAssertEqual(strip.cells.count,3)
+    recordWindow(app,"Selected review — same viewer limited to batch")
+    app.buttons["calendar.selected_preview_toggle"].tap()
+    pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.4)).press(forDuration: 0.05,thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.8)),withVelocity: .slow,thenHoldForDuration: 0.1)
+    XCTAssertTrue(review.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.navigationBars.staticTexts.containing(NSPredicate(format: "label CONTAINS '2'")).firstMatch.exists)
+    app.buttons["calendar.selected_browse"].tap()
+    XCTAssertTrue(strip.waitForExistence(timeout: 5)); XCTAssertEqual(strip.cells.count,3,"Deselecting retains the stable review batch")
+    app.buttons["calendar.selected_preview_clear"].tap()
+    XCTAssertFalse(app.buttons["calendar.selected_preview_clear"].isEnabled)
+    app.buttons["calendar.selected_preview_done"].tap()
+    XCTAssertTrue(main.waitForExistence(timeout: 5))
+    XCTAssertEqual(app.buttons["calendar.review_selected"].label,"Select Items")
+  }
+
+  @MainActor func testSelectedReviewDarkLargeTypeControlsRemainVisible() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages","(zh-Hans)","-AppleLocale","zh_CN","-duckAppearance","dark",
+      "-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXL"]
+    launchIsolated(app)
+    let main = app.collectionViews["library.grid"]
+    XCTAssertTrue(main.waitForExistence(timeout: 10)); app.buttons["library.select_mode"].tap()
+    let cell = try XCTUnwrap(main.cells.allElementsBoundByIndex.first { $0.isHittable }); cell.tap()
+    app.buttons["calendar.review_selected"].tap()
+    XCTAssertTrue(app.buttons["calendar.selected_browse"].waitForExistence(timeout: 5))
+    recordWindow(app,"Selected review — Chinese dark accessibility type")
+    app.buttons["calendar.selected_browse"].tap()
+    let done = app.buttons["calendar.selected_preview_done"]
+    XCTAssertTrue(done.waitForExistence(timeout: 5)); XCTAssertTrue(done.isHittable)
+    let clear = app.buttons["calendar.selected_preview_clear"]
+    XCTAssertTrue(clear.isHittable)
+    XCTAssertGreaterThan(clear.frame.width,160,"Accessibility text expands the action instead of clipping")
+    recordWindow(app,"Selected preview — Chinese dark accessibility type")
+    app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(app.collectionViews["calendar.selected_grid"].waitForExistence(timeout: 5))
   }
 
   @MainActor func testCalendarDisplayOptionsDarkAndLargeText() throws {

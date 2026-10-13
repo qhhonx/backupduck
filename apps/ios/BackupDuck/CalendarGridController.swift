@@ -2159,11 +2159,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     selectionStart = nil
   }
+  var onReviewBrowse: (CalendarSelectedController) -> Void = { _ in }
   func reviewSelection() {
     let controller = CalendarSelectedController()
     controller.assets = assets.filter { selected.contains($0.id) }
     controller.selected = selected
     controller.requestImage = requestImage
+    controller.onBrowse = onReviewBrowse
     controller.onSelection = { [weak self] ids in
       self?.selected = ids
       self?.onSelection(ids)
@@ -2178,6 +2180,35 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     present(nav, animated: true)
   }
 }
+/// Review actions keep compact default metrics while fitting accessibility text.
+@MainActor func calendarReviewActionSize(_ button: UIButton, availableWidth: CGFloat) -> CGSize {
+  // Native glass configurations rescale their internal title. Use one explicit
+  // Dynamic Type label so the measured and rendered font have the same owner.
+  let label: UILabel
+  if let existing = button.viewWithTag(801) as? UILabel { label = existing }
+  else {
+    label = UILabel(); label.tag = 801; label.text = button.currentTitle
+    label.numberOfLines = 0; label.textAlignment = .center
+    label.isUserInteractionEnabled = false; label.isAccessibilityElement = false
+    button.accessibilityLabel = label.text
+    button.setTitle(nil,for: .normal)
+    if var configuration = button.configuration {
+      configuration.title = nil; configuration.attributedTitle = nil
+      configuration.titleTextAttributesTransformer = nil; button.configuration = configuration
+    }
+    button.addSubview(label)
+  }
+  let font = UIFont.preferredFont(forTextStyle: .body)
+  label.font = font; label.textColor = .label
+  label.alpha = button.isEnabled ? 1 : 0.4
+  let width = max(44,availableWidth)
+  let measured = (label.text ?? "").boundingRect(with: CGSize(width: max(1,width-32),height: .greatestFiniteMagnitude),
+    options: [.usesLineFragmentOrigin,.usesFontLeading],attributes: [.font: font],context: nil)
+  let size = CGSize(width: min(width,max(160,ceil(measured.width)+32)),height: max(44,ceil(measured.height)+20))
+  label.frame = CGRect(origin: .zero,size: size).insetBy(dx: 16,dy: 10)
+  return size
+}
+
 final class CalendarSelectedController: UIViewController, UICollectionViewDataSource,
   UICollectionViewDelegate
 {
@@ -2186,7 +2217,30 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     onSelection: (Set<String>) -> Void = { _ in }
   let flow = UICollectionViewFlowLayout()
   lazy var grid = UICollectionView(frame: .zero, collectionViewLayout: flow)
+  var onBrowse: (CalendarSelectedController) -> Void = { _ in }
+  var focusedID: String?
   let clear = UIButton(type: .system)
+  func setSelection(_ ids: Set<String>) {
+    selected = ids; onSelection(ids)
+    for path in grid.indexPathsForVisibleItems {
+      (grid.cellForItem(at: path) as? CalendarGridCell)?.selection(ids.contains(assets[path.item].id),enabled: true)
+    }
+    navigationItem.title = String(format: NSLocalizedString("library_selection_title",comment: ""),ids.count)
+    navigationItem.leftBarButtonItem?.isEnabled = !ids.isEmpty
+    clear.isEnabled = !ids.isEmpty
+  }
+  func previewFrame(_ id: String) -> CGRect? {
+    guard let index = assets.firstIndex(where: { $0.id == id }) else { return nil }
+    focusedID = id
+    let path = IndexPath(item: index,section: 0)
+    let visible = grid.bounds.inset(by: grid.adjustedContentInset)
+    let frame = grid.layoutAttributesForItem(at: path)?.frame ?? .zero
+    if grid.cellForItem(at: path) == nil || !visible.contains(frame) {
+      grid.scrollToItem(at: path,at: .centeredVertically,animated: false); grid.layoutIfNeeded()
+    }
+    guard let cell = grid.cellForItem(at: path) as? CalendarGridCell else { return nil }
+    return cell.image.convert(cell.image.bounds,to: nil)
+  }
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = UIColor(DuckColors.canvas)
@@ -2202,6 +2256,13 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
       format: NSLocalizedString("library_selection_title", comment: ""), selected.count)
     navigationItem.rightBarButtonItem = UIBarButtonItem(
       image: UIImage(systemName: "checkmark"), style: .done, target: self, action: #selector(done))
+    navigationItem.rightBarButtonItem?.accessibilityIdentifier = "calendar.selected_done"
+    navigationItem.rightBarButtonItem?.accessibilityLabel = NSLocalizedString("settings_done",comment: "")
+    navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "rectangle.grid.1x2"),primaryAction: UIAction { [weak self] _ in
+      guard let self else { return }; self.onBrowse(self)
+    })
+    navigationItem.leftBarButtonItem?.accessibilityIdentifier = "calendar.selected_browse"
+    navigationItem.leftBarButtonItem?.accessibilityLabel = NSLocalizedString("library_browse_selected",comment: "")
     clear.setTitle(NSLocalizedString("library_deselect_all", comment: ""), for: .normal)
     if #available(iOS 26.0, *) {
       clear.configuration = .glass()
@@ -2210,23 +2271,19 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     }
     clear.addAction(
       UIAction { [weak self] _ in
-        self?.selected = []
-        self?.onSelection([])
-        self?.grid.reloadData()
-        self?.navigationItem.title = String(
-          format: NSLocalizedString("library_selection_title", comment: ""), 0)
+        self?.setSelection([])
       }, for: .touchUpInside)
     view.addSubview(clear)
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let side = (view.bounds.width - 8) / 5
+    let side = (view.bounds.width - 4) / 3
     flow.itemSize = CGSize(width: side, height: side)
     grid.frame = view.bounds
-    grid.contentInset.bottom = 90
-    clear.frame = CGRect(
-      x: view.bounds.midX - 80, y: view.bounds.height - view.safeAreaInsets.bottom - 65, width: 160,
-      height: 48)
+    let action = calendarReviewActionSize(clear,availableWidth: view.bounds.width-40)
+    grid.contentInset.bottom = action.height+32
+    clear.frame = CGRect(x: view.bounds.midX-action.width/2,
+      y: view.bounds.height-view.safeAreaInsets.bottom-action.height-16,width: action.width,height: action.height)
   }
   func collectionView(_ v: UICollectionView, numberOfItemsInSection s: Int) -> Int { assets.count }
   func collectionView(_ v: UICollectionView, cellForItemAt p: IndexPath) -> UICollectionViewCell {
@@ -2236,7 +2293,12 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     c.label.isHidden = true
     c.scrim.isHidden = true
     c.selection(selected.contains(a.id), enabled: true)
-    c.cancel = requestImage(a, 250) { [weak c] image, cloud in
+    c.duration.text = a.videoDuration
+    c.duration.isHidden = a.videoDuration == nil
+    c.liveMark.isHidden = !a.live
+    c.accessibilityIdentifier = "calendar.selected." + a.id
+    c.accessibilityLabel = a.date?.formatted(date: .abbreviated,time: .shortened)
+    c.cancel = requestImage(a, max(250,grid.bounds.width / 3 * (view.window?.screen.scale ?? 2))) { [weak c] image, cloud in
       if c?.assetID == a.id { c?.thumbnail(image, cloud: cloud) }
     }
     return c
@@ -2244,10 +2306,12 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
   func collectionView(_ v: UICollectionView, didSelectItemAt p: IndexPath) {
     let id = assets[p.item].id
     if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
-    onSelection(selected)
-    v.reloadItems(at: [p])
-    navigationItem.title = String(
-      format: NSLocalizedString("library_selection_title", comment: ""), selected.count)
+    focusedID = id
+    setSelection(selected)
   }
-  @objc func done() { dismiss(animated: true) }
+  func collectionView(_ v: UICollectionView,didEndDisplaying cell: UICollectionViewCell,forItemAt p: IndexPath) {
+    (cell as? CalendarGridCell)?.cancel?()
+  }
+  @objc func done() { navigationController?.dismiss(animated: true) }
+
 }

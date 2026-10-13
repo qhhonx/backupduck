@@ -277,14 +277,28 @@ extension View {
 /// Opening a neighbouring page for animation does not ask for cloud consent.
 @MainActor final class MediaPreviewSession: ObservableObject {
   let library: PhotoLibraryModel
+  // A review has a stable browsing batch. Deselecting an item must not move
+  // the current page or prevent the user from selecting it again.
+  private let reviewAssets: [PHAsset]?
+  private let reviewIndices: [String: Int]
+  var count: Int { reviewAssets?.count ?? library.loaded }
+  func asset(at index: Int) -> PHAsset? {
+    if let reviewAssets { return reviewAssets.indices.contains(index) ? reviewAssets[index] : nil }
+    return library.asset(at: index)
+  }
+  func index(of asset: PHAsset) -> Int? {
+    reviewAssets == nil ? library.previewIndex(of: asset) : reviewIndices[asset.localIdentifier]
+  }
   @Published private(set) var current: MediaPreviewModel
   @Published var zoomed = false
   @Published var paging = false
   @Published var fitRevision = 0
   func fitMedia() { zoomed = false; fitRevision &+= 1 }
   private var models: [String: MediaPreviewModel] = [:]
-  init(asset: PHAsset, library: PhotoLibraryModel, poster: LibraryImage? = nil) {
+  init(asset: PHAsset, library: PhotoLibraryModel, poster: LibraryImage? = nil, reviewAssets: [PHAsset]? = nil) {
     self.library = library
+    self.reviewAssets = reviewAssets
+    reviewIndices = Dictionary((reviewAssets ?? []).enumerated().map { ($0.element.localIdentifier,$0.offset) },uniquingKeysWith: { first,_ in first })
     current = MediaPreviewModel(asset: asset, poster: poster ?? library.thumbnails.poster(for: asset))
     models[asset.localIdentifier] = current
   }
@@ -296,14 +310,14 @@ extension View {
     return model
   }
   func adjacent(to asset: PHAsset, direction: Int) -> PHAsset? {
-    guard let index = library.previewIndex(of: asset) else { return nil }
-    return library.asset(at: index + direction)
+    guard let index = index(of: asset) else { return nil }
+    return self.asset(at: index + direction)
   }
   func activate(_ asset: PHAsset) {
     current.deactivate(); current = model(for: asset); fitMedia(); current.activate()
     Task { [weak self] in
       guard let self else { return }
-      _ = await library.previewNeighbor(of: asset, direction: 1)
+      if reviewAssets == nil { _ = await library.previewNeighbor(of: asset, direction: 1) }
       guard current.asset.localIdentifier == asset.localIdentifier else { return }
       let keep = Set([asset, adjacent(to: asset, direction: -1), adjacent(to: asset, direction: 1)].compactMap { $0?.localIdentifier })
       for id in Array(models.keys) where !keep.contains(id) { models.removeValue(forKey: id)?.cancel() }
