@@ -78,9 +78,9 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.staticTexts["preview.info.dimensions"].waitForExistence(timeout: 5))
     recordWindow(app, "Preview information")
     app.buttons["preview.info.close"].tap()
-    app.buttons["library.preview.next"].tap()
+    photo.swipeLeft()
     XCTAssertTrue(photo.waitForExistence(timeout: 10))
-    app.buttons["library.preview.previous"].tap()
+    photo.swipeRight()
     XCTAssertTrue(photo.waitForExistence(timeout: 10))
     recordWindow(app, "High quality photo preview")
     app.buttons["library.preview.close"].tap()
@@ -131,6 +131,12 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(allow.waitForExistence(timeout: 5))
     XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
     XCTAssertFalse(app.alerts.firstMatch.exists)
+    let originalButtonY = allow.frame.minY
+    let title = app.staticTexts["Load previews from iCloud"]
+    XCTAssertTrue(title.exists)
+    title.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.05,
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.15)),withVelocity: .slow,thenHoldForDuration: 0.1)
+    XCTAssertEqual(allow.frame.minY,originalButtonY,accuracy: 8,"A short confirmation has no expandable empty detent")
     recordWindow(app,"Application cloud consent — shared sheet contract")
     app.buttons["preview.cloud.decline"].tap()
     XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
@@ -160,6 +166,63 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
   }
 
+  @MainActor func testMediaPreviewLargeTextConsentAndInformation() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "--preview-consent-fixture"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
+    XCTAssertTrue(app.buttons["preview.cloud.allow"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
+    recordWindow(app,"Preview consent — Chinese accessibility text")
+    app.buttons["preview.cloud.decline"].tap()
+    XCTAssertTrue(app.buttons["library.preview.info"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["library.preview.close"].isHittable)
+    recordWindow(app,"Preview header — Chinese accessibility text")
+    app.buttons["library.preview.info"].tap()
+    XCTAssertTrue(app.buttons["preview.info.close"].waitForExistence(timeout: 5))
+    app.buttons["preview.info.close"].tap(); app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+  }
+
+  @MainActor func testNativeViewerScrubbingAndChangedAssetReturn() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    app.buttons["library.filter"].tap(); app.buttons["Photos"].tap()
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    let first = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }); first.tap()
+    let images = app.images.matching(identifier: "library.preview.photo")
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    let photo = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable })
+    let initial = photo.value as? String
+    let pager = app.scrollViews["library.preview.pager"]
+    let start = pager.coordinate(withNormalizedOffset: CGVector(dx: 0.85,dy: 0.45))
+    start.press(forDuration: 0.05,thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.08,dy: 0.45)),withVelocity: .slow,thenHoldForDuration: 0.15)
+    let next = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable }?.value as? String)
+    XCTAssertNotEqual(next,initial)
+    pager.coordinate(withNormalizedOffset: CGVector(dx: 0.55,dy: 0.45)).press(forDuration: 0.05,thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.49,dy: 0.45)),withVelocity: .slow,thenHoldForDuration: 0.2)
+    XCTAssertEqual(images.allElementsBoundByIndex.first { $0.isHittable }?.value as? String,next)
+    let strip = app.collectionViews["library.preview.filmstrip"]
+    XCTAssertTrue(strip.exists)
+    strip.coordinate(withNormalizedOffset: CGVector(dx: 0.8,dy: 0.5)).press(forDuration: 0.05,thenDragTo: strip.coordinate(withNormalizedOffset: CGVector(dx: 0.25,dy: 0.5)),withVelocity: .slow,thenHoldForDuration: 0.2)
+    let scrubbed = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable }?.value as? String)
+    XCTAssertNotEqual(scrubbed,next)
+    recordWindow(app,"Native filmstrip after scrubbing")
+    app.buttons["library.preview.info"].tap()
+    XCTAssertTrue(app.staticTexts["preview.info.dimensions"].waitForExistence(timeout: 5))
+    app.buttons["preview.info.close"].tap()
+    pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.3)).press(forDuration: 0.05,thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.85)),withVelocity: .slow,thenHoldForDuration: 0.1)
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    XCTAssertTrue(grid.cells["library.asset."+scrubbed].isHittable,"Return destination is the current asset rather than the opening asset")
+    recordWindow(app,"Return to changed current asset")
+  }
+
   @MainActor func testContinuousPagingDrawerAndDismissal() throws {
     continueAfterFailure = false
     let app = XCUIApplication()
@@ -185,7 +248,7 @@ final class SettingsTests: XCTestCase {
     let current = try XCTUnwrap(images.allElementsBoundByIndex.first { $0.isHittable })
     current.doubleTap(); current.doubleTap()
     current.swipeUp()
-    XCTAssertTrue(app.otherElements["preview.info.drawer"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["preview.info.dimensions"].waitForExistence(timeout: 5))
     XCTAssertTrue(images.allElementsBoundByIndex.contains { $0.isHittable }, "Information keeps the photo in the viewport")
     recordWindow(app, "Information drawer — photo remains visible")
     app.buttons["preview.info.close"].tap()

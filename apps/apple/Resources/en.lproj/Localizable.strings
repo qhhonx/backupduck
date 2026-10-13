@@ -1116,8 +1116,8 @@
 "updates_store_note" = "Updates for this version are managed by TestFlight or the App Store.";
 
 "preview_cloud_setting" = "Load previews from iCloud";
-"preview_cloud_title" = "Load from iCloud?";
-"preview_cloud_note" = "Allow network access to load photo and video previews. This does not start a backup. You can change this in Settings.";
+"preview_cloud_title" = "Load previews from iCloud";
+"preview_cloud_note" = "Allow clear photo and video previews to load. This does not start a backup. You can change this in Settings.";
 "preview_cloud_allow" = "Allow loading";
 "preview_cloud_not_now" = "Not now";
 "preview_previous" = "Previous";
@@ -1168,3 +1168,5 @@
 "preview_hide_info" = "Close information";
 
 "preview_show_map" = "Show on map";
+
+"preview_loading" = "Loading preview…";

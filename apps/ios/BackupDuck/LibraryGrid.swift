@@ -1,3 +1,4 @@
+import Combine
 import Photos
 import AVKit
 import PhotosUI
@@ -46,6 +47,15 @@ struct IOSLibraryGrid: UIViewRepresentable {
       view.addGestureRecognizer(pinch)
     }
     context.coordinator.collection = view
+    if !showSupplementaryContent {
+      library.previewFrame = { [weak view, weak library] id in
+        guard let view, let library, let index = library.index(of: id), index < library.loaded else { return nil }
+        let path = IndexPath(item: index, section: 0)
+        if view.cellForItem(at: path) == nil { view.scrollToItem(at: path, at: .centeredVertically, animated: false); view.layoutIfNeeded() }
+        guard let attributes = view.layoutAttributesForItem(at: path) else { return nil }
+        return view.convert(attributes.frame, to: nil)
+      }
+    }
     return view
   }
   func updateUIView(_ view: UICollectionView, context: Context) {
@@ -158,6 +168,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     coordinator.rememberScroll()
     coordinator.refresh.cancel()
     coordinator.parent.library.thumbnails.clear()
+    if !coordinator.parent.showSupplementaryContent { coordinator.parent.library.previewFrame = nil }
   }
   @MainActor
   final class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout
@@ -174,10 +185,13 @@ struct IOSLibraryGrid: UIViewRepresentable {
     var timelineAnimating = false
     private var timelineLink: CADisplayLink?
     private var timelineStarted: CFTimeInterval = 0
-    private var timelineDuration: CFTimeInterval = 0.24
+    private var timelineDuration: CFTimeInterval = 0.36
     private var timelineTarget: (LibraryViewMode, Int)?
     private var timelineAnchor: Int?
     private var timelineAnchorFraction: CGFloat = 0
+    private var timelineAnchorFractionX: CGFloat = 0
+    private var timelineAnchorX: CGFloat = 0
+    private var timelineReleaseX: CGFloat = 0
     private var timelineAnchorY: CGFloat = 0
     private var timelineKeepsTop = false
     private var pinchDensity: CGFloat = 3
@@ -200,7 +214,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
       guard let collection else { return }
       stopDrag(revert: true); stopTimelineMotion()
       captureTimelineAnchor(at: CGPoint(x: collection.bounds.midX, y: collection.bounds.midY), keepsTop: true)
-      settleTimeline(mode: mode, columns: mode == .months ? 7 : 3, duration: 0.3)
+      settleTimeline(mode: mode, columns: mode == .months ? 7 : 3, duration: 0.42)
     }
     func stopTimelineMotion() { timelineLink?.invalidate(); timelineLink = nil; timelineAnimating = false }
     private func captureTimelineAnchor(at point: CGPoint, keepsTop: Bool = false) {
@@ -214,6 +228,8 @@ struct IOSLibraryGrid: UIViewRepresentable {
       if let path {
         let frame = layout.frame(at: path.item)
         timelineAnchorFraction = min(1,max(0,(point.y-frame.minY)/max(1,frame.height)))
+        timelineAnchorFractionX = min(1,max(0,(point.x-frame.minX)/max(1,frame.width)))
+        timelineAnchorX = point.x
         timelineAnchorY = point.y-collection.contentOffset.y
       }
       timelineKeepsTop = keepsTop && collection.contentOffset.y <= -collection.adjustedContentInset.top+1
@@ -235,6 +251,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     private func settleTimeline(mode: LibraryViewMode, columns: Int, duration: CFTimeInterval) {
       guard let layout = collection?.collectionViewLayout as? LibraryTimelineLayout else { return }
       stopTimelineMotion(); timelineAnimating = true; timelineTarget = (mode,columns)
+      timelineReleaseX = layout.focusTranslationX
       layout.beginMorph(mode: mode, columns: columns)
       if UIAccessibility.isReduceMotionEnabled { layout.setProgress(1); finishTimeline(); return }
       timelineStarted = CACurrentMediaTime(); timelineDuration = duration
@@ -245,11 +262,14 @@ struct IOSLibraryGrid: UIViewRepresentable {
     @objc private func timelineFrame(_ link: CADisplayLink) {
       guard let layout = collection?.collectionViewLayout as? LibraryTimelineLayout else { stopTimelineMotion(); return }
       let value = CGFloat(min(1,(CACurrentMediaTime()-timelineStarted)/timelineDuration))
-      layout.setProgress(LibraryMotion.easeOut(value)); positionTimelineAnchor()
+      let settled = LibraryMotion.settle(value)
+      layout.focusTranslationX = timelineReleaseX*(1-settled)
+      layout.setProgress(settled); positionTimelineAnchor()
       if value >= 1 { finishTimeline() }
     }
     private func finishTimeline() {
       guard let layout = collection?.collectionViewLayout as? LibraryTimelineLayout, let target = timelineTarget else { stopTimelineMotion(); return }
+      layout.focusTranslationX = 0
       layout.adopt(mode: target.0, columns: target.1); positionTimelineAnchor()
       viewMode = target.0; parent.library.phoneColumns = target.1; parent.library.viewMode = target.0
       timelineTarget = nil; stopTimelineMotion(); refreshTimelineImages()
@@ -269,14 +289,20 @@ struct IOSLibraryGrid: UIViewRepresentable {
       case .changed:
         guard !UIAccessibility.isReduceMotionEnabled else { return }
         layout.updateDensity(pinchDensity/max(0.15,recognizer.scale), startMode: pinchMode)
+        if let timelineAnchor {
+          let frame = layout.frame(at: timelineAnchor).offsetBy(dx: -layout.focusTranslationX,dy: 0)
+          timelineAnchorX = recognizer.location(in: collection).x
+          timelineAnchorY = recognizer.location(in: collection).y-collection.contentOffset.y
+          layout.focusTranslationX = timelineAnchorX-frame.minX-timelineAnchorFractionX*frame.width
+        }
         positionTimelineAnchor()
       case .ended:
         let desired = min(9,max(3,pinchDensity/max(0.15,recognizer.scale)))
         let target = [3,5,7,9].min { abs(CGFloat($0)-desired) < abs(CGFloat($1)-desired) } ?? 3
         let mode: LibraryViewMode = target >= 5 ? .months : (pinchMode == .all ? .all : .days)
-        settleTimeline(mode: mode, columns: target, duration: 0.24)
+        settleTimeline(mode: mode, columns: target, duration: 0.32)
       case .cancelled, .failed:
-        settleTimeline(mode: pinchMode, columns: Int(pinchDensity.rounded()), duration: 0.2)
+        settleTimeline(mode: pinchMode, columns: Int(pinchDensity.rounded()), duration: 0.3)
       default: break
       }
     }
@@ -705,8 +731,6 @@ struct IOSLibraryPage: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        libraryToolbar.padding(.horizontal, 16).padding(.vertical, 4).frame(minHeight: 60)
-          .background(DuckColors.surface).overlay(alignment: .bottom) { Divider() }
         if let placeholder = library.placeholder {
           LibraryPlaceholder(kind: placeholder,
             requestingAccess: library.requestingPermission,
@@ -727,17 +751,25 @@ struct IOSLibraryPage: View {
               library.selection.insert(id); selecting = true
             }).frame(maxWidth: 640).duckLibraryViewport()
         }
-      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).symbolVariant(.none)
+      .navigationTitle(selecting ? String(format: NSLocalizedString("library_selection_title",comment: ""),library.selection.count) : NSLocalizedString("nav_library",comment: ""))
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          if selecting { selectionTitle } else { browsingTitle }
+        }
+        ToolbarItemGroup(placement: .topBarTrailing) {
+          if selecting { selectionActions } else { typeMenu; viewMenu }
+        }
+      }
+      .toolbarBackground(DuckColors.surface,for: .navigationBar).toolbarBackground(.visible,for: .navigationBar)
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
       .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
-      .fullScreenCover(item: $preview) { item in
-        IOSPhotoPreview(item: item, library: library) {
-          var transaction = Transaction(); transaction.disablesAnimations = true
-          withTransaction(transaction) { preview = nil }
-        }.presentationBackground(.clear)
-      }
+      .background(IOSPreviewPresentation(item: preview, library: library) {
+        preview = nil
+      }.frame(width: 0, height: 0))
 
     }
   }
@@ -748,7 +780,7 @@ struct IOSLibraryPage: View {
   }
   private var browsingTitle: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text("nav_library").font(.title2.weight(.semibold)).accessibilityIdentifier("page.header.title")
+      Text("nav_library").font(.headline).accessibilityIdentifier("page.header.title")
       if library.authorized {
         Text(String(format: NSLocalizedString("library_count_compact", comment: ""), library.total.formatted()))
           .font(.caption).foregroundStyle(DuckColors.textSecondary).accessibilityIdentifier("library.count")
@@ -775,11 +807,14 @@ struct IOSLibraryPage: View {
           ForEach(LibraryFilter.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
         }.pickerStyle(.inline)
       } label: {
-        HStack(spacing: 4) {
-          Text(String(format: NSLocalizedString("library_type_format", comment: ""), NSLocalizedString(library.filter.title, comment: "")))
-          Image(systemName: "chevron.down").font(.caption)
-        }.font(.callout).frame(minHeight: 44)
+        Image(systemName: "line.3.horizontal.decrease.circle")
+          .font(.system(size: 20)).frame(width: 44,height: 44)
+          .overlay(alignment: .topTrailing) {
+            if library.filter != .all { Circle().fill(DuckColors.action).frame(width: 6,height: 6).padding(7) }
+          }
       }.buttonStyle(.plain).foregroundStyle(DuckColors.action).accessibilityIdentifier("library.filter")
+        .accessibilityLabel(Text("media_type"))
+        .accessibilityValue(Text(LocalizedStringKey(library.filter.title)))
     }
   }
   private var viewMenu: some View {
@@ -788,7 +823,7 @@ struct IOSLibraryPage: View {
         ForEach(LibraryViewMode.allCases) { mode in Text(LocalizedStringKey(mode.title)).tag(mode) }
       }.pickerStyle(.inline)
     } label: {
-      Image(systemName: "calendar").frame(width: 44, height: 44)
+      HStack(spacing: 4) { Text(LocalizedStringKey(library.viewMode.title)); Image(systemName: "chevron.down").font(.caption2) }.font(.callout).frame(minHeight: 44)
     }.buttonStyle(.plain).foregroundStyle(DuckColors.action)
       .accessibilityLabel(Text("library_view_mode"))
       .accessibilityValue(Text(LocalizedStringKey(library.viewMode.title)))
@@ -877,244 +912,379 @@ private struct IOSPreviewItem: Identifiable {
   var id: String { asset.localIdentifier }
 }
 
+private struct IOSPreviewPresentation: UIViewControllerRepresentable {
+  let item: IOSPreviewItem?
+  let library: PhotoLibraryModel
+  let close: () -> Void
+  func makeCoordinator() -> Coordinator { Coordinator() }
+  func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
+  func updateUIViewController(_ host: UIViewController, context: Context) {
+    guard let item, context.coordinator.active == nil else { return }
+    let coordinator = context.coordinator
+    DispatchQueue.main.async {
+      guard host.view.window != nil, host.presentedViewController == nil, coordinator.active == nil else { return }
+      coordinator.active = item.id
+      let viewer = UIHostingController(rootView: IOSPhotoPreview(item: item, library: library) {
+        host.dismiss(animated: false) { coordinator.active = nil; close() }
+      })
+      viewer.overrideUserInterfaceStyle = .dark
+      viewer.view.backgroundColor = .clear; viewer.modalPresentationStyle = .overFullScreen
+      viewer.modalPresentationCapturesStatusBarAppearance = true
+      host.present(viewer, animated: false)
+    }
+  }
+  final class Coordinator { var active: String? }
+}
 private struct IOSPhotoPreview: View {
   let item: IOSPreviewItem
   let close: () -> Void
   @StateObject private var session: MediaPreviewSession
-  @ObservedObject private var policy = PreviewNetworkPolicy.shared
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var chrome = true
-  @State private var drawer: CGFloat = 0
-  @State private var drawerStart: CGFloat = 0
-  @State private var translation: CGFloat = 0
-  @State private var flight = true
-  @State private var progress: CGFloat = 0
-  @State private var closing = false
-  private var motion: Animation { reduceMotion ? .linear(duration: 0) : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.3) }
   init(item: IOSPreviewItem, library: PhotoLibraryModel, close: @escaping () -> Void) {
     self.item = item; self.close = close
     _session = StateObject(wrappedValue: MediaPreviewSession(asset: item.asset, library: library, poster: item.poster))
   }
   var body: some View {
-    GeometryReader { geometry in
-      ZStack(alignment: .bottom) {
-        Color.black.opacity(progress).ignoresSafeArea()
-        IOSMediaPager(session: session, tap: { withAnimation(motion) { chrome.toggle() } }, vertical: { state, value, predicted in
-          vertical(state, value: value, predicted: predicted, height: geometry.size.height)
-        })
-          .frame(height: geometry.size.height * (1 - drawer))
-          .frame(maxHeight: .infinity, alignment: .top)
-          .offset(y: translation).scaleEffect(max(0.85, 1 - translation / max(1, geometry.size.height * 2)))
-          .opacity(flight ? 0 : 1)
-        if chrome && !flight && drawer < 0.15 {
-          VStack {
-            HStack {
-              icon("chevron.left", title: "settings_done", identifier: "library.preview.close", action: dismissViewer)
-              Spacer(minLength: 8)
-              VStack(spacing: 3) {
-                Text(session.current.asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? NSLocalizedString("library_preview", comment: "")).font(.subheadline.weight(.semibold))
-                if let date = session.current.asset.creationDate { Text(date.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.white.opacity(0.75)) }
-              }.accessibilityIdentifier("library.preview.date")
-              Spacer(minLength: 8)
-              icon("info.circle", title: "apple_photo_detail", identifier: "library.preview.info") { session.fitMedia(); withAnimation(motion) { drawer = 0.45 } }
-            }.padding(.horizontal, 12).padding(.top, 12)
-              .background(LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom))
-            Spacer()
-            HStack {
-              icon("chevron.left", title: "preview_previous", identifier: "library.preview.previous") { move(-1) }
-                .disabled(session.adjacent(to: session.current.asset, direction: -1) == nil || session.paging)
-              Spacer()
-              Group {
-                if session.current.burstCount > 1 { BurstPreviewControls(preview: session.current, select: session.activate) }
-                else { filmstrip }
-              }.foregroundStyle(.white)
-              Spacer()
-              icon("chevron.right", title: "preview_next", identifier: "library.preview.next") { move(1) }
-                .disabled(session.adjacent(to: session.current.asset, direction: 1) == nil || session.paging)
-            }.padding(12).background(LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom))
-          }.foregroundStyle(.white).opacity(max(0, 1 - translation / 160))
-        }
-        if drawer > 0 {
-          VStack(spacing: 0) {
-            HStack {
-              Button { withAnimation(motion) { drawer = 0 } } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                .accessibilityLabel(Text("preview_hide_info")).accessibilityIdentifier("preview.info.close")
-              Spacer()
-              Capsule().fill(DuckColors.textSecondary.opacity(0.5)).frame(width: 36, height: 4)
-                .frame(width: 100,height: 44).contentShape(Rectangle())
-                .gesture(DragGesture().onChanged { value in
-                  if drawerStart == 0 { drawerStart = drawer }
-                  drawer = min(0.8, max(0, drawerStart - value.translation.height / geometry.size.height))
-                }.onEnded { value in
-                  let projected = drawerStart - value.predictedEndTranslation.height / geometry.size.height
-                  withAnimation(motion) { drawer = projected < 0.2 ? 0 : projected > 0.6 ? 0.75 : 0.45 }
-                  drawerStart = 0
-                })
-              Spacer()
-              Color.clear.frame(width: 44, height: 44)
-            }
-            ScrollView { PhotoMetadataPanel(preview: session.current).padding(.horizontal, 20).padding(.bottom, 24) }
-          }.frame(height: geometry.size.height * drawer)
-            .background(DuckColors.surface, in: UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22))
-            .foregroundStyle(DuckColors.text).tint(DuckColors.action)
-            .accessibilityElement(children: .contain).accessibilityIdentifier("preview.info.drawer")
-        }
-        if flight, let image = session.current.image ?? item.poster {
-          let fit = fitted(image.size, in: CGRect(origin: .zero, size: geometry.size))
-          let origin = geometry.frame(in: .global).origin
-          let source = item.frame.offsetBy(dx: -origin.x, dy: -origin.y)
-          let rect = interpolate(source, fit, progress)
-          Image(uiImage: image).resizable().scaledToFill().frame(width: max(1, rect.width), height: max(1, rect.height)).clipped()
-            .position(x: rect.midX, y: rect.midY).allowsHitTesting(false)
-        }
-      }.opacity(closing ? 0 : 1)
-        .previewCloudConsent()
-        .onAppear {
-          session.start()
-          if item.poster == nil || reduceMotion { progress = 1; flight = false }
-          else { withAnimation(motion, completionCriteria: .logicallyComplete) { progress = 1 } completion: { flight = false } }
-        }
-        .onDisappear { session.stop() }
-        .onChange(of: policy.choice) { _, _ in session.reloadForPolicy() }
-    }.preferredColorScheme(.dark).background(Color.clear).persistentSystemOverlays(chrome ? .automatic : .hidden)
+    IOSNativeViewer(item: item, session: session, close: close).ignoresSafeArea()
+      .previewCloudConsent(appearance: .dark).environment(\.colorScheme, .dark).preferredColorScheme(.dark)
   }
-  private var filmstrip: some View {
-    HStack(spacing: 4) {
-      if let index = session.library.previewIndex(of: session.current.asset) {
-        ForEach(max(0,index-2)..<min(session.library.loaded,index+3), id: \.self) { i in
-          if let asset = session.library.asset(at: i) {
-            Button { session.activate(asset) } label: {
-              ReadOnlyMediaThumbnail(asset: asset, width: i == index ? 42 : 24, height: 38)
-                .overlay { if i == index { RoundedRectangle(cornerRadius: 6).stroke(.white,lineWidth: 1.5) } }
-            }.buttonStyle(.plain).accessibilityLabel(Text(asset.creationDate?.formatted(date: .abbreviated, time: .shortened) ?? NSLocalizedString("library_preview", comment: "")))
-          }
-        }
+}
+private struct IOSNativeViewer: UIViewControllerRepresentable {
+  let item: IOSPreviewItem
+  let session: MediaPreviewSession
+  let close: () -> Void
+  func makeUIViewController(context: Context) -> NativeMediaViewer { NativeMediaViewer(item: item, session: session, close: close) }
+  func updateUIViewController(_ controller: NativeMediaViewer, context: Context) {}
+}
+
+/// One UIKit owner coordinates paging, scrubbing, information and image flight.
+/// Gesture progress is direct; controllers are recycled only after a page settles.
+@MainActor private final class NativeMediaViewer: UIViewController, UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate, UIGestureRecognizerDelegate {
+  let item: IOSPreviewItem, session: MediaPreviewSession, closeViewer: () -> Void
+  let backdrop = UIView(), stage = UIView(), pager = UIScrollView(), header = UIView(), footer = UIView()
+  let date = UILabel(), status = UILabel(), progress = UIProgressView(progressViewStyle: .default)
+  let spinner = UIActivityIndicatorView(style: .medium), retry = UIButton(type: .system)
+  lazy var strip: UICollectionView = {
+    let layout = UICollectionViewFlowLayout(); layout.scrollDirection = .horizontal
+    layout.itemSize = CGSize(width: 30, height: 42); layout.minimumLineSpacing = 4
+    return UICollectionView(frame: .zero, collectionViewLayout: layout)
+  }()
+  let information = UIView(), infoHeader = UIView()
+  var informationHost: UIHostingController<AnyView>?
+  var pages: [UIHostingController<IOSPreviewPageContent>] = []
+  var pageCache: [String: UIHostingController<IOSPreviewPageContent>] = [:]
+  var pageAssets: [PHAsset] = []
+  var cancellables = Set<AnyCancellable>(), mediaObservations = Set<AnyCancellable>()
+  var animator: UIViewPropertyAnimator?, infoAnimator: UIViewPropertyAnimator?
+  var suppress = false, closing = false, flying = true, chrome = true, infoHeight: CGFloat = 0
+  var index: Int = 0, verticalKind = 0, startInfo: CGFloat = 0, lastSize = CGSize.zero
+  var pendingAsset: PHAsset?
+  init(item: IOSPreviewItem, session: MediaPreviewSession, close: @escaping () -> Void) {
+    self.item = item; self.session = session; closeViewer = close; super.init(nibName: nil, bundle: nil)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+  override func viewDidLoad() {
+    super.viewDidLoad(); overrideUserInterfaceStyle = .dark; view.backgroundColor = .clear
+    backdrop.backgroundColor = .black; backdrop.alpha = 0; view.addSubview(backdrop)
+    view.addSubview(stage); stage.addSubview(pager); view.addSubview(header); view.addSubview(footer)
+    pager.isPagingEnabled = true; pager.decelerationRate = .fast; pager.delegate = self
+    pager.contentInsetAdjustmentBehavior = .never; pager.showsHorizontalScrollIndicator = false
+    pager.accessibilityIdentifier = "library.preview.pager"
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(vertical(_:))); pan.delegate = self
+    stage.addGestureRecognizer(pan); pager.panGestureRecognizer.require(toFail: pan)
+    let back = icon("chevron.left", label: "settings_done", id: "library.preview.close") { [weak self] in self?.dismissViewer() }
+    back.tag = 1; header.addSubview(back)
+    let info = icon("info.circle", label: "apple_photo_detail", id: "library.preview.info") { [weak self] in self?.setInfo(true) }
+    info.tag = 2; header.addSubview(info)
+    date.font = .preferredFont(forTextStyle: .subheadline); date.textColor = .white; date.textAlignment = .center
+    date.numberOfLines = 2; date.adjustsFontForContentSizeCategory = true
+    date.accessibilityIdentifier = "library.preview.date"; header.addSubview(date)
+    status.font = .preferredFont(forTextStyle: .caption1); status.textColor = .lightGray; status.textAlignment = .center
+    status.adjustsFontForContentSizeCategory = true; status.numberOfLines = 2; header.addSubview(status)
+    progress.progressTintColor = UIColor(DuckColors.action); header.addSubview(progress)
+    spinner.color = .white; spinner.hidesWhenStopped = true; header.addSubview(spinner)
+    retry.titleLabel?.font = .preferredFont(forTextStyle: .caption1); retry.tintColor = UIColor(DuckColors.action)
+    retry.addAction(UIAction { [weak self] _ in
+      guard let self else { return }
+      if PreviewNetworkPolicy.shared.allowed { self.session.current.load() } else { PreviewNetworkPolicy.shared.asking = true }
+    }, for: .touchUpInside); header.addSubview(retry)
+    strip.backgroundColor = .clear; strip.showsHorizontalScrollIndicator = false
+    strip.dataSource = self; strip.delegate = self; strip.accessibilityIdentifier = "library.preview.filmstrip"
+    strip.register(PreviewStripCell.self, forCellWithReuseIdentifier: "preview.strip"); footer.addSubview(strip)
+    information.backgroundColor = UIColor(DuckColors.surface); information.layer.cornerRadius = 20
+    information.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]; information.clipsToBounds = true
+    information.accessibilityIdentifier = "preview.info.drawer"; view.addSubview(information); information.addSubview(infoHeader)
+    let handle = UIView(); handle.backgroundColor = .lightGray; handle.layer.cornerRadius = 2; handle.tag = 3; infoHeader.addSubview(handle)
+    let done = icon("xmark", label: "preview_hide_info", id: "preview.info.close") { [weak self] in self?.setInfo(false) }
+    done.tag = 4; done.tintColor = UIColor(DuckColors.action); infoHeader.addSubview(done)
+    let handlePan = UIPanGestureRecognizer(target: self, action: #selector(dragInformation(_:))); handlePan.delegate = self
+    infoHeader.addGestureRecognizer(handlePan)
+    session.$current.receive(on: DispatchQueue.main).sink { [weak self] model in self?.currentChanged(model) }.store(in: &cancellables)
+    session.$zoomed.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] zoomed in self?.pager.isScrollEnabled = !zoomed && !(self?.closing ?? true) }.store(in: &cancellables)
+    PreviewNetworkPolicy.shared.$choice.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.session.reloadForPolicy() }.store(in: &cancellables)
+    PreviewNetworkPolicy.shared.$asking.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.updateStatus() }.store(in: &cancellables)
+    index = session.library.previewIndex(of: session.current.asset) ?? 0; installPages(); observeMedia()
+  }
+  override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if flying { session.start(); enter() } }
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews(); guard lastSize != view.bounds.size else { return }
+    lastSize = view.bounds.size; layoutMedia(); centerStrip()
+  }
+  deinit { animator?.stopAnimation(true); infoAnimator?.stopAnimation(true) }
+  func layoutMedia() {
+    let b = view.bounds, top = view.safeAreaInsets.top, bottom = view.safeAreaInsets.bottom
+    let dateHeight = max(24,date.sizeThatFits(CGSize(width: max(1,b.width-116),height: 120)).height)
+    let statusHeight = max(20,status.sizeThatFits(CGSize(width: max(1,b.width-140),height: 100)).height)
+    let statusY = dateHeight+7, headerHeight = max(68,statusY+statusHeight+14)
+    backdrop.frame = b
+    header.frame = CGRect(x: 0,y: top,width: b.width,height: headerHeight)
+    header.viewWithTag(1)?.frame = CGRect(x: 8,y: 4,width: 44,height: 44)
+    header.viewWithTag(2)?.frame = CGRect(x: b.width-52,y: 4,width: 44,height: 44)
+    date.frame = CGRect(x: 58,y: 5,width: b.width-116,height: dateHeight)
+    status.frame = CGRect(x: 70,y: statusY,width: b.width-140,height: statusHeight)
+    progress.frame = CGRect(x: b.midX-54,y: headerHeight-11,width: 108,height: 2)
+    spinner.frame = CGRect(x: 30,y: statusY,width: 20,height: 20)
+    retry.frame = CGRect(x: 60,y: statusY-3,width: b.width-120,height: max(28,statusHeight+6))
+    footer.frame = CGRect(x: 0,y: b.height-bottom-58,width: b.width,height: 58)
+    strip.frame = footer.bounds.insetBy(dx: 16,dy: 8)
+    strip.contentInset = UIEdgeInsets(top: 0,left: max(0,strip.bounds.width/2-15),bottom: 0,right: max(0,strip.bounds.width/2-15))
+    let reserved = infoHeight > 0 ? infoHeight : bottom+58
+    stage.frame = CGRect(x: 0,y: top+headerHeight,width: b.width,height: max(1,b.height-top-headerHeight-reserved))
+    suppress = true; pager.frame = stage.bounds
+    pager.contentSize = CGSize(width: stage.bounds.width*3,height: stage.bounds.height)
+    for (i,page) in pages.enumerated() { page.view.frame = CGRect(x: CGFloat(i)*stage.bounds.width,y: 0,width: stage.bounds.width,height: stage.bounds.height) }
+    if !pager.isDragging && !pager.isDecelerating { pager.contentOffset.x = pager.bounds.width }
+    suppress = false
+    information.frame = CGRect(x: 0,y: b.height-infoHeight,width: b.width,height: infoHeight)
+    infoHeader.frame = CGRect(x: 0,y: 0,width: b.width,height: 48)
+    infoHeader.viewWithTag(3)?.frame = CGRect(x: b.midX-18,y: 10,width: 36,height: 4)
+    infoHeader.viewWithTag(4)?.frame = CGRect(x: b.width-52,y: 2,width: 44,height: 44)
+    informationHost?.view.frame = CGRect(x: 0,y: 48,width: b.width,height: max(0,infoHeight-48))
+    header.alpha = chrome && !flying ? 1 : 0; footer.alpha = chrome && infoHeight == 0 && !flying ? 1 : 0
+  }
+  func makePage(_ asset: PHAsset, cache: Bool = true) -> UIHostingController<IOSPreviewPageContent> {
+    if cache, let cached = pageCache[asset.localIdentifier] { return cached }
+    let controller = UIHostingController(rootView: IOSPreviewPageContent(preview: session.model(for: asset), session: session, zoom: { [weak self] zoomed in
+      guard let self, self.session.current.asset.localIdentifier == asset.localIdentifier else { return }
+      if self.session.zoomed != zoomed { DispatchQueue.main.async { self.session.zoomed = zoomed } }
+    }, tap: { [weak self] in self?.toggleChrome() }))
+    controller.view.backgroundColor = .clear; if cache { pageCache[asset.localIdentifier] = controller }; return controller
+  }
+  func installPages() {
+    suppress = true
+    for page in pages { page.willMove(toParent: nil); page.view.removeFromSuperview(); page.removeFromParent() }
+    let asset = session.current.asset
+    pageAssets = [session.adjacent(to: asset,direction: -1) ?? asset,asset,session.adjacent(to: asset,direction: 1) ?? asset]
+    pages = pageAssets.enumerated().map { slot,asset in makePage(asset,cache: slot == 1 || asset.localIdentifier != session.current.asset.localIdentifier) }
+    for page in pages { addChild(page); pager.addSubview(page.view); page.didMove(toParent: self) }
+    let keep = Set(pageAssets.map(\.localIdentifier))
+    for id in Array(pageCache.keys) where !keep.contains(id) { pageCache.removeValue(forKey: id) }
+    pager.isScrollEnabled = true; layoutMedia(); suppress = false
+  }
+  func currentChanged(_ model: MediaPreviewModel) {
+    guard !closing else { return }
+    if pager.isDragging || pager.isDecelerating { pendingAsset = model.asset; return }
+    index = session.library.previewIndex(of: model.asset) ?? index
+    if pageAssets.count != 3 || pageAssets[1].localIdentifier != model.asset.localIdentifier { installPages() }
+    if !strip.isDragging && !strip.isDecelerating { strip.reloadData(); centerStrip() }
+    else { for path in strip.indexPathsForVisibleItems { if let cell = strip.cellForItem(at: path) as? PreviewStripCell { cell.setSelected(path.item == index) } } }
+    observeMedia(); refreshInformation()
+  }
+  func observeMedia() {
+    mediaObservations.removeAll()
+    session.current.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.updateStatus() }.store(in: &mediaObservations)
+    updateStatus()
+  }
+  func updateStatus() {
+    let model = session.current
+    date.text = model.asset.creationDate?.formatted(date: .abbreviated,time: .omitted) ?? NSLocalizedString("library_preview",comment: "")
+    status.text = model.asset.creationDate?.formatted(date: .omitted,time: .shortened)
+    retry.isHidden = PreviewNetworkPolicy.shared.asking || !(model.failure || model.cloudNeeded)
+    retry.setTitle(NSLocalizedString(model.cloudNeeded ? "preview_cloud_allow" : "retry_task",comment: ""),for: .normal)
+    status.isHidden = !retry.isHidden
+    if model.loading { spinner.startAnimating(); status.text = NSLocalizedString("preview_loading",comment: "") } else { spinner.stopAnimating() }
+    progress.isHidden = !model.loading || model.progress <= 0 || model.progress >= 1
+    progress.progress = Float(model.progress)
+    if !flying && !closing && verticalKind == 0 && infoAnimator?.isRunning != true { layoutMedia() }
+  }
+  func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }
+  func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { session.library.loaded }
+  func collectionView(_ collectionView: UICollectionView, cellForItemAt path: IndexPath) -> UICollectionViewCell {
+    let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "preview.strip",for: path) as! PreviewStripCell
+    if let asset = session.library.asset(at: path.item) { cell.configure(asset, selected: path.item == index, pipeline: session.library.thumbnails) }
+    return cell
+  }
+  func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) { (cell as? PreviewStripCell)?.cancel() }
+  func collectionView(_ collectionView: UICollectionView, didSelectItemAt path: IndexPath) {
+    guard !pager.isDragging && !pager.isDecelerating, let asset = session.library.asset(at: path.item) else { return }
+    session.activate(asset)
+  }
+  func centerStrip() {
+    guard !strip.isDragging && !strip.isDecelerating else { return }
+    suppress = true; strip.contentOffset.x = CGFloat(index)*34-strip.contentInset.left; suppress = false
+  }
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard !suppress, !flying, !closing else { return }
+    if scrollView === pager {
+      session.paging = true
+      if !strip.isDragging && !strip.isDecelerating {
+        suppress = true; strip.contentOffset.x = (CGFloat(index)+pager.contentOffset.x/max(1,pager.bounds.width)-1)*34-strip.contentInset.left; suppress = false
       }
-    }.frame(maxWidth: .infinity)
+    } else if scrollView === strip, strip.isDragging || strip.isDecelerating {
+      let next = max(0,min(session.library.loaded-1,Int(round((strip.contentOffset.x+strip.contentInset.left)/34))))
+      if next != index, let asset = session.library.asset(at: next) {
+        index = next; session.activate(asset)
+      }
+    }
   }
-  private func vertical(_ state: UIGestureRecognizer.State, value: CGFloat, predicted: CGFloat, height: CGFloat) {
-    guard !session.zoomed else { return }
-    switch state {
-    case .began: drawerStart = drawer
+  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { settle(scrollView) } }
+  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { settle(scrollView) }
+  func settle(_ scrollView: UIScrollView) {
+    if scrollView === pager {
+      let shift = Int(round(pager.contentOffset.x/max(1,pager.bounds.width)))-1
+      if shift != 0, let asset = session.library.asset(at: index+shift) { session.activate(asset) }
+      suppress = true; pager.contentOffset.x = pager.bounds.width; suppress = false
+      session.paging = false
+      if let pendingAsset { self.pendingAsset = nil; currentChanged(session.model(for: pendingAsset)) }
+    }
+    centerStrip()
+  }
+  func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+    guard !flying, !closing, !session.zoomed, !pager.isDragging, !pager.isDecelerating, !PreviewNetworkPolicy.shared.asking else { return false }
+    if let pan = recognizer as? UIPanGestureRecognizer { let velocity = pan.velocity(in: view); return abs(velocity.y) > abs(velocity.x)*1.35 }
+    return true
+  }
+  func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+    var node = touch.view
+    while let view = node { if view is UIControl { return false }; node = view.superview }
+    return recognizer.view === infoHeader || touch.location(in: stage).y < stage.bounds.height*0.84
+  }
+  @objc func vertical(_ gesture: UIPanGestureRecognizer) {
+    let point = gesture.translation(in: view), velocity = gesture.velocity(in: view)
+    switch gesture.state {
+    case .began:
+      animator?.stopAnimation(true); interruptInformation()
+      startInfo = infoHeight; verticalKind = infoHeight > 0 || velocity.y < 0 ? 2 : 1
     case .changed:
-      if value < 0 || drawerStart > 0 { drawer = max(0, min(0.8, drawerStart - value / height)) }
-      else { translation = max(0, value) }
-    case .ended:
-      if drawerStart == 0 && value > 0 {
-        if value > 120 || predicted > 260 { dismissViewer() }
-        else { withAnimation(motion) { translation = 0 } }
+      if verticalKind == 1 {
+        stage.transform = CGAffineTransform(translationX: point.x*0.2,y: max(0,point.y))
+        backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha
+      } else { ensureInformation(); infoHeight = max(0,min(view.bounds.height*0.7,startInfo-point.y)); layoutMedia() }
+    case .ended, .cancelled, .failed:
+      if verticalKind == 1 {
+        if gesture.state == .ended && (point.y > view.bounds.height*0.14 || velocity.y > 750) { dismissViewer(velocity: velocity.y) }
+        else { animate { self.stage.transform = .identity; self.backdrop.alpha = 1; self.layoutMedia() } }
       } else {
-        let projected = drawerStart - predicted / height
-        withAnimation(motion) { drawer = projected < 0.18 ? 0 : projected > 0.65 ? 0.75 : 0.45 }
+        setInfo(gesture.state == .ended ? infoHeight-velocity.y*0.12 > 140 : startInfo > 0)
       }
-      drawerStart = 0
-    case .cancelled, .failed: withAnimation(motion) { drawer = drawerStart; translation = 0 }; drawerStart = 0
+      verticalKind = 0
     default: break
     }
   }
-  private func move(_ direction: Int) {
-    guard !session.paging, let asset = session.adjacent(to: session.current.asset, direction: direction) else { return }
-    session.activate(asset)
+  @objc func dragInformation(_ gesture: UIPanGestureRecognizer) {
+    switch gesture.state {
+    case .began: interruptInformation(); startInfo = infoHeight
+    case .changed: infoHeight = max(0,min(view.bounds.height*0.7,startInfo-gesture.translation(in: view).y)); layoutMedia()
+    case .ended, .cancelled, .failed: setInfo(gesture.state == .ended ? infoHeight-gesture.velocity(in: view).y*0.12 > 140 : startInfo > 0)
+    default: break
+    }
   }
-  private func dismissViewer() {
-    guard !closing else { return }
-    if reduceMotion { close(); return }
-    if session.current.asset.localIdentifier == item.id, session.current.image != nil, drawer == 0 {
-      flight = true; translation = 0
-      withAnimation(motion, completionCriteria: .logicallyComplete) { progress = 0 } completion: { close() }
-    } else { withAnimation(motion, completionCriteria: .logicallyComplete) { closing = true } completion: { close() } }
+  func ensureInformation() {
+    guard informationHost == nil else { return }
+    let host = UIHostingController(rootView: AnyView(ScrollView { PhotoMetadataPanel(preview: session.current).padding(.horizontal,20).padding(.bottom,24) }.preferredColorScheme(.dark)))
+    host.overrideUserInterfaceStyle = .dark
+    addChild(host); information.addSubview(host.view); host.view.backgroundColor = .clear; host.didMove(toParent: self); informationHost = host
   }
-  private func icon(_ symbol: String, title: String, identifier: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) { Image(systemName: symbol).font(.system(size: 20, weight: .medium)).frame(width: 44, height: 44).background(.black.opacity(0.3), in: Circle()) }
-      .buttonStyle(.plain).accessibilityLabel(Text(LocalizedStringKey(title))).accessibilityIdentifier(identifier)
+  func refreshInformation() {
+    informationHost?.rootView = AnyView(ScrollView { PhotoMetadataPanel(preview: session.current).padding(.horizontal,20).padding(.bottom,24) }.preferredColorScheme(.dark))
   }
-  private func fitted(_ size: CGSize, in bounds: CGRect) -> CGRect {
-    let scale = min(bounds.width / max(1, size.width), bounds.height / max(1, size.height))
-    let fit = CGSize(width: size.width * scale, height: size.height * scale)
-    return CGRect(x: bounds.midX - fit.width / 2, y: bounds.midY - fit.height / 2, width: fit.width, height: fit.height)
+  func setInfo(_ open: Bool) {
+    guard !flying && !closing && !PreviewNetworkPolicy.shared.asking else { return }
+    interruptInformation()
+    session.fitMedia(); if open { ensureInformation() }
+    let target: CGFloat = open ? min(500,view.bounds.height*0.45) : 0
+    infoHeight = target
+    let finish: () -> Void = { [weak self] in
+      guard let self, self.infoHeight == 0 else { return }
+      self.informationHost?.willMove(toParent: nil); self.informationHost?.view.removeFromSuperview()
+      self.informationHost?.removeFromParent(); self.informationHost = nil
+    }
+    if UIAccessibility.isReduceMotionEnabled { layoutMedia(); finish() } else {
+      let animation = UIViewPropertyAnimator(duration: 0.36,dampingRatio: 0.94) { self.layoutMedia() }
+      animation.addCompletion { position in if position == .end { finish() } }
+      infoAnimator = animation; animation.startAnimation()
+    }
   }
-  private func interpolate(_ a: CGRect, _ b: CGRect, _ t: CGFloat) -> CGRect {
-    CGRect(x: a.minX + (b.minX-a.minX)*t, y: a.minY + (b.minY-a.minY)*t, width: a.width+(b.width-a.width)*t, height: a.height+(b.height-a.height)*t)
+  /// Freeze the visible geometry before reversing a drawer animation. The model
+  /// height is already the destination while Core Animation is interpolating.
+  func interruptInformation() {
+    guard let infoAnimator else { return }
+    let visibleHeight = information.layer.presentation()?.frame.height ?? infoHeight
+    infoAnimator.stopAnimation(true); self.infoAnimator = nil
+    infoHeight = visibleHeight
+    UIView.performWithoutAnimation { layoutMedia() }
   }
+  func toggleChrome() { guard !flying && !closing && infoHeight == 0 else { return }; chrome.toggle(); animate(duration: 0.18) { self.layoutMedia() } }
+  func icon(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> UIButton {
+    let button = UIButton(type: .system); button.setImage(UIImage(systemName: symbol),for: .normal); button.tintColor = .white
+    button.accessibilityLabel = NSLocalizedString(label,comment: ""); button.accessibilityIdentifier = id
+    button.addAction(UIAction { _ in action() },for: .touchUpInside); return button
+  }
+  func animate(duration: TimeInterval = 0.36, velocity: CGFloat = 0, changes: @escaping () -> Void, completion: (() -> Void)? = nil) {
+    animator?.stopAnimation(true)
+    if UIAccessibility.isReduceMotionEnabled { changes(); completion?(); return }
+    let timing = UISpringTimingParameters(dampingRatio: 0.94,initialVelocity: CGVector(dx: 0,dy: min(4,abs(velocity)/800)))
+    let animation = UIViewPropertyAnimator(duration: duration,timingParameters: timing)
+    animation.addAnimations(changes); animation.addCompletion { _ in completion?() }; animator = animation; animation.startAnimation()
+  }
+  func imageRect() -> CGRect {
+    let asset = session.current.asset; let size = CGSize(width: max(1,asset.pixelWidth),height: max(1,asset.pixelHeight))
+    let scale = min(stage.bounds.width/size.width,stage.bounds.height/size.height)
+    let frame = CGRect(x: stage.bounds.midX-size.width*scale/2,y: stage.bounds.midY-size.height*scale/2,width: size.width*scale,height: size.height*scale)
+    return stage.convert(frame,to: view)
+  }
+  func enter() {
+    layoutMedia(); guard let image = item.poster ?? session.current.image else { flying = false; backdrop.alpha = 1; layoutMedia(); return }
+    let proxy = UIImageView(image: image); proxy.contentMode = .scaleAspectFill; proxy.clipsToBounds = true
+    proxy.frame = view.convert(item.frame,from: nil); view.addSubview(proxy); stage.alpha = 0
+    animate(changes: { proxy.frame = self.imageRect(); self.backdrop.alpha = 1 }) { [weak self] in
+      guard let self else { return }; proxy.removeFromSuperview(); self.stage.alpha = 1; self.flying = false; self.layoutMedia()
+    }
+  }
+  func dismissViewer(velocity: CGFloat = 0) {
+    guard !flying && !closing else { return }; closing = true; pager.isScrollEnabled = false
+    let destination = session.library.previewFrame?(session.current.asset.localIdentifier)
+    if let image = session.current.image, let destination, infoHeight == 0 {
+      let proxy = UIImageView(image: image); proxy.contentMode = .scaleAspectFill; proxy.clipsToBounds = true
+      proxy.frame = imageRect(); view.addSubview(proxy); stage.alpha = 0
+      animate(velocity: velocity,changes: {
+        proxy.frame = self.view.convert(destination,from: nil); self.backdrop.alpha = 0; self.header.alpha = 0; self.footer.alpha = 0
+      }) { self.session.stop(); self.closeViewer() }
+    } else { animate(duration: 0.2,changes: { self.view.alpha = 0 }) { self.session.stop(); self.closeViewer() } }
+  }
+}
+@MainActor private final class PreviewStripCell: UICollectionViewCell {
+  let photo = UIImageView()
+  weak var pipeline: ThumbnailPipeline?
+  var request = PHInvalidImageRequestID, identity: String?
+  override init(frame: CGRect) {
+    super.init(frame: frame); photo.contentMode = .scaleAspectFill; photo.clipsToBounds = true; photo.layer.cornerRadius = 5; contentView.addSubview(photo)
+    isAccessibilityElement = true; accessibilityTraits = .button
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func layoutSubviews() { super.layoutSubviews(); photo.frame = contentView.bounds }
+  func configure(_ asset: PHAsset, selected: Bool, pipeline: ThumbnailPipeline) {
+    setSelected(selected)
+    accessibilityLabel = asset.creationDate?.formatted(date: .abbreviated,time: .shortened); accessibilityTraits = selected ? [.button,.selected] : .button
+    guard identity != asset.localIdentifier else { return }; cancel(); self.pipeline = pipeline; identity = asset.localIdentifier
+    photo.image = pipeline.poster(for: asset)
+    request = pipeline.request(asset,pixels: 120) { [weak self] image,_ in guard let self, self.identity == asset.localIdentifier else { return }; if let image { self.photo.image = image } }
+  }
+  func setSelected(_ selected: Bool) { photo.layer.borderColor = UIColor.white.cgColor; photo.layer.borderWidth = selected ? 2 : 0 }
+  func cancel() { pipeline?.cancel(request); request = PHInvalidImageRequestID; identity = nil }
+  override func prepareForReuse() { super.prepareForReuse(); cancel(); photo.image = nil }
 }
 
-private struct IOSMediaPager: UIViewControllerRepresentable {
-  @ObservedObject var session: MediaPreviewSession
-  let tap: () -> Void
-  let vertical: (UIGestureRecognizer.State, CGFloat, CGFloat) -> Void
-  func makeCoordinator() -> Coordinator { Coordinator(self) }
-  func makeUIViewController(context: Context) -> UIPageViewController {
-    let controller = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal, options: [.interPageSpacing: 12])
-    controller.dataSource = context.coordinator; controller.delegate = context.coordinator
-    context.coordinator.controller = controller
-    controller.setViewControllers([context.coordinator.page(session.current.asset)], direction: .forward, animated: false)
-    let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pan(_:)))
-    pan.delegate = context.coordinator; controller.view.addGestureRecognizer(pan)
-    controller.view.backgroundColor = .clear
-    return controller
-  }
-  func updateUIViewController(_ controller: UIPageViewController, context: Context) {
-    let c = context.coordinator; c.parent = self
-    (controller.view.subviews.first { $0 is UIScrollView } as? UIScrollView)?.isScrollEnabled = !session.zoomed
-    guard let old = controller.viewControllers?.first as? PreviewPageController,
-      old.asset.localIdentifier != session.current.asset.localIdentifier, !c.animating else { return }
-    let before = session.library.previewIndex(of: old.asset) ?? 0, after = session.library.previewIndex(of: session.current.asset) ?? 0
-    c.animating = true; session.paging = true
-    controller.setViewControllers([c.page(session.current.asset)], direction: after > before ? .forward : .reverse, animated: !UIAccessibility.isReduceMotionEnabled) { _ in
-      c.animating = false; self.session.paging = false; c.trim()
-    }
-  }
-  static func dismantleUIViewController(_ controller: UIPageViewController, coordinator: Coordinator) { controller.dataSource = nil; controller.delegate = nil; coordinator.pages.removeAll() }
-  @MainActor final class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
-    var parent: IOSMediaPager
-    weak var controller: UIPageViewController?
-    var pages: [String: PreviewPageController] = [:]
-    var animating = false
-    init(_ parent: IOSMediaPager) { self.parent = parent }
-    func page(_ asset: PHAsset) -> PreviewPageController {
-      if let page = pages[asset.localIdentifier] { return page }
-      let page = PreviewPageController(asset: asset, session: parent.session, tap: { [weak self] in self?.parent.tap() })
-      pages[asset.localIdentifier] = page; return page
-    }
-    func trim() {
-      let asset = parent.session.current.asset
-      let keep = Set([asset, parent.session.adjacent(to: asset, direction: -1), parent.session.adjacent(to: asset, direction: 1)].compactMap { $0?.localIdentifier })
-      for id in Array(pages.keys) where !keep.contains(id) { pages.removeValue(forKey: id) }
-    }
-    func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? { neighbour(viewController, -1) }
-    func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? { neighbour(viewController, 1) }
-    private func neighbour(_ controller: UIViewController, _ direction: Int) -> UIViewController? {
-      guard let page = controller as? PreviewPageController, let asset = parent.session.adjacent(to: page.asset, direction: direction) else { return nil }
-      return self.page(asset)
-    }
-    func pageViewController(_ pageViewController: UIPageViewController, willTransitionTo pendingViewControllers: [UIViewController]) { parent.session.paging = true }
-    func pageViewController(_ pageViewController: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-      if completed, let page = pageViewController.viewControllers?.first as? PreviewPageController { parent.session.activate(page.asset) }
-      parent.session.paging = false; trim()
-    }
-    func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
-      guard let pan = gesture as? UIPanGestureRecognizer, let view = pan.view else { return false }
-      let velocity = pan.velocity(in: view)
-      return !parent.session.zoomed && !parent.session.paging && abs(velocity.y) > abs(velocity.x)*1.25 && pan.location(in: view).y < view.bounds.height*0.85
-    }
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
-    @objc func pan(_ gesture: UIPanGestureRecognizer) {
-      let y = gesture.translation(in: gesture.view).y, velocity = gesture.velocity(in: gesture.view).y
-      parent.vertical(gesture.state, y, y + velocity*0.18)
-    }
-  }
-}
-@MainActor private final class PreviewPageController: UIHostingController<IOSPreviewPageContent> {
-  let asset: PHAsset
-  init(asset: PHAsset, session: MediaPreviewSession, tap: @escaping () -> Void) {
-    self.asset = asset
-    super.init(rootView: IOSPreviewPageContent(preview: session.model(for: asset), session: session, zoom: { value in
-      if session.current.asset.localIdentifier == asset.localIdentifier { session.zoomed = value }
-    }, tap: tap))
-    view.backgroundColor = .clear
-  }
-  @MainActor required dynamic init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
-}
 private struct IOSPreviewPageContent: View {
   @ObservedObject var preview: MediaPreviewModel
   @ObservedObject var session: MediaPreviewSession
@@ -1124,23 +1294,7 @@ private struct IOSPreviewPageContent: View {
     ZStack {
       if let player = preview.player { VideoPlayer(player: player).accessibilityIdentifier("library.preview.video") }
       else if let image = preview.image { IOSZoomMedia(image: image, live: preview.livePhoto, active: session.current === preview, identity: preview.asset.localIdentifier, fitRevision: session.fitRevision, zoom: zoom, tap: tap) }
-      if preview.loading {
-        if preview.image == nil { ProgressView().tint(.white).padding(16).background(.black.opacity(0.4), in: Circle()) }
-        else {
-          VStack { Spacer(); HStack { Spacer(); ProgressView().tint(.white).padding(10).background(.black.opacity(0.5), in: Circle()) } }
-            .padding(.trailing,16).padding(.bottom,80).allowsHitTesting(false)
-        }
-      }
-      if preview.cloudNeeded || preview.failure {
-        VStack(spacing: 12) {
-          Image(systemName: preview.cloudNeeded ? "icloud.and.arrow.down" : "exclamationmark.circle").font(.largeTitle)
-          Text(preview.cloudNeeded ? "preview_cloud_title" : "library_preview_unavailable").font(.callout)
-          Button(PreviewNetworkPolicy.shared.allowed ? "retry_task" : "preview_cloud_allow") {
-            if PreviewNetworkPolicy.shared.allowed { preview.load() }
-            else { PreviewNetworkPolicy.shared.asking = true }
-          }.buttonStyle(.bordered).tint(.white)
-        }.padding(20).background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
-      }
+
     }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black)
   }
 }

@@ -56,6 +56,9 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 }
 
 @MainActor final class PhotoLibraryModel: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
+  // Resolve current media in the native viewport at presentation/return time.
+  var previewFrame: ((String) -> CGRect?)?
+
   @Published private(set) var total = 0
   @Published private(set) var loaded = 0
   @Published private(set) var generation = 0

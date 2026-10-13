@@ -212,7 +212,7 @@ struct MacLibraryGrid: NSViewRepresentable {
     private func layoutFrame() {
       guard let layout = collection?.collectionViewLayout as? LibraryTimelineLayout else { stopLayoutAnimation(); return }
       let value = CGFloat(min(1,(CACurrentMediaTime()-layoutStarted)/0.26))
-      layout.setProgress(LibraryMotion.easeOut(value)); positionAnchor()
+      layout.setProgress(LibraryMotion.settle(value)); positionAnchor()
       if value >= 1 { finishLayoutAnimation() }
     }
     private func finishLayoutAnimation() {

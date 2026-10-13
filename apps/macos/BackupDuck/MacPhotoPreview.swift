@@ -50,7 +50,7 @@ struct MacPhotoPreview: View {
         }
       }.frame(maxWidth: .infinity, maxHeight: .infinity)
       BurstPreviewControls(preview: session.current, select: session.activate).foregroundStyle(.white)
-    }.frame(minWidth: 640, idealWidth: 1000, minHeight: 520, idealHeight: 700)
+    }.frame(minWidth: 840, idealWidth: 1000, minHeight: 520, idealHeight: 700)
       .preferredColorScheme(.dark).background(Color.black).tint(DuckColors.action)
       .onAppear { session.start() }.onDisappear { session.stop() }
       .onChange(of: policy.choice) { _, _ in session.reloadForPolicy() }
@@ -61,7 +61,7 @@ struct MacPhotoPreview: View {
     session.activate(asset)
   }
   private func icon(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) { Image(systemName: symbol).font(.system(size: 18)).frame(width: 36, height: 36).background(.white.opacity(0.1), in: Circle()) }
+    Button(action: action) { Image(systemName: symbol).font(.system(size: 18)).frame(width: 36, height: 36).background(.black.opacity(0.55), in: Circle()).overlay(Circle().stroke(.white.opacity(0.18),lineWidth: 1)) }
       .buttonStyle(.plain).accessibilityLabel(Text(LocalizedStringKey(label))).accessibilityIdentifier(id)
   }
 }

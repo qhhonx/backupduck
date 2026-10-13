@@ -77,6 +77,8 @@ are separate requirements; neither screenshots nor test labels establish feel.
    retry states belong to the current asset. Remove overlapping central notices.
 5. Rework grouped grid zoom as a distinct layout algorithm. Preserve focal
    asset geometry, not only final scroll offset; compare uninterrupted and
-   reversed transitions on long libraries. This is still unresolved.
+   reversed transitions on long libraries. The candidate now preserves a
+   transient two-axis phone focus and settles the column edges; motion feel
+   still requires physical-device acceptance.
 6. Measure album fetch, image decode, requests/cancellations and list updates.
    More attractive cards alone do not prove smoother scrolling.

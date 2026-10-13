@@ -39,8 +39,10 @@ frame-rate performance.
 
 Library density changes update stable native collection attributes and the scroll
 anchor together on every gesture frame. Gesture progress follows image scale;
-release uses a 240 ms non-bouncing cubic curve (0.2, 0.8, 0.2, 1), and menu changes
-use 300 ms. Mac changes use the same curve over 260 ms. Date headings crossfade
+release uses a normalized critically damped response over 320 ms, cancellation
+over 300 ms, and menu changes over 420 ms. Mac changes use the same response
+over 260 ms. Phone pinch focus follows both axes during the gesture, then
+settles the column edges while preserving vertical context. Date headings crossfade
 when grouping changes. Never restore the anchor only after the animation ends.
 Phone detail paging uses native scroll deceleration and neighbouring live views,
 not an onEnded replacement. Information opens within the same media viewport.

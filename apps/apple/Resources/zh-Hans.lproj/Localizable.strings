@@ -1116,10 +1116,10 @@
 "updates_store_note" = "此版本由 TestFlight 或 App Store 管理更新。";
 
 "preview_cloud_setting" = "允许从 iCloud 加载预览";
-"preview_cloud_title" = "从 iCloud 加载？";
-"preview_cloud_note" = "允许通过网络加载照片和视频预览，不会开始备份。你可以在设置中更改。";
+"preview_cloud_title" = "从 iCloud 加载预览";
+"preview_cloud_note" = "允许加载照片和视频的清晰预览，不会开始备份。你可以在设置中更改。";
 "preview_cloud_allow" = "允许加载";
-"preview_cloud_not_now" = "暂不允许";
+"preview_cloud_not_now" = "暂不加载";
 "preview_previous" = "上一项";
 "preview_next" = "下一项";
 "preview_file_size" = "文件大小";
@@ -1168,3 +1168,5 @@
 "preview_hide_info" = "关闭照片信息";
 
 "preview_show_map" = "查看地图";
+
+"preview_loading" = "正在加载清晰预览…";

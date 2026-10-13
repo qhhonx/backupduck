@@ -64,6 +64,14 @@ enum LibraryMotion {
     let t = (low+high)/2
     return 3*(1-t)*(1-t)*t*0.8 + 3*(1-t)*t*t + t*t*t
   }
+  /// Critically damped settling: gesture updates stay linear; released geometry
+  /// accelerates/decelerates without the sharp early jump of the old cubic.
+  static func settle(_ progress: CGFloat) -> CGFloat {
+    let t = Double(min(1,max(0,progress))), frequency = 7.0
+    let value = 1-(1+frequency*t)*exp(-frequency*t)
+    let end = 1-(1+frequency)*exp(-frequency)
+    return CGFloat(value/end)
+  }
   static func visibleRange(count: Int, in rect: CGRect, frame: (Int) -> CGRect) -> Range<Int> {
     var low = 0, high = count
     while low < high { let middle = (low+high)/2; if frame(middle).maxY <= rect.minY { low = middle+1 } else { high = middle } }
@@ -81,6 +89,9 @@ import UIKit
   var columns: Int
   var anchorID: String?
   var anchorInset: CGFloat = 0
+  /// Transient horizontal focus during a pinch. Release restores the column
+  /// edges while retaining the focused asset's vertical scroll position.
+  var focusTranslationX: CGFloat = 0
   private var key = ""
   private var densityPair = ""
   private var dates: [Date?] = []
@@ -146,7 +157,7 @@ import UIKit
   private func snapshot() -> LibraryTimelineGeometry {
     guard to != nil else { return from }
     var geometry = from
-    geometry.items = (0..<dates.count).map { frame(at: $0) }
+    geometry.items = (0..<dates.count).map { frame(at: $0).offsetBy(dx: -focusTranslationX,dy: 0) }
     geometry.headers = headerIDs.compactMap { id in
       guard let attributes = header(at: id), attributes.alpha > 0.5 else { return nil }
       return LibraryTimelineGeometry.Header(firstItem: id, title: title(at: id), frame: attributes.frame)
@@ -155,8 +166,10 @@ import UIKit
   }
   func frame(at index: Int) -> CGRect {
     guard from.items.indices.contains(index) else { return .zero }
-    guard let to, to.items.indices.contains(index) else { return from.items[index] }
-    return LibraryMotion.interpolate(from.items[index], to.items[index], progress)
+    let rectangle: CGRect
+    if let to, to.items.indices.contains(index) { rectangle = LibraryMotion.interpolate(from.items[index], to.items[index], progress) }
+    else { rectangle = from.items[index] }
+    return rectangle.offsetBy(dx: focusTranslationX,dy: 0)
   }
   override var collectionViewContentSize: CGSize {
     CGSize(width: collectionView?.bounds.width ?? 0, height: from.height + ((to?.height ?? from.height)-from.height)*progress)
@@ -171,7 +184,7 @@ import UIKit
     let b = toHeaders[id]?.frame ?? CGRect(x: 16, y: to?.items.indices.contains(id) == true ? to!.items[id].minY : a.minY, width: a.width, height: 0)
     let result = UICollectionViewLayoutAttributes(forSupplementaryViewOfKind: Self.headerKind, with: IndexPath(item: id, section: 0))
     result.frame = LibraryMotion.interpolate(a,b,progress)
-    result.frame.origin.x = 16; result.frame.size.width = max(0,(collectionView?.bounds.width ?? 0)-32)
+    result.frame.origin.x = 0; result.frame.size.width = collectionView?.bounds.width ?? 0
     result.alpha = fromHeaders[id] == nil ? progress : toHeaders[id] == nil ? 1-progress
       : fromHeaders[id]?.title == toHeaders[id]?.title ? 1 : abs(1-2*progress)
     return result
@@ -181,8 +194,23 @@ import UIKit
   }
   override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
     let items = LibraryMotion.visibleRange(count: from.items.count, in: rect) { frame(at: $0) }
-    let headers = LibraryMotion.visibleRange(count: headerIDs.count, in: rect) { header(at: headerIDs[$0])?.frame ?? .zero }
-    return items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers.compactMap { header(at: headerIDs[$0]) }
+    var headerIndexes = Set(LibraryMotion.visibleRange(count: headerIDs.count, in: rect) { header(at: headerIDs[$0])?.frame ?? .zero })
+    if to == nil, !headerIDs.isEmpty {
+      let offset = collectionView?.bounds.minY ?? rect.minY
+      var low = 0, high = headerIDs.count
+      while low < high { let mid = (low+high)/2; if (header(at: headerIDs[mid])?.frame.minY ?? 0) <= offset { low = mid+1 } else { high = mid } }
+      if low > 0 { headerIndexes.insert(low-1) }
+    }
+    let headers = headerIndexes.sorted().compactMap { position -> UICollectionViewLayoutAttributes? in
+      guard let attributes = header(at: headerIDs[position]) else { return nil }
+      if to == nil, let view = collectionView {
+        let next = position+1 < headerIDs.count ? header(at: headerIDs[position+1])?.frame.minY ?? .greatestFiniteMagnitude : .greatestFiniteMagnitude
+        attributes.frame.origin.y = min(next-attributes.frame.height,max(attributes.frame.minY,view.bounds.minY+view.adjustedContentInset.top))
+        attributes.zIndex = 100
+      }
+      return attributes
+    }
+    return items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers
   }
   override func targetContentOffset(forProposedContentOffset proposedContentOffset: CGPoint) -> CGPoint {
     guard let index = library.index(of: anchorID), from.items.indices.contains(index), let view = collectionView else { return proposedContentOffset }
@@ -190,17 +218,17 @@ import UIKit
     return CGPoint(x: 0, y: min(maximum, max(-view.adjustedContentInset.top, frame(at: index).minY+anchorInset)))
   }
   func title(at id: Int) -> String { (progress < 0.5 ? fromHeaders[id]?.title ?? toHeaders[id]?.title : toHeaders[id]?.title ?? fromHeaders[id]?.title) ?? "" }
-  override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool { newBounds.width != collectionView?.bounds.width }
+  override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool { true }
 }
 @MainActor final class TimelineDateHeader: UICollectionReusableView {
   private let label = UILabel()
   override init(frame: CGRect) {
-    super.init(frame: frame); label.font = .preferredFont(forTextStyle: .headline)
+    super.init(frame: frame); backgroundColor = UIColor(DuckColors.canvas); label.font = .preferredFont(forTextStyle: .subheadline)
     label.adjustsFontForContentSizeCategory = true; label.textColor = UIColor(DuckColors.text); addSubview(label)
     label.accessibilityIdentifier = "library.timeline.date"
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  override func layoutSubviews() { super.layoutSubviews(); label.frame = bounds }
+  override func layoutSubviews() { super.layoutSubviews(); label.frame = bounds.insetBy(dx: 16,dy: 6) }
   func setTitle(_ title: String) { label.text = title }
 }
 #else

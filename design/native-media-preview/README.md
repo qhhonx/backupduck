@@ -50,3 +50,15 @@ to grid, reduced motion and larger type. Record native motion at original speed;
 selected frames supplement but cannot replace continuous playback and actual
 touch testing. Keep private recordings and acceptance evidence in ignored build
 storage. See [source study](source-study.md).
+
+## Production implementation boundary
+
+The sender implementation uses a UIKit-owned three-slot paging scroll view,
+separate virtualized scrubbing strip, interruptible information drawer and a
+current-asset return destination. It retains PhotoKit media and existing backup
+state; the standalone reference remains synthetic. Compact consent cannot
+expand into an empty second detent. Actual asset location opens a map with
+information. Album covers have cancellable local requests and a 24 MiB cache.
+The production calendar uses anchored collection attributes and a critically
+damped release response documented in the media interaction contract. None of
+these source changes constitutes physical-device or user acceptance.

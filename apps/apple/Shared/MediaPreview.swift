@@ -56,25 +56,28 @@ struct PreviewCloudSetting: View {
 }
 private struct PreviewConsent: ViewModifier {
   @ObservedObject private var policy = PreviewNetworkPolicy.shared
+  @Environment(\.colorScheme) private var inheritedAppearance
+  var appearance: ColorScheme?
   func body(content: Content) -> some View {
     content.onAppear {
       #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--preview-consent-fixture") { policy.asking = true }
       #endif
     }.sheet(isPresented: $policy.asking) {
-      DuckSheetLayout(title: "preview_cloud_title", desktopMinHeight: 240, desktopIdealHeight: 300) {
+      DuckSheetLayout(title: "preview_cloud_title", desktopMinHeight: 240, desktopIdealHeight: 300, expandable: false) {
         Text("preview_cloud_note").fixedSize(horizontal: false, vertical: true)
       } actions: {
-        Button("preview_cloud_not_now") { policy.decide(false) }.duckSecondaryAction()
+        Button { policy.decide(false) } label: { Text("preview_cloud_not_now").frame(maxWidth: .infinity, minHeight: 32) }.duckSecondaryAction()
           .accessibilityIdentifier("preview.cloud.decline")
-        Button("preview_cloud_allow") { policy.decide(true) }.duckPrimaryAction()
+        Button { policy.decide(true) } label: { Text("preview_cloud_allow").frame(maxWidth: .infinity, minHeight: 32) }.duckPrimaryAction()
           .accessibilityIdentifier("preview.cloud.allow")
-      }.accessibilityElement(children: .contain).accessibilityIdentifier("preview.cloud.consent")
+      }.environment(\.colorScheme, appearance ?? inheritedAppearance).preferredColorScheme(appearance)
+        .accessibilityElement(children: .contain).accessibilityIdentifier("preview.cloud.consent")
     }
   }
 }
 extension View {
-  func previewCloudConsent() -> some View { modifier(PreviewConsent()) }
+  func previewCloudConsent(appearance: ColorScheme? = nil) -> some View { modifier(PreviewConsent(appearance: appearance)) }
 }
 
 @MainActor final class MediaPreviewModel: ObservableObject {
@@ -343,7 +346,6 @@ struct BurstPreviewControls: View {
 struct PhotoMetadataPanel: View {
   @ObservedObject private var policy = PreviewNetworkPolicy.shared
   @ObservedObject var preview: MediaPreviewModel
-  @State private var showMap = false
   private var cameraFields: [(String, String)] { preview.metadata.filter { ["preview_camera", "preview_lens", "preview_aperture", "preview_exposure", "preview_iso"].contains($0.0) } }
   private var fileFields: [(String, String)] { preview.metadata.filter { !["preview_camera", "preview_lens", "preview_aperture", "preview_exposure", "preview_iso"].contains($0.0) } }
   var body: some View {
@@ -371,15 +373,11 @@ struct PhotoMetadataPanel: View {
       }
       if let location = preview.asset.location {
         VStack(alignment: .leading, spacing: 10) {
-          Button { showMap.toggle() } label: {
-            HStack { Label("preview_location", systemImage: "map"); Spacer(); Text("preview_show_map").font(.caption) }
-          }.buttonStyle(.plain).foregroundStyle(DuckColors.action)
-          if showMap {
-        Map(initialPosition: .region(MKCoordinateRegion(center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
-          Marker("design_capture_time", coordinate: location.coordinate)
-        }.mapStyle(.standard).frame(height: 150).clipShape(RoundedRectangle(cornerRadius: 14)).allowsHitTesting(false)
-          .accessibilityLabel(Text("preview_location")).id(preview.asset.localIdentifier)
-          }
+          Label("preview_location", systemImage: "map").font(.subheadline).foregroundStyle(DuckColors.textSecondary)
+          Map(initialPosition: .region(MKCoordinateRegion(center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
+            Marker("design_capture_time", coordinate: location.coordinate)
+          }.mapStyle(.standard).frame(height: 160).clipShape(RoundedRectangle(cornerRadius: 14))
+            .allowsHitTesting(false).accessibilityLabel(Text("preview_location")).id(preview.asset.localIdentifier)
         }
       }
       if preview.metadataLoading { ProgressView("preview_loading_info").font(.footnote) }
@@ -391,7 +389,7 @@ struct PhotoMetadataPanel: View {
         }.duckSecondaryAction()
       }
     }.textSelection(.enabled).foregroundStyle(DuckColors.text)
-      .task(id: preview.asset.localIdentifier) { showMap = false; preview.loadMetadata() }.onDisappear { preview.cancelMetadata() }
+      .task(id: preview.asset.localIdentifier) { preview.loadMetadata() }.onDisappear { preview.cancelMetadata() }
   }
   private func informationRow(_ field: (String, String)) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 16) {

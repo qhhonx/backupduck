@@ -157,6 +157,7 @@ struct BackupScopeEditor: View {
   @StateObject private var model = ScopeAlbumsModel()
   @State private var search = ""
   @FocusState private var searchFocused: Bool
+  @Environment(\.dynamicTypeSize) private var textSize
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       if destination == .albums {
@@ -184,7 +185,33 @@ struct BackupScopeEditor: View {
         ScrollView { IOSPreferenceGroup { typeChoices }.padding(20) }
         #endif
       } else {
-        List {
+        #if os(iOS)
+        if !textSize.isAccessibilitySize {
+          ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+              choiceRow(title: NSLocalizedString("scope_all_albums",comment: ""), symbol: "rectangle.stack", selected: !store.rule.restrictAlbums) {
+                var next = store.rule; next.restrictAlbums = false; store.save(next)
+              }.padding(.horizontal,16).background(DuckColors.surface,in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityIdentifier("backup.scope.all_albums")
+              albumCards(system: false,title: "scope_my_albums")
+              albumCards(system: true,title: "scope_system_albums")
+              missingAlbums
+            }.padding(16)
+          }.accessibilityIdentifier("backup.scope.choices")
+        } else { albumList }
+        #else
+        albumList
+        #endif
+        if model.loading && destination == .albums { ProgressView("library_loading").frame(maxWidth: .infinity) }
+      }
+    }.background(DuckColors.canvas).tint(DuckColors.action)
+      .task { if destination == .albums { await model.load() } }
+      #if os(macOS)
+      .frame(height: destination == .albums ? 440 : 208, alignment: .top)
+      #endif
+  }
+  private var albumList: some View {
+    List {
             Section {
               choiceRow(title: NSLocalizedString("scope_all_albums", comment: ""), symbol: "rectangle.stack", selected: !store.rule.restrictAlbums) {
                 var next = store.rule; next.restrictAlbums = false; store.save(next)
@@ -203,24 +230,62 @@ struct BackupScopeEditor: View {
               }
             }
         }
-          #if os(iOS)
-          .listStyle(.insetGrouped).toolbar(.hidden, for: .tabBar)
+      #if os(iOS)
+          .listStyle(.insetGrouped)
           #else
           .listStyle(.inset)
           #endif
           .environment(\.defaultMinListRowHeight, DuckPreferenceMetrics.rowHeight)
           .scrollContentBackground(.hidden)
           .accessibilityIdentifier("backup.scope.choices")
-        if model.loading && destination == .albums { ProgressView("library_loading").frame(maxWidth: .infinity) }
+  }
+  private var missingAlbums: some View {
+    let missing = store.rule.albums.subtracting(Set(model.albums.map(\.id)))
+    return VStack(alignment: .leading, spacing: 8) {
+      if !model.loading && !missing.isEmpty {
+        Text("scope_album_unavailable").font(.headline)
+        ForEach(missing.sorted(),id: \.self) { id in
+          choiceRow(title: store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable",comment: ""),symbol: "rectangle.slash",selected: store.rule.restrictAlbums) {
+            var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
+          }
+        }
       }
-    }.background(DuckColors.canvas).tint(DuckColors.action)
-      #if os(iOS)
-      .toolbar(.hidden, for: .tabBar)
-      #endif
-      .task { if destination == .albums { await model.load() } }
-      #if os(macOS)
-      .frame(height: destination == .albums ? 440 : 208, alignment: .top)
-      #endif
+    }
+  }
+  private func selectAlbum(_ album: ScopeAlbum) {
+    searchFocused = false
+    var next = store.rule
+    if !next.restrictAlbums { next.albums = []; next.albumNames = [:] }
+    next.restrictAlbums = true
+    if next.albums.contains(album.id) { next.albums.remove(album.id); next.albumNames.removeValue(forKey: album.id) }
+    else { next.albums.insert(album.id); next.albumNames[album.id] = album.name }
+    store.save(next)
+  }
+  @ViewBuilder private func albumCards(system: Bool,title: LocalizedStringKey) -> some View {
+    let visible = model.albums.filter { $0.system == system && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+    if !visible.isEmpty {
+      Text(title).font(.headline)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 140,maximum: 240),spacing: 16)],alignment: .leading,spacing: 20) {
+        ForEach(visible) { album in
+          Button { selectAlbum(album) } label: {
+            VStack(alignment: .leading,spacing: 5) {
+              GeometryReader { geometry in
+                ReadOnlyMediaThumbnail(asset: album.cover,width: geometry.size.width,height: geometry.size.height)
+                  .overlay(alignment: .topTrailing) {
+                    if store.rule.restrictAlbums && store.rule.albums.contains(album.id) {
+                      Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(DuckColors.action)
+                        .background(DuckColors.surface,in: Circle()).padding(8)
+                    }
+                  }
+              }.aspectRatio(1,contentMode: .fit)
+              Text(album.name).font(.body.weight(.medium)).foregroundStyle(DuckColors.text).lineLimit(2)
+              Text(album.count.formatted()).font(.caption).foregroundStyle(DuckColors.textSecondary)
+            }.frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle())
+          }.buttonStyle(.plain).accessibilityLabel(Text(album.name)).accessibilityValue(Text(album.count.formatted()))
+            .accessibilityAddTraits(store.rule.restrictAlbums && store.rule.albums.contains(album.id) ? .isSelected : [])
+        }
+      }
+    }
   }
   private var typeChoices: some View {
     VStack(spacing: 0) {
@@ -242,15 +307,7 @@ struct BackupScopeEditor: View {
     if !visible.isEmpty {
       Section(title) {
         ForEach(visible) { album in
-          Button {
-            searchFocused = false
-            var next = store.rule
-            if !next.restrictAlbums { next.albums = []; next.albumNames = [:] }
-            next.restrictAlbums = true
-            if next.albums.contains(album.id) { next.albums.remove(album.id); next.albumNames.removeValue(forKey: album.id) }
-            else { next.albums.insert(album.id); next.albumNames[album.id] = album.name }
-            store.save(next)
-          } label: {
+          Button { selectAlbum(album)          } label: {
             HStack(spacing: 12) {
               ReadOnlyMediaThumbnail(asset: album.cover)
               VStack(alignment: .leading, spacing: 4) {
@@ -291,6 +348,7 @@ struct ReadOnlyMediaThumbnail: View {
   @State private var image: LibraryImage?
   @State private var request = PHInvalidImageRequestID
   @State private var identity: String?
+  @State private var requestGeneration = UUID()
   var body: some View {
     ZStack {
       RoundedRectangle(cornerRadius: 7).fill(DuckColors.subtle)
@@ -302,13 +360,36 @@ struct ReadOnlyMediaThumbnail: View {
         #endif
       } else { Image(systemName: "rectangle.stack").foregroundStyle(DuckColors.textSecondary) }
     }.frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: 7)).accessibilityHidden(true)
-      .task(id: asset?.localIdentifier) {
-        PHImageManager.default().cancelImageRequest(request); image = nil; identity = asset?.localIdentifier
+      .task(id: "\(asset?.localIdentifier ?? "")|\(Int(width))|\(Int(height))") {
+        ScopeThumbnailCache.manager.cancelImageRequest(request); image = nil; identity = asset?.localIdentifier
+        let generation = UUID(); requestGeneration = generation
         guard let asset else { return }
+        guard width > 0, height > 0 else { return }
+        let pixels = min(600,max(132,Int(max(width,height)*2)))
+        let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(pixels)" as NSString
+        if let cached = ScopeThumbnailCache.images.object(forKey: key) { image = cached; return }
         let options = PHImageRequestOptions(); options.isNetworkAccessAllowed = false
-        request = PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: width*3, height: height*3), contentMode: .aspectFill, options: options) { value, _ in
-          Task { @MainActor in if identity == asset.localIdentifier { image = value } }
+        options.resizeMode = .fast; options.deliveryMode = .opportunistic
+        request = ScopeThumbnailCache.manager.requestImage(for: asset, targetSize: CGSize(width: pixels, height: pixels), contentMode: .aspectFill, options: options) { value, info in
+          Task { @MainActor in
+            guard identity == asset.localIdentifier, requestGeneration == generation,
+              info?[PHImageCancelledKey] as? Bool != true else { return }
+            if let value {
+              image = value
+              if info?[PHImageResultIsDegradedKey] as? Bool != true {
+                ScopeThumbnailCache.images.setObject(value,forKey: key,cost: pixels*pixels*4)
+              }
+            }
+          }
         }
-      }.onDisappear { identity = nil; PHImageManager.default().cancelImageRequest(request) }
+      }.onDisappear { identity = nil; ScopeThumbnailCache.manager.cancelImageRequest(request) }
   }
+}
+
+/// Album/strip posters are local, cancellable and reused across choice edits.
+@MainActor private enum ScopeThumbnailCache {
+  static let manager = PHCachingImageManager()
+  static let images: NSCache<NSString, LibraryImage> = {
+    let cache = NSCache<NSString, LibraryImage>(); cache.countLimit = 120; cache.totalCostLimit = 24*1024*1024; return cache
+  }()
 }

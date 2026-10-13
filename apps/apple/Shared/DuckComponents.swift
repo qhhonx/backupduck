@@ -467,6 +467,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   var desktopMinHeight: CGFloat = 360
   var desktopIdealHeight: CGFloat = 560
   var back: (() -> Void)? = nil
+  var expandable = true
   @ViewBuilder var content: () -> Content
   @ViewBuilder var actions: () -> Actions
   @Environment(\.dismiss) private var dismiss
@@ -538,8 +539,8 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
         .frame(width: desktopWidth)
         .frame(minHeight: desktopMinHeight, idealHeight: desktopIdealHeight, maxHeight: 760)
       #else
-        .presentationDetents(textSize.isAccessibilitySize ? [.large] : [.height(fittedHeight), .large], selection: $selectedDetent)
-        .presentationDragIndicator(.visible)
+        .presentationDetents(textSize.isAccessibilitySize ? [.large] : expandable ? [.height(fittedHeight), .large] : [.height(fittedHeight)], selection: $selectedDetent)
+        .presentationDragIndicator(expandable ? .visible : .hidden)
         .presentationCornerRadius(20).iosPrototypeSheetHost()
         .onPreferenceChange(DuckSheetHeightPreference.self) { values in
           measuredHeights = values

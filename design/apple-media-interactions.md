@@ -55,7 +55,7 @@ An upward drag or Info opens an information drawer in the same viewport, moving
 the media into the remaining space. The photo remains visible. Use capture date,
 filename/type/dimensions, camera/exposure fields and an optional map for actual
 location. Missing EXIF is omitted. Location uses existing asset metadata and
-never asks for device-location permission; the map loads only when requested. Dragging the drawer down closes it;
+never asks for device-location permission; the map loads when the information panel opens. Dragging the drawer down closes it;
 a downward drag on fitted media dismisses the viewer. Reversal restores the
 original state. Zoomed media pans instead of dismissing.
 
@@ -74,17 +74,19 @@ Months merely a renamed five-column day grid.
 
 Anchor a density change to the asset under the pinch midpoint, including its
 relative location within the tile. Interpolate tile geometry and content offset
-together on every gesture frame. Keep the anchor at its vertical position under the finger until a
-content boundary prevents it; columns reflow across the available width. Keep assets by stable ID, suppress tiny media
+together on every gesture frame. Keep the anchor at its relative horizontal and vertical position while the
+fingers move. A transient horizontal translation preserves that focus; release
+restores the column edges while preserving the vertical scroll context. Content
+boundaries limit the vertical anchor. Keep assets by stable ID, suppress tiny media
 badges, and refresh high-quality targets after settling. Date headings fade
 between grouping modes; they must not abruptly shift the entire viewport.
 
 Gesture progress is linear in the finger's scale. On release, settle to the
-nearest density with a non-bouncing ease-out curve: 240 ms, control points
-(0.2, 0.8), (0.2, 1). Programmatic view changes use 300 ms with the same curve.
-These are BackupDuck's reproducible parameters, not a claim to know proprietary
-Apple/Google curves from recordings. Mac layout changes use the same anchor
-principle and 260 ms easing; trackpad magnification also updates while moving.
+nearest density over 320 ms with a normalized critically damped response
+(1 - (1 + 7t) exp(-7t)). Cancellation settles over 300 ms; menu changes use
+420 ms. These are BackupDuck's reproducible parameters, not a claim to know
+proprietary Apple/Google curves from recordings. Mac layout changes retain
+the vertical anchor principle and use the same response over 260 ms; trackpad magnification also updates while moving.
 Reduce Motion replaces spatial interpolation with immediate anchored adoption.
 
 ## Acceptance
