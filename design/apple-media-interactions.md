@@ -1,5 +1,12 @@
 # Apple media interaction contract
 
+**Revision status:** the HTML reference and local build 53 failed interaction
+acceptance. The following describes that implementation, not an approved
+experience. See the [native revision study](native-media-preview/README.md) and
+[source-backed requirements](native-media-preview/source-study.md) before
+continuing implementation. Expandable consent, button-only thumbnails, mixed
+modal coordinators and fixed calendar easing must be reconsidered together.
+
 This contract and [interactive reference](apple-media-interactions.html) refine
 the Apple library extension. Use synthetic fixtures for public references.
 
