@@ -227,6 +227,24 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     return self.asset(at: refreshed + direction)
   }
   func refreshVisiblePreviews() { contentGeneration &+= 1 }
+  /// Calendar covers can address older assets outside the incremental row
+  /// window. Expand metadata only; no thumbnail download or backup is started.
+  func preparePreviewWindow(containing token: String) async -> PHAsset? {
+    guard let fetch, let raw = Self.rawIndex(of: token, in: fetch) else { return nil }
+    if let index = index(of: token), index+1 < loaded || !hasMoreRows { return asset(at:index) }
+    guard !loading else { return nil }
+    requestGeneration &+= 1;cancelMetadata?();cancelMetadata=nil;loadingPage=false
+    let expected=requestGeneration, current=presentation
+    let job=Task.detached(priority:.userInitiated) {
+      var rows=current
+      rows.load(fetch,targetRows:max(240,current.rows.count),minimumCursor:min(fetch.count,raw+240))
+      return rows
+    }
+    let next=await withTaskCancellationHandler(operation:{await job.value},onCancel:{job.cancel()})
+    guard expected==requestGeneration,authorized,!Task.isCancelled else { return nil }
+    presentation=next;loaded=next.rows.count;generation &+= 1
+    return index(of:token).flatMap { asset(at:$0) }
+  }
   func asset(at index: Int) -> PHAsset? {
     guard let fetch, presentation.rows.indices.contains(index) else { return nil }
     return fetch.object(at: presentation.rows[index].rawIndex)
@@ -355,6 +373,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let asset: PHAsset
     let target: CGSize
     let key: NSString
+    let contentMode: PHImageContentMode
     let completion: (LibraryImage?, Bool) -> Void
     var native: PHImageRequestID = PHInvalidImageRequestID
     var cloud = false
@@ -376,7 +395,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in self?.clear() }
   }
   func size(_ requested: CGFloat) -> CGSize {
-    let edge = min(1024, max(128, (requested / 64).rounded(.up) * 64))
+    let edge = min(1024, max(64, (requested / 64).rounded(.up) * 64))
     return CGSize(width: edge, height: edge)
   }
   func poster(for asset: PHAsset) -> LibraryImage? { posters.object(forKey: asset.localIdentifier as NSString) }
@@ -388,10 +407,11 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     return options
   }
   @discardableResult func request(
-    _ asset: PHAsset, pixels: CGFloat, completion: @escaping (LibraryImage?, Bool) -> Void
+    _ asset: PHAsset, pixels: CGFloat, contentMode: PHImageContentMode = .aspectFill,
+    completion: @escaping (LibraryImage?, Bool) -> Void
   ) -> PHImageRequestID {
     let target = size(pixels)
-    let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(Int(target.width))" as NSString
+    let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(Int(target.width))|\(contentMode.rawValue)" as NSString
     if let image = cache.object(forKey: key) {
       completion(image, false)
       return PHInvalidImageRequestID
@@ -399,7 +419,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     sequence = sequence == Int32.max ? 1 : sequence + 1
     let id = sequence
     requestsStarted += 1
-    pending[id] = Pending(asset: asset, target: target, key: key, completion: completion)
+    pending[id] = Pending(asset: asset, target: target, key: key, contentMode: contentMode, completion: completion)
     start(id, network: false)
     return id
   }
@@ -407,7 +427,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     guard let item = pending[id] else { return }
     pending[id]?.cloud = network
     let request = manager.requestImage(for: item.asset, targetSize: item.target,
-      contentMode: .aspectFill, options: options(network: network, video: item.asset.mediaType == .video)) { [weak self] image, info in
+      contentMode: item.contentMode, options: options(network: network, video: item.asset.mediaType == .video)) { [weak self] image, info in
       let cancelled = info?[PHImageCancelledKey] as? Bool == true
       let degraded = info?[PHImageResultIsDegradedKey] as? Bool == true
       let cloud = info?[PHImageResultIsInCloudKey] as? Bool == true

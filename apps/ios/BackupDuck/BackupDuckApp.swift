@@ -12,6 +12,7 @@ import SwiftUI
     }
   }
   @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @State private var selectedTab = 0
   @StateObject private var model = BackupModel.shared
   @StateObject private var library = PhotoLibraryModel()
   @Environment(\.scenePhase) private var scenePhase
@@ -28,20 +29,20 @@ import SwiftUI
   }
   var body: some Scene {
     WindowGroup {
-      TabView {
+      TabView(selection: $selectedTab) {
         IOSLibraryPage(library: library, model: model).duckTabSurface().tabItem {
           Label("nav_library", systemImage: "photo.on.rectangle")
-        }
+        }.tag(0)
         IOSBackupPage(model: model).duckTabSurface().tabItem {
           Label("nav_backup", systemImage: "arrow.triangle.2.circlepath")
-        }
+        }.tag(1)
         IOSReceiverPage(model: model).duckTabSurface().tabItem {
           Label("nav_receiver", systemImage: "externaldrive.badge.wifi")
-        }
+        }.tag(2)
         IOSSettingsPage(model: model).duckTabSurface().tabItem {
           Label("nav_settings", systemImage: "gearshape")
-        }
-      }.background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
+        }.tag(3)
+      }.duckLibraryTabMinimization(selected: selectedTab == 0).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake
@@ -64,6 +65,10 @@ import SwiftUI
 }
 
 extension View {
+  @ViewBuilder func duckLibraryTabMinimization(selected: Bool) -> some View {
+    if #available(iOS 26.0, *) { self.tabBarMinimizeBehavior(selected ? .onScrollUp : .never) }
+    else { self }
+  }
   @ViewBuilder func duckTabSurface() -> some View {
     if #available(iOS 26.0, *) { self }
     else {

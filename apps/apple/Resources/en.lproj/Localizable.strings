@@ -1170,3 +1170,20 @@
 "preview_show_map" = "Show on map";
 
 "preview_loading" = "Loading preview…";
+
+"calendar_years" = "Years";
+"calendar_months" = "Months";
+"calendar_all" = "All";
+"calendar_zoom_in" = "Zoom In";
+"calendar_zoom_out" = "Zoom Out";
+"calendar_original_aspect" = "Original Aspect Grid";
+"calendar_display_options" = "Display Options";
+"calendar_navigation" = "Show navigation";
+"calendar_show_selected" = "Show Selected (%d)";
+"select" = "Select";
+"library_deselect_all" = "Deselect All";
+"calendar_backup_action" = "Back up selected";
+
+"calendar_grid_columns" = "%d columns";
+
+"calendar_zoom_changing" = "Adjusting zoom";

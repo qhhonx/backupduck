@@ -48,3 +48,14 @@ Phone detail paging uses native scroll deceleration and neighbouring live views,
 not an onEnded replacement. Information opens within the same media viewport.
 See [Apple media interactions](../apple-media-interactions.md) for reversal,
 zoom ownership, scope navigation and accessibility acceptance.
+
+The focused [iPhone calendar Grid contract](../iphone-calendar-grid.md) supersedes
+the older phone coupling of calendar grouping and density. Its cover transition
+uses one image between actual member anchors while the bounded old scene fades.
+Density settles over 380 ms with a normalized critically damped response. Bottom
+chrome minimization and calendar-accessory placement use the system transition
+on supported iPhones. Navigation-item updates retain native sizing and group
+transitions without adding operations. Legacy chrome uses an interruptible
+300 ms settle; reversal continues from the visible pose. A final single touch cannot move the two-finger focus. Range
+selection yields to a second finger and restores its baseline. Native media
+detail behavior remains a separate interaction.

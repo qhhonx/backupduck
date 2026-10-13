@@ -152,18 +152,106 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
     let total = Int(app.staticTexts["library.count"].label.filter(\.isNumber)) ?? 0
     XCTAssertGreaterThan(total, 80, "Import the isolated long-library fixture before testing an interior anchor")
-    grid.swipeUp(); grid.swipeUp()
-    let middle = try XCTUnwrap(grid.cells.allElementsBoundByIndex.filter { $0.isHittable && $0.frame.midY > 280 && $0.frame.midY < 550 }.first)
+    grid.swipeDown(); grid.swipeDown()
+    let middle = try XCTUnwrap(grid.cells.allElementsBoundByIndex.filter { $0.isHittable && $0.frame.midY > 280 && $0.frame.midY < 550 && $0.frame.midX > 130 && $0.frame.midX < 300 }.first)
     let id = middle.identifier, y = middle.frame.midY, width = middle.frame.width
     middle.pinch(withScale: 0.65, velocity: -0.6)
+    // A CADisplayLink transition does not participate in XCTest's idle tracking.
+    // Observe the real settled density before comparing accessibility geometry.
+    let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "5 columns"), object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed)
     let changed = grid.cells[id]
     XCTAssertTrue(changed.isHittable)
     XCTAssertLessThan(changed.frame.width,width)
     XCTAssertEqual(changed.frame.midY,y,accuracy: 35,"The touched photo must retain its vertical context inside a long library")
     recordWindow(app,"Mid-library pinch — same asset under the fingers")
     changed.pinch(withScale: 1.5,velocity: 0.6)
+    let expanded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "3 columns"), object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed)
     XCTAssertTrue(grid.cells[id].isHittable)
     recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
+  }
+
+  @MainActor func testLibraryNativeChromeAndSelectionGroups() throws {
+    guard #available(iOS 26.0, *) else { throw XCTSkip("Native tab morphing requires iOS 26") }
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
+    XCTAssertFalse(app.buttons["Years"].isHittable)
+    recordWindow(app,"Native Library controls — full navigation")
+    grid.swipeDown()
+    XCTAssertTrue(app.buttons["Years"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["Years"].isHittable)
+    XCTAssertFalse(app.tabBars.buttons["Backup"].isHittable)
+    recordWindow(app,"Native Library controls — minimized tab and inline calendar")
+    app.buttons["Library"].tap()
+    XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
+    XCTAssertFalse(app.buttons["Years"].isHittable)
+    app.buttons["library.select_mode"].tap()
+    XCTAssertTrue(app.buttons["library.filter"].isHittable)
+    XCTAssertEqual(app.buttons["library.select_mode"].label, "Done")
+    let photo = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 260 && $0.frame.midY < 600 })
+    photo.tap()
+    XCTAssertTrue(app.buttons["calendar.review_selected"].isHittable)
+    XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("1"))
+    recordWindow(app,"Native selection — existing filter, close, readable count")
+    app.buttons["library.select_mode"].tap()
+    XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
+    recordWindow(app,"Native selection exits — restored navigation")
+  }
+
+  @MainActor func testCalendarGridHierarchyAndSelectedReview() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let grid=app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout:10))
+    grid.swipeDown()
+    XCTAssertTrue(app.buttons["Years"].waitForExistence(timeout:5));app.buttons["Years"].tap()
+    let year = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
+    recordWindow(app,"iPhone calendar — year covers")
+    year.tap()
+    XCTAssertTrue(app.buttons["Months"].isSelected)
+    recordWindow(app,"iPhone calendar — month day mosaic")
+    let day = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
+    let id=day.identifier;day.tap()
+    XCTAssertTrue(grid.cells[id].waitForExistence(timeout:5))
+    XCTAssertTrue(grid.cells[id].isHittable,"Drill-down retains the chosen day cover as the All-grid destination")
+    recordWindow(app,"iPhone calendar — All at the chosen day")
+    app.buttons["library.select_mode"].tap()
+    let cell=try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable });cell.tap()
+    XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("1"))
+    app.buttons["calendar.review_selected"].tap()
+    let review=app.collectionViews["calendar.selected_grid"]
+    XCTAssertTrue(review.waitForExistence(timeout:5));XCTAssertEqual(review.cells.count,1)
+    recordWindow(app,"iPhone calendar — selected items only")
+    app.buttons["Deselect All"].tap()
+    XCTAssertTrue(app.navigationBars.staticTexts.containing(NSPredicate(format:"label CONTAINS '0'")).firstMatch.exists)
+    app.navigationBars.buttons.element(boundBy:0).tap()
+    XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("0"))
+  }
+
+  @MainActor func testCalendarDisplayOptionsDarkAndLargeText() throws {
+    continueAfterFailure=false
+    let app=XCUIApplication()
+    app.launchArguments=["-AppleLanguages","(en)","-AppleLocale","en_US","-duckAppearance","dark",
+      "-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXL"]
+    launchIsolated(app)
+    let grid=app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout:10))
+    app.buttons["library.filter"].tap();app.buttons["Display Options"].tap();app.buttons["Zoom Out"].tap()
+    XCTAssertTrue(app.buttons["library.select_mode"].isHittable)
+    recordWindow(app,"iPhone calendar — dark larger type and zoom menu")
+    app.buttons["library.filter"].tap();app.buttons["Display Options"].tap();app.buttons["Original Aspect Grid"].tap()
+    recordWindow(app,"iPhone calendar — original aspect thumbnails")
+    grid.swipeDown()
+    XCTAssertTrue(app.buttons["Years"].waitForExistence(timeout:5));app.buttons["Years"].tap()
+    recordWindow(app,"iPhone calendar — year covers in dark appearance")
   }
 
   @MainActor func testMediaPreviewLargeTextConsentAndInformation() throws {
@@ -266,25 +354,24 @@ final class SettingsTests: XCTestCase {
     guard grid.waitForExistence(timeout: 10), grid.cells.count >= 2 else {
       throw XCTSkip("Requires the isolated synthetic photo library")
     }
-    let first = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
-    let id = first.identifier
-    let mode = app.buttons["library.view_mode"]
-    mode.tap(); app.buttons["Days"].tap()
-    XCTAssertTrue(app.staticTexts["library.timeline.date"].waitForExistence(timeout: 5))
+    grid.swipeDown()
+    app.buttons["Months"].tap()
+    XCTAssertTrue(app.staticTexts["calendar.date_badge"].firstMatch.waitForExistence(timeout:5))
+    let day=try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
+    let id=day.identifier;day.tap()
     XCTAssertTrue(grid.cells[id].isHittable)
-    let dayWidth = grid.cells[id].frame.width
-    recordWindow(app, "Library day view")
-    grid.cells[id].pinch(withScale: 0.6, velocity: -1)
-    XCTAssertTrue(grid.cells[id].waitForExistence(timeout: 5))
-    XCTAssertLessThan(grid.cells[id].frame.width, dayWidth)
-    recordWindow(app, "Library month view after pinch")
-    mode.tap(); app.buttons["All photos"].tap()
-    recordWindow(app, "Library all view after month")
-    XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: grid.cells[id])], timeout: 5), .completed)
-    grid.cells[id].tap()
-    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 10))
+    let interior=try XCTUnwrap(grid.cells.allElementsBoundByIndex.first {
+      $0.isHittable && $0.frame.midY>280 && $0.frame.midY<550
+    })
+    let focusedID=interior.identifier,width=interior.frame.width
+    interior.pinch(withScale:0.65,velocity:-0.6)
+    XCTAssertTrue(grid.cells[focusedID].isHittable)
+    XCTAssertLessThan(grid.cells[focusedID].frame.width,width)
+    recordWindow(app,"Calendar drill-down and independent All-grid density")
+    grid.cells[focusedID].tap()
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout:10))
     app.buttons["library.preview.close"].tap()
-    XCTAssertTrue(grid.cells[id].isHittable)
+    XCTAssertTrue(grid.cells[focusedID].isHittable)
   }
 
   @MainActor func testNativeVideoPreviewAndLargeDarkLibrary() throws {
@@ -1150,6 +1237,7 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(navigation(app, 0).waitForExistence(timeout: 20)); navigation(app, 0).tap()
     let grid = app.collectionViews["library.grid"]
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    grid.swipeDown();grid.swipeDown()
     guard let first = grid.cells.allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.minY > grid.frame.minY }) else { throw XCTSkip("Requires synthetic gallery") }
     let id = first.identifier
     let edge = grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.96))
@@ -1174,8 +1262,8 @@ final class SettingsTests: XCTestCase {
     first.press(forDuration: 0.5, thenDragTo: fourth, withVelocity: .slow, thenHoldForDuration: 0)
     XCTAssertTrue(app.buttons["library.select_mode"].waitForExistence(timeout: 5))
     XCTAssertGreaterThanOrEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 4)
-    let backup = app.buttons["library.backup_selected_footer"]
-    XCTAssertTrue(backup.exists); XCTAssertLessThan(backup.frame.maxY, grid.frame.minY + 2, "Backup is in the selection toolbar")
+    let backup = app.buttons["calendar.backup_selected"]
+    XCTAssertTrue(backup.exists);XCTAssertGreaterThan(backup.frame.minY,grid.frame.midY,"Backup stays in the bottom selection controls")
     let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Native continuous selection toolbar"; image.lifetime = .keepAlways; add(image)
     first.press(forDuration: 0.5, thenDragTo: fourth, withVelocity: .slow, thenHoldForDuration: 0)
     XCTAssertEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 0, "Dragging from an already selected item removes that range")
@@ -1201,8 +1289,8 @@ final class SettingsTests: XCTestCase {
       throw XCTSkip("Requires the isolated simulator's synthetic photo library; this test never imports user photos")
     }
     let mode = app.buttons["library.select_mode"]
-    XCTAssertFalse(mode.exists, "Browsing enters selection by long press, not a separate Select button")
-    XCTAssertFalse(app.buttons["library.backup_selected_footer"].exists, "Browsing must not show the selected-upload action")
+    XCTAssertTrue(mode.isHittable,"Browsing offers an explicit Select action")
+    XCTAssertFalse(app.buttons["calendar.backup_selected"].exists, "Browsing must not show the selected-upload action")
     let first = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
     let photoID = first.identifier, position = first.frame.minY
     let browseImage = XCTAttachment(screenshot: app.screenshot())
@@ -1218,22 +1306,22 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
     XCTAssertTrue(grid.cells[photoID].isHittable)
     XCTAssertEqual(grid.cells[photoID].frame.minY, position, accuracy: 3, "Preview dismissal retains the same scroll anchor")
-    XCTAssertFalse(mode.exists)
+    XCTAssertEqual(mode.label,"Select")
     try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).press(forDuration: 0.45)
     XCTAssertTrue(mode.waitForExistence(timeout: 10)); XCTAssertEqual(mode.label, "Done")
     XCTAssertFalse(app.buttons["library.preview.close"].exists, "Long press selects instead of also opening preview")
-    let upload = app.buttons["library.backup_selected_footer"]
-    XCTAssertTrue(upload.waitForExistence(timeout: 10)); XCTAssertTrue(upload.isHittable)
+    let upload = app.buttons["calendar.backup_selected"]
+    XCTAssertTrue(upload.waitForExistence(timeout: 10))
     for _ in 0..<6 {
       grid.swipeUp()
-      XCTAssertTrue(upload.isHittable, "Selection action stays fixed while the native collection scrolls")
-      XCTAssertTrue(app.staticTexts["page.header.title"].label.contains("1"), "The toolbar shows the selected count")
+      XCTAssertTrue(upload.exists,"Selection action stays fixed while the native collection scrolls")
+      XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("1"), "The review control shows the selected count")
     }
     let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Library selection — fixed footer after continuous scrolling"
     screenshot.lifetime = .keepAlways; add(screenshot)
-    mode.tap(); XCTAssertFalse(mode.exists)
-    XCTAssertFalse(app.buttons["library.backup_selected_footer"].exists)
-    XCTAssertFalse(app.staticTexts["library.selection_count"].exists)
+    mode.tap();XCTAssertEqual(mode.label,"Select")
+    XCTAssertFalse(app.buttons["calendar.backup_selected"].exists)
+    XCTAssertFalse(app.buttons["calendar.review_selected"].exists)
     // The action may be disabled without pairing; no transmission is invoked.
   }
 

@@ -63,9 +63,15 @@ The [Apple media interaction contract](apple-media-interactions.md) and its
 searchable album scope, continuous media paging and anchored density changes.
 Use this reference for those flows instead of older inline scope/preview examples.
 
-The HTML reference and local acceptance build 53 did not establish usable media
-gesture quality. The [native media reference](native-media-preview/README.md)
-now provides an independently runnable UIKit interaction study and
+HTML references do not establish native media gesture quality. The
+[native media reference](native-media-preview/README.md) provides an independently
+runnable UIKit interaction study and
 [source-backed revision requirements](native-media-preview/source-study.md).
-This is a design workbench, not an accepted production replacement. Grouped
-calendar morphing and production media/loading performance remain unresolved.
+Keep workbench evidence separate from production verification and physical-device
+acceptance. Native calendar behavior follows the focused phone contract below;
+media detail behavior remains a separate iteration.
+
+The [iPhone calendar Grid contract](iphone-calendar-grid.md) and
+[native Grid workbench](native-grid-preview/README.md) separate Years/Months/All
+browsing from All-grid density. They supersede the phone All/Days/Months coupling
+in older references; desktop behavior remains separate.

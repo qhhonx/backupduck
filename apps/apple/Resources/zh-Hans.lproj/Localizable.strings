@@ -1170,3 +1170,20 @@
 "preview_show_map" = "查看地图";
 
 "preview_loading" = "正在加载清晰预览…";
+
+"calendar_years" = "年";
+"calendar_months" = "月";
+"calendar_all" = "全部";
+"calendar_zoom_in" = "放大";
+"calendar_zoom_out" = "缩小";
+"calendar_original_aspect" = "原始比例网格";
+"calendar_display_options" = "显示选项";
+"calendar_navigation" = "显示导航";
+"calendar_show_selected" = "显示所选内容（%d）";
+"select" = "选择";
+"library_deselect_all" = "取消全选";
+"calendar_backup_action" = "备份所选";
+
+"calendar_grid_columns" = "%d 列";
+
+"calendar_zoom_changing" = "正在调整缩放";

@@ -724,6 +724,64 @@ struct IOSLibraryGrid: UIViewRepresentable {
 struct IOSLibraryPage: View {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject var model: BackupModel
+  var body: some View {
+    if UIDevice.current.userInterfaceIdiom == .phone { IOSCalendarLibraryPage(library: library, model: model) }
+    else { IOSLegacyLibraryPage(library: library, model: model) }
+  }
+}
+
+private struct IOSCalendarLibraryPage: View {
+  @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject var model: BackupModel
+  @State private var rebackupReceivedSelection = false
+  @State private var confirmSelectedBackup = false
+  @State private var preview: IOSPreviewItem?
+  var body: some View {
+    Group {
+      if let placeholder = library.placeholder {
+        NavigationStack {
+          LibraryPlaceholder(kind:placeholder,requestingAccess:library.requestingPermission,
+            requestAccess:{Task { await library.open(requestPermission:true) }},
+            clearFilter:{Task { await library.changeFilter(.all) }})
+            .navigationTitle("nav_library")
+        }
+      } else {
+        IOSCalendarLibrary(library:library,model:model,onPreview:{ asset,frame in
+          var transaction=Transaction();transaction.disablesAnimations=true
+          withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.thumbnails.poster(for:asset)) }
+        },onBackup:showBackupConfirmation).ignoresSafeArea(.container)
+      }
+    }.background(DuckColors.canvas).tint(DuckColors.action)
+      .task { await library.open() }
+      .onAppear { library.refreshVisiblePreviews() }
+      .onDisappear { library.thumbnails.clear() }
+      .sheet(isPresented:$confirmSelectedBackup) { selectedBackupConfirmation }
+      .background(IOSPreviewPresentation(item:preview,library:library) { preview=nil }.frame(width:0,height:0))
+  }
+  private func showBackupConfirmation() {
+    rebackupReceivedSelection = false
+    confirmSelectedBackup = true
+  }
+  private var selectedBackupConfirmation: some View {
+    DuckSelectedBackup(count: library.selection.count, rebackup: $rebackupReceivedSelection,
+      failureMessage: { model.message.flatMap { $0.isEmpty ? nil : $0 } }) {
+      let rebackup = rebackupReceivedSelection
+      return await backupSelection(rebackupReceived: rebackup)
+    }
+  }
+  private func backupSelection(rebackupReceived: Bool) async -> Bool {
+    let tokens = library.selection
+    let ids = await library.selectedAssetIdentifiers(tokens)
+    let accepted = await model.backupSelectedAssets(ids, rebackupReceived: rebackupReceived)
+    if accepted {
+      library.selection.subtract(tokens)
+    }
+    return accepted
+  }
+}
+private struct IOSLegacyLibraryPage: View {
+  @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject var model: BackupModel
   @State private var confirmSelectedBackup = false
   @State private var rebackupReceivedSelection = false
   @State private var selecting = false

@@ -175,6 +175,11 @@ excluding items. Folder rules remain source-specific, separate from Photos album
 
 ## Library time views
 
+On iPhone, use the [calendar Grid contract](iphone-calendar-grid.md): Years,
+Months and All are a cover hierarchy, with independent All-grid density. Full
+navigation, compact calendar browsing and selected-item actions are mutually
+exclusive bottom states. The following grouped time modes remain desktop rules.
+
 All/Days/Months are presentation modes over the same filtered, sorted asset IDs.
 Days group by local-calendar capture day; Months group by capture month and use
 denser thumbnails. Missing capture dates form an explicitly unknown group.
