@@ -1204,3 +1204,11 @@
 "library_deselect_item" = "Deselect Item";
 "library_select_item" = "Select Item";
 "library_return_selected" = "Back to Selected Items";
+
+"library_thumbnail_cache" = "Library thumbnails";
+
+"library_thumbnail_clear" = "Clear thumbnails";
+
+"library_thumbnail_cache_help" = "Stores previews sized for each grid and cover. The cache is rebuilt as needed, evicts older previews automatically, and never stores originals or backup files.";
+
+"library_thumbnail_used" = "Thumbnails used";

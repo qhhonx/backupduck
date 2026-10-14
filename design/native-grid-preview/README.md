@@ -4,18 +4,18 @@ This native workbench separates calendar hierarchy (Years / Months / All) from
 All-grid thumbnail density. It uses generated illustrations and capture dates;
 no private photo, sync status, account or transfer data is embedded.
 
-Years use cover cards. Months group day covers into a mosaic. Tapping a cover
+Years use cover cards. Months sample at most six day covers into one mosaic per month, preserving every member for navigation. Tapping a cover
 preserves the chosen asset as the destination anchor at the next level. The All
 view remains a chronological, virtualized collection. Its held pinch can cross
 one/three/five columns and dense month/year overviews, with a terminal year
 overview. Cover-index pinch moves Years → Months → All separately. On iOS 26+, native TabBar minimization owns the
-full-bar-to-compact-button motion. Its inline accessory holds Years/Months/All;
-no second accessory row remains above full navigation. Native navigation items
+full-bar-to-compact-button motion. A centered material surface holds Years/Months/All alongside the compact button;
+no accessory row is installed above full navigation. Native navigation items
 provide the existing filter and Select/Close actions with native sizing and
 transitions. A compact centered selection review retains the app action surface, with Select Items
 at zero selection and check marks only on selected photos. Backup sits beside the
-filter in the native header. Native accessory traits are checked after transition
-settling, so temporary regular placement cannot remove inline controls. Pinch
+filter in the native header. Actual compact-button visibility owns the period surface; it is not detached
+by timers or temporary accessory traits. Pinch
 retains its initial focal point and suspends panning; loaded pixels survive reflow. Older systems retain a
 readable material-based navigation/browsing/selection fallback.
 
@@ -52,6 +52,7 @@ Use Xcode with the iOS SDK and XcodeGen. From the repository root, copy the four
 workbench files to an ignored build directory, generate and build there:
 
 ```sh
+python3 design/native-grid-preview/sync-controller.py --check
 mkdir -p build/grid-preview
 cp design/native-grid-preview/*.swift design/native-grid-preview/project.yml build/grid-preview/
 xcodegen generate --spec build/grid-preview/project.yml
@@ -78,13 +79,25 @@ covers for native muted playback checks. Year slides use actual metadata month
 representatives. Playback/rotation pauses during scroll, reduced motion, low power
 or background. This fixture does not verify real PhotoKit/iCloud video loading.
 
-## Inline controls and scale release
+## Compact controls and scale release
 
-The native accessory environment owns calendar-control visibility. A history drag
-installs it before minimization; expansion removes the regular row immediately.
-No timeout detaches an inline control. The title/subtitle use white media contrast
+Public native control visibility owns calendar-control visibility. Contraction
+reveals the period surface from below; expansion fades it without creating a
+regular accessory row. No timeout detaches a compact control. The title/subtitle use white media contrast
 over a translucent black edge, with a 6 pt trailing gap beyond the native safe
 area. Selection preserves hierarchy and density; overview taps enlarge before
 selection, and two-finger scaling remains available. Phone options omit original
 aspect. Scale release adopts the visible next density using the last valid
 two-touch pose, with a critically damped 360 ms settlement.
+
+After changing production Grid behavior, run `sync-controller.py` to update the
+standalone controller, then `--check` before building. This only writes the
+reference controller; it never resets production source. The reference preserves
+its generated images, system-color mapping and English accessibility identifiers.
+Each generated image contains its own asset number so wrong viewport membership
+is visible during intermediate-frame inspection. Pixel rendering resolves the
+UIImage directly, independently of hidden view-layer display commits.
+
+Generated thumbnail dimensions are pixels, with renderer scale one and cache
+costs calculated from actual image bytes. Applying the screen multiplier again
+would invalidate the bounded-cache fixture and can hide or invent eviction bugs.

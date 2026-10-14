@@ -412,9 +412,43 @@ extension View {
 private struct IOSStoragePreferences: View {
   @ObservedObject var model: BackupModel
   let scope: StoragePreferenceScope
+  @State private var thumbnailBytes = 0
+  @State private var thumbnailBudget = 256
+  @State private var clearingThumbnails = false
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
+        if scope == .cache {
+          IOSPreferenceSection(title:"library_thumbnail_cache") {
+            IOSPreferenceRow(title:"library_thumbnail_used",controlColumnWidth:120) {
+              IOSStorageValue(value:bytes(UInt64(thumbnailBytes)),adjustable:false)
+            }
+            Divider()
+            IOSPreferenceRow(title:"storage_cache_budget",controlColumnWidth:120) {
+              Picker("storage_cache_budget",selection:Binding(get:{ thumbnailBudget },set:{ value in
+                thumbnailBudget = value
+                Task { await ThumbnailDiskCache.shared.setBudget(value); thumbnailBytes = await ThumbnailDiskCache.shared.usage() }
+              })) { ForEach([64,128,256,512,1024],id: \.self) { Text("\($0) MB").tag($0) } }
+                .pickerStyle(.menu).accessibilityIdentifier("settings.thumbnail_budget")
+            }
+            Divider()
+            Button {
+              clearingThumbnails = true
+              Task {
+                await ThumbnailDiskCache.shared.removeAll()
+                NotificationCenter.default.post(name:Notification.Name("LibraryThumbnailsCleared"),object:nil)
+                thumbnailBytes = await ThumbnailDiskCache.shared.usage(); clearingThumbnails = false
+              }
+            } label: {
+              IOSPreferenceRow(title:"library_thumbnail_clear",symbol:"trash") { EmptyView() }
+            }.buttonStyle(.plain).disabled(clearingThumbnails)
+              .accessibilityIdentifier("settings.thumbnail_clear")
+          }.task {
+            thumbnailBytes = await ThumbnailDiskCache.shared.usage()
+            thumbnailBudget = await ThumbnailDiskCache.shared.budgetMB
+          }
+          Text("library_thumbnail_cache_help").font(.footnote).foregroundStyle(DuckColors.textSecondary)
+        }
         if let snapshot = model.storage {
           if scope == .cache {
             IOSPreferenceSection(title: "ios_cache_preparation_group") {

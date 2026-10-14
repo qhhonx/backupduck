@@ -73,13 +73,14 @@ final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
       guard let self else { return {} }
       let index = Int(asset.id.split(separator: "-").last ?? "0") ?? 0
       let side = min(1000, max(64, Int(pixels)))
-      let key = "\(index%72)|\(side/100)" as NSString
+      let key = "\(index)|\(side/100)" as NSString
       if let cached = self.images.object(forKey: key) {
         done(cached, false)
         return {}
       }
+      let format = UIGraphicsImageRendererFormat(); format.scale = 1
       let renderer = UIGraphicsImageRenderer(
-        size: CGSize(width: side, height: Int(CGFloat(side) / asset.aspect)))
+        size: CGSize(width: side, height: Int(CGFloat(side) / asset.aspect)),format:format)
       let image = renderer.image { context in
         let c = context.cgContext
         let b = CGRect(x: 0, y: 0, width: side, height: Int(CGFloat(side) / asset.aspect))
@@ -106,8 +107,17 @@ final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
           c.fillPath()
         }
       }
-      self.images.setObject(image, forKey: key, cost: side * side * 4)
-      done(image, false)
+      let numbered = UIGraphicsImageRenderer(size:image.size,format:format).image { _ in
+        image.draw(at:.zero)
+        let text = "\(index)"
+        let attributes: [NSAttributedString.Key:Any] = [
+          .font:UIFont.monospacedDigitSystemFont(ofSize:max(12,CGFloat(side)*0.18),weight:.bold),
+          .foregroundColor:UIColor.white]
+        let textSize = text.size(withAttributes:attributes)
+        text.draw(at:CGPoint(x:(image.size.width-textSize.width)/2,y:image.size.height*0.7),withAttributes:attributes)
+      }
+      self.images.setObject(numbered, forKey: key, cost: numbered.cgImage.map { $0.bytesPerRow*$0.height } ?? side*side*4)
+      done(numbered, false)
       return {}
     }
     grid.onPreview = { _, _ in }

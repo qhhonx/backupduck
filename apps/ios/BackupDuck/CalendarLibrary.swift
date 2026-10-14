@@ -88,6 +88,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     grid.loadViewIfNeeded()
     grid.canBackup = model.pairing != nil && !model.importing
     grid.displayedTotal = library.total
+    grid.indexing = library.fetch == nil || library.loading || c.work != nil
     if grid.selected != library.selection {
       grid.selected = library.selection
       grid.refreshSelection()
@@ -142,6 +143,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       fetch = parent.library.fetch
       positions = [:]
       guard let fetch else {
+        work = nil
         controller?.replaceAssets([])
         return
       }
@@ -183,6 +185,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         let result = await withTaskCancellationHandler(
           operation: { await job.value }, onCancel: { job.cancel() })
         guard let self, !Task.isCancelled, self.epoch == version else { return }
+        self.work = nil
         self.positions = result.1
         self.controller?.indexing = false
         self.controller?.replaceAssets(result.0)
@@ -207,11 +210,12 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       }
     }
     func refreshStates() {
-      if let grid = controller, !grid.changing, CACurrentMediaTime()-lastPreheat > 0.12 {
+      if let grid = controller, CACurrentMediaTime()-lastPreheat > 0.12 {
         lastPreheat = CACurrentMediaTime()
         let viewport = grid.grid.bounds.insetBy(dx: 0,dy: -grid.grid.bounds.height*0.35)
         let range = grid.layout.geometry.visible(in: viewport)
-        let capacity = grid.level == .all && grid.columns >= 10 ? 256 : 48
+        let visibleCount = grid.layout.geometry.visible(in:grid.grid.bounds).count
+        let capacity = grid.level == .all && grid.columns >= 10 ? min(3072,max(256,visibleCount*3/2)) : 48
         let center = grid.layout.geometry.visible(in: grid.grid.bounds).lowerBound
         let first = max(range.lowerBound,center-capacity/4)
         let nearby = (first..<max(first,min(range.upperBound,first+capacity))).compactMap { i -> PHAsset? in

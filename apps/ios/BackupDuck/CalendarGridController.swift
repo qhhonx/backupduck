@@ -104,23 +104,22 @@ struct CalendarGridGeometry {
       }
     case .months:
       y = 12
-      let unit = (width - 52) / 3
       for (month, range) in buckets(.month, range: assets.indices) {
         let title =
           month.map { $0.formatted(.dateTime.year().month(.wide)) }
           ?? NSLocalizedString("design_capture_unknown", comment: "")
         headings.append((title, CGRect(x: 20, y: y, width: width - 40, height: 40)))
         y += 48
-        let days = buckets(.day, range: range)
-        var cursor = 0
-        var block = 0
-        while cursor < days.count {
-          let remaining = days.count - cursor
-          var count = min(6, remaining)
-          if remaining > 6 {
-            count = block % 2 == 0 ? 5 : 6
-            if remaining - count < 4 { count = remaining - 4 }
-          }
+        let allDays = buckets(.day, range: range)
+        // Sample at most six day covers, retaining every period member for navigation.
+        let count = min(6, allDays.count)
+        let days = (0..<count).map { slot -> (Date?, Range<Int>) in
+          let first = slot * allDays.count / count
+          let last = (slot + 1) * allDays.count / count - 1
+          return (allDays[last].0, allDays[first].1.lowerBound..<allDays[last].1.upperBound)
+        }
+        let cursor = 0, block = 0
+        if count > 0 {
           let content = width - 40
           let gap: CGFloat = 6
           let u = (content - gap * 2) / 3
@@ -174,8 +173,6 @@ struct CalendarGridGeometry {
                 label: label, frame: frames[slot]))
           }
           y = (frames.map(\.maxY).max() ?? y) + 16
-          cursor += count
-          block += 1
         }
         y += 16
       }
@@ -186,7 +183,7 @@ struct CalendarGridGeometry {
           ? $0.frame.minX < $1.frame.minX : $0.frame.minY < $1.frame.minY
       }
     }
-    height = y + 16
+    height = level == .all ? max(0, y - 2) : y + 16
     maximumTileHeight = tiles.map { $0.frame.height }.max() ?? 1
   }
   func visible(in rectangle: CGRect) -> Range<Int> {
@@ -548,33 +545,65 @@ final class CalendarSelectionControls: UIView {
       x: (bounds.width - width) / 2, y: 0, width: width, height: bounds.height)
   }
 }
-@available(iOS 26.0, *)
-final class CalendarAccessoryContent: UIView {
-  private(set) var content: UIView
-  var onEnvironment: (() -> Void)?
-  init(_ content: UIView) {
-    self.content = content
-    super.init(frame: .zero)
-    addSubview(content)
-    registerForTraitChanges([UITraitTabAccessoryEnvironment.self]) {
-      (view: CalendarAccessoryContent, _: UITraitCollection) in view.onEnvironment?()
+/// Observe the native bar's public control geometry/visibility. No private class
+/// names, selectors or state keys are used. An accessory would reserve an empty
+/// regular row; the period surface instead occupies the free compact-bar region.
+final class CalendarNativeBarObserver: NSObject {
+  weak var owner: CalendarGridController?
+  var link: CADisplayLink?
+  weak var compactControl: UIControl?
+  init(owner: CalendarGridController) { self.owner = owner }
+  func start() {
+    stop()
+    let display = CADisplayLink(target:self,selector:#selector(sample))
+    display.preferredFrameRateRange = CAFrameRateRange(minimum:30,maximum:60,preferred:60)
+    display.add(to:.main,forMode:.common); link = display
+  }
+  func stop() {
+    link?.invalidate(); link = nil
+    compactControl?.removeTarget(self,action:#selector(expand),for:.touchDown); compactControl = nil
+  }
+  @objc func expand() {
+    owner?.nativeExpansionRequested = true
+    owner?.showNativePeriod(false,icon:nil)
+  }
+  @objc func sample() {
+    guard let owner, owner.active, !owner.selecting, let tabs = owner.tabBarController,
+      !tabs.tabBar.isHidden else { owner?.showNativePeriod(false,icon:nil); return }
+    let bar = tabs.tabBar
+    func compactControls(_ view: UIView, opacity: CGFloat) -> [(CGRect,CGFloat,UIControl)] {
+      let visibility = opacity * (view.isHidden ? 0 : CGFloat(view.layer.presentation()?.opacity ?? Float(view.alpha)))
+      var result: [(CGRect,CGFloat,UIControl)] = []
+      if let control = view as? UIControl, view.bounds.width >= 36,
+        view.bounds.height >= 36, view.bounds.height <= 64 {
+        result.append((view.convert(view.bounds,to:tabs.view),visibility,control))
+      }
+      for child in view.subviews { result += compactControls(child,opacity:visibility) }
+      return result
     }
+    let controls = compactControls(bar,opacity:1)
+    let titles = Set((bar.items ?? []).compactMap { $0.title })
+    func fullCaptionOpacity(_ view: UIView, opacity: CGFloat) -> CGFloat {
+      let visibility = opacity * (view.isHidden ? 0 : CGFloat(view.layer.presentation()?.opacity ?? Float(view.alpha)))
+      let own: CGFloat = (view as? UILabel).flatMap { $0.text }.map { titles.contains($0) ? visibility : 0 } ?? 0
+      return max(own,view.subviews.map { fullCaptionOpacity($0,opacity:visibility) }.max() ?? 0)
+    }
+    let captions = fullCaptionOpacity(bar,opacity:1)
+    let fullVisibility = max(captions,controls.filter { $0.0.width > 70 }.map { $0.1 }.max() ?? 0)
+    let icon = controls.first { $0.0.width <= 64 && $0.1 > 0.1 }
+    if let button = icon?.2, compactControl !== button {
+      compactControl?.removeTarget(self,action:#selector(expand),for:.touchDown)
+      compactControl = button; button.addTarget(self,action:#selector(expand),for:.touchDown)
+    }
+    if fullVisibility > 0.01 {
+      // Finish the outgoing fade before full native controls enter the same region.
+      owner.periodSurface.layer.removeAllAnimations()
+      owner.periodSurface.alpha = 0; owner.periodSurface.isHidden = true
+    }
+    if fullVisibility > 0.5 { owner.nativeExpansionRequested = false }
+    // Presentation opacity follows the native transition, unlike its already-set model alpha.
+    owner.showNativePeriod(icon != nil && fullVisibility < 0.01 && !owner.nativeExpansionRequested,icon:icon?.0)
   }
-  required init?(coder: NSCoder) { fatalError() }
-  var inline: Bool { traitCollection.tabAccessoryEnvironment == .inline }
-  override var intrinsicContentSize: CGSize {
-    CGSize(width: UIView.noIntrinsicMetric,height: 48)
-  }
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    // Center the period labels on the screen, even though the inline slot
-    // begins after the native compact Library icon.
-    let screenWidth = window?.bounds.width ?? bounds.width
-    let origin = convert(.zero,to: window).x
-    let width = min(bounds.width-8,max(180,screenWidth-144))
-    content.frame = CGRect(x: max(4,screenWidth/2-origin-width/2),y: 4,width: width,height: max(1,bounds.height-8))
-  }
-
 }
 
 final class CalendarZoomScene: UIView {
@@ -634,11 +663,12 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
   ) -> Bool {
     let compact: Bool
     if #available(iOS 26.0, *) {
-      compact = owner?.accessoryVisible == true
+      compact = owner?.nativeBarCompact == true
     } else {
       compact = owner?.chrome == .browsing
     }
     beganCompact = compact
+    if compact { owner?.nativeExpansionRequested = true; owner?.showNativePeriod(false,icon:nil) }
     let allowed =
       previous?.tabBarController?(tabBarController, shouldSelect: viewController) ?? true
     return allowed
@@ -655,10 +685,11 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
   func tabBarController(_ tabBarController: UITabBarController, shouldSelectTab tab: UITab) -> Bool
   {
     if #available(iOS 26.0, *) {
-      beganCompact = owner?.accessoryVisible == true
+      beganCompact = owner?.nativeBarCompact == true
     } else {
       beganCompact = owner?.chrome == .browsing
     }
+    if beganCompact { owner?.nativeExpansionRequested = true; owner?.showNativePeriod(false,icon:nil) }
     return previous?.tabBarController?(tabBarController, shouldSelectTab: tab)
       ?? tab.viewController.flatMap {
         previous?.tabBarController?(tabBarController, shouldSelect: $0)
@@ -687,7 +718,9 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
 }
 
 final class CalendarNavigationController: UINavigationController {
-  override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+  override var preferredStatusBarStyle: UIStatusBarStyle {
+    (topViewController as? CalendarGridController)?.assets.isEmpty == true ? .default : .lightContent
+  }
 }
 
 final class CalendarGridController: UIViewController, UICollectionViewDataSource,
@@ -711,12 +744,16 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     return {}
   }
   var zoomScene: CalendarZoomScene?, zoomRefresh: DispatchWorkItem?
+  var zoomPixelRequests: [() -> Void] = []
   var zoomStartLevel = CalendarGridLevel.all, zoomTargetLevel = CalendarGridLevel.all
   var zoomStartOffset = CGPoint.zero, zoomStartAsset = 0, zoomSourceWidth: CGFloat = 1
   struct ZoomFrame {
     var image: UIImage
     let point: CGPoint
     let width: CGFloat
+    let viewport: CGRect
+    let geometry: CalendarGridGeometry
+    var painted: Set<String>
   }
   var zoomFrames: [Int: ZoomFrame] = [:]
   var zoomSourceColumns = 3, zoomDestinationColumns = 5
@@ -724,7 +761,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var zoomProgress: CGFloat = 0
   var zoomLastScale: CGFloat = 1, zoomReleaseColumns = 3
   var zoomOutward = false
-  var accessoryReachedInline = false
   var coverTimer: Timer?, coverCancel: (() -> Void)?, coverPlaybackID: String?
   weak var playingCoverCell: CalendarGridCell?
   var focusedCoverPeriod: String?
@@ -752,14 +788,15 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   let browsingControls = UIView(), selectionControls = CalendarSelectionControls(),
     periodSurface = UIVisualEffectView()
   var selectedButton: UIButton { selectionControls.countButton }
-  var accessoryCheck: DispatchWorkItem?
   let transitionImages = NSCache<NSString, UIImage>()
+  var periodFocusAssetID: String?
   var subtitleRange: ClosedRange<Int>?
   var subtitleAtRecentEdge: Bool?
   var subtitleIndexing: Bool?, subtitleTotal: Int?
   var denseDateLabels: [Date: String] = [:]
   enum Chrome { case navigation, browsing, selection }
-  var nativeAccessory: AnyObject?, installingAccessory = false
+  var nativeBarObserver: CalendarNativeBarObserver?
+  var nativeExpansionRequested = false
   var chrome: Chrome = .navigation, chromeMotion: UIViewPropertyAnimator?,
     expandedNavigation = false
   var filterItem: UIBarButtonItem!, selectItem: UIBarButtonItem!, closeItem: UIBarButtonItem!,
@@ -771,7 +808,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var anchor: Int?, anchorFraction = CGPoint(x: 0.5, y: 0.5), anchorPoint = CGPoint.zero
   var leadingSlots = 0, startLeadingSlots = 0
   var startColumns = 3
-  var width: CGFloat = 0, hasPosition = false, changing = false, accessoryVisible = false
+  var width: CGFloat = 0, hasPosition = false, changing = false, nativeBarCompact = false
   var geometryCache: [String: CalendarGridGeometry] = [:], geometryVersion = UUID(),
     geometryWork: Task<Void, Never>?
   let intervalFormatter: DateIntervalFormatter = {
@@ -936,12 +973,18 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       tabs.tabBarMinimizeBehavior = .onScrollUp
       contentOwner?.setContentScrollView(grid, for: .all)
     }
+    if #available(iOS 26.0, *) {
+      if nativeBarObserver == nil { nativeBarObserver = CalendarNativeBarObserver(owner:self) }
+      nativeBarObserver?.start()
+    }
     rebuildIfNeeded()
     updateChrome()
   }
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
     active = false
+    nativeBarObserver?.stop()
+    showNativePeriod(false,icon:nil)
     stopCoverPlayback()
     coverTimer?.invalidate()
     coverTimer = nil
@@ -958,11 +1001,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     coverTimer?.invalidate()
     coverTimer = nil
     stopCoverPlayback()
-    accessoryCheck?.cancel()
+    periodSurface.removeFromSuperview()
+    nativeBarCompact = false
     if #available(iOS 26.0, *) {
-      tabOwner?.setBottomAccessory(nil, animated: false)
       tabOwner?.tabBarMinimizeBehavior = .never
-      nativeAccessory = nil
+      nativeBarObserver?.stop()
       contentOwner?.setContentScrollView(nil, for: .bottom)
     }
     if #available(iOS 18.0, *) { tabOwner?.setTabBarHidden(false, animated: false) }
@@ -974,9 +1017,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     titleView.frame.size.width = titleWidth
     titleLabel.frame.size.width = titleWidth
     let subtitleHeight = subtitleLabel.font.lineHeight + 4
+    let titleRect = titleLabel.convert(titleLabel.bounds,to:view)
     subtitleLabel.frame = CGRect(
-      x: 16, y: view.safeAreaInsets.top - 8,
-      width: view.bounds.width - 32, height: subtitleHeight)
+      x: titleRect.minX, y: max(view.window?.safeAreaInsets.top ?? 0, titleRect.maxY),
+      width: view.bounds.width - titleRect.minX - 20, height: subtitleHeight)
     let headerLevel = zoomScene == nil ? level : zoomStartLevel
     let headerColumns = zoomScene == nil ? columns : startColumns
     let showsInterval = headerLevel == .all && headerColumns <= 5
@@ -986,6 +1030,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     headerFade.frame = headerBackdrop.bounds
     headerBackdrop.isHidden = navigationController?.isNavigationBarHidden == true
     subtitleLabel.isHidden = !showsInterval
+    updateMediaHeader()
     updateHeaderFade()
     titleLabel.adjustsFontSizeToFitWidth = true
     titleLabel.minimumScaleFactor = 0.75
@@ -1000,9 +1045,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       selectionControls.frame = frame
     }
     libraryButton.frame = CGRect(x: 16, y: 0, width: 50, height: 50)
-    periodSurface.frame = CGRect(x: 72, y: 0, width: view.bounds.width - 144, height: 50)
+    if periodSurface.superview === browsingControls {
+      periodSurface.frame = CGRect(x: 72, y: 0, width: view.bounds.width - 144, height: 50)
+    }
     if dock.superview === periodSurface.contentView {
-      dock.frame = periodSurface.bounds.insetBy(dx: 4, dy: 4)
+      dock.bounds = CGRect(origin:.zero,size:CGSize(width:periodSurface.bounds.width-8,height:periodSurface.bounds.height-8))
+      dock.center = CGPoint(x:periodSurface.bounds.midX,y:periodSurface.bounds.midY)
     }
     // Exclude glass navigation from the collection's accessible interaction
     // rectangle while keeping its visual viewport beneath the native bars.
@@ -1022,6 +1070,14 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         height: max(1, interactionBottom - interactionTop)), in: view)
     rebuildIfNeeded()
     updateChrome()
+  }
+  func updateMediaHeader() {
+    let hasMedia = !assets.isEmpty
+    titleLabel.textColor = hasMedia ? .white : UIColor(DuckColors.text)
+    subtitleLabel.textColor = hasMedia ? UIColor.white.withAlphaComponent(0.92) : UIColor(DuckColors.textSecondary)
+    headerBackdrop.isHidden = !hasMedia || navigationController?.isNavigationBarHidden == true
+    navigationController?.navigationBar.overrideUserInterfaceStyle = hasMedia ? .dark : .unspecified
+    navigationController?.navigationBar.tintColor = hasMedia ? .white : UIColor(DuckColors.action)
   }
   func updateHeaderFade() {
     // Media remains visible under navigation; only contrast falls off at its edge.
@@ -1045,6 +1101,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     geometryVersion = UUID()
     geometryCache = [:]
     assets = values
+    periodFocusAssetID = nil
+    updateMediaHeader()
+    view.setNeedsLayout()
     coverIndices = [:]
     transitionImages.removeAllObjects()
     denseDateLabels = [:]
@@ -1241,6 +1300,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     onPreview(assets[tile.asset], grid.convert(layout.frame(path.item), to: nil))
   }
   func focusedAsset() -> String? {
+    if level != .all,let id = periodFocusAssetID { return id }
     guard let path = grid.indexPathForItem(at: CGPoint(x: grid.bounds.midX, y: grid.bounds.midY)),
       layout.geometry.tiles.indices.contains(path.item)
     else { return layout.geometry.tiles.last.map { assets[$0.asset].id } }
@@ -1250,7 +1310,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard let tile = layout.geometry.tiles.firstIndex(where: { $0.members.contains(asset) }) else {
       return
     }
-    grid.contentOffset.y = clampedOffset(layout.frame(tile).midY - grid.bounds.height * 0.5)
+    grid.contentSize = layout.collectionViewContentSize
+    grid.contentOffset = CGPoint(x:0,y:clampedOffset(layout.frame(tile).midY - grid.bounds.height * 0.5))
     grid.layoutIfNeeded()
   }
   func clampedOffset(_ y: CGFloat) -> CGFloat {
@@ -1274,9 +1335,37 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func returnToLatest() {
     stopMotion()
     stopCoverPlayback()
-    grid.setContentOffset(
-      CGPoint(x: 0, y: clampedOffset(.greatestFiniteMagnitude)),
-      animated: !UIAccessibility.isReduceMotionEnabled)
+    let target = clampedOffset(.greatestFiniteMagnitude)
+    if abs(target-grid.contentOffset.y) < grid.bounds.height*3 || UIAccessibility.isReduceMotionEnabled {
+      grid.setContentOffset(CGPoint(x:0,y:target),animated:!UIAccessibility.isReduceMotionEnabled)
+      return
+    }
+    // A distant jump must not scroll through thousands of uncached, unseen rows.
+    let cover = UIImageView(image:sceneImage())
+    cover.frame = grid.frame; cover.isUserInteractionEnabled = false
+    view.insertSubview(cover,aboveSubview:grid); transitionOverlay = cover
+    changing = true
+    grid.setContentOffset(CGPoint(x:0,y:target),animated:false); grid.layoutIfNeeded()
+    warmZoomViewport()
+    let geometry = layout.geometry, viewport = grid.bounds
+    let count = geometry.visible(in:viewport).filter { geometry.tiles[$0].frame.intersects(viewport) }.count
+    func reveal(_ pass: Int) {
+      let job = DispatchWorkItem { [weak self,weak cover] in
+        guard let self,let cover,self.transitionOverlay === cover else { return }
+        let ready = self.scenePixelIDs(viewport:viewport,geometry:geometry).count
+        if pass < 8, ready < count*4/5 { reveal(pass+1); return }
+        UIView.animate(withDuration:0.28,animations:{ cover.alpha = 0 }) { _ in
+          guard self.transitionOverlay === cover else { return }
+          cover.removeFromSuperview(); self.transitionOverlay = nil; self.changing = false
+          self.zoomRefresh = nil
+          self.zoomPixelRequests.forEach { $0() }; self.zoomPixelRequests = []
+          self.updateChrome(); self.onVisibleChange()
+        }
+      }
+      zoomRefresh = job
+      DispatchQueue.main.asyncAfter(deadline:.now()+0.08,execute:job)
+    }
+    reveal(0)
   }
   func startCoverClock() {
     coverTimer?.invalidate()
@@ -1392,11 +1481,14 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     let sourceByID = Dictionary(source.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     let old = grid.snapshotView(afterScreenUpdates: false)
+    periodFocusAssetID = assets[asset].id
     level = next
     if next == .all { columns = 5; leadingSlots = 0 }
     dock.selectedSegmentIndex = next.rawValue
     layout.level = next
     layout.geometry = geometry()
+    layout.invalidateLayout()
+    grid.contentSize = layout.collectionViewContentSize
     navigationController?.setNavigationBarHidden(next != .all && !selecting, animated: false)
     grid.reloadData()
     view.layoutIfNeeded()
@@ -1419,6 +1511,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     pairs = Array(pairs.prefix(12))
     changing = true
+    warmZoomViewport()
     motionSourceIDs = Set(pairs.map { $0.0.id })
     motionDestinationIDs = Set(
       pairs.map { pair in
@@ -1512,6 +1605,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     changing = false
     zoomRefresh?.cancel()
     zoomRefresh = nil
+    zoomPixelRequests.forEach { $0() }; zoomPixelRequests = []
     if zoomScene != nil {
       zoomScene?.removeFromSuperview()
       zoomScene = nil
@@ -1547,17 +1641,91 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
           children: [zoomIn, zoomOut])
       ])
   }
-  func sceneImage() -> UIImage {
-    let previousAlpha = grid.alpha
-    grid.alpha = 1
+  /// Render the explicit chronological viewport, without asking a hidden scroll
+  /// view to flush pending reloads or adopt a different content offset.
+  func sceneImage(viewport: CGRect? = nil, geometry: CalendarGridGeometry? = nil, retaining previous: UIImage? = nil, excluding painted: Set<String> = []) -> UIImage {
+    let viewport = viewport ?? grid.bounds
+    let geometry = geometry ?? layout.geometry
     let format = UIGraphicsImageRendererFormat()
     format.scale = min(2, traitCollection.displayScale)
-    let image = UIGraphicsImageRenderer(size: grid.bounds.size, format: format).image { _ in
-      grid.drawHierarchy(
-        in: CGRect(origin: .zero, size: grid.bounds.size), afterScreenUpdates: true)
+    return UIGraphicsImageRenderer(size: viewport.size, format: format).image { context in
+      UIColor(DuckColors.canvas).setFill()
+      context.fill(CGRect(origin: .zero,size: viewport.size))
+      previous?.draw(in:CGRect(origin:.zero,size:viewport.size))
+      for i in geometry.visible(in: viewport) {
+        let tile = geometry.tiles[i]
+        let id = assets[coverIndices[tile.id] ?? tile.asset].id
+        if painted.contains(id) { continue }
+        let frame = tile.frame.offsetBy(dx: -viewport.minX,dy: -viewport.minY)
+        guard frame.intersects(CGRect(origin: .zero,size: viewport.size)) else { continue }
+        let cell = grid.cellForItem(at: IndexPath(item: i,section: 0))
+        let cellID = (cell as? CalendarGridCell)?.assetID ?? (cell as? CalendarDenseCell)?.assetID
+        let normal = cellID == id ? cell as? CalendarGridCell : nil
+        let dense = cellID == id ? cell as? CalendarDenseCell : nil
+        let image = normal?.image.image ?? dense?.photo.image ?? transitionImages.object(forKey:id as NSString)
+        context.cgContext.saveGState()
+        UIBezierPath(roundedRect:frame,cornerRadius:level == .all ? 0 : 12).addClip()
+        UIColor(DuckColors.subtle).setFill(); context.fill(frame)
+        if let image {
+          // UIImageView layer contents can still be empty in a hidden reloaded
+          // collection. Draw the resolved UIImage, never a pending display layer.
+          let fit = originalAspect && level == .all
+          let sx = frame.width/max(1,image.size.width), sy = frame.height/max(1,image.size.height)
+          let factor = fit ? min(sx,sy) : max(sx,sy)
+          context.cgContext.setAlpha(normal?.image.alpha ?? 1)
+          image.draw(in:CGRect(x:frame.midX-image.size.width*factor/2,
+            y:frame.midY-image.size.height*factor/2,width:image.size.width*factor,height:image.size.height*factor))
+          context.cgContext.setAlpha(1)
+        }
+        if let normal {
+          normal.layoutIfNeeded()
+          for label in [normal.label,normal.duration] where !label.isHidden {
+            let rect = label.frame.offsetBy(dx:frame.minX,dy:frame.minY)
+            if let background = label.backgroundColor {
+              background.setFill(); UIBezierPath(roundedRect:rect,cornerRadius:label.layer.cornerRadius).fill()
+            }
+            let paragraph = NSMutableParagraphStyle(); paragraph.alignment = label.textAlignment
+            let text = label.attributedText ?? NSAttributedString(string:label.text ?? "",attributes:[
+              .font:label.font as Any,.foregroundColor:label.textColor as Any,.paragraphStyle:paragraph])
+            text.draw(in:CGRect(x:rect.minX,y:rect.midY-label.font.lineHeight/2,width:rect.width,height:label.font.lineHeight))
+          }
+          for badge in [normal.check,normal.liveMark,normal.stateMark] where !badge.isHidden {
+            badge.image?.draw(in:badge.frame.offsetBy(dx:frame.minX,dy:frame.minY))
+          }
+        }
+        context.cgContext.restoreGState()
+      }
     }
-    grid.alpha = previousAlpha
-    return image
+  }
+  func scenePixelIDs(viewport: CGRect, geometry: CalendarGridGeometry) -> Set<String> {
+    Set(geometry.visible(in:viewport).compactMap { i -> String? in
+      let tile = geometry.tiles[i]
+      guard tile.frame.intersects(viewport) else { return nil }
+      let id = assets[coverIndices[tile.id] ?? tile.asset].id
+      if transitionImages.object(forKey:id as NSString) != nil { return id }
+      let cell = grid.cellForItem(at:IndexPath(item:i,section:0))
+      if let normal = cell as? CalendarGridCell,normal.assetID == id,normal.image.image != nil { return id }
+      if let dense = cell as? CalendarDenseCell,dense.assetID == id,dense.photo.image != nil { return id }
+      return nil
+    })
+  }
+  func warmZoomViewport() {
+    // Earlier brackets are still visible while their pixels arrive. Keep their
+    // requests alive through the gesture, with a hard bound for repeated reversals.
+    if zoomPixelRequests.count > 2048 {
+      zoomPixelRequests.prefix(zoomPixelRequests.count-2048).forEach { $0() }
+      zoomPixelRequests.removeFirst(zoomPixelRequests.count-2048)
+    }
+    let viewport = grid.bounds
+    onVisibleChange()
+    // Only the actual destination window is requested, at that cell's pixel tier.
+    for i in layout.geometry.visible(in: viewport) where layout.frame(i).intersects(viewport) {
+      let tile = layout.geometry.tiles[i], asset = assets[coverIndices[tile.id] ?? tile.asset]
+      let cancel = requestImage(asset,max(40,tile.frame.width*traitCollection.displayScale)) { [weak self] image,_ in
+        if let image { self?.rememberImage(image,for: asset.id) }
+      }
+      zoomPixelRequests.append(cancel)
+    }
   }
   func beginSceneZoom(point: CGPoint? = nil, item: Int? = nil) {
     stopMotion()
@@ -1568,7 +1736,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     startColumns = columns
     startLeadingSlots = leadingSlots
     zoomStartOffset = grid.contentOffset
-    zoomLastScale = 1; zoomReleaseColumns = columns
+    zoomLastScale = 1; zoomOutward = false; zoomReleaseColumns = columns
     if let anchor, layout.geometry.tiles.indices.contains(anchor) {
       let tile = layout.geometry.tiles[anchor]
       zoomStartAsset = coverIndices[tile.id] ?? tile.asset
@@ -1578,7 +1746,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     zoomScene = scene
     zoomInitialWidth = zoomSourceWidth
     zoomFrames = [
-      columns: ZoomFrame(image: scene.source.image!, point: anchorPoint, width: zoomSourceWidth)
+      columns: ZoomFrame(image: scene.source.image!, point: anchorPoint, width: zoomSourceWidth, viewport: grid.bounds, geometry: layout.geometry, painted: scenePixelIDs(viewport:grid.bounds,geometry:layout.geometry))
     ]
     view.insertSubview(scene, aboveSubview: grid)
     grid.panGestureRecognizer.isEnabled = false
@@ -1591,6 +1759,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard let scene = zoomScene else { return }
     zoomRefresh?.cancel()
     zoomTargetLevel = next
+    periodFocusAssetID = assets[zoomStartAsset].id
     level = next
     columns = target
     if next == .all { anchor = zoomStartAsset }
@@ -1607,6 +1776,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     } else if let anchor {
       scene.ratio = max(0.1, layout.frame(anchor).width / max(1, zoomSourceWidth))
     }
+    warmZoomViewport()
     scene.destination.image = sceneImage()
     if let anchor {
       let rect = layout.frame(anchor)
@@ -1615,18 +1785,34 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       scene.destination.layer.anchorPoint = CGPoint(x: destinationPoint.x/max(1,scene.bounds.width),
         y: destinationPoint.y/max(1,scene.bounds.height))
       scene.destination.layer.position = anchorPoint
+      if next == .all,let image = scene.destination.image {
+        zoomFrames[target] = ZoomFrame(image:image,point:destinationPoint,width:rect.width,
+          viewport:grid.bounds,geometry:layout.geometry,
+          painted:scenePixelIDs(viewport:grid.bounds,geometry:layout.geometry))
+      }
     }
     refreshZoomPixels(scene,level: next,columns: target)
   }
   func refreshZoomPixels(_ scene: CalendarZoomScene, level expected: CalendarGridLevel, columns target: Int, pass: Int = 0) {
     let refresh = DispatchWorkItem { [weak self,weak scene] in
-      guard let self,let scene,self.zoomScene === scene,self.level == expected,self.columns == target else { return }
-      let image = self.sceneImage()
-      if var frame = self.zoomFrames[target] { frame.image = image; self.zoomFrames[target] = frame }
-      // Refresh only the face represented by this exact live layout. Position,
-      // scale and opacity are unchanged; a stale bracket cannot replace another.
-      if self.zoomDestinationColumns == target { scene.destination.image = image }
-      else if self.zoomSourceColumns == target { scene.source.image = image }
+      guard let self,let scene,self.zoomScene === scene else { return }
+      if self.zoomStartLevel == .all {
+        // Each face keeps its own immutable geometry and viewport, including
+        // when another density is live beneath the overlay.
+        for count in Set([self.zoomSourceColumns,self.zoomDestinationColumns]) {
+          guard var packet = self.zoomFrames[count] else { continue }
+          let available = self.scenePixelIDs(viewport:packet.viewport,geometry:packet.geometry)
+          guard !available.subtracting(packet.painted).isEmpty else { continue }
+          packet.image = self.sceneImage(viewport:packet.viewport,geometry:packet.geometry,
+            retaining:packet.image,excluding:packet.painted)
+          packet.painted.formUnion(available)
+          self.zoomFrames[count] = packet
+          if count == self.zoomDestinationColumns { scene.destination.image = packet.image }
+          else { scene.source.image = packet.image }
+        }
+      } else if self.level == expected,self.columns == target {
+        scene.destination.image = self.sceneImage()
+      }
       if pass < 2 { self.refreshZoomPixels(scene,level: expected,columns: target,pass: pass+1) }
     }
     zoomRefresh = refresh
@@ -1635,9 +1821,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func continuousZoom(scale: CGFloat) {
     guard let scene = zoomScene else { return }
     let desired = zoomInitialWidth * scale
-    if abs(log(max(0.01,scale)/max(0.01,zoomLastScale))) > 0.005 { zoomOutward = scale > zoomLastScale }
+    // Accumulate movement from the last direction sample. Comparing only two
+    // adjacent display frames never detects a deliberately slow pinch.
+    if abs(log(max(0.01,scale)/max(0.01,zoomLastScale))) > 0.005 {
+      zoomOutward = scale > zoomLastScale
+      zoomLastScale = scale
+    }
     let outward = zoomOutward
-    zoomLastScale = scale
     func side(_ count: Int) -> CGFloat {
       (width - CGFloat(count - 1) * (count >= 10 ? 1 : 2)) / CGFloat(count)
     }
@@ -1653,7 +1843,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         x: rect.minX + rect.width * anchorFraction.x,
         y: rect.minY + rect.height * anchorFraction.y - grid.contentOffset.y)
       let frame = ZoomFrame(
-        image: scene.destination.image ?? scene.source.image!, point: point, width: side(count))
+        image: scene.destination.image ?? scene.source.image!, point: point, width: side(count), viewport: grid.bounds, geometry: layout.geometry, painted: scenePixelIDs(viewport:grid.bounds,geometry:layout.geometry))
       zoomFrames[count] = frame
       return frame
     }
@@ -1749,12 +1939,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       scene.removeFromSuperview()
       self.zoomScene = nil
       self.zoomFrames = [:]
+      self.zoomPixelRequests.forEach { $0() }; self.zoomPixelRequests = []
       self.changing = false
       self.spring = nil
       self.announceDensity()
       self.refreshMenu()
       self.updateChrome()
-      self.attachNativeAccessory()
+      self.refreshNativePeriodControls()
       self.refreshCoverPlayback()
     }
     if UIAccessibility.isReduceMotionEnabled {
@@ -1834,6 +2025,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func placeAnchor() {
     guard let anchor else { return }
     let f = layout.frame(anchor)
+    // UICollectionView can still expose the previous contentSize during reload.
+    // Clamp to the adopted geometry, not the outgoing layout's height.
+    grid.contentSize = layout.collectionViewContentSize
     grid.contentOffset.y = clampedOffset(f.minY + f.height * anchorFraction.y - anchorPoint.y)
     grid.layoutIfNeeded()
   }
@@ -1851,48 +2045,53 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       beginSceneZoom(
         point: (gesture as? CalendarPinchGesture)?.focus(in: grid) ?? gesture.location(in: grid))
       zoomProgress = 0
+      // Recognition may already carry visible scale and be followed by release
+      // without another changed callback. Consume this first two-touch pose too.
+      updatePinch(scale:gesture.scale)
     case .changed:
-      guard (gesture as? CalendarPinchGesture)?.focus(in: grid) != nil, let scene = zoomScene else {
-        return
-      }
-      if zoomStartLevel == .all {
-        continuousZoom(scale: gesture.scale)
-        return
-      }
-      var next = zoomStartLevel
-      var target = startColumns
-      let outward = gesture.scale > 1
-      if zoomStartLevel == .years {
-        if outward { next = .months }
-      } else if zoomStartLevel == .months {
-        next = outward ? .all : .years
-        target = 5
-      } else {
-        let i = columnStops.firstIndex(of: startColumns) ?? 1
-        target = columnStops[min(columnStops.count - 1, max(0, i + (outward ? -1 : 1)))]
-      }
-      if next != zoomTargetLevel || target != columns || scene.destination.image == nil {
-        prepareZoomDestination(next, columns: target)
-      }
-      if next == zoomStartLevel && target == startColumns {
-        zoomProgress = 0
-      } else {
-        let ratio = scene.ratio
-        // A hierarchy change may use a differently shaped cover. Keep its gesture
-        // threshold practical without losing the direct scale response.
-        let endScale = ratio
-        zoomProgress = min(1, max(0, (gesture.scale - 1) / (endScale - 1)))
-      }
-      scene.apply(zoomProgress)
-      if zoomStartLevel == .all && startColumns <= 5 && columns > 5 {
-        subtitleLabel.alpha = 1 - zoomProgress
-      }
+      guard (gesture as? CalendarPinchGesture)?.focus(in:grid) != nil else { return }
+      updatePinch(scale:gesture.scale)
     case .ended, .cancelled, .failed:
       // Keep the last two-touch pose. UIKit's terminal scale may be recomputed
       // from one remaining finger and must not reverse a visible destination.
       finishSceneZoom(
         commit: gesture.state == .ended && (zoomStartLevel == .all || zoomProgress > 0.06))
     default: break
+    }
+  }
+  func updatePinch(scale: CGFloat) {
+    guard let scene = zoomScene else { return }
+    if zoomStartLevel == .all {
+      continuousZoom(scale: scale)
+      return
+    }
+    var next = zoomStartLevel
+    var target = startColumns
+    let outward = scale > 1
+    if zoomStartLevel == .years {
+      if outward { next = .months }
+    } else if zoomStartLevel == .months {
+      next = outward ? .all : .years
+      target = 5
+    } else {
+      let i = columnStops.firstIndex(of: startColumns) ?? 1
+      target = columnStops[min(columnStops.count - 1, max(0, i + (outward ? -1 : 1)))]
+    }
+    if next != zoomTargetLevel || target != columns || scene.destination.image == nil {
+      prepareZoomDestination(next, columns: target)
+    }
+    if next == zoomStartLevel && target == startColumns {
+      zoomProgress = 0
+    } else {
+      let ratio = scene.ratio
+      // A hierarchy change may use a differently shaped cover. Keep its gesture
+      // threshold practical without losing the direct scale response.
+      let endScale = ratio
+      zoomProgress = min(1, max(0, (scale - 1) / (endScale - 1)))
+    }
+    scene.apply(zoomProgress)
+    if zoomStartLevel == .all && startColumns <= 5 && columns > 5 {
+      subtitleLabel.alpha = 1 - zoomProgress
     }
   }
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -1904,6 +2103,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func updateChrome() {
     guard isViewLoaded, filterItem != nil, !chromeUpdating else { return }
     chromeUpdating = true
+    updateMediaHeader()
     defer { chromeUpdating = false }
     let bottomY = max(
       -grid.contentInset.top,
@@ -1957,58 +2157,44 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     adoptChrome(next)
   }
   func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    periodFocusAssetID = nil
     expandedNavigation = false
     stopCoverPlayback()
-    attachNativeAccessory()
+    refreshNativePeriodControls()
   }
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
     // Attach while inertia has begun, instead of waiting for deceleration to finish.
-    attachNativeAccessory()
+    refreshNativePeriodControls()
   }
-  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { attachNativeAccessory() }
-  func attachNativeAccessory() {
-    guard active, !selecting, !installingAccessory else { return }
-    if #available(iOS 26.0, *), let tabs = tabBarController {
-      if let current = tabs.bottomAccessory?.contentView as? CalendarAccessoryContent {
-        synchronizeAccessory(current); return
-      }
-      let content = CalendarAccessoryContent(dock)
-      let accessory = UITabAccessory(contentView: content)
-      content.onEnvironment = { [weak self,weak content] in
-        guard let self,let content else { return }; self.synchronizeAccessory(content)
-      }
-      nativeAccessory = accessory; accessoryReachedInline = false
-      dock.alpha = 0; dock.isUserInteractionEnabled = false
-      installingAccessory = true; tabs.setBottomAccessory(accessory,animated: false); installingAccessory = false
-      synchronizeAccessory(content)
+  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { refreshNativePeriodControls() }
+  func refreshNativePeriodControls() { nativeBarObserver?.sample() }
+  func showNativePeriod(_ visible: Bool, icon: CGRect?) {
+    guard #available(iOS 26.0, *), let tabs = tabBarController else { return }
+    let visible = visible && active && !selecting
+    if visible,let icon {
+      if periodSurface.superview !== tabs.view { tabs.view.addSubview(periodSurface) }
+      let reserve = icon.maxX+12
+      let width = max(180,tabs.view.bounds.width-2*reserve)
+      periodSurface.bounds = CGRect(x:0,y:0,width:width,height:48)
+      periodSurface.center = CGPoint(x:tabs.view.bounds.midX,y:icon.midY)
+      dock.bounds = CGRect(origin:.zero,size:CGSize(width:periodSurface.bounds.width-8,height:periodSurface.bounds.height-8))
+      dock.center = CGPoint(x:periodSurface.bounds.midX,y:periodSurface.bounds.midY)
+      dock.alpha = 1; dock.transform = .identity
     }
-  }
-  @available(iOS 26.0, *)
-  func synchronizeAccessory(_ content: CalendarAccessoryContent) {
-    guard active, !selecting else { return }
-    let visible = content.inline
-    if visible { accessoryReachedInline = true }
-    if !visible && accessoryReachedInline {
-      // The system has restored full navigation. Remove the regular accessory
-      // row immediately; no idle timeout can remove a still-inline control.
-      accessoryVisible = false
-      dock.alpha = 0; dock.isUserInteractionEnabled = false; dock.accessibilityElementsHidden = true
-      tabBarController?.setBottomAccessory(nil,animated: false); nativeAccessory = nil
-      return
-    }
-    guard accessoryVisible != visible else { return }
-    accessoryVisible = visible
-    content.invalidateIntrinsicContentSize(); content.setNeedsLayout()
-    dock.layer.removeAllAnimations()
-    dock.isUserInteractionEnabled = visible; dock.accessibilityElementsHidden = !visible
-    dock.isHidden = false
+    guard nativeBarCompact != visible else { return }
+    nativeBarCompact = visible
+    periodSurface.layer.removeAllAnimations()
+    periodSurface.isUserInteractionEnabled = visible
+    periodSurface.accessibilityElementsHidden = !visible
     if visible {
-      dock.alpha = 1
-      dock.transform = UIAccessibility.isReduceMotionEnabled ? .identity : CGAffineTransform(translationX: 0,y: 16)
+      periodSurface.isHidden = false
+      periodSurface.alpha = 1
+      periodSurface.transform = UIAccessibility.isReduceMotionEnabled ? .identity : CGAffineTransform(translationX:0,y:48)
     }
-    let changes = { self.dock.alpha = visible ? 1 : 0; self.dock.transform = .identity }
+    let changes = { self.periodSurface.alpha = visible ? 1 : 0; self.periodSurface.transform = .identity }
     if UIAccessibility.isReduceMotionEnabled { changes() }
-    else { UIView.animate(withDuration: visible ? 0.3 : 0.16,delay: 0,options: [.beginFromCurrentState,.curveEaseOut],animations: changes) }
+    else { UIView.animate(withDuration:visible ? 0.22 : 0.10,delay:0,
+      options:[.beginFromCurrentState,.curveEaseOut],animations:changes) }
   }
 
   func adoptChrome(_ next: Chrome) {
@@ -2016,13 +2202,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if #available(iOS 26.0, *), let tabs = tabBarController {
       if tabs.tabBarMinimizeBehavior != .onScrollUp { tabs.tabBarMinimizeBehavior = .onScrollUp }
       if next == .selection {
-        accessoryCheck?.cancel()
-        if tabs.bottomAccessory != nil { tabs.setBottomAccessory(nil, animated: false) }
-        nativeAccessory = nil
+        showNativePeriod(false,icon:nil)
         if selectionControls.superview !== view { view.addSubview(selectionControls) }
       } else if chrome == .selection {
-        tabs.setBottomAccessory(nil, animated: false)
-        nativeAccessory = nil
+        showNativePeriod(false,icon:nil)
       }
       if tabs.isTabBarHidden != (next == .selection) {
         tabs.setTabBarHidden(next == .selection, animated: !UIAccessibility.isReduceMotionEnabled)

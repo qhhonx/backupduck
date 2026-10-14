@@ -275,7 +275,7 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Small outward pinch commits the visible single column")
     grid.pinch(withScale: 0.8,velocity: -0.5)
     let reverse = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","3 columns"),object: grid)
-    XCTAssertEqual(XCTWaiter.wait(for: [reverse],timeout: 5),.completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [reverse],timeout: 5),.completed,"Actual reverse density: \(String(describing:grid.value))")
   }
 
   @MainActor func testCalendarControlsRemainTappableAfterNativeTransition() throws {
@@ -881,6 +881,18 @@ final class SettingsTests: XCTestCase {
     shared.lifetime = .keepAlways
     add(shared)
   }
+  @MainActor func testThumbnailCacheSettingsAreReadableAndSeparateFromPreparation() {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
+    launchIsolated(app); navigation(app,3).tap()
+    let cache = app.buttons["settings.cache"]
+    XCTAssertTrue(cache.waitForExistence(timeout:10)); cache.tap()
+    XCTAssertTrue(app.staticTexts["Library thumbnails"].waitForExistence(timeout:5))
+    XCTAssertTrue(app.buttons["settings.thumbnail_budget"].exists)
+    XCTAssertTrue(app.buttons["settings.thumbnail_clear"].isHittable)
+    recordWindow(app,"Thumbnail cache size, budget and safe clearing")
+  }
+
   @MainActor func testMainNavigationAndCacheIsolation() {
     continueAfterFailure = false
     let app = XCUIApplication()

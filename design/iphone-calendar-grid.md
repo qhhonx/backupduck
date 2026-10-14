@@ -47,12 +47,14 @@ and expose their period headings within the content.
 On supported iPhones, the chronological collection is registered with the native
 TabBar controller and uses `onScrollUp` because its newest edge is bottom aligned.
 The system owns minimization, the compact Library button and expansion; do not
-replace that shape change with whole-bar hiding. Years/Months/All is attached as
-`UITabAccessory` content in its inline environment. The native environment
-change directly owns visibility; no idle timeout detaches a collapsed control.
-Expansion removes the regular accessory row, while a history drag installs the
-observer before native minimization. Entry rises 16 pt alongside native motion;
-exit fades without downward translation. Full navigation must not acquire a second accessory row.
+replace that shape change with whole-bar hiding. Years/Months/All occupies a
+centered material surface beside the compact native Library button. Observe
+public UIControl geometry and ancestor visibility; do not depend on private
+UIKit class names or selectors. The compact icon's actual visibility owns period
+controls, rather than collection offsets, idle timers or an accessory environment.
+A regular UITabAccessory reserves a second glass row and is unsuitable here.
+Entry rises from below while the native bar contracts; expansion fades without
+moving down. The surface retains stable bounds while animating its transform.
 A compact native Library button expands navigation without moving photos. A second
 tap on the full Library tab animates to the newest edge of the current level.
 No return-to-latest arrow is added. The subtitle's latest-edge state is independent
@@ -101,8 +103,9 @@ with its focal photo aligned to the original finger center. The source fades out
 while the incoming layout scales from its enlarged state. Continuing the same
 pinch changes brackets; reverse motion uses the same canonical scenes. At most
 three viewport images are retained at up to 2x display resolution. At most three
-pixel-only refreshes admit arriving thumbnails for the exact prepared layout;
-stale callbacks cannot replace another bracket or move its anchor. There is no
+pixel-only refreshes fill missing images in each visible face using its own
+immutable viewport and geometry. Keep already-painted pixels even if an image
+cache entry is evicted; stale callbacks cannot change another bracket or its anchor. There is no
 per-frame layout/snapshot reconstruction. Release settles scale and opacity over 360 ms before exposing the actual native
 collection. Cancellation crossfades back to the initial scene/context. Panning is
 suspended while pinching; translating fingers cannot drag a canvas.
@@ -155,3 +158,64 @@ the normal cache retains the requested size tier. Both remain bounded and are
 cleared together on policy changes. Nearby PhotoKit preheat is capped at 256
 small or 48 larger assets. No persistent disk cache is introduced. Cloud-only
 assets without local pixels still require the existing preview network policy.
+
+Startup loading shares the existing title/subtitle region. Permission and empty
+states retain their recovery controls. The native collection and header remain
+mounted while metadata arrives; no separate centered loading page is introduced.
+
+Snapshot rendering uses explicit chronological viewport rectangles, tile IDs and
+cached pixels, rather than flushing a hidden collection's pending screen updates.
+Destination clamping uses the adopted geometry height. Preheat the destination's
+visible/nearby window at its own pixel tier before fading it in. Fast-format
+PhotoKit results are terminal even when marked degraded; release their request
+slots and cache that small tier without waiting for a second callback.
+
+Gesture direction accumulates from the last meaningful scale sample, rather than
+comparing only adjacent display callbacks. Slow motion must reach the same stop
+at high and low callback cadences. Reset direction at each new gesture and consume
+the recognized first pose even when release follows without a changed event.
+
+Each viewport scene records which actual photo IDs already have pixels. Late
+arrivals fill only missing IDs over that scene's prior image, without replacing
+already-visible photos with empty cells or changing their overlays. Active bracket
+requests survive a further density crossing; repeated reversals have a bounded
+request pool, cancelled when the gesture ends or is interrupted.
+
+## Cover sampling and local renditions
+
+Months show one mosaic with at most six sampled day covers. Each sampled cover
+owns the contiguous member interval it represents, preserving date navigation
+and every asset even when the month contains more than six capture days.
+Period buttons invalidate the adopted layout and publish its content size before
+clamping the chosen asset's destination offset, just as density pinch does. A
+button chain retains that asset until a manual scroll or another cover choice;
+end-clamped cards do not redefine the focus as a previous year.
+The initial loading header adopts media contrast when metadata arrives, without
+waiting for a later scroll/resize. Its supporting label uses the title's actual
+leading edge. All-grid content does not add a footer-sized blank padding.
+
+Native bottom controls are observed through public presentation-layer opacity
+and control geometry, not their already-updated model alpha. Period exit begins
+when compact navigation is reselected, and stays suppressed until full navigation
+has appeared. Full navigation and period controls must not overlap.
+
+PhotoKit owns rendition generation and preview consent. Rebuildable iPhone
+thumbnails also use a local disk layer keyed by asset revision, pixel tier and
+crop mode. Small cells request only their own tier. A 64-pixel cached rendition
+may bridge a larger request, but never fulfills that larger tier. Writes and
+reads run away from the main actor. The disk layer defaults to 256 MB, uses least
+recently accessed eviction and 30-day expiry, and skips writes near low disk
+capacity. Cache settings expose its size, limit and clearing separately from
+backup preparation. Clearing invalidates late writes and the memory layer;
+original media and pending transfer files remain under their existing owners.
+
+A distant return-to-latest keeps the outgoing viewport while warming the target
+and then fades to that target, rather than traversing thousands of unseen rows.
+Dense preheating scales with visible tile count within a bounded window.
+These policies reduce repeat-load latency; no cache can guarantee that unseen
+cloud-only media already has a local rendition.
+
+References evaluated for layering and loader ownership:
+[SDWebImage Photos plugin](https://github.com/SDWebImage/SDWebImagePhotosPlugin)
+and [Nuke caching](https://kean-docs.github.io/nuke/documentation/nuke/caching/).
+The app retains PhotoKit loading rather than adding a network-image pipeline.

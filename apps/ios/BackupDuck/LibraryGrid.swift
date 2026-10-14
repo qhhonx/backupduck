@@ -733,7 +733,7 @@ private struct IOSCalendarLibraryPage: View {
   @State private var preview: IOSPreviewItem?
   var body: some View {
     Group {
-      if let placeholder = library.placeholder {
+      if let placeholder = library.placeholder, !isLoadingPlaceholder {
         NavigationStack {
           LibraryPlaceholder(kind:placeholder,requestingAccess:library.requestingPermission,
             requestAccess:{Task { await library.open(requestPermission:true) }},
@@ -741,10 +741,7 @@ private struct IOSCalendarLibraryPage: View {
             .navigationTitle("nav_library")
         }
       } else {
-        IOSCalendarLibrary(library:library,model:model,onPreview:{ asset,frame in
-          var transaction=Transaction();transaction.disablesAnimations=true
-          withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.thumbnails.poster(for:asset)) }
-        },onBackup:showBackupConfirmation).ignoresSafeArea(.container)
+        calendar
       }
     }.background(DuckColors.canvas).tint(DuckColors.action)
       .task { await library.open() }
@@ -752,6 +749,16 @@ private struct IOSCalendarLibraryPage: View {
       .onDisappear { library.thumbnails.clear() }
       .sheet(isPresented:$confirmSelectedBackup) { selectedBackupConfirmation }
       .background(IOSPreviewPresentation(item:preview,library:library) { preview=nil }.frame(width:0,height:0))
+  }
+  private var isLoadingPlaceholder: Bool {
+    if case .loading? = library.placeholder { return true }
+    return false
+  }
+  private var calendar: some View {
+    IOSCalendarLibrary(library:library,model:model,onPreview:{ asset,frame in
+      var transaction=Transaction();transaction.disablesAnimations=true
+      withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.thumbnails.poster(for:asset)) }
+    },onBackup:showBackupConfirmation).ignoresSafeArea(.container)
   }
   private func showBackupConfirmation() {
     rebackupReceivedSelection = false

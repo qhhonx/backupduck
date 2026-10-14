@@ -1204,3 +1204,11 @@
 "library_deselect_item" = "取消选择此项目";
 "library_select_item" = "选择此项目";
 "library_return_selected" = "返回所选内容";
+
+"library_thumbnail_cache" = "图库缩略图";
+
+"library_thumbnail_clear" = "清理缩略图";
+
+"library_thumbnail_cache_help" = "按网格和封面尺寸缓存预览，超出限额时自动清理较久未使用的图片。清理后会按需重新生成，不影响照片原件或备份文件。";
+
+"library_thumbnail_used" = "缩略图占用";

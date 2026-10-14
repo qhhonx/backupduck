@@ -32,6 +32,52 @@ import XCTest
     session.stop()
   }
 
+  func testThumbnailDiskCacheKeepsTiersAndRevisionsAndClearRejectsLateWrites() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let suite = "thumbnail-tests-"+UUID().uuidString
+    let defaults = UserDefaults(suiteName:suite)!
+    defer { try? FileManager.default.removeItem(at:directory); defaults.removePersistentDomain(forName:suite) }
+    let disk = ThumbnailDiskCache(directory:directory,defaults:defaults)
+    let image = UIGraphicsImageRenderer(size:CGSize(width:64,height:64)).image { ctx in
+      UIColor.green.setFill(); ctx.fill(CGRect(x:0,y:0,width:64,height:64))
+    }
+    let (_,generation) = await disk.read("asset|revision1|64|fill")
+    await disk.store(image,key:"asset|revision1|64|fill",generation:generation)
+    let reopened = ThumbnailDiskCache(directory:directory,defaults:defaults)
+    let (cached,_) = await reopened.read("asset|revision1|64|fill")
+    XCTAssertNotNil(cached,"Cached renditions survive a pipeline restart")
+    let (larger,_) = await reopened.read("asset|revision1|320|fill")
+    let (edited,_) = await reopened.read("asset|revision2|64|fill")
+    XCTAssertNil(larger); XCTAssertNil(edited)
+    let used = await disk.usage(); XCTAssertGreaterThan(used,0)
+    await disk.removeAll()
+    await disk.store(image,key:"asset|revision1|64|fill",generation:generation)
+    let (cleared,_) = await disk.read("asset|revision1|64|fill")
+    XCTAssertNil(cleared,"A completion from before clearing cannot restore the cleared pixels")
+    let empty = await disk.usage(); XCTAssertEqual(empty,0)
+  }
+  func testFastDegradedResultsReleaseEverySlotAndCacheTheirSizeTier() async throws {
+    let fetch = PHAsset.fetchAssets(with: .image,options: photoLibraryFetchOptions())
+    guard fetch.count >= 60 else { throw XCTSkip("Import synthetic fixtures first") }
+    let manager = FastDegradedImageManager(), pipeline = ThumbnailPipeline(manager: manager)
+    pipeline.disk = nil
+    let completed = expectation(description: "All fast results complete beyond the concurrency limit")
+    completed.expectedFulfillmentCount = 60
+    for i in 0..<60 {
+      pipeline.request(fetch.object(at: i),pixels: 64) { image,_ in
+        if image != nil { completed.fulfill() }
+      }
+    }
+    await fulfillment(of: [completed],timeout: 5)
+    XCTAssertEqual(manager.started,60)
+    var cached: UIImage?
+    let repeatRequest = pipeline.request(fetch.object(at: 0),pixels: 64) { image,_ in cached = image }
+    XCTAssertEqual(repeatRequest,PHInvalidImageRequestID)
+    XCTAssertNotNil(cached)
+    XCTAssertEqual(manager.started,60,"A fast degraded image is final for its small size tier")
+    pipeline.clear()
+  }
+
   func testThumbnailFallbackIsSmallAndDoesNotReplaceRequestedSizeTier() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("Synthetic PhotoKit fixture only")
@@ -399,4 +445,19 @@ import XCTest
     XCTAssertEqual(ids.count, count)
     return ids
   }
+}
+
+private final class FastDegradedImageManager: PHCachingImageManager {
+  var started = 0
+  override func requestImage(for asset: PHAsset,targetSize: CGSize,contentMode: PHImageContentMode,
+    options: PHImageRequestOptions?,resultHandler: @escaping (UIImage?,[AnyHashable:Any]?) -> Void) -> PHImageRequestID {
+    started += 1
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1
+    let image = UIGraphicsImageRenderer(size: targetSize,format: format).image { context in
+      UIColor.systemGreen.setFill(); context.fill(CGRect(origin: .zero,size: targetSize))
+    }
+    resultHandler(image,[PHImageResultIsDegradedKey:true])
+    return PHImageRequestID(started)
+  }
+  override func cancelImageRequest(_ requestID: PHImageRequestID) {}
 }

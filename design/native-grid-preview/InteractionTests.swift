@@ -59,6 +59,10 @@ final class GridInteractions: XCTestCase {
     record("Native tabs — scroll into history")
     XCTAssertTrue(app.buttons["Years"].isHittable)
     XCTAssertFalse(app.tabBars.buttons["Backup"].isHittable)
+    let remains = XCTNSPredicateExpectation(predicate:NSPredicate(format:"hittable == true"),object:app.buttons["Years"])
+    XCTAssertEqual(XCTWaiter.wait(for:[remains],timeout:2),.completed)
+    Thread.sleep(forTimeInterval:1.2)
+    XCTAssertTrue(app.buttons["Months"].isHittable,"Period controls persist while the native icon is compact")
     app.buttons["Library"].tap()
     record("Native tabs — native circle expands navigation")
     XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
@@ -94,6 +98,38 @@ final class GridInteractions: XCTestCase {
     selected.lifetime = .keepAlways
     add(selected)
   }
+  func testLongLibrarySnapshotsRetainNewestMediaWindow() {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["--long-library"]; app.launch()
+    let grid = app.collectionViews["calendar.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout:10))
+    for columns in [5,10,20] {
+      grid.pinch(withScale:0.55,velocity:-0.7)
+      let settled = XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@","\(columns) columns"),object:grid)
+      XCTAssertEqual(XCTWaiter.wait(for:[settled],timeout:5),.completed)
+      XCTAssertTrue(grid.cells["calendar.asset.example-54999"].exists,"The viewport remains at the newest end of 55k individually numbered photos")
+      let frame = XCTAttachment(screenshot:app.screenshot()); frame.name = "55k newest window — \(columns) columns"; frame.lifetime = .keepAlways; add(frame)
+    }
+    grid.swipeDown(); grid.swipeDown()
+    let frame = XCTAttachment(screenshot:app.screenshot()); frame.name = "55k dense history — bounded thumbnail window"; frame.lifetime = .keepAlways; add(frame)
+  }
+
+  func testPeriodButtonsKeepLatestMonthAndYear() {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["--long-library"]; app.launch()
+    let grid = app.collectionViews["calendar.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout:10)); grid.swipeDown()
+    for mode in ["Months","Years","All","Years"] {
+      app.buttons[mode].tap()
+      let recent = grid.cells.allElementsBoundByIndex.filter { $0.isHittable }.compactMap { Int($0.identifier.split(separator:"-").last ?? "") }.max() ?? 0
+      XCTAssertGreaterThan(recent,54000,"Buttons preserve the recent period rather than the oldest cover")
+      let a = XCTAttachment(screenshot:app.screenshot()); a.name = "Recent period — \(mode)"; a.lifetime = .keepAlways; add(a)
+    }
+    app.buttons["Library"].tap()
+    XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
+    XCTAssertFalse(app.buttons["Years"].isHittable)
+  }
+
   func testLongLibraryCalendarAndDenseGrid() {
     let app = XCUIApplication()
     app.launchArguments = ["--long-library"]

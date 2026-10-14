@@ -53,11 +53,11 @@ The focused [iPhone calendar Grid contract](../iphone-calendar-grid.md) supersed
 the older phone coupling of calendar grouping/density and per-item interpolation.
 Period controls move only matching visible covers and fade unmatched content.
 Pinch scales canonical viewport scenes around one photo, crosses multiple density
-brackets without lifting, and settles scale/opacity over 280 ms. Three bounded
+brackets without lifting, and settles scale/opacity over 360 ms. Three bounded
 scene images replace per-frame native-cell reflow. Cancellation restores the
 initial scene/context; Reduce Motion adopts state without spatial animation.
 Native bottom-bar minimization remains system-owned; period controls rise/fade
-into its inline accessory while inertia begins. Navigation actions retain native
+beside its compact native button while inertia begins. Navigation actions retain native
 sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
@@ -72,6 +72,35 @@ Filmstrip geometry compacts for dragging and expands the settled item over
 Phone calendar snapshots follow held gesture scale directly. Release uses the
 last valid two-touch pose and a native critically damped 360 ms spring; terminal
 one-touch coordinates cannot replace the focal photo. Source/destination layer
-anchors use their own photo coordinates. Calendar accessory entry rises 16 pt,
-while expansion fades it; native inline/regular state owns the lifecycle rather
-than timers or library scroll position.
+anchors use their own photo coordinates. Calendar period entry rises from below,
+while expansion fades it; actual native compact-button visibility owns the
+lifecycle rather than timers or library scroll position.
+
+For comparable gestures, study original-speed recordings and densely sample the
+transition. Use coarse full-video frames to find phase boundaries, then sample
+at the video's actual cadence around entry, drag, reversal and settlement. Track
+one stable photo or control and measure x/y, width/height and opacity separately.
+Fit a bounded easing/spring approximation to the measured samples; distinguish
+measured screen behavior from undocumented framework parameters. Held pinch
+scale is input-driven, so do not fit it as a time-only easing curve. Inspect
+focal identity and media pixels at intermediate frames, not only end labels.
+Keep private recordings, frame sheets and measurement data in ignored evidence.
+
+Use `scripts/sample-motion.swift` for local recording studies. It caps sampling
+at the source track's fastest cadence, records requested and actual timestamps,
+and skips duplicate actual timestamps. For example:
+
+```sh
+xcrun swift scripts/sample-motion.swift sample.mp4 build/motion-study 0 3 60
+```
+
+Generated JPEGs and `frames.csv` support phase-by-phase comparison without adding
+personal recordings to source control. For variable-frame-rate recordings, a low average nominal rate must not discard
+short intervals of dense animation frames. Sampling more often than available
+source frames cannot recover missing motion data. Keep parameter estimates separate from
+pixel measurements and state uncertain or clipped portions of a fitted curve.
+
+Period exit starts on the native compact button's touch-down. Inspect the
+presentation-layer overlap interval at source-frame cadence, not just the
+settled full bar. Finish the period fade before full native controls become
+visible in its region; their model opacity alone is insufficient.
