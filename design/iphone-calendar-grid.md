@@ -149,15 +149,25 @@ at release. Once the adjacent layout is visible, release adopts that direction;
 crossing additional stops has a separate reveal threshold to avoid overshooting.
 Snapshot layer anchors include both source and destination focal coordinates,
 and the live collection adopts the same destination before reveal. Release uses
-a critically damped native spring over 360 ms; held progress directly tracks scale.
+a critically damped native spring over approximately 500 ms; held scale and the
+automatic crossfade are independent. Predicted scene geometry retains the focal
+asset without adopting the real collection until release. Source-timestamped
+recording fits inform these parameters; they do not establish proprietary internals.
 
 Thumbnail targets use 64-pixel buckets matching cell display pixels, capped at
 1024. Dense cells request 64/128-pixel images, not large photo previews. A separate
 16 MiB, 64-pixel memory fallback permits immediate reuse across size changes;
 the normal cache retains the requested size tier. Both remain bounded and are
-cleared together on policy changes. Nearby PhotoKit preheat is capped at 256
-small or 48 larger assets. No persistent disk cache is introduced. Cloud-only
-assets without local pixels still require the existing preview network policy.
+cleared together on policy changes. Nearby PhotoKit preheat is capped at 3072 small or 48 larger assets. A rebuildable
+rendition disk cache retains asset/revision/pixel/crop keys, defaults to 256 MiB,
+expires old entries and shares usage, budget and clear actions with cache settings.
+It never owns originals or queued transfer files. Foreground decoding runs outside
+the cache actor; background encoding has bounded concurrency and retained bytes.
+Native request slots remain held through writeback after delivering pixels to the
+UI, preventing producer bursts from silently dropping reusable covers. This can
+increase initial population time; compare cold latency and complete disk revisits.
+Coalesced owners cancel independently, and clear invalidates late writes.
+Cloud-only assets without local pixels still require the preview network policy.
 
 Startup loading shares the existing title/subtitle region. Permission and empty
 states retain their recovery controls. The native collection and header remain
@@ -219,3 +229,20 @@ References evaluated for layering and loader ownership:
 [SDWebImage Photos plugin](https://github.com/SDWebImage/SDWebImagePhotosPlugin)
 and [Nuke caching](https://kean-docs.github.io/nuke/documentation/nuke/caching/).
 The app retains PhotoKit loading rather than adding a network-image pipeline.
+
+
+## Motion and cache regression tools
+
+The [repeatable experiment tools](../scripts/benchmarks/README.md) compare committed
+and candidate pipelines and track original recording timestamps. Fit grid position,
+size, autonomous blend and period entry/exit separately. Held gestures are not free
+spring samples. Native period visibility follows compact-control visibility/expansion events and
+presented icon coordinates. A measured animation clock starts with these native
+events: title opacity can remain 1 behind a clipping mask and then change abruptly,
+so it must not gate entry until after the icon shrinks. This is transition timing,
+not an idle timeout. Interrupted transitions cancel without
+running an obsolete commit completion. Test rapid hierarchy changes and metadata
+replacement, preserve the real animated scroll-to-latest behavior, and prepare
+local destination pixel tiers before cover travel with a bounded unavailable-media
+fallback. Complete runtime navigation and source-frame review independently of
+synthetic timing benchmarks.

@@ -46,3 +46,7 @@ with the same signing certificate and rejected wrong digest, size, version and
 foreign-signature inputs. This exposed and fixed legacy certificate lookup when
 `signingInfo` is absent. No production receiver data was modified by those tests.
 The system installer still requires the user's installation confirmation.
+
+Repeatable thumbnail baseline/candidate measurements and timestamped motion analysis
+are documented in [experiment tools](../scripts/benchmarks/README.md). Controlled
+loader results do not replace physical PhotoKit, iCloud or peak-memory profiling.

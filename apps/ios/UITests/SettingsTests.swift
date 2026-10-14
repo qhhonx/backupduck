@@ -317,6 +317,7 @@ final class SettingsTests: XCTestCase {
     continueAfterFailure = false
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    app.launchArguments += ["-calendar-motion-trace"]
     launchIsolated(app)
     let grid = app.collectionViews["library.grid"]
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
@@ -328,6 +329,13 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.buttons["Years"].isHittable)
     XCTAssertFalse(app.tabBars.buttons["Backup"].isHittable)
     recordWindow(app,"Native Library controls — minimized tab and inline calendar")
+    app.buttons["Library"].tap()
+    XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
+    XCTAssertFalse(app.buttons["Years"].isHittable)
+    // A second round must not inherit the first expansion's hidden-caption latch.
+    grid.swipeDown()
+    XCTAssertTrue(app.buttons["Years"].waitForExistence(timeout:5))
+    XCTAssertTrue(app.buttons["Years"].isHittable)
     app.buttons["Library"].tap()
     XCTAssertTrue(app.tabBars.buttons["Backup"].isHittable)
     XCTAssertFalse(app.buttons["Years"].isHittable)
@@ -558,7 +566,7 @@ final class SettingsTests: XCTestCase {
     }
     grid.swipeDown()
     app.buttons["Months"].tap()
-    XCTAssertTrue(app.staticTexts["calendar.date_badge"].firstMatch.waitForExistence(timeout:5))
+    XCTAssertTrue(app.buttons["Months"].isSelected)
     let day=try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
     let id=day.identifier;day.tap()
     XCTAssertTrue(grid.cells[id].isHittable)
@@ -571,6 +579,12 @@ final class SettingsTests: XCTestCase {
     XCTAssertLessThan(grid.cells[focusedID].frame.width,width)
     recordWindow(app,"Calendar drill-down and independent All-grid density")
     grid.cells[focusedID].tap()
+    // Dense browsing first enlarges the touched photo into the five-column grid.
+    if !app.buttons["library.preview.close"].exists {
+      let enlarged = XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@","5 columns"),object:grid)
+      XCTAssertEqual(XCTWaiter.wait(for:[enlarged],timeout:5),.completed)
+      XCTAssertTrue(grid.cells[focusedID].isHittable); grid.cells[focusedID].tap()
+    }
     XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout:10))
     app.buttons["library.preview.close"].tap()
     XCTAssertTrue(grid.cells[focusedID].isHittable)

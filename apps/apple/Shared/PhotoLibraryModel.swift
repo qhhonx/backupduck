@@ -370,7 +370,12 @@ actor ThumbnailDiskCache {
   static let shared = ThumbnailDiskCache()
   let directory: URL
   private let defaults: UserDefaults
-  private var indexed = false, generation = 0
+  private var indexed = false, generation = 0, totalBytes = 0
+  private var lastTrim = Date.distantPast
+  private var encodingCount = 0
+  private var encodingWaiters: [CheckedContinuation<Void,Never>] = []
+  private var queuedEncodingBytes = 0
+  private var availableWriteBytes: Int64?, capacityChecked = Date.distantPast
   private var entries: [String: (bytes: Int, accessed: Date)] = [:]
   init(directory: URL? = nil, defaults: UserDefaults = .standard) {
     self.directory = directory ?? FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0]
@@ -388,36 +393,68 @@ actor ThumbnailDiskCache {
       guard file.pathExtension == "jpg",let values = try? file.resourceValues(forKeys:Set(keys)) else { continue }
       entries[file.lastPathComponent] = (values.fileSize ?? 0,values.contentModificationDate ?? .distantPast)
     }
+    totalBytes = entries.values.reduce(0) { $0+$1.bytes }
     trim()
   }
   var budgetMB: Int { max(64,defaults.integer(forKey:"libraryThumbnailBudgetMB") == 0 ? 256 : defaults.integer(forKey:"libraryThumbnailBudgetMB")) }
-  func usage() -> Int { index(); return entries.values.reduce(0) { $0+$1.bytes } }
+  func usage() -> Int { index(); return totalBytes }
   func setBudget(_ mb: Int) { defaults.set(mb,forKey:"libraryThumbnailBudgetMB"); index(); trim() }
-  func read(_ key: String) -> (UIImage?, Int) {
-    index(); let name = name(key), url = directory.appendingPathComponent(name)
-    guard let data = try? Data(contentsOf:url),let image = UIImage(data:data) else {
-      entries.removeValue(forKey:name); try? FileManager.default.removeItem(at:url)
-      return (nil,generation)
+  func read(_ key: String) async -> (UIImage?, Int) {
+    index(); let filename = name(key), version = generation
+    guard let entry = entries[filename] else { return (nil,version) }
+    let url = directory.appendingPathComponent(filename)
+    entries[filename] = (entry.bytes,Date())
+    let image = await Task.detached(priority:.userInitiated) {
+      guard let data = try? Data(contentsOf:url),let image = UIImage(data:data) else { return nil as UIImage? }
+      return image.preparingForDisplay() ?? image
+    }.value
+    guard generation == version else { return (nil,generation) }
+    if image == nil,let corrupt = entries.removeValue(forKey:filename) {
+      totalBytes -= corrupt.bytes; try? FileManager.default.removeItem(at:url)
     }
-    if let old = entries[name] {
-      entries[name] = (old.bytes,Date())
-      try? FileManager.default.setAttributes([.modificationDate:Date()],ofItemAtPath:url.path)
+    if image != nil,Date().timeIntervalSince(entry.accessed) > 60 {
+      Task.detached(priority:.utility) { try? FileManager.default.setAttributes([.modificationDate:Date()],ofItemAtPath:url.path) }
     }
-    return (image.preparingForDisplay() ?? image,generation)
+    return (image,version)
   }
-  func store(_ image: UIImage,key: String,generation expected: Int) {
+  private func releaseEncodingSlot() {
+    if encodingWaiters.isEmpty { encodingCount -= 1 }
+    else { encodingWaiters.removeFirst().resume() }
+  }
+  func store(_ image: UIImage,key: String,generation expected: Int) async {
     guard expected == generation else { return }; index()
-    guard let data = image.jpegData(compressionQuality:0.86) else { return }
     let filename = name(key),url = directory.appendingPathComponent(filename)
-    guard entries[filename] == nil else { return }
+    // Encoding must not serialize thousands of foreground reads behind writes.
+    let bytes = image.cgImage.map { $0.bytesPerRow*$0.height } ?? Int(image.size.width*image.size.height*image.scale*image.scale*4)
+    // Pending JPEG work also retains decoded images. Bound those bytes, not only
+    // the number of jobs, so large covers cannot exhaust memory during churn.
+    guard entries[filename] == nil,encodingWaiters.count < 1024,queuedEncodingBytes+bytes <= 32*1024*1024 else { return }
+    queuedEncodingBytes += bytes
+    defer { queuedEncodingBytes -= bytes }
+    if encodingCount >= 6 {
+      await withCheckedContinuation { encodingWaiters.append($0) }
+    } else { encodingCount += 1 }
+    defer { releaseEncodingSlot() }
+    guard expected == generation,entries[filename] == nil else { return }
+    let data = await Task.detached(priority:.utility) { image.jpegData(compressionQuality:0.86) }.value
+    guard expected == generation,entries[filename] == nil,let data else { return }
     // Cache writes stop before consuming the last reserve of local disk space.
-    if let free = try? directory.resourceValues(forKeys:[.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage,
-      free < 128*1024*1024 { return }
-    do { try data.write(to:url,options:.atomic); entries[filename] = (data.count,Date()); trim() }
+    if availableWriteBytes == nil || Date().timeIntervalSince(capacityChecked) > 5 {
+      availableWriteBytes = (try? directory.resourceValues(forKeys:[.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage)
+        .map { max(0,$0-128*1024*1024) }
+      capacityChecked = Date()
+    }
+    if let remaining = availableWriteBytes, remaining < data.count { return }
+    availableWriteBytes = availableWriteBytes.map { $0-Int64(data.count) }
+    do {
+      try data.write(to:url,options:.atomic); entries[filename] = (data.count,Date()); totalBytes += data.count
+      if totalBytes > budgetMB*1024*1024 || Date().timeIntervalSince(lastTrim) > 30 { trim() }
+    }
     catch { return }
   }
   private func trim() {
-    var total = entries.values.reduce(0) { $0+$1.bytes }
+    lastTrim = Date()
+    var total = totalBytes
     let limit = budgetMB*1024*1024, expiry = Date().addingTimeInterval(-30*24*3600)
     guard total > limit || entries.values.contains(where: { $0.accessed < expiry }) else { return }
     for (name,entry) in entries.sorted(by: { $0.value.accessed < $1.value.accessed }) {
@@ -425,11 +462,12 @@ actor ThumbnailDiskCache {
       try? FileManager.default.removeItem(at:directory.appendingPathComponent(name))
       entries.removeValue(forKey:name); total -= entry.bytes
     }
+    totalBytes = total
   }
   func removeAll() {
     generation += 1
     try? FileManager.default.removeItem(at:directory)
-    entries.removeAll(); indexed = false
+    entries.removeAll(); indexed = false; totalBytes = 0
   }
 }
 #endif
@@ -457,6 +495,9 @@ actor ThumbnailDiskCache {
     var diskGeneration = 0
   }
   private var pending: [PHImageRequestID: Pending] = [:]
+  private var owners: [PHImageRequestID:PHImageRequestID] = [:]
+  private var subscribers: [PHImageRequestID:[PHImageRequestID:(LibraryImage?,Bool)->Void]] = [:]
+  private var inFlight: [NSString:PHImageRequestID] = [:]
   private var localQueue: [PHImageRequestID] = []
   private var localCursor = 0
   private var activeLocal: Set<PHImageRequestID> = []
@@ -495,7 +536,7 @@ actor ThumbnailDiskCache {
     "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))" as NSString
   }
   func poster(for asset: PHAsset) -> LibraryImage? {
-    posters.object(forKey: asset.localIdentifier as NSString) ?? smallPosters.object(forKey: smallKey(asset))
+    posters.object(forKey:smallKey(asset)) ?? smallPosters.object(forKey: smallKey(asset))
   }
   private func rememberSmall(_ image: LibraryImage, asset: PHAsset) {
     #if os(iOS)
@@ -516,7 +557,10 @@ actor ThumbnailDiskCache {
       ? max(target.width/max(1,image.size.width),target.height/max(1,image.size.height))
       : min(target.width/max(1,image.size.width),target.height/max(1,image.size.height))
     let size = CGSize(width: image.size.width*factor,height: image.size.height*factor)
-    return UIGraphicsImageRenderer(size: size,format: format).image { _ in image.draw(in: CGRect(origin: .zero,size: size)) }
+    let canvas = mode == .aspectFill ? target : size
+    return UIGraphicsImageRenderer(size:canvas,format:format).image { _ in
+      image.draw(in:CGRect(x:(canvas.width-size.width)/2,y:(canvas.height-size.height)/2,width:size.width,height:size.height))
+    }
     #else
     return image
     #endif
@@ -545,11 +589,26 @@ actor ThumbnailDiskCache {
       completion(image, false)
       return PHInvalidImageRequestID
     }
-    if let image = smallPosters.object(forKey: smallKey(asset)) { completion(image,false) }
+    #if os(iOS)
+    let fallback = target.width <= 128 ? smallPosters.object(forKey:smallKey(asset)) : poster(for:asset)
+    #else
+    let fallback = poster(for:asset)
+    #endif
+    if let fallback { completion(fallback,false) }
     sequence = sequence == Int32.max ? 1 : sequence + 1
     let id = sequence
+    if let owner = inFlight[key],pending[owner] != nil {
+      owners[id] = owner; subscribers[owner,default:[:]][id] = completion
+      return id
+    }
     requestsStarted += 1
-    pending[id] = Pending(asset: asset, target: target, key: key, contentMode: contentMode, completion: completion)
+    owners[id] = id; subscribers[id] = [id:completion]; inFlight[key] = id
+    pending[id] = Pending(asset: asset, target: target, key: key, contentMode: contentMode,
+      completion:{ [weak self] image,cloud in
+        // Snapshot/cell/preheat callers share one rendition request and cancel independently.
+        let callbacks = Array(self?.subscribers[id]?.values ?? Dictionary<PHImageRequestID,(LibraryImage?,Bool)->Void>().values)
+        callbacks.forEach { $0(image,cloud) }
+      })
     #if os(iOS)
     if let disk {
       let version = epoch, cacheKey = key as String
@@ -560,7 +619,7 @@ actor ThumbnailDiskCache {
         if let image {
           self.cache.setObject(image,forKey:item.key,cost:self.imageCost(image,target:item.target))
           self.rememberSmall(image,asset:item.asset)
-          item.completion(image,false); self.pending.removeValue(forKey:id)
+          item.completion(image,false); self.finish(id)
         } else {
           let fallbackKey = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|64|\(PHImageContentMode.aspectFill.rawValue)"
           if target.width > 64 {
@@ -580,8 +639,14 @@ actor ThumbnailDiskCache {
   /// PhotoKit submission itself runs on the main actor. Dense scenes must not
   /// submit thousands of native requests in a single layout pass. Deferring a
   /// small bounded batch also lets reused/offscreen cells cancel before work starts.
+  private func hasLocalCapacity(for id: PHImageRequestID) -> Bool {
+    guard let item = pending[id] else { return true }
+    let bytes = activeLocal.compactMap { pending[$0] }.reduce(0) { $0+Int($1.target.width*$1.target.height*4) }
+    return activeLocal.isEmpty || bytes+Int(item.target.width*item.target.height*4) <= 24*1024*1024
+  }
   private func pumpLocal() {
-    guard !localPumpScheduled, localCursor < localQueue.count, activeLocal.count < 24 else { return }
+    guard !localPumpScheduled, localCursor < localQueue.count, activeLocal.count < 24,
+      hasLocalCapacity(for:localQueue[localCursor]) else { return }
     localPumpScheduled = true
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
@@ -589,6 +654,7 @@ actor ThumbnailDiskCache {
       var submitted = 0
       while self.localCursor < self.localQueue.count, self.activeLocal.count < 24, submitted < 8 {
         let id = self.localQueue[self.localCursor]
+        guard self.hasLocalCapacity(for:id) else { break }
         self.localCursor += 1
         guard self.pending[id] != nil else { continue }
         self.activeLocal.insert(id)
@@ -620,12 +686,20 @@ actor ThumbnailDiskCache {
       let cloud = info?[PHImageResultIsInCloudKey] as? Bool == true
       Task { @MainActor in
         guard let self, let item = self.pending[id], item.cloud == network else { return }
-        if cancelled { self.cancel(id); return }
+        if cancelled { self.finish(id); self.activeLocal.remove(id); self.activeCloud.remove(id); self.pumpLocal(); self.pumpCloud(); return }
         if let raw = image {
           let image = self.tierImage(raw,target: item.target,mode: item.contentMode)
           self.pending[id]?.hasImage = true
           self.rememberSmall(image,asset: item.asset)
-          self.posters.setObject(image, forKey: item.asset.localIdentifier as NSString, cost: self.imageCost(image,target: item.target))
+          let posterKey = self.smallKey(item.asset)
+          let old = self.posters.object(forKey:posterKey)
+          #if os(iOS)
+          if old == nil || image.size.width*image.scale >= old!.size.width*old!.scale {
+            self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
+          }
+          #else
+          self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
+          #endif
           if !degraded || singleResult {
             self.cache.setObject(image, forKey: item.key, cost: self.imageCost(image,target: item.target))
             #if os(iOS)
@@ -633,9 +707,13 @@ actor ThumbnailDiskCache {
               let key = item.key as String, generation = item.diskGeneration
               let small = self.smallPosters.object(forKey:self.smallKey(item.asset))
               let smallKey = "\(item.asset.localIdentifier)|\(PhotoLibraryModel.revision(item.asset))|64|\(PHImageContentMode.aspectFill.rawValue)"
-              Task(priority:.utility) {
+              let version = self.epoch
+              Task(priority:.utility) { [weak self] in
                 if let small { await disk.store(small,key:smallKey,generation:generation) }
                 await disk.store(image,key:key,generation:generation)
+                guard let self,self.epoch == version else { return }
+                self.finish(id); self.activeLocal.remove(id); self.activeCloud.remove(id)
+                self.pumpLocal(); self.pumpCloud()
               }
             }
             #endif
@@ -643,6 +721,12 @@ actor ThumbnailDiskCache {
           item.completion(image, false)
         }
         guard !degraded || singleResult else { return }
+        #if os(iOS)
+        // The pixels reach the UI immediately. Retain the producer slot until
+        // writeback completes so a fast burst cannot overflow the bounded JPEG
+        // queue and silently discard otherwise reusable large renditions.
+        if image != nil,self.disk != nil { return }
+        #endif
         if image == nil && !cloud && !network && item.target.width <= 128 && !item.retriedFast {
           // Fast format can have no existing local rendition. Try the same small
           // target with opportunistic delivery once, without fetching an original.
@@ -656,11 +740,11 @@ actor ThumbnailDiskCache {
           } else {
             // Passive browsing never opens a permission sheet. An explicit
             // attempt to open cloud-only media owns the consent decision.
-            self.pending.removeValue(forKey: id)
+            self.finish(id)
           }
         } else {
           if image == nil && !item.hasImage { item.completion(nil, cloud) }
-          self.pending.removeValue(forKey: id)
+          self.finish(id)
           self.activeCloud.remove(id)
           self.pumpCloud()
         }
@@ -676,15 +760,21 @@ actor ThumbnailDiskCache {
       start(id, network: true)
     }
   }
+  private func finish(_ id: PHImageRequestID) {
+    if let item = pending.removeValue(forKey:id),inFlight[item.key] == id { inFlight.removeValue(forKey:item.key) }
+    for subscriber in subscribers.removeValue(forKey:id)?.keys ?? Dictionary<PHImageRequestID,(LibraryImage?,Bool)->Void>().keys {
+      owners.removeValue(forKey:subscriber)
+    }
+  }
   func cancel(_ request: PHImageRequestID) {
-    guard let item = pending.removeValue(forKey: request) else { return }
+    guard let owner = owners.removeValue(forKey:request) else { return }
+    subscribers[owner]?.removeValue(forKey:request)
+    guard subscribers[owner]?.isEmpty != false,let item = pending[owner] else { return }
     requestsCancelled += 1
+    finish(owner)
     if item.native != PHInvalidImageRequestID { manager.cancelImageRequest(item.native) }
-    activeLocal.remove(request)
-    pumpLocal()
-    cloudQueue.removeAll { $0 == request }
-    activeCloud.remove(request)
-    pumpCloud()
+    activeLocal.remove(owner); pumpLocal()
+    cloudQueue.removeAll { $0 == owner }; activeCloud.remove(owner); pumpCloud()
   }
   func preheat(_ assets: [PHAsset], pixels: CGFloat) {
     let target = size(pixels)
@@ -714,7 +804,8 @@ actor ThumbnailDiskCache {
   func clear() {
     epoch &+= 1
     let requests = pending.values.map(\.native)
-    pending.removeAll(); cloudQueue.removeAll(); activeCloud.removeAll()
+    pending.removeAll(); owners.removeAll(); subscribers.removeAll(); inFlight.removeAll()
+    cloudQueue.removeAll(); activeCloud.removeAll()
     localQueue.removeAll(); localCursor = 0; activeLocal.removeAll()
     requests.filter { $0 != PHInvalidImageRequestID }.forEach { manager.cancelImageRequest($0) }
     cache.removeAllObjects(); posters.removeAllObjects(); smallPosters.removeAllObjects()

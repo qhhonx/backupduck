@@ -56,6 +56,39 @@ import XCTest
     XCTAssertNil(cleared,"A completion from before clearing cannot restore the cleared pixels")
     let empty = await disk.usage(); XCTAssertEqual(empty,0)
   }
+  func testSharedThumbnailRequestKeepsRemainingSubscriberAfterCancellation() async throws {
+    let fetch = PHAsset.fetchAssets(with:.image,options:photoLibraryFetchOptions())
+    guard fetch.count > 0 else { throw XCTSkip("Import synthetic fixtures first") }
+    let manager = FastDegradedImageManager(),pipeline = ThumbnailPipeline(manager:manager)
+    pipeline.disk = nil
+    let received = expectation(description:"Remaining subscriber receives the shared result")
+    var cancelledCallbacks = 0
+    let first = pipeline.request(fetch.object(at:0),pixels:64) { _,_ in cancelledCallbacks += 1 }
+    let second = pipeline.request(fetch.object(at:0),pixels:64) { image,_ in if image != nil { received.fulfill() } }
+    XCTAssertNotEqual(first,second)
+    pipeline.cancel(first)
+    await fulfillment(of:[received],timeout:5)
+    XCTAssertEqual(manager.started,1); XCTAssertEqual(cancelledCallbacks,0)
+    pipeline.clear()
+  }
+  func testDiskWriteBurstRetainsEveryRenditionAndClearInvalidatesWaiters() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at:directory) }
+    let disk = ThumbnailDiskCache(directory:directory)
+    let image = UIGraphicsImageRenderer(size:CGSize(width:64,height:64)).image { _ in }
+    let (_,generation) = await disk.read("missing")
+    await withTaskGroup(of:Void.self) { group in
+      for i in 0..<120 { group.addTask { await disk.store(image,key:"burst-\(i)",generation:generation) } }
+    }
+    for i in 0..<120 {
+      let (cached,_) = await disk.read("burst-\(i)"); XCTAssertNotNil(cached)
+    }
+    await withTaskGroup(of:Void.self) { group in
+      for i in 0..<120 { group.addTask { await disk.store(image,key:"late-\(i)",generation:generation) } }
+      await disk.removeAll()
+    }
+    let empty = await disk.usage(); XCTAssertEqual(empty,0)
+  }
   func testFastDegradedResultsReleaseEverySlotAndCacheTheirSizeTier() async throws {
     let fetch = PHAsset.fetchAssets(with: .image,options: photoLibraryFetchOptions())
     guard fetch.count >= 60 else { throw XCTSkip("Import synthetic fixtures first") }

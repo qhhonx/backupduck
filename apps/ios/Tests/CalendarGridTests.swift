@@ -3,6 +3,38 @@ import XCTest
 @testable import BackupDuck
 
 final class CalendarGridTests: XCTestCase {
+  @MainActor private func settle(_ controller: CalendarGridController) {
+    guard let animator = controller.spring else { return }
+    if animator.state == .inactive { animator.startAnimation() }
+    animator.stopAnimation(false); animator.finishAnimation(at:.end)
+  }
+
+  @MainActor func testRapidHierarchyReplacementCancelsWithoutCommittingOldCompletion() {
+    let c = CalendarGridController()
+    let assets = (0..<55000).map { CalendarGridAsset(id:"stress-\($0)",
+      date:Date(timeIntervalSince1970:1577836800+Double($0)*2700),aspect:1) }
+    c.assets = assets; c.loadViewIfNeeded()
+    c.view.frame = CGRect(x:0,y:0,width:402,height:874); c.view.layoutIfNeeded()
+    for step in 0..<120 {
+      c.changeLevel(step % 2 == 0 ? .months : .years,asset:assets.count-10,from:nil)
+      if step % 10 == 0 { c.replaceAssets(assets) }
+    }
+    c.stopMotion()
+    XCTAssertNil(c.spring); XCTAssertNil(c.transitionOverlay)
+    XCTAssertFalse(c.changing); XCTAssertEqual(c.grid.alpha,1)
+    XCTAssertTrue(c.grid.visibleCells.allSatisfy { !$0.isHidden })
+  }
+  @MainActor func testSmallerLatePosterCannotReplacePreparedSharperPixels() {
+    let c = CalendarGridController()
+    let image: (CGFloat)->UIImage = { side in
+      let f = UIGraphicsImageRendererFormat(); f.scale = 1
+      return UIGraphicsImageRenderer(size:CGSize(width:side,height:side),format:f).image { _ in }
+    }
+    let sharp = image(512),small = image(64)
+    c.rememberImage(sharp,for:"photo"); c.rememberImage(small,for:"photo")
+    XCTAssertTrue(c.transitionImages.object(forKey:"photo") === sharp)
+  }
+
   @MainActor func testMediaPosterReplacementKeepsAssetFittedRectangle() {
     let media = MediaZoomScroll(frame: CGRect(x: 0,y: 0,width: 390,height: 650))
     media.mediaSize = CGSize(width: 3024,height: 4032)
@@ -64,7 +96,7 @@ final class CalendarGridTests: XCTestCase {
     c.view.setNeedsLayout(); c.view.layoutIfNeeded()
     for level in [CalendarGridLevel.months,.years,.all,.years] {
       c.changeLevel(level,asset:6990,from:nil)
-      c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+      settle(c)
       let tile = c.layout.geometry.tiles.firstIndex { $0.members.contains(6990) }!
       let frame = c.layout.frame(tile).offsetBy(dx:0,dy:-c.grid.contentOffset.y)
       XCTAssertTrue(frame.intersects(c.grid.frame),"Period controls keep the recent photo's period visible")
@@ -80,13 +112,13 @@ final class CalendarGridTests: XCTestCase {
     c.view.setNeedsLayout(); c.view.layoutIfNeeded()
     let focal = c.focusedAsset()
     c.dock.selectedSegmentIndex = CalendarGridLevel.months.rawValue; c.levelChosen()
-    c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    settle(c)
     XCTAssertEqual(c.focusedAsset(),focal)
     c.dock.selectedSegmentIndex = CalendarGridLevel.years.rawValue; c.levelChosen()
-    c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    settle(c)
     XCTAssertEqual(c.focusedAsset(),focal,"End-clamped year cards must not replace the navigation context with the previous year")
     c.dock.selectedSegmentIndex = CalendarGridLevel.all.rawValue; c.levelChosen()
-    c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    settle(c)
     XCTAssertTrue(c.grid.indexPathsForVisibleItems.contains { c.layout.geometry.tiles[$0.item].asset > 54000 })
   }
   @MainActor func testLoadingHeaderAdoptsMediaContrastWithoutWaitingForResize() {
@@ -162,7 +194,10 @@ final class CalendarGridTests: XCTestCase {
     c.view.setNeedsLayout()
     c.view.layoutIfNeeded()
     c.beginSceneZoom(point: CGPoint(x: 201, y: c.grid.bounds.midY))
+    let originalGeometry = c.layout.geometry
     c.prepareZoomDestination(.all, columns: 5)
+    XCTAssertEqual(c.columns,3,"Prediction does not adopt a live destination while fingers are down")
+    XCTAssertEqual(c.layout.geometry.height,originalGeometry.height)
     let path = try XCTUnwrap(c.grid.indexPathsForVisibleItems.first)
     let cell = try XCTUnwrap(c.grid.cellForItem(at: path) as? CalendarGridCell)
     XCTAssertNotNil(cell.image.image)
@@ -171,12 +206,10 @@ final class CalendarGridTests: XCTestCase {
     c.zoomProgress = 1
     c.zoomReleaseColumns = 5
     c.finishSceneZoom(commit: true)
-    c.spring?.stopAnimation(false)
-    c.spring?.finishAnimation(at: .end)
-    XCTAssertTrue(
-      c.grid.cellForItem(at: path) === cell,
-      "Snapshot settling must not replace prepared media cells")
-    XCTAssertTrue(cell.image.image === image)
+    settle(c)
+    XCTAssertEqual(c.columns,5)
+    XCTAssertTrue(c.grid.visibleCells.allSatisfy { ($0 as? CalendarGridCell)?.image.image === image },
+      "Final cells use the same resolved pixels as the prepared scene")
 
   }
   @MainActor func testDestinationSnapshotKeepsLatestWindowBeforeAndAfterNativeReload() throws {
@@ -205,7 +238,7 @@ final class CalendarGridTests: XCTestCase {
     // A delayed native reload may temporarily expose a different window. The
     // canonical scene still resolves its own rectangle and stable photo IDs.
     c.grid.setContentOffset(.zero,animated:false); c.grid.layoutIfNeeded()
-    let image = c.sceneImage(viewport:target.viewport)
+    let image = c.sceneImage(viewport:target.viewport,geometry:target.geometry)
     let pixel = image.cgImage!.dataProvider!.data! as Data
     let cg = image.cgImage!, x = cg.width/2, y = cg.height/2
     let offset = y*cg.bytesPerRow+x*4
@@ -213,7 +246,7 @@ final class CalendarGridTests: XCTestCase {
     XCTAssertGreaterThan(channels[1],240)
     XCTAssertLessThan(channels[0],15)
     c.finishSceneZoom(commit:true)
-    c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    settle(c)
     XCTAssertEqual(c.columns,5)
     XCTAssertGreaterThan(c.grid.contentOffset.y,100000)
   }
@@ -227,7 +260,7 @@ final class CalendarGridTests: XCTestCase {
     c.beginSceneZoom(item:990)
     c.updatePinch(scale:0.8)
     c.finishSceneZoom(commit:true)
-    c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    settle(c)
     XCTAssertEqual(c.columns,3,"A recognized short pinch must adopt its already-visible destination")
   }
 
@@ -239,12 +272,12 @@ final class CalendarGridTests: XCTestCase {
     c.beginSceneZoom(item:990)
     for i in 1...200 { c.continuousZoom(scale:1+CGFloat(i)/1000) }
     XCTAssertEqual(c.zoomReleaseColumns,1,"Slow outward movement accumulates across frames")
-    c.finishSceneZoom(commit:true); c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    c.finishSceneZoom(commit:true); settle(c)
     XCTAssertEqual(c.columns,1)
     c.beginSceneZoom(item:990)
     for i in 1...200 { c.continuousZoom(scale:1-CGFloat(i)/1000) }
     XCTAssertEqual(c.zoomReleaseColumns,3,"The next gesture cannot inherit the preceding outward direction")
-    c.finishSceneZoom(commit:true); c.spring?.stopAnimation(false); c.spring?.finishAnimation(at:.end)
+    c.finishSceneZoom(commit:true); settle(c)
     XCTAssertEqual(c.columns,3)
   }
 
@@ -339,8 +372,7 @@ final class CalendarGridTests: XCTestCase {
     XCTAssertEqual(
       c.layout.frame(200), frame, "Held scale changes snapshots, not individual photo positions")
     c.finishSceneZoom(commit: false)
-    c.spring?.stopAnimation(false)
-    c.spring?.finishAnimation(at: .end)
+    settle(c)
     XCTAssertEqual(c.columns, 3)
     XCTAssertEqual(c.grid.contentOffset, offset)
     XCTAssertNil(c.zoomScene)
@@ -368,8 +400,7 @@ final class CalendarGridTests: XCTestCase {
     XCTAssertEqual(c.anchorPoint, focus)
     XCTAssertLessThanOrEqual(c.zoomFrames.count, 3)
     c.finishSceneZoom(commit: false)
-    c.spring?.stopAnimation(false)
-    c.spring?.finishAnimation(at: .end)
+    settle(c)
     XCTAssertEqual(c.columns, 3)
     XCTAssertNil(c.zoomScene)
   }
@@ -385,7 +416,7 @@ final class CalendarGridTests: XCTestCase {
       let photo = c.zoomStartAsset
       c.continuousZoom(scale: scale)
       XCTAssertEqual(c.zoomReleaseColumns,scale > 1 ? 1 : 5)
-      c.finishSceneZoom(commit: true); c.spring?.stopAnimation(false); c.spring?.finishAnimation(at: .end)
+      c.finishSceneZoom(commit: true); settle(c)
       XCTAssertEqual(c.columns,scale > 1 ? 1 : 5)
       let tile = try XCTUnwrap(c.layout.geometry.tiles.firstIndex { $0.asset == photo })
       let f = c.layout.frame(tile)
@@ -401,7 +432,7 @@ final class CalendarGridTests: XCTestCase {
     c.level = .all; c.columns = 20; c.toggleSelection(); c.toggleSelection()
     XCTAssertEqual(c.columns,20); XCTAssertTrue(c.selecting)
     XCTAssertTrue(c.gestureRecognizerShouldBegin(UIPinchGestureRecognizer()))
-    c.density(columns: 5,at: 30); c.spring?.stopAnimation(false); c.spring?.finishAnimation(at: .end)
+    c.density(columns: 5,at: 30); settle(c)
     XCTAssertEqual(c.columns,5); XCTAssertTrue(c.selecting)
   }
 
