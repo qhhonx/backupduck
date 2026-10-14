@@ -32,6 +32,32 @@ import XCTest
     session.stop()
   }
 
+  func testThumbnailFallbackIsSmallAndDoesNotReplaceRequestedSizeTier() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("Synthetic PhotoKit fixture only")
+    #endif
+    let fetch = PHAsset.fetchAssets(with: .image,options: photoLibraryFetchOptions())
+    guard fetch.count > 0 else { throw XCTSkip("Import synthetic photo fixtures first") }
+    let asset = fetch.object(at: 0), pipeline = ThumbnailPipeline()
+    let available = expectation(description: "Local medium thumbnail")
+    var fulfilled = false
+    let first = pipeline.request(asset,pixels: 320) { image,_ in
+      if image != nil && !fulfilled { fulfilled = true; available.fulfill() }
+    }
+    await fulfillment(of: [available],timeout: 5)
+    pipeline.cancel(first)
+    var synchronous: UIImage?
+    let second = pipeline.request(asset,pixels: 64) { image,_ in synchronous = image }
+    XCTAssertNotNil(synchronous,"Revisiting a cached asset has immediate fallback pixels")
+    XCTAssertLessThanOrEqual(synchronous?.size.width ?? .infinity,64)
+    XCTAssertLessThanOrEqual(synchronous?.size.height ?? .infinity,64)
+    XCTAssertEqual(pipeline.size(40),CGSize(width: 64,height: 64))
+    XCTAssertEqual(pipeline.size(120),CGSize(width: 128,height: 128))
+    XCTAssertEqual(pipeline.size(320),CGSize(width: 320,height: 320))
+    pipeline.cancel(second); pipeline.clear()
+    XCTAssertNil(pipeline.poster(for: asset),"Cache clearing releases both size tiers and fallback posters")
+  }
+
   func testBackupScopeUsesActualAlbumMembershipAndFrozenSnapshot() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("This fixture is simulator-only")

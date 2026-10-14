@@ -232,6 +232,52 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
   }
 
+  @MainActor func testSelectionRetainsDenseViewAndZoomsBeforeSelecting() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    func zoomOut() { app.buttons["library.filter"].tap(); app.buttons["Display Options"].tap(); app.buttons["Zoom Out"].tap() }
+    zoomOut(); zoomOut(); zoomOut()
+    let terminal = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","20 columns"),object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [terminal],timeout: 5),.completed)
+    app.buttons["library.select_mode"].tap()
+    XCTAssertEqual(grid.value as? String,"20 columns","Entering selection preserves overview density")
+    recordWindow(app,"Selection at the retained dense overview")
+    grid.coordinate(withNormalizedOffset: CGVector(dx: 0.47,dy: 0.15)).tap()
+    let month = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","10 columns"),object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [month],timeout: 5),.completed)
+    grid.coordinate(withNormalizedOffset: CGVector(dx: 0.47,dy: 0.15)).tap()
+    let selectable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","5 columns"),object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [selectable],timeout: 5),.completed)
+    XCTAssertEqual(app.buttons["calendar.review_selected"].label,"Select Items","Overview taps enlarge without selecting")
+    let photo = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 260 && $0.frame.midY < 500 })
+    photo.tap(); XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("1"))
+    grid.pinch(withScale: 1.5,velocity: 0.6)
+    let enlarged = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","3 columns"),object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [enlarged],timeout: 5),.completed)
+    XCTAssertTrue(app.buttons["calendar.review_selected"].label.contains("1"))
+    recordWindow(app,"Selection preserves overview and pinch; no side gutter")
+  }
+  @MainActor func testSmallOutwardPinchCommitsVisibleSingleColumn() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10)); grid.swipeDown()
+    let photo = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 280 && $0.frame.midY < 550 && $0.frame.midX > 130 && $0.frame.midX < 300 })
+    let id = photo.identifier
+    photo.pinch(withScale: 1.2,velocity: 0.5)
+    let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","1 columns"),object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [settled],timeout: 5),.completed)
+    XCTAssertTrue(grid.cells[id].isHittable)
+    recordWindow(app,"Small outward pinch commits the visible single column")
+    grid.pinch(withScale: 0.8,velocity: -0.5)
+    let reverse = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","3 columns"),object: grid)
+    XCTAssertEqual(XCTWaiter.wait(for: [reverse],timeout: 5),.completed)
+  }
+
   @MainActor func testCalendarControlsRemainTappableAfterNativeTransition() throws {
     guard #available(iOS 26.0, *) else { throw XCTSkip("Native tab minimization requires iOS 26") }
     continueAfterFailure = false
@@ -401,8 +447,9 @@ final class SettingsTests: XCTestCase {
     app.buttons["library.filter"].tap();app.buttons["Display Options"].tap();app.buttons["Zoom Out"].tap()
     XCTAssertTrue(app.buttons["library.select_mode"].isHittable)
     recordWindow(app,"iPhone calendar — dark larger type and zoom menu")
-    app.buttons["library.filter"].tap();app.buttons["Display Options"].tap();app.buttons["Original Aspect Grid"].tap()
-    recordWindow(app,"iPhone calendar — original aspect thumbnails")
+    app.buttons["library.filter"].tap();app.buttons["Display Options"].tap()
+    XCTAssertFalse(app.buttons["Original Aspect Grid"].exists)
+    app.tap()
     grid.swipeDown()
     XCTAssertTrue(app.buttons["Years"].waitForExistence(timeout:5));app.buttons["Years"].tap()
     recordWindow(app,"iPhone calendar — year covers in dark appearance")

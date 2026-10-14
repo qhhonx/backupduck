@@ -79,7 +79,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
           children: actions)
       ]
     }
-    return UINavigationController(rootViewController: grid)
+    return CalendarNavigationController(rootViewController: grid)
   }
   func updateUIViewController(_ nav: UINavigationController, context: Context) {
     let c = context.coordinator
@@ -129,6 +129,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     var queueRevision: Int64 = -1, receiver: String?
     var networkAllowed = false, filter: LibraryFilter?
     var previewOrigin: String?
+    var lastPreheat: CFTimeInterval = 0
     init(_ parent: IOSCalendarLibrary) { self.parent = parent }
     func asset(_ id: String) -> PHAsset? {
       guard let index = positions[id], let fetch, index < fetch.count else { return nil }
@@ -206,6 +207,20 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       }
     }
     func refreshStates() {
+      if let grid = controller, !grid.changing, CACurrentMediaTime()-lastPreheat > 0.12 {
+        lastPreheat = CACurrentMediaTime()
+        let viewport = grid.grid.bounds.insetBy(dx: 0,dy: -grid.grid.bounds.height*0.35)
+        let range = grid.layout.geometry.visible(in: viewport)
+        let capacity = grid.level == .all && grid.columns >= 10 ? 256 : 48
+        let center = grid.layout.geometry.visible(in: grid.grid.bounds).lowerBound
+        let first = max(range.lowerBound,center-capacity/4)
+        let nearby = (first..<max(first,min(range.upperBound,first+capacity))).compactMap { i -> PHAsset? in
+          guard grid.layout.geometry.tiles.indices.contains(i) else { return nil }
+          return asset(grid.assets[grid.layout.geometry.tiles[i].asset].id)
+        }
+        let pixels = grid.level == .all && grid.columns >= 10 ? max(40,grid.width/CGFloat(grid.columns)*grid.traitCollection.displayScale) : grid.width/CGFloat(grid.level == .all ? grid.columns : 1)*grid.traitCollection.displayScale
+        parent.library.thumbnails.preheat(nearby,pixels: pixels)
+      }
       guard let grid = controller, let receiver = parent.model.pairing?.receiverID,
         grid.level == .all, grid.columns < 10
       else { return }

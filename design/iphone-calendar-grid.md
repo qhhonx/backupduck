@@ -48,8 +48,11 @@ On supported iPhones, the chronological collection is registered with the native
 TabBar controller and uses `onScrollUp` because its newest edge is bottom aligned.
 The system owns minimization, the compact Library button and expansion; do not
 replace that shape change with whole-bar hiding. Years/Months/All is attached as
-`UITabAccessory` content only in its inline environment, then detached after the
-native bar expansion settles. Full navigation must not acquire a second accessory row.
+`UITabAccessory` content in its inline environment. The native environment
+change directly owns visibility; no idle timeout detaches a collapsed control.
+Expansion removes the regular accessory row, while a history drag installs the
+observer before native minimization. Entry rises 16 pt alongside native motion;
+exit fades without downward translation. Full navigation must not acquire a second accessory row.
 A compact native Library button expands navigation without moving photos. A second
 tap on the full Library tab animates to the newest edge of the current level.
 No return-to-latest arrow is added. The subtitle's latest-edge state is independent
@@ -70,7 +73,9 @@ Semantic text and surface colors preserve the BackupDuck theme. Reduced
 transparency and motion preserve state and location.
 
 Selection replaces browsing controls with a count/review action and the existing
-backup action. Review displays selected items only, supports deselection and
+backup action. Entering selection preserves hierarchy, density and focus. Pinch
+remains enabled. Cover/overview taps drill down one level without selecting;
+only individual photos in one, three or five columns toggle selection. Review displays selected items only, supports deselection and
 shares one selection set with the main grid. Review defaults to three columns.
 Its leading browse icon opens the same native media viewer over a stable snapshot
 of this review batch, in library order. It never pages into unrelated library
@@ -95,9 +100,10 @@ The incoming layout is prepared once per density bracket beneath the overlay,
 with its focal photo aligned to the original finger center. The source fades out
 while the incoming layout scales from its enlarged state. Continuing the same
 pinch changes brackets; reverse motion uses the same canonical scenes. At most
-three viewport images are retained at up to 2x display resolution. One early
-poster refresh is permitted; there is no per-frame layout/snapshot reconstruction.
-Release settles scale and opacity over 280 ms before exposing the actual native
+three viewport images are retained at up to 2x display resolution. At most three
+pixel-only refreshes admit arriving thumbnails for the exact prepared layout;
+stale callbacks cannot replace another bracket or move its anchor. There is no
+per-frame layout/snapshot reconstruction. Release settles scale and opacity over 360 ms before exposing the actual native
 collection. Cancellation crossfades back to the initial scene/context. Panning is
 suspended while pinching; translating fingers cannot drag a canvas.
 
@@ -126,3 +132,26 @@ light/dark and larger type. Include a genuine mid-library test: a downward drag
 moves into history from the newest resting edge. Wait for the actual settled density before asserting final coordinates: display-link
 animation is not tracked by XCTest idleness. Tests do not establish exact
 proprietary animation curves or physical-device performance.
+
+## Navigation contrast and thumbnails
+
+Photos remain visible behind the transparent native header. A translucent dark
+edge gradient supports white title and semibold white subtitle; it never paints
+an opaque canvas over media. The bottom inset follows the native safe area plus
+6 pt, without reserving a second toolbar row. Phone display options use square
+cells; original-aspect presentation remains a separate desktop capability.
+
+Pinch holds the two-touch focal photo and uses only the last valid two-touch scale
+at release. Once the adjacent layout is visible, release adopts that direction;
+crossing additional stops has a separate reveal threshold to avoid overshooting.
+Snapshot layer anchors include both source and destination focal coordinates,
+and the live collection adopts the same destination before reveal. Release uses
+a critically damped native spring over 360 ms; held progress directly tracks scale.
+
+Thumbnail targets use 64-pixel buckets matching cell display pixels, capped at
+1024. Dense cells request 64/128-pixel images, not large photo previews. A separate
+16 MiB, 64-pixel memory fallback permits immediate reuse across size changes;
+the normal cache retains the requested size tier. Both remain bounded and are
+cleared together on policy changes. Nearby PhotoKit preheat is capped at 256
+small or 48 larger assets. No persistent disk cache is introduced. Cloud-only
+assets without local pixels still require the existing preview network policy.

@@ -114,7 +114,7 @@ final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
     let tabs = UITabBarController()
     grid.tabBarItem = UITabBarItem(
       title: "Library", image: UIImage(systemName: "photo.on.rectangle"), tag: 0)
-    let nav = UINavigationController(rootViewController: grid)
+    let nav = CalendarNavigationController(rootViewController: grid)
     let others = [
       ("Backup", "arrow.triangle.2.circlepath"), ("Receiver", "externaldrive.badge.wifi"),
       ("Settings", "gearshape"),

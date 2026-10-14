@@ -115,6 +115,7 @@ final class CalendarGridTests: XCTestCase {
     c.zoomSourceColumns = 3
     c.zoomDestinationColumns = 5
     c.zoomProgress = 1
+    c.zoomReleaseColumns = 5
     c.finishSceneZoom(commit: true)
     c.spring?.stopAnimation(false)
     c.spring?.finishAnimation(at: .end)
@@ -226,6 +227,37 @@ final class CalendarGridTests: XCTestCase {
     c.spring?.finishAnimation(at: .end)
     XCTAssertEqual(c.columns, 3)
     XCTAssertNil(c.zoomScene)
+  }
+
+  @MainActor func testVisiblePinchDestinationSettlesWithoutRevertingAndKeepsFocalPhoto() throws {
+    for scale in [CGFloat(1.2),CGFloat(0.9)] {
+      let c = CalendarGridController()
+      c.assets = (0..<500).map { CalendarGridAsset(id: "photo-\($0)",date: nil,aspect: 1) }
+      c.loadViewIfNeeded(); c.view.frame = CGRect(x: 0,y: 0,width: 402,height: 874)
+      c.view.setNeedsLayout(); c.view.layoutIfNeeded()
+      c.grid.contentOffset.y = c.clampedOffset(6000)
+      c.beginSceneZoom(point: CGPoint(x: 201,y: c.grid.contentOffset.y+400))
+      let photo = c.zoomStartAsset
+      c.continuousZoom(scale: scale)
+      XCTAssertEqual(c.zoomReleaseColumns,scale > 1 ? 1 : 5)
+      c.finishSceneZoom(commit: true); c.spring?.stopAnimation(false); c.spring?.finishAnimation(at: .end)
+      XCTAssertEqual(c.columns,scale > 1 ? 1 : 5)
+      let tile = try XCTUnwrap(c.layout.geometry.tiles.firstIndex { $0.asset == photo })
+      let f = c.layout.frame(tile)
+      XCTAssertEqual(f.minY+f.height*c.anchorFraction.y-c.grid.contentOffset.y,400,accuracy: 1)
+      XCTAssertNil(c.zoomScene); XCTAssertEqual(c.grid.transform,.identity)
+    }
+  }
+  @MainActor func testSelectionKeepsHierarchyAndPinchInputOwnership() {
+    let c = CalendarGridController(); c.assets = (0..<60).map { CalendarGridAsset(id: "photo-\($0)",date: nil,aspect: 1) }
+    c.loadViewIfNeeded(); c.view.frame = CGRect(x: 0,y: 0,width: 402,height: 874); c.view.setNeedsLayout(); c.view.layoutIfNeeded()
+    c.level = .months; c.toggleSelection()
+    XCTAssertEqual(c.level,.months); XCTAssertTrue(c.selecting)
+    c.level = .all; c.columns = 20; c.toggleSelection(); c.toggleSelection()
+    XCTAssertEqual(c.columns,20); XCTAssertTrue(c.selecting)
+    XCTAssertTrue(c.gestureRecognizerShouldBegin(UIPinchGestureRecognizer()))
+    c.density(columns: 5,at: 30); c.spring?.stopAnimation(false); c.spring?.finishAnimation(at: .end)
+    XCTAssertEqual(c.columns,5); XCTAssertTrue(c.selecting)
   }
 
 }

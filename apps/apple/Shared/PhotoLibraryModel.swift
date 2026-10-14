@@ -367,6 +367,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   private let manager = PHCachingImageManager()
   private let cache = NSCache<NSString, LibraryImage>()
   private let posters = NSCache<NSString, LibraryImage>()
+  private let smallPosters = NSCache<NSString, LibraryImage>()
   private var preheated: [String: PHAsset] = [:]
   private var preheatSize = CGSize.zero
   private struct Pending {
@@ -378,6 +379,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     var native: PHImageRequestID = PHInvalidImageRequestID
     var cloud = false
     var hasImage = false
+    var retriedFast = false
   }
   private var pending: [PHImageRequestID: Pending] = [:]
   private var localQueue: [PHImageRequestID] = []
@@ -396,6 +398,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     // Tiny mosaics can expose thousands of 64-pixel images. Keep the byte
     // budget authoritative instead of evicting still-visible tiles at 500 items.
     cache.countLimit = 8192
+    smallPosters.totalCostLimit = min(16 * 1024 * 1024,cacheBudget/4); smallPosters.countLimit = 8192
     posters.countLimit = 80; posters.totalCostLimit = 24 * 1024 * 1024
     manager.allowsCachingHighQualityImages = true
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in self?.clear() }
@@ -404,12 +407,48 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let edge = min(1024, max(64, (requested / 64).rounded(.up) * 64))
     return CGSize(width: edge, height: edge)
   }
-  func poster(for asset: PHAsset) -> LibraryImage? { posters.object(forKey: asset.localIdentifier as NSString) }
-  private func options(network: Bool = false, video: Bool = false) -> PHImageRequestOptions {
+  private func smallKey(_ asset: PHAsset) -> NSString {
+    "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))" as NSString
+  }
+  func poster(for asset: PHAsset) -> LibraryImage? {
+    posters.object(forKey: asset.localIdentifier as NSString) ?? smallPosters.object(forKey: smallKey(asset))
+  }
+  private func rememberSmall(_ image: LibraryImage, asset: PHAsset) {
+    #if os(iOS)
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1
+    let size = CGSize(width: 64,height: 64)
+    let thumb = UIGraphicsImageRenderer(size: size,format: format).image { _ in
+      let source = image.size; let factor = max(64/max(1,source.width),64/max(1,source.height))
+      image.draw(in: CGRect(x: (64-source.width*factor)/2,y: (64-source.height*factor)/2,width: source.width*factor,height: source.height*factor))
+    }
+    smallPosters.setObject(thumb,forKey: smallKey(asset),cost: 64*64*4)
+    #endif
+  }
+  private func tierImage(_ image: LibraryImage, target: CGSize, mode: PHImageContentMode) -> LibraryImage {
+    #if os(iOS)
+    guard target.width <= 128,image.size.width*image.scale > target.width || image.size.height*image.scale > target.height else { return image }
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1
+    let factor = mode == .aspectFill
+      ? max(target.width/max(1,image.size.width),target.height/max(1,image.size.height))
+      : min(target.width/max(1,image.size.width),target.height/max(1,image.size.height))
+    let size = CGSize(width: image.size.width*factor,height: image.size.height*factor)
+    return UIGraphicsImageRenderer(size: size,format: format).image { _ in image.draw(in: CGRect(origin: .zero,size: size)) }
+    #else
+    return image
+    #endif
+  }
+  private func imageCost(_ image: LibraryImage, target: CGSize) -> Int {
+    #if os(iOS)
+    return image.cgImage.map { $0.bytesPerRow*$0.height } ?? Int(image.size.width*image.size.height*image.scale*image.scale*4)
+    #else
+    return Int(target.width*target.height*4)
+    #endif
+  }
+  private func options(network: Bool = false, video: Bool = false, pixels: CGFloat = 320) -> PHImageRequestOptions {
     let options = PHImageRequestOptions()
     options.isNetworkAccessAllowed = network
-    options.deliveryMode = video ? .highQualityFormat : .opportunistic
-    options.resizeMode = .exact
+    options.deliveryMode = pixels <= 128 ? .fastFormat : video ? .highQualityFormat : .opportunistic
+    options.resizeMode = pixels <= 128 ? .fast : .exact
     return options
   }
   @discardableResult func request(
@@ -422,6 +461,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       completion(image, false)
       return PHInvalidImageRequestID
     }
+    if let image = smallPosters.object(forKey: smallKey(asset)) { completion(image,false) }
     sequence = sequence == Int32.max ? 1 : sequence + 1
     let id = sequence
     requestsStarted += 1
@@ -458,23 +498,30 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       self.pumpLocal()
     }
   }
-  private func start(_ id: PHImageRequestID, network: Bool) {
+  private func start(_ id: PHImageRequestID, network: Bool, forceQuality: Bool = false) {
     guard let item = pending[id] else { return }
     pending[id]?.cloud = network
     let request = manager.requestImage(for: item.asset, targetSize: item.target,
-      contentMode: item.contentMode, options: options(network: network, video: item.asset.mediaType == .video)) { [weak self] image, info in
+      contentMode: item.contentMode, options: options(network: network, video: item.asset.mediaType == .video,pixels: forceQuality ? 320 : item.target.width)) { [weak self] image, info in
       let cancelled = info?[PHImageCancelledKey] as? Bool == true
       let degraded = info?[PHImageResultIsDegradedKey] as? Bool == true
       let cloud = info?[PHImageResultIsInCloudKey] as? Bool == true
       Task { @MainActor in
         guard let self, let item = self.pending[id], item.cloud == network, !cancelled else { return }
-        if let image {
+        if let raw = image {
+          let image = self.tierImage(raw,target: item.target,mode: item.contentMode)
           self.pending[id]?.hasImage = true
-          self.posters.setObject(image, forKey: item.asset.localIdentifier as NSString, cost: Int(item.target.width * item.target.height * 4))
-          if !degraded { self.cache.setObject(image, forKey: item.key, cost: Int(item.target.width * item.target.height * 4)) }
+          self.rememberSmall(image,asset: item.asset)
+          self.posters.setObject(image, forKey: item.asset.localIdentifier as NSString, cost: self.imageCost(image,target: item.target))
+          if !degraded { self.cache.setObject(image, forKey: item.key, cost: self.imageCost(image,target: item.target)) }
           item.completion(image, false)
         }
         guard !degraded else { return }
+        if image == nil && !cloud && !network && item.target.width <= 128 && !item.retriedFast {
+          // Fast format can have no existing local rendition. Try the same small
+          // target with opportunistic delivery once, without fetching an original.
+          self.pending[id]?.retriedFast = true; self.start(id,network: false,forceQuality: true); return
+        }
         if !network { self.activeLocal.remove(id); self.pumpLocal() }
         if image == nil && cloud && !network {
           item.completion(nil, true)
@@ -520,7 +567,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       preheated.removeAll()
       preheatSize = target
     }
-    let next = Dictionary(assets.prefix(48).map { ($0.localIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
+    let next = Dictionary(assets.prefix(pixels <= 128 ? 256 : 48).map { ($0.localIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
     let removed = preheated.filter { next[$0.key] == nil }.map(\.value)
     let added = next.filter { preheated[$0.key] == nil }.map(\.value)
     // Match the visible request's quality while keeping preheating batched.
@@ -529,11 +576,11 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       let fresh = added.filter { ($0.mediaType == .video) == video }
       if !old.isEmpty {
         manager.stopCachingImages(for: old, targetSize: target, contentMode: .aspectFill,
-          options: options(video: video))
+          options: options(video: video,pixels: target.width))
       }
       if !fresh.isEmpty {
         manager.startCachingImages(for: fresh, targetSize: target, contentMode: .aspectFill,
-          options: options(video: video))
+          options: options(video: video,pixels: target.width))
       }
     }
     preheated = next
@@ -544,7 +591,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     pending.removeAll(); cloudQueue.removeAll(); activeCloud.removeAll()
     localQueue.removeAll(); localCursor = 0; activeLocal.removeAll()
     requests.filter { $0 != PHInvalidImageRequestID }.forEach { manager.cancelImageRequest($0) }
-    cache.removeAllObjects(); posters.removeAllObjects()
+    cache.removeAllObjects(); posters.removeAllObjects(); smallPosters.removeAllObjects()
     manager.stopCachingImagesForAllAssets()
     preheated.removeAll()
   }

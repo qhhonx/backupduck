@@ -68,3 +68,10 @@ drag commits above 12 pt unless reversed; a failed/cancelled gesture restores
 the node. Paging updates the settled controller and centre offset atomically.
 Filmstrip geometry compacts for dragging and expands the settled item over
 250 ms, with immediate adoption under Reduce Motion.
+
+Phone calendar snapshots follow held gesture scale directly. Release uses the
+last valid two-touch pose and a native critically damped 360 ms spring; terminal
+one-touch coordinates cannot replace the focal photo. Source/destination layer
+anchors use their own photo coordinates. Calendar accessory entry rises 16 pt,
+while expansion fades it; native inline/regular state owns the lifecycle rather
+than timers or library scroll position.

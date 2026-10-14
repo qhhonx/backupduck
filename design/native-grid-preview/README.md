@@ -77,3 +77,14 @@ support one through six covers including mirrored modules.
 covers for native muted playback checks. Year slides use actual metadata month
 representatives. Playback/rotation pauses during scroll, reduced motion, low power
 or background. This fixture does not verify real PhotoKit/iCloud video loading.
+
+## Inline controls and scale release
+
+The native accessory environment owns calendar-control visibility. A history drag
+installs it before minimization; expansion removes the regular row immediately.
+No timeout detaches an inline control. The title/subtitle use white media contrast
+over a translucent black edge, with a 6 pt trailing gap beyond the native safe
+area. Selection preserves hierarchy and density; overview taps enlarge before
+selection, and two-finger scaling remains available. Phone options omit original
+aspect. Scale release adopts the visible next density using the last valid
+two-touch pose, with a critically damped 360 ms settlement.
