@@ -97,163 +97,18 @@ struct MacWorkspace: View {
     _transferFilter = State(initialValue: initialTransferFilter)
     _folders = StateObject(wrappedValue: folderSources ?? .shared)
   }
+  // The body is split into parts so each type-checks on its own: as one
+  // expression it exceeded the compiler's time limit on slower release builders.
   var body: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
-      VStack(alignment: .leading, spacing: 0) {
-        HStack(spacing: 10) { DuckBrandMark(size: 38); Text("brand_name").font(.system(size: 18, weight: .semibold)) }.padding(
-          .horizontal, 20
-        ).padding(.vertical, 28)
-        List(selection: $destination) {
-          Section("mac_sidebar_library") {
-            ForEach([MacDestination.library, .sources]) { item in
-              sidebarRow(item)
-            }
-          }
-          Section("sidebar_tasks") {
-            ForEach([MacDestination.backup, .transfers]) { item in
-              sidebarRow(item)
-            }
-          }
-          Section("sidebar_manage") {
-            ForEach([MacDestination.receiver, .settings]) { item in
-              sidebarRow(item)
-            }
-          }
-        }.listStyle(.sidebar).font(.body.weight(.medium))
-        VStack(alignment: .leading, spacing: 8) {
-          ReceiverStatusIndicator(model: model)
-          Text(model.peerDevice?.name ?? NSLocalizedString(model.pairing == nil ? "receiver_unpaired" : "receiver_paired", comment: "")).font(.caption)
-            .foregroundStyle(.secondary)
-        }.font(.callout).padding(20)
-      }.navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 300)
+      sidebar
     } detail: {
-      VStack(spacing: 0) {
-        // Keep the native collection alive when switching destinations. No loss
-        // of its reuse pool, selection or scroll position on tab changes.
-        ZStack(alignment: .topLeading) {
-          libraryPage.opacity(destination == .library ? 1 : 0).allowsHitTesting(
-            destination == .library
-          ).accessibilityHidden(destination != .library)
-          if destination == .sources {
-            FolderSourcesPage(folders: folders, backup: model)
-          }
-          if destination == .backup {
-            MacBackupPage(model: model, folders: folders, pair: { pairSheet = true },
-              library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
-          }
-          if destination == .transfers {
-            MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
-          }
-          if destination == .settings {
-            MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
-          }
-          if destination == .receiver {
-            ScrollView { ReceiverPage(model: model, pair: { pairSheet = true }).padding(28) }
-          }
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        if destination != .settings && destination != .receiver && destination != .library {
-          Divider()
-          footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)
-            .task(id: "\(model.queueRevision)|\(model.pairing?.receiverID ?? "")") {
-              if model.ready, let receiver = model.pairing?.receiverID {
-                await activeTransfers.refresh(filter: "running", receiver: receiver)
-              }
-            }
-        }
-      }
-      .navigationTitle(destination == .library && previewAsset != nil && libraryNavigation.viewerOpen ? Text(verbatim: "")
-        : Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title)))
-      // The visible capture range (or the selection count) lives in the window
-      // subtitle, as in Photos, instead of a strip above the media.
-      .background(MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: destination == .library && library.authorized
-        ? (previewAsset != nil && libraryNavigation.viewerOpen ? "" : librarySubtitle) : ""))
-      .toolbar {
-        // The open viewer uses the window toolbar instead of a second bar in
-        // the content: back, then information and Live playback.
-        if destination == .library, previewAsset != nil, libraryNavigation.viewerOpen {
-          ToolbarItem(placement: .navigation) {
-            Button { if let asset = libraryNavigation.viewerCurrent?() { closeMedia(asset) } } label: {
-              Label("mac_library_back", systemImage: "chevron.backward")
-            }.keyboardShortcut(.cancelAction).help(Text("mac_library_back"))
-              .accessibilityIdentifier("library.preview.close")
-          }
-          // The title is centred, as in Photos: the date, then time and position.
-          // Plain text, not a control: no shared glass background behind it.
-          if #available(macOS 26.0, *) {
-            ToolbarItem(placement: .principal) { viewerTitle }.sharedBackgroundVisibility(.hidden)
-          } else {
-            ToolbarItem(placement: .principal) { viewerTitle }
-          }
-          // Live playback lives on the photo's own badge; no second control here.
-          ToolbarItemGroup(placement: .primaryAction) {
-            Toggle(isOn: Binding(get: { libraryNavigation.viewerInfo }, set: { value in
-              withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26)) { libraryNavigation.viewerInfo = value }
-            })) { Label("apple_photo_detail", systemImage: "info.circle") }
-              .toggleStyle(.button).keyboardShortcut("i", modifiers: .command)
-              .help(Text("apple_photo_detail")).accessibilityIdentifier("library.preview.info")
-          }
-        }
-        if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
-          ToolbarItem(placement: .principal) {
-            Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level },set: changeLibraryLevel)) {
-              ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
-              .accessibilityIdentifier("library.view_mode")
-              // Choosing All again returns to the newest photo, as in Photos.
-              .simultaneousGesture(TapGesture(count: 2).onEnded {
-                if libraryNavigation.level == .all { libraryNavigation.scrollToNewest() }
-              })
-          }
-          ToolbarItemGroup(placement: .primaryAction) {
-            if !library.selection.isEmpty {
-              // Always reachable while photos are selected: without a receiver it
-              // opens pairing first and the selection stays as it is.
-              Button {
-                if model.pairing == nil { pairSheet = true; return }
-                rebackupReceivedSelection = false; confirmSelectedBackup = true
-              } label: {
-                Label("apple_library_backup_selected", systemImage: "arrow.up.doc")
-              }.disabled(model.importing)
-                .help(Text(LocalizedStringKey(model.pairing == nil ? "pair_receiver_desktop" : "apple_library_backup_selected")))
-                .accessibilityIdentifier("library.backup_selected")
-            }
-            // Kept in place and disabled outside All Photos: inserting and
-            // removing toolbar items relaid the toolbar during each level change.
-            Group {
-              MacLibraryScale(columns: $density)
-              Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
-                .toggleStyle(.button).help("calendar_original_aspect")
-                .accessibilityIdentifier("library.original_aspect")
-            }.disabled(libraryNavigation.level != .all)
-            // One flat menu, as in Photos: everything, then each media type, with
-            // a check on the current one. No nested submenu, no menu chevron.
-            Menu {
-              // An inline picker keeps each item's icon next to the check mark.
-              Picker("media_type", selection: Binding(get: { library.filter }, set: { value in
-                Task { await library.changeFilter(value) }
-              })) {
-                ForEach(LibraryFilter.allCases) { filter in
-                  Label(LocalizedStringKey(filter.title), systemImage: filter.symbol).tag(filter)
-                  if filter == .all { Divider() }
-                }
-              }.pickerStyle(.inline).labelsHidden()
-            } label: { Label("library_filter", systemImage: library.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") }
-              .menuIndicator(.hidden)
-              .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
-          }
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-          if destination == .transfers {
-            Button {
-              Task { await model.setPaused(!model.paused) }
-            } label: {
-              Label(LocalizedStringKey(
-                model.paused ? "resume_backup" : "pause_backup"),
-                systemImage: model.paused ? "play.fill" : "pause.fill")
-            }.disabled(!model.ready || model.pairing == nil || model.changingPause)
-          }
-        }
-      }
+      detailContent
+        .navigationTitle(windowTitle)
+        // The visible capture range (or the selection count) lives in the window
+        // subtitle, as in Photos, instead of a strip above the media.
+        .background(MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: subtitleOverride))
+        .toolbar { workspaceToolbar }
     }
     .tint(DuckColors.action)
     .background(DuckColors.canvas)
@@ -284,6 +139,169 @@ struct MacWorkspace: View {
     .sheet(isPresented: Binding(get: { selectedPhotoDetails != nil }, set: { if !$0 { selectedPhotoDetails = nil } })) {
       if let selectedPhotoDetails { DuckPhotoDetail(asset: selectedPhotoDetails) }
     }
+  }
+  private var sidebar: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(spacing: 10) { DuckBrandMark(size: 38); Text("brand_name").font(.system(size: 18, weight: .semibold)) }.padding(
+        .horizontal, 20
+      ).padding(.vertical, 28)
+      List(selection: $destination) {
+        Section("mac_sidebar_library") {
+          ForEach([MacDestination.library, .sources]) { item in
+            sidebarRow(item)
+          }
+        }
+        Section("sidebar_tasks") {
+          ForEach([MacDestination.backup, .transfers]) { item in
+            sidebarRow(item)
+          }
+        }
+        Section("sidebar_manage") {
+          ForEach([MacDestination.receiver, .settings]) { item in
+            sidebarRow(item)
+          }
+        }
+      }.listStyle(.sidebar).font(.body.weight(.medium))
+      VStack(alignment: .leading, spacing: 8) {
+        ReceiverStatusIndicator(model: model)
+        Text(model.peerDevice?.name ?? NSLocalizedString(model.pairing == nil ? "receiver_unpaired" : "receiver_paired", comment: "")).font(.caption)
+          .foregroundStyle(.secondary)
+      }.font(.callout).padding(20)
+    }.navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 300)
+  }
+  private var detailContent: some View {
+    VStack(spacing: 0) {
+      // Keep the native collection alive when switching destinations. No loss
+      // of its reuse pool, selection or scroll position on tab changes.
+      ZStack(alignment: .topLeading) {
+        libraryPage.opacity(destination == .library ? 1 : 0).allowsHitTesting(
+          destination == .library
+        ).accessibilityHidden(destination != .library)
+        if destination == .sources {
+          FolderSourcesPage(folders: folders, backup: model)
+        }
+        if destination == .backup {
+          MacBackupPage(model: model, folders: folders, pair: { pairSheet = true },
+            library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
+        }
+        if destination == .transfers {
+          MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
+        }
+        if destination == .settings {
+          MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
+        }
+        if destination == .receiver {
+          ScrollView { ReceiverPage(model: model, pair: { pairSheet = true }).padding(28) }
+        }
+      }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      if destination != .settings && destination != .receiver && destination != .library {
+        Divider()
+        footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)
+          .task(id: "\(model.queueRevision)|\(model.pairing?.receiverID ?? "")") {
+            if model.ready, let receiver = model.pairing?.receiverID {
+              await activeTransfers.refresh(filter: "running", receiver: receiver)
+            }
+          }
+      }
+    }
+  }
+  private var windowTitle: Text {
+    if destination == .library && previewAsset != nil && libraryNavigation.viewerOpen { return Text(verbatim: "") }
+    return Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title))
+  }
+  /// A subtitle replacing the visible range: empty outside the library and in
+  /// the viewer, the selection count while photos are selected.
+  private var subtitleOverride: String? {
+    guard destination == .library && library.authorized else { return "" }
+    if previewAsset != nil && libraryNavigation.viewerOpen { return "" }
+    return librarySubtitle
+  }
+  @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
+  // The open viewer uses the window toolbar instead of a second bar in
+  // the content: back, then information and Live playback.
+  if destination == .library, previewAsset != nil, libraryNavigation.viewerOpen {
+    ToolbarItem(placement: .navigation) {
+      Button { if let asset = libraryNavigation.viewerCurrent?() { closeMedia(asset) } } label: {
+        Label("mac_library_back", systemImage: "chevron.backward")
+      }.keyboardShortcut(.cancelAction).help(Text("mac_library_back"))
+        .accessibilityIdentifier("library.preview.close")
+    }
+    // The title is centred, as in Photos: the date, then time and position.
+    // Plain text, not a control: no shared glass background behind it.
+    if #available(macOS 26.0, *) {
+      ToolbarItem(placement: .principal) { viewerTitle }.sharedBackgroundVisibility(.hidden)
+    } else {
+      ToolbarItem(placement: .principal) { viewerTitle }
+    }
+    // Live playback lives on the photo's own badge; no second control here.
+    ToolbarItemGroup(placement: .primaryAction) {
+      Toggle(isOn: Binding(get: { libraryNavigation.viewerInfo }, set: { value in
+        withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26)) { libraryNavigation.viewerInfo = value }
+      })) { Label("apple_photo_detail", systemImage: "info.circle") }
+        .toggleStyle(.button).keyboardShortcut("i", modifiers: .command)
+        .help(Text("apple_photo_detail")).accessibilityIdentifier("library.preview.info")
+    }
+  }
+  if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
+    ToolbarItem(placement: .principal) {
+      Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level },set: changeLibraryLevel)) {
+        ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
+      }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
+        .accessibilityIdentifier("library.view_mode")
+        // Choosing All again returns to the newest photo, as in Photos.
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+          if libraryNavigation.level == .all { libraryNavigation.scrollToNewest() }
+        })
+    }
+    ToolbarItemGroup(placement: .primaryAction) {
+      if !library.selection.isEmpty {
+        // Always reachable while photos are selected: without a receiver it
+        // opens pairing first and the selection stays as it is.
+        Button {
+          if model.pairing == nil { pairSheet = true; return }
+          rebackupReceivedSelection = false; confirmSelectedBackup = true
+        } label: {
+          Label("apple_library_backup_selected", systemImage: "arrow.up.doc")
+        }.disabled(model.importing)
+          .help(Text(LocalizedStringKey(model.pairing == nil ? "pair_receiver_desktop" : "apple_library_backup_selected")))
+          .accessibilityIdentifier("library.backup_selected")
+      }
+      // Kept in place and disabled outside All Photos: inserting and
+      // removing toolbar items relaid the toolbar during each level change.
+      Group {
+        MacLibraryScale(columns: $density)
+        Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
+          .toggleStyle(.button).help("calendar_original_aspect")
+          .accessibilityIdentifier("library.original_aspect")
+      }.disabled(libraryNavigation.level != .all)
+      // One flat menu, as in Photos: everything, then each media type, with
+      // a check on the current one. No nested submenu, no menu chevron.
+      Menu {
+        // An inline picker keeps each item's icon next to the check mark.
+        Picker("media_type", selection: Binding(get: { library.filter }, set: { value in
+          Task { await library.changeFilter(value) }
+        })) {
+          ForEach(LibraryFilter.allCases) { filter in
+            Label(LocalizedStringKey(filter.title), systemImage: filter.symbol).tag(filter)
+            if filter == .all { Divider() }
+          }
+        }.pickerStyle(.inline).labelsHidden()
+      } label: { Label("library_filter", systemImage: library.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") }
+        .menuIndicator(.hidden)
+        .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
+    }
+  }
+  ToolbarItemGroup(placement: .primaryAction) {
+    if destination == .transfers {
+      Button {
+        Task { await model.setPaused(!model.paused) }
+      } label: {
+        Label(LocalizedStringKey(
+          model.paused ? "resume_backup" : "pause_backup"),
+          systemImage: model.paused ? "play.fill" : "pause.fill")
+      }.disabled(!model.ready || model.pairing == nil || model.changingPause)
+    }
+  }
   }
   private func sidebarRow(_ item: MacDestination) -> some View {
     let selected = destination == item
