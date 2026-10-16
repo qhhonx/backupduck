@@ -14,7 +14,7 @@ struct MacLibraryPlaceholder: View {
     ScrollView {
       switch kind {
       case .loading:
-        DuckNotice(title: "library_loading").padding(28)
+        DuckLoadingState("library_loading").padding(28)
       case .permission(let access):
         VStack(spacing: 20) {
           DuckBrandMark(size: 64)

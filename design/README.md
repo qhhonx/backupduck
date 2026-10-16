@@ -16,9 +16,9 @@ request system permissions or prove native feature completion.
 - [Iteration checks](iteration-checklist.md): checks required for UI changes.
 - [Tokens](backupduck-v1/tokens.json): source for generated platform colors.
 
-Use the current component contracts when an older prototype differs. Record
-such differences in the same change and update the affected prototype; an old
-screen is not a reason to revert the current implementation.
+HTML prototypes are frozen historical references and are no longer maintained.
+Use the current component contracts and native implementation when one differs;
+an old screen is not a reason to revert the current implementation.
 
 ## Platform references
 
@@ -34,10 +34,9 @@ experimental implementation must not be presented as a shipped platform.
 
 ## Keeping design and implementation aligned
 
-For new screens or changed navigation, update the interactive reference before
-implementation. For component refinements, update the component, its contract
-and affected references in one change. Behavior-only fixes do not require new
-mockups when visible interaction remains unchanged.
+For new screens or changed navigation, update the contract documents and verify
+in the native app; do not add HTML references. For component refinements, update
+the component and its contract in one change.
 
 Compare native windows with the reference using the same synthetic data and
 state. Check light/dark appearance, narrow layouts, large text, keyboard or
@@ -75,3 +74,7 @@ The [iPhone calendar Grid contract](iphone-calendar-grid.md) and
 [native Grid workbench](native-grid-preview/README.md) separate Years/Months/All
 browsing from All-grid density. They supersede the phone All/Days/Months coupling
 in older references; desktop behavior remains separate.
+
+Mac calendar and in-window media browsing follow the
+[contract](macos-v1.2/specification.md#photos-library). This supersedes the
+historical desktop All/Days/Months grouping described in older references.

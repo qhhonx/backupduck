@@ -258,6 +258,23 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
       if result.1 { generation += 1 }
     }
   }
+  /// Overview mosaics show the whole library: publish every remaining row with
+  /// one bulk read instead of page by page.
+  func loadAllRows() async {
+    guard let fetch, !loading, !loadingPage, hasMoreRows else { return }
+    loadingPage = true
+    let expected = requestGeneration, current = presentation
+    let job = Task.detached(priority: .userInitiated) {
+      var next = current
+      next.loadRemaining(fetch)
+      return next
+    }
+    let next = await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
+    guard expected == requestGeneration, authorized, !Task.isCancelled else { loadingPage = false; return }
+    presentation = next
+    loaded = next.rows.count
+    loadingPage = false
+  }
   func previewIndex(of asset: PHAsset) -> Int? {
     index(of: asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier)
   }
@@ -577,6 +594,7 @@ actor ThumbnailDiskCache {
     return removed
   }
 }
+#endif
 /// Decoded thumbnails in one memory-mapped file per size (the Fast Image Cache
 /// approach): pixels are stored once, already decoded and row-aligned for Core
 /// Animation, and read back as a `CGImage` that points into the mapping, so a
@@ -720,6 +738,7 @@ final class ThumbnailTable: @unchecked Sendable {
   }
 }
 
+#if os(iOS)
 /// The overview table holds every library item at mosaic size; the detail table
 /// keeps recently used month-overview thumbnails. Entry sizes follow this
 /// device's widest possible grid (iPhone SE to iPad), rounded up to 16 pixels,
@@ -931,7 +950,14 @@ enum LaunchTrace {
     // budget authoritative instead of evicting still-visible tiles at 500 items.
     cache.countLimit = 8192
     smallPosters.totalCostLimit = min(16 * 1024 * 1024,cacheBudget/4); smallPosters.countLimit = 8192
+    #if os(macOS)
+    // Without the iPhone's 64-pixel fallback tier, every tier change would show
+    // blank tiles. Keep the last delivered image per asset for the visible set of
+    // the densest step, so a density change always has pixels to show at once.
+    posters.countLimit = 6000; posters.totalCostLimit = 192 * 1024 * 1024
+    #else
     posters.countLimit = 80; posters.totalCostLimit = 24 * 1024 * 1024
+    #endif
     manager.allowsCachingHighQualityImages = true
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in
       self?.clear()
@@ -1208,7 +1234,10 @@ enum LaunchTrace {
         self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
       }
       #else
-      self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
+      // Keep the sharpest delivery as the cross-tier fallback.
+      if old == nil || image.size.width >= old!.size.width {
+        self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
+      }
       #endif
       if !degraded || singleResult {
         self.cache.setObject(image, forKey: item.key, cost: self.imageCost(image,target: item.target))

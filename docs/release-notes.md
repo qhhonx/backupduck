@@ -20,6 +20,14 @@
 
 # 0.3.0 — build 83
 
+- Rework the Mac Photos library around independent Years, Months and All Photos
+  browsing, oldest to newest and resting at the newest edge as in Photos, with
+  native window toolbar controls, discrete zoom steps and animated level changes.
+- Open media inside the current window, retain filtered and selected contexts,
+  add a bounded thumbnail strip, and return to the current photo in the grid.
+- Use desktop single-click, Command/Shift selection, double-click and keyboard
+  preview conventions; share progressive previews, media information and durable
+  selected-backup submission with the Apple media pipeline.
 - Show the whole photo immediately when opening an iCloud original that is still
   downloading, using the device's small full-aspect copy, instead of a small
   square crop with empty bands (most visible on panoramas).

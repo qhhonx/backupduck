@@ -1106,6 +1106,7 @@
 "mac_pair_scan_instruction" = "在接收设备打开备份鸭，选择连接 Mac，再扫描下方二维码。两台设备需连接可互通的同一局域网。";
 
 "library_count_formatted" = "%@ 张照片与视频";
+"library_footer_counts" = "%@ 张照片、%@ 个视频";
 
 "mac_folder_operation_incomplete" = "操作未完成，请重试";
 

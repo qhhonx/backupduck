@@ -152,3 +152,25 @@ thumbnail caches have evicted their source images. Gapless mosaics scale as a
 group; their period captions remain unscaled. Ordinary-grid gap and decoration
 behavior is unchanged. Exercise slow bitmap publication, immediate request
 callbacks, strip recycling and repeated dense gestures with cache eviction.
+
+Mac library calendar covers and All Photos use independent navigation. Trackpad
+magnification updates All Photos size without crossing into date grouping. The
+in-window viewer grows from its grid cell and returns to the current asset's
+cell on a critically damped spring (about 0.2 s), preserving the native grid
+beneath. A cell that is not visible falls back to a fade. Reduce Motion adopts
+immediately. The viewer uses the system window background; EXIF and maps remain
+on demand. Years, Months and All Photos are live layers whose scale and opacity
+follow the current level on one spring (stiffness 400, damping 40): a coarser
+layer zooms past the viewer, a finer layer recedes, and no frame is blank.
+Density changes use discrete column steps shared by the toolbar and pinch.
+
+Mac density transitions use a bounded native tile stage on one shared lattice.
+Thresholds, the density-stop rubber band, direction hysteresis, the critically
+damped release, the content-boundary pivot and settle re-anchoring come from
+`apps/apple/Shared/GridZoom.swift`, the same rules the iPhone grid validated;
+hosts must not re-derive them. Density faces crossfade at equal pitch and a new
+magnification takes over a running settle in place; wrapped collection rows never
+interpolate through each other. Complete cell decorations scale in their own
+reference coordinates. Settlement aligns the stage's gap, pitch and focal point
+with the destination collection before transferring retained pixels and removing
+the stage. Native collections remain the settled browsing and selection owner.

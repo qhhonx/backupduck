@@ -16,8 +16,10 @@ See `docs/architecture.md` and `docs/sender-host-contract.md`.
 
 Read `design/README.md`, `design/backupduck-v1/specification.md`,
 `design/ui-content-rules.md` and `design/backupduck-v1/motion.md` before UI work.
-Use current component contracts when a historical prototype differs; update the
-prototype in the same change rather than reverting the implementation.
+Existing HTML prototypes are frozen historical references; do not create or
+maintain new ones. Use current component contracts, `motion.md` and the validated
+native implementation when a prototype differs, and never revert the
+implementation to match it.
 
 - Reuse shared components. Components own inner padding and alignment; pages
   own section spacing. Store justified density differences in platform metrics.
@@ -48,9 +50,10 @@ prototype in the same change rather than reverting the implementation.
 - Receipt, phone-gallery publication and cloud upload are independent facts.
   Never invent missing progress, dates, device readings or cloud confirmation.
 
-New navigation or workflows require an interactive reference before implementation.
-Component refinements update components, contracts and affected references in one
-change. Inspect similar uses before treating feedback as a single-screen fix.
+New navigation or workflows are specified in the contract documents and checked
+in the native app; do not add HTML references. Gesture and density behavior must
+reuse the shared native core in `apps/apple/Shared` rather than a per-platform
+rewrite. Component refinements update components and contracts in one change. Inspect similar uses before treating feedback as a single-screen fix.
 
 ## Verification
 
@@ -68,6 +71,11 @@ Use synthetic data for repeatable fixtures. Record prototype checks, native
 checks and physical-device observations separately. State uncovered behavior
 honestly. Preserve application data during updates; never uninstall or clear data
 without explicit authorization. Re-identify the target device before installation.
+
+Judge motion, feel and performance only on Release builds, and measure them from
+60 fps recordings of the app window (frame-to-frame change, blank or bright
+frames, motion after the settle), not from sparse screenshots. Observe the
+system app for the same interaction first and record what it does.
 
 For gesture changes, inspect complete reference interactions and define start,
 drag, reversal and settled states before implementation. Record synthetic native

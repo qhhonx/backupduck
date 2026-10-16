@@ -69,7 +69,7 @@ struct MacWorkspace: View {
   @State private var destination: MacDestination? = .backup
   private var initialSettingsRoute: MacSettingsRoute?
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
-  @State private var tileSize: Double = 140
+  @State private var density = MacLibraryDensity.standard
   @State private var pairSheet = false
   @State private var selectedPhotoDetails: PHAsset?
   @State private var confirmSelectedBackup = false
@@ -78,6 +78,13 @@ struct MacWorkspace: View {
   @State private var settingsTitle = "nav_settings"
   @State private var librarySelecting = false
   @State private var previewAsset: PHAsset?
+  @State private var reviewAssets: [PHAsset]?
+  @State private var previewExpanded = false
+  @State private var gridFrame = CGRect.zero
+  @State private var previewMediaVisible = false
+  /// A reference, so recording a pending flight never re-renders the page.
+  @State private var flightMemo = MacFlightMemo()
+  @StateObject private var libraryNavigation = MacLibraryNavigation()
   @StateObject private var activeTransfers = TaskBrowserModel()
   @StateObject private var folders: FolderSources
   init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialSettingsRoute: MacSettingsRoute? = nil, initialTransferFilter: String = "all") {
@@ -142,7 +149,7 @@ struct MacWorkspace: View {
             ScrollView { ReceiverPage(model: model, pair: { pairSheet = true }).padding(28) }
           }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        if destination != .settings && destination != .receiver {
+        if destination != .settings && destination != .receiver && destination != .library {
           Divider()
           footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)
             .task(id: "\(model.queueRevision)|\(model.pairing?.receiverID ?? "")") {
@@ -152,8 +159,87 @@ struct MacWorkspace: View {
             }
         }
       }
-      .navigationTitle(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title))
+      .navigationTitle(destination == .library && previewAsset != nil && libraryNavigation.viewerOpen ? Text(verbatim: "")
+        : Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title)))
+      // The visible capture range (or the selection count) lives in the window
+      // subtitle, as in Photos, instead of a strip above the media.
+      .navigationSubtitle(destination == .library && library.authorized
+        ? (previewAsset != nil && libraryNavigation.viewerOpen ? "" : librarySubtitle) : "")
       .toolbar {
+        // The open viewer uses the window toolbar instead of a second bar in
+        // the content: back, then information and Live playback.
+        if destination == .library, previewAsset != nil, libraryNavigation.viewerOpen {
+          ToolbarItem(placement: .navigation) {
+            Button { if let asset = libraryNavigation.viewerCurrent?() { closeMedia(asset) } } label: {
+              Label("mac_library_back", systemImage: "chevron.backward")
+            }.keyboardShortcut(.cancelAction).help(Text("mac_library_back"))
+              .accessibilityIdentifier("library.preview.close")
+          }
+          // The title is centred, as in Photos: the date, then time and position.
+          // Plain text, not a control: no shared glass background behind it.
+          if #available(macOS 26.0, *) {
+            ToolbarItem(placement: .principal) { viewerTitle }.sharedBackgroundVisibility(.hidden)
+          } else {
+            ToolbarItem(placement: .principal) { viewerTitle }
+          }
+          // Live playback lives on the photo's own badge; no second control here.
+          ToolbarItemGroup(placement: .primaryAction) {
+            Toggle(isOn: Binding(get: { libraryNavigation.viewerInfo }, set: { value in
+              withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26)) { libraryNavigation.viewerInfo = value }
+            })) { Label("apple_photo_detail", systemImage: "info.circle") }
+              .toggleStyle(.button).keyboardShortcut("i", modifiers: .command)
+              .help(Text("apple_photo_detail")).accessibilityIdentifier("library.preview.info")
+          }
+        }
+        if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
+          ToolbarItem(placement: .principal) {
+            Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level },set: changeLibraryLevel)) {
+              ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
+              .accessibilityIdentifier("library.view_mode")
+              // Choosing All again returns to the newest photo, as in Photos.
+              .simultaneousGesture(TapGesture(count: 2).onEnded {
+                if libraryNavigation.level == .all { libraryNavigation.scrollToNewest() }
+              })
+          }
+          ToolbarItemGroup(placement: .primaryAction) {
+            if !library.selection.isEmpty {
+              // Always reachable while photos are selected: without a receiver it
+              // opens pairing first and the selection stays as it is.
+              Button {
+                if model.pairing == nil { pairSheet = true; return }
+                rebackupReceivedSelection = false; confirmSelectedBackup = true
+              } label: {
+                Label("apple_library_backup_selected", systemImage: "arrow.up.doc")
+              }.disabled(model.importing)
+                .help(Text(LocalizedStringKey(model.pairing == nil ? "pair_receiver_desktop" : "apple_library_backup_selected")))
+                .accessibilityIdentifier("library.backup_selected")
+            }
+            // Kept in place and disabled outside All Photos: inserting and
+            // removing toolbar items relaid the toolbar during each level change.
+            Group {
+              MacLibraryScale(columns: $density)
+              Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
+                .toggleStyle(.button).help("calendar_original_aspect")
+                .accessibilityIdentifier("library.original_aspect")
+            }.disabled(libraryNavigation.level != .all)
+            // One flat menu, as in Photos: everything, then each media type, with
+            // a check on the current one. No nested submenu, no menu chevron.
+            Menu {
+              // An inline picker keeps each item's icon next to the check mark.
+              Picker("media_type", selection: Binding(get: { library.filter }, set: { value in
+                Task { await library.changeFilter(value) }
+              })) {
+                ForEach(LibraryFilter.allCases) { filter in
+                  Label(LocalizedStringKey(filter.title), systemImage: filter.symbol).tag(filter)
+                  if filter == .all { Divider() }
+                }
+              }.pickerStyle(.inline).labelsHidden()
+            } label: { Label("library_filter", systemImage: library.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") }
+              .menuIndicator(.hidden)
+              .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
+          }
+        }
         ToolbarItemGroup(placement: .primaryAction) {
           if destination == .transfers {
             Button {
@@ -193,9 +279,6 @@ struct MacWorkspace: View {
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
     .sheet(isPresented: $pairSheet) { MacPairingSheet(model: model) }
     .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
-    .sheet(isPresented: Binding(get: { previewAsset != nil }, set: { if !$0 { previewAsset = nil } })) {
-      if let previewAsset { MacPhotoPreview(asset: previewAsset, library: library) }
-    }
     .sheet(isPresented: Binding(get: { selectedPhotoDetails != nil }, set: { if !$0 { selectedPhotoDetails = nil } })) {
       if let selectedPhotoDetails { DuckPhotoDetail(asset: selectedPhotoDetails) }
     }
@@ -212,26 +295,180 @@ struct MacWorkspace: View {
     destination = .transfers
   }
   private var libraryPage: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if library.authorized {
-      MacLibraryToolbar(total: library.total, selected: library.selection.count,
-        selecting: $librarySelecting, filter: Binding(get: { library.filter }, set: { value in Task { await library.changeFilter(value) } }),
-        viewMode: $library.viewMode, tileSize: $tileSize, canBackup: !library.selection.isEmpty && !model.importing && model.pairing != nil,
-        finish: { library.selection.removeAll() }, backup: { rebackupReceivedSelection = false; confirmSelectedBackup = true })
-        .padding(.horizontal, 28).padding(.vertical, 12)
-
+    ZStack {
+      VStack(alignment: .leading, spacing: 0) {
+        if let placeholder = library.placeholder {
+          MacLibraryPlaceholder(kind: placeholder,
+            requestingAccess: library.requestingPermission,
+            requestAccess: { Task { await library.open(requestPermission: true) } },
+            clearFilter: { Task { await library.changeFilter(.all) } })
+        } else {
+          ZStack {
+            MacLibraryGrid(
+              library: library, navigation: libraryNavigation,
+              preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")", queueRevision: model.queueRevision,
+              receiverID: model.pairing?.receiverID, columns: density, selecting: true,
+              active: destination == .library,
+              preview: openMedia, enterSelection: { librarySelecting = true }, resize: { density = $0 })
+              .allowsHitTesting(libraryNavigation.level == .all && previewAsset == nil)
+              .accessibilityHidden(libraryNavigation.level != .all || previewAsset != nil)
+            ForEach([MacLibraryLevel.months, .years]) { level in
+              do {
+                Group {
+                  if libraryNavigation.indexing && libraryNavigation.years.isEmpty {
+                    DuckLoadingState("library_loading")
+                  } else {
+                    MacCalendarGrid(library: library, navigation: libraryNavigation, kind: level)
+                  }
+                }
+                .allowsHitTesting(libraryNavigation.level == level && previewAsset == nil)
+                .accessibilityHidden(libraryNavigation.level != level)
+              }
+            }
+          }
+          .background(GeometryReader { proxy in
+            Color.clear.onAppear { gridFrame = proxy.frame(in: .named("libraryPage")) }
+              .onChange(of: proxy.frame(in: .named("libraryPage"))) { _, frame in gridFrame = frame }
+          })
+        }
+      }.allowsHitTesting(previewAsset == nil).accessibilityHidden(previewAsset != nil)
+      if let previewAsset {
+        GeometryReader { proxy in
+          ZStack {
+            Color(nsColor: .windowBackgroundColor).opacity(previewExpanded ? 1 : 0)
+            // The media appears once the opening flight has landed on it, and
+            // vanishes before the closing flight leaves it.
+            MacPhotoPreview(asset: previewAsset, library: library, navigation: libraryNavigation,
+              reviewAssets: reviewAssets, close: closeMedia)
+              .id(previewAsset.localIdentifier)
+              .opacity(previewMediaVisible ? 1 : 0)
+          }
+          .animation(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil
+            : .easeOut(duration: 0.28), value: previewExpanded)
+        }
+        .zIndex(1)
       }
-      if let placeholder = library.placeholder {
-        MacLibraryPlaceholder(kind: placeholder,
-          requestingAccess: library.requestingPermission,
-          requestAccess: { Task { await library.open(requestPermission: true) } },
-          clearFilter: { Task { await library.changeFilter(.all) } })
-      } else {
-        MacLibraryGrid(
-          library: library, preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")", queueRevision: model.queueRevision,
-          receiverID: model.pairing?.receiverID, itemSize: tileSize, selecting: librarySelecting,
-          preview: { previewAsset = $0 }, enterSelection: { librarySelecting = true }, resize: { tileSize = $0 })
+    }
+    .coordinateSpace(name: "libraryPage")
+    .onChange(of: library.generation, initial: true) { _, _ in libraryNavigation.rebuild(library.fetch) }
+    .onChange(of: libraryNavigation.level) { old, next in
+      startFlight(from: old, to: next)
+    }
+    .onChange(of: destination) { _, next in
+      if next != .library { previewAsset = nil; reviewAssets = nil }
+    }
+  }
+  private var viewerTitle: some View {
+    VStack(spacing: 1) {
+      Text(libraryNavigation.viewerTitle).font(.headline).lineLimit(1)
+      Text(libraryNavigation.viewerSubtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    }.fixedSize().accessibilityElement(children: .combine).accessibilityIdentifier("library.preview.title")
+  }
+  private var librarySubtitle: String {
+    if !library.selection.isEmpty {
+      return String(format: NSLocalizedString("library_selected_count", comment: ""), library.selection.count)
+    }
+    return libraryNavigation.visibleDate
+  }
+  /// Every level change keeps one focus photo. It flies from where it was to
+  /// where it lands; when the destination shows another photo for that period,
+  /// the two cross-fade on the way.
+  private func startFlight(from old: MacLibraryLevel, to next: MacLibraryLevel) {
+    guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, destination == .library,
+      let token = libraryNavigation.focusToken,
+      let source = flightMemo.pending.flatMap({ $0.level == old && $0.token == token ? $0.source : nil })
+        ?? libraryNavigation.coverFlight[old]?(token) else { flightMemo.pending = nil; return }
+    flightMemo.pending = nil
+    libraryNavigation.presentFocus[next]?(source.assetID, source.image)
+    func land(_ attempt: Int) {
+      guard libraryNavigation.level == next else { return }
+      let landing = { [libraryNavigation] in libraryNavigation.coverLanding[next]?(token, source.assetID) }
+      guard landing() != nil else {
+        // All Photos places its focus cell after a reload; give it a few frames.
+        if attempt < 8 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { land(attempt + 1) } }
+        return
       }
+      MacCoverFlight.fly(from: source, to: landing)
+    }
+    land(0)
+  }
+  private func changeLibraryLevel(_ next: MacLibraryLevel) {
+    guard next != libraryNavigation.level else { return }
+    // The focus is decided before the switch: the selection, or the photo
+    // nearest the centre of what is on screen now.
+    if let focus = libraryNavigation.focusCandidate[libraryNavigation.level]?() { libraryNavigation.focusToken = focus }
+    // Capture where the focus is now: All Photos may load before switching,
+    // and a year card can rotate to another photo in the meantime.
+    if let token = libraryNavigation.focusToken, let source = libraryNavigation.coverFlight[libraryNavigation.level]?(token) {
+      flightMemo.pending = (libraryNavigation.level, token, source)
+    }
+    if next != .all { libraryNavigation.level = next; return }
+    guard let token = libraryNavigation.focusToken else { libraryNavigation.level = next; return }
+    let previous = libraryNavigation.level
+    Task {
+      guard await library.preparePreviewWindow(containing: token) != nil,
+        libraryNavigation.level == previous, libraryNavigation.focusToken == token else { return }
+      libraryNavigation.focus(token); libraryNavigation.level = next
+    }
+  }
+  /// The viewer opens as Photos does: the photo grows from its cell to its
+  /// fitted rectangle while the background fades in, then the live media takes
+  /// over underneath at the same pixels.
+  private func present(_ asset: PHAsset) {
+    let token = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
+    let source = libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier)
+    let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    var transaction = Transaction(animation: nil)
+    transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      previewExpanded = false; previewAsset = asset; libraryNavigation.viewerOpen = true
+      previewMediaVisible = reduce || source == nil
+    }
+    DispatchQueue.main.async {
+      previewExpanded = true
+      guard !reduce, let source else { previewMediaVisible = true; return }
+      MacCoverFlight.fly(from: source, to: { viewerTarget(asset, image: source.image, clip: source.clip) })
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { previewMediaVisible = true }
+    }
+  }
+  /// The fitted rectangle of `asset` inside the viewer's media area.
+  private func viewerTarget(_ asset: PHAsset, image: NSImage?, clip: CGRect) -> MacCoverFlightSource? {
+    guard let area = libraryNavigation.viewerArea?(), asset.pixelWidth > 0, asset.pixelHeight > 0 else { return nil }
+    let aspect = CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
+    var size = CGSize(width: area.width, height: area.width / aspect)
+    if size.height > area.height { size = CGSize(width: area.height * aspect, height: area.height) }
+    let rect = CGRect(x: area.midX - size.width / 2, y: area.midY - size.height / 2, width: size.width, height: size.height)
+    return MacCoverFlightSource(rect: rect, image: image, radius: 0, assetID: asset.localIdentifier,
+      clip: area, window: NSApp.keyWindow)
+  }
+  private func openMedia(_ asset: PHAsset) {
+    reviewAssets = nil
+    present(asset)
+  }
+  private func closeMedia(_ asset: PHAsset) {
+    let token = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
+    let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    let start = reduce ? nil : viewerTarget(asset, image: library.thumbnails.poster(for: asset), clip: .zero)
+    libraryNavigation.viewerImmersive = false
+    libraryNavigation.viewerOpen = false
+    previewMediaVisible = false
+    previewExpanded = false
+    // Paging can reach photos far beyond the rows the grid has loaded: load the
+    // window around the photo, then bring its cell on screen and land on it.
+    Task {
+      if library.index(of: token) == nil { _ = await library.preparePreviewWindow(containing: token) }
+      libraryNavigation.focus(token)
+      guard var start else { return }
+      DispatchQueue.main.async {
+        if let cell = libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier) {
+          start.clip = cell.clip
+          MacCoverFlight.fly(from: start, to: { libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier) })
+        }
+      }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + (reduce ? 0 : 0.3)) {
+      guard !previewExpanded else { return }
+      previewAsset = nil; reviewAssets = nil
     }
   }
   private var selectedBackupConfirmation: some View {
@@ -517,4 +754,11 @@ struct MacPairingPresentation: View {
     }
     return candidates.sorted { $0.0 < $1.0 }.first?.1
   }
+}
+
+/// The viewer grows from its grid cell and returns to it, as Photos does. A
+/// cell that is not visible (or Reduce Motion) falls back to a plain fade.
+
+@MainActor final class MacFlightMemo {
+  var pending: (level: MacLibraryLevel, token: String, source: MacCoverFlightSource)?
 }

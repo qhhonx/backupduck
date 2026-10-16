@@ -143,7 +143,7 @@ nearest density over 320 ms with a normalized critically damped response
 (1 - (1 + 7t) exp(-7t)). Cancellation settles over 300 ms; menu changes use
 420 ms. These are BackupDuck's reproducible parameters, not a claim to know
 proprietary Apple/Google curves from recordings. Mac layout changes retain
-the vertical anchor principle and use the same response over 260 ms; trackpad magnification also updates while moving.
+the anchor principle and use the same shared release spring; trackpad magnification also updates while moving.
 Reduce Motion replaces spatial interpolation with immediate anchored adoption.
 
 ## Acceptance

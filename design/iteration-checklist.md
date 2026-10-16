@@ -19,7 +19,7 @@ regenerate unrelated screenshot matrices without a reason.
    submission must not wait for original export inside a modal dialog.
 8. Run relevant native builds and existing interaction/layout checks. Separate
    synthetic fixtures, real API checks and physical-device observations.
-9. Update the specification, components and affected prototypes in the same
+9. Update the specification and components in the same
    change. Describe intentional platform differences and remaining limits in
    the pull request.
 10. Follow the [public-source policy](../docs/public-source-policy.md). Keep

@@ -11,6 +11,7 @@
 		07F5A5D3282BE243ED5451B7 /* BackupDuckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */; };
 		0C9D7AD807073F2661301B5D /* LibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */; };
 		0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */; };
+		25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
 		26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA4F7B4794F768E7D3071B /* BackupScope.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
@@ -23,6 +24,7 @@
 		3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */; };
 		3F7A401A51B7FF461CB0368B /* NetworkProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */; };
 		3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */; };
+		4D365D4AAD7ACC05CDBC3FF9 /* GridZoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		59C9230E2BCD7A2AA0FE809B /* CalendarGridController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A160B6BAB13F144F368454F2 /* CalendarGridController.swift */; };
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
@@ -112,9 +114,11 @@
 		B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPlaceholder.swift; sourceTree = "<group>"; };
 		B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRefreshScheduler.swift; sourceTree = "<group>"; };
 		B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLifecycle.swift; sourceTree = "<group>"; };
+		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
 		B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
 		B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
 		B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransfer.swift; sourceTree = "<group>"; };
+		BC599E760BD43DB668596349 /* GridZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoom.swift; sourceTree = "<group>"; };
 		C2DDE6D0D49315701CCCE445 /* BackupDuck.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BackupDuck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPicker.swift; sourceTree = "<group>"; };
 		C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalImport.swift; sourceTree = "<group>"; };
@@ -186,6 +190,7 @@
 			children = (
 				33E0025F00086FE962B3096D /* BackgroundTests.swift */,
 				59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */,
+				B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */,
 				805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */,
 				94C4B44B41B9AAD96A51E7E3 /* LibraryTests.swift */,
 				25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */,
@@ -217,6 +222,7 @@
 				32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */,
 				402E7CB28372F82B4FC8831A /* DuckColors.swift */,
 				1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */,
+				BC599E760BD43DB668596349 /* GridZoom.swift */,
 				C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */,
 				B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */,
 				9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */,
@@ -399,6 +405,7 @@
 			files = (
 				3B2C0F7A0931F23825434A1E /* BackgroundTests.swift in Sources */,
 				3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */,
+				4D365D4AAD7ACC05CDBC3FF9 /* GridZoomTests.swift in Sources */,
 				F69787C40DFA7D9F1C0FCB75 /* LibraryPresentationTests.swift in Sources */,
 				91B34306380AFC106472164B /* LibraryTests.swift in Sources */,
 				3F7A401A51B7FF461CB0368B /* NetworkProgressTests.swift in Sources */,
@@ -423,6 +430,7 @@
 				779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */,
 				2BEFB58626ADBF3EF0F6881A /* DuckColors.swift in Sources */,
 				BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */,
+				25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */,
 				653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */,

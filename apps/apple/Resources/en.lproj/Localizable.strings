@@ -1106,6 +1106,7 @@
 "mac_pair_scan_instruction" = "On the receiving device, open BackupDuck, choose Connect Mac, and scan this code. Both devices need to be on the same reachable local network.";
 
 "library_count_formatted" = "%@ photos and videos";
+"library_footer_counts" = "%@ photos, %@ videos";
 
 "mac_folder_operation_incomplete" = "Operation unfinished. Try again.";
 

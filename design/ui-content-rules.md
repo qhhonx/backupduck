@@ -190,7 +190,7 @@ excluding items. Folder rules remain source-specific, separate from Photos album
 On iPhone, use the [calendar Grid contract](iphone-calendar-grid.md): Years,
 Months and All are a cover hierarchy, with independent All-grid density. Full
 navigation, compact calendar browsing and selected-item actions are mutually
-exclusive bottom states. The following grouped time modes remain desktop rules.
+exclusive bottom states. Desktop now follows the [Mac library contract](macos-v1.2/specification.md#photos-library): Years/Months/All Photos is independent of size. The grouped modes below describe the retained legacy layout helper, not desktop navigation.
 
 All/Days/Months are presentation modes over the same filtered, sorted asset IDs.
 Days group by local-calendar capture day; Months group by capture month and use

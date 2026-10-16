@@ -75,6 +75,20 @@ struct LibraryGroup: Sendable {
 }
 
 extension LibraryPresentationIndex {
+  /// Reads every remaining item with one bulk enumeration. Overview mosaics need
+  /// the whole library; per-object access faults each asset individually.
+  mutating func loadRemaining(_ fetch: PHFetchResult<PHAsset>) {
+    let start = cursor, total = fetch.count
+    guard start < total else { return }
+    var items: [Metadata] = []
+    items.reserveCapacity(total - start)
+    fetch.enumerateObjects(at: IndexSet(integersIn: start..<total), options: []) { asset, _, stop in
+      if Task.isCancelled { stop.pointee = true; return }
+      items.append(Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier, representative: asset.representsBurst))
+    }
+    guard items.count == total - start else { return }
+    load(sourceCount: total, targetRows: .max, minimumCursor: total) { items[$0 - start] }
+  }
   @discardableResult mutating func load(_ fetch: PHFetchResult<PHAsset>, targetRows: Int,
     minimumCursor: Int = 0) -> Bool {
     load(sourceCount: fetch.count, targetRows: targetRows, minimumCursor: minimumCursor) { index in

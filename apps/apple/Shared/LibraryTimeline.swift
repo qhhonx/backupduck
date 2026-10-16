@@ -13,10 +13,13 @@ struct LibraryTimelineGeometry {
   var headers: [Header] = []
   var height: CGFloat = 0
   init(dates: [Date?], mode: LibraryViewMode, width: CGFloat, target: CGFloat,
-    inset: CGFloat, gap: CGFloat, headerHeight: CGFloat, calendar: Calendar = .current, columns requestedColumns: Int? = nil) {
+    inset: CGFloat, gap: CGFloat, headerHeight: CGFloat, calendar: Calendar = .current, columns requestedColumns: Int? = nil,
+    leadingSlots: Int = 0) {
     let columns = requestedColumns ?? max(mode == .months ? 7 : 3, Int((width - inset * 2 + gap) / (target + gap)))
     let side = max(1, floor((width - inset * 2 - CGFloat(columns - 1) * gap) / CGFloat(columns)))
-    var y: CGFloat = 4, column = 0, previous: Date?, hasGroup = false
+    // Empty slots before the first photo keep a focal photo in its column across
+    // a density change, so no whole column slides on screen.
+    var y: CGFloat = 4, column = mode == .all ? leadingSlots % max(1, columns) : 0, previous: Date?, hasGroup = false
     for (i, date) in dates.enumerated() {
       let group = date.flatMap { mode == .months ? calendar.dateInterval(of: .month, for: $0)?.start : calendar.startOfDay(for: $0) }
       if mode != .all, !hasGroup || group != previous {
@@ -243,6 +246,7 @@ import AppKit
   var anchorInset: CGFloat = 0
   private var key = ""
   private var densityPair = ""
+  private var datesLoaded = false
   private var dates: [Date?] = []
   private var cached: [String: LibraryTimelineGeometry] = [:]
   private var from = LibraryTimelineGeometry(dates: [], mode: .all, width: 1, target: 135, inset: 2, gap: 2, headerHeight: 44)
@@ -256,8 +260,19 @@ import AppKit
     self.library = library; self.mode = mode; self.target = target; columns = mode == .months ? 7 : 3
     density = CGFloat(columns); super.init()
   }
+  /// Photos keeps its column count when the window resizes; set by the host.
+  var requestedColumns: Int?
+  /// Room under the last row for the newest-edge footer.
+  var footerHeight: CGFloat = 0
+  /// At or above this many columns the grid is a gapless overview that the host
+  /// draws itself; the layout keeps geometry and content size but no cells.
+  var denseThreshold = Int.max
+  /// Empty slots before the first photo (see `LibraryTimelineGeometry`).
+  var leadingSlots = 0 { didSet { if leadingSlots != oldValue { cached.removeAll() } } }
+  var isDense: Bool { mode == .all && to == nil && columns >= denseThreshold }
   func columns(for target: CGFloat, mode: LibraryViewMode) -> Int {
-    max(mode == .months ? 7 : 1, Int(((collectionView?.enclosingScrollView?.contentSize.width ?? 1)-4)/(target+2)))
+    if mode == .all, let requestedColumns { return max(1, requestedColumns) }
+    return max(mode == .months ? 7 : 1, Int(((collectionView?.enclosingScrollView?.contentSize.width ?? 1)-4)/(target+2)))
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override func prepare() {
@@ -265,16 +280,26 @@ import AppKit
     let count = view.numberOfSections > 0 ? view.numberOfItems(inSection: 0) : 0
     let next = "\(view.enclosingScrollView?.contentSize.width ?? view.bounds.width)|\(count)|\(library.generation)"
     if key != next {
-      key = next; densityPair = ""; dates = (0..<count).map { library.asset(at: $0)?.creationDate }; cached.removeAll()
+      // Items are presented oldest first, so the newest edge is at the bottom.
+      // All Photos has no date headers: only the count shapes its geometry.
+      // Reading every creation date faulted every PHAsset on each reload and
+      // held the main thread for a quarter second in a 50k library.
+      key = next; densityPair = ""; dates = Array(repeating: nil, count: count); datesLoaded = false; cached.removeAll()
       columns = self.columns(for: target, mode: mode); density = CGFloat(columns)
       from = geometry(mode: mode, columns: columns); to = nil; progress = 0; rebuildHeaders()
     }
   }
   private func geometry(mode: LibraryViewMode, columns: Int) -> LibraryTimelineGeometry {
-    let key = "\(mode.rawValue)|\(columns)"
+    let key = "\(mode.rawValue)|\(columns)|\(denseThreshold)|\(leadingSlots)"
     if let geometry = cached[key] { return geometry }
+    if mode != .all, !datesLoaded {
+      let count = dates.count
+      dates = (0..<count).map { library.asset(at: count - 1 - $0)?.creationDate }; datesLoaded = true
+    }
+    let dense = mode == .all && columns >= denseThreshold
     let geometry = LibraryTimelineGeometry(dates: dates, mode: mode, width: collectionView?.enclosingScrollView?.contentSize.width ?? 1,
-      target: 135, inset: 2, gap: 2, headerHeight: 44, columns: columns)
+      target: 135, inset: dense ? 0 : 2, gap: dense ? 0 : 2, headerHeight: 44, columns: columns,
+      leadingSlots: mode == .all ? leadingSlots : 0)
     cached[key] = geometry; return geometry
   }
   func beginMorph(mode: LibraryViewMode, columns: Int) {
@@ -323,7 +348,7 @@ import AppKit
     return LibraryMotion.interpolate(from.items[index], to.items[index], progress)
   }
   override var collectionViewContentSize: CGSize {
-    CGSize(width: collectionView?.enclosingScrollView?.contentSize.width ?? 0, height: from.height + ((to?.height ?? from.height)-from.height)*progress)
+    CGSize(width: collectionView?.enclosingScrollView?.contentSize.width ?? 0, height: from.height + ((to?.height ?? from.height)-from.height)*progress + footerHeight)
   }
   override func layoutAttributesForItem(at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
     guard from.items.indices.contains(indexPath.item) else { return nil }
@@ -344,6 +369,7 @@ import AppKit
     kind == Self.headerKind ? header(at: indexPath.item) : nil
   }
   override func layoutAttributesForElements(in rect: CGRect) -> [NSCollectionViewLayoutAttributes] {
+    if isDense { return [] }
     let items = LibraryMotion.visibleRange(count: from.items.count, in: rect) { frame(at: $0) }
     let headers = LibraryMotion.visibleRange(count: headerIDs.count, in: rect) { header(at: headerIDs[$0])?.frame ?? .zero }
     return items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers.compactMap { header(at: headerIDs[$0]) }
