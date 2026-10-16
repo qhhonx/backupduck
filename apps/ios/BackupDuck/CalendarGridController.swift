@@ -1565,39 +1565,6 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
   func restore() { if tabs?.delegate === self { tabs?.delegate = previous } }
 }
 
-/// Keep the toolbar target hit-testable even when its action is unavailable.
-/// A disabled native bar item can let taps reach photos behind transparent chrome.
-final class CalendarBackupControl: UIButton {
-  var available = false { didSet { isEnabled = available; refreshAppearance() } }
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    accessibilityIdentifier = "calendar.backup_selected"
-    isAccessibilityElement = true
-    accessibilityLabel = NSLocalizedString("calendar_backup_action",comment: "")
-    isEnabled = false
-    heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-    widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-    refreshAppearance()
-  }
-  required init?(coder: NSCoder) { fatalError() }
-  override var intrinsicContentSize: CGSize {
-    let size = super.intrinsicContentSize
-    return CGSize(width: max(44,size.width),height: max(44,size.height))
-  }
-  private func refreshAppearance() {
-    var config: UIButton.Configuration
-    if #available(iOS 26.0, *) { config = available ? .prominentGlass() : .glass() }
-    else { config = available ? .filled() : .plain() }
-    config.title = NSLocalizedString("calendar_backup_short", comment: "")
-    config.baseForegroundColor = available ? .white : UIColor.white.withAlphaComponent(0.35)
-    if available { config.baseBackgroundColor = .systemBlue }
-    config.contentInsets = NSDirectionalEdgeInsets(top: 8,leading: 12,bottom: 8,trailing: 12)
-    configuration = config
-    invalidateIntrinsicContentSize(); sizeToFit()
-    accessibilityTraits = available ? [.button] : [.button,.notEnabled]
-  }
-}
-
 final class CalendarHeaderTitleView: UIView {
   var preferredWidth: CGFloat = 160 { didSet { invalidateIntrinsicContentSize() } }
   override var intrinsicContentSize: CGSize { CGSize(width: preferredWidth,height: 44) }
@@ -1606,12 +1573,9 @@ final class CalendarHeaderTitleView: UIView {
 
 final class CalendarNavigationBar: UINavigationBar {
   var ownsSelectionInput = false
-  weak var backupControl: CalendarBackupControl?
+  /// While selecting, the bar keeps every touch inside it, including a disabled
+  /// Back Up button, so a tap never reaches the photos behind transparent chrome.
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    if let control = backupControl, !control.available, control.isDescendant(of: self),
-      control.convert(control.bounds.insetBy(dx: 0,dy: -max(0,44-control.bounds.height)/2),to: self).contains(point) {
-      return self
-    }
     let hit = super.hitTest(point,with: event)
     return hit ?? (ownsSelectionInput && bounds.contains(point) ? self : nil)
   }
@@ -1623,10 +1587,6 @@ final class CalendarNavigationController: UINavigationController {
     viewControllers = [rootViewController]
   }
   required init?(coder: NSCoder) { super.init(coder: coder) }
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    (navigationBar as? CalendarNavigationBar)?.backupControl = (topViewController as? CalendarGridController)?.backupControl
-  }
   override var preferredStatusBarStyle: UIStatusBarStyle {
     (topViewController as? CalendarGridController)?.assets.isEmpty == true ? .default : .lightContent
   }
@@ -1726,7 +1686,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     expandedNavigation = false
   var filterItem: UIBarButtonItem!, selectItem: UIBarButtonItem!, closeItem: UIBarButtonItem!,
     backupItem: UIBarButtonItem!
-  let backupControl = CalendarBackupControl()
   var headerSelecting: Bool?
   weak var tabOwner: UITabBarController?
   weak var contentOwner: UIViewController?
@@ -1769,6 +1728,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       withReuseIdentifier: "calendar.heading")
     view.addSubview(grid)
     grid.showsVerticalScrollIndicator = false
+    grid.alwaysBounceVertical = true
     setContentScrollView(grid, for: .all)
     if #available(iOS 26.0, *) {
       grid.topEdgeEffect.isHidden = true
@@ -1862,9 +1822,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     selectedButton.addAction(
       UIAction { [weak self] _ in self?.reviewSelection() }, for: .touchUpInside)
     selectedButton.accessibilityIdentifier = "calendar.review_selected"
-    backupControl.addAction(UIAction { [weak self] _ in self?.backUpSelected() },for: .touchUpInside)
-    backupItem = UIBarButtonItem(customView: backupControl)
-    if #available(iOS 26.0, *) { backupItem.hidesSharedBackground = true }
+    // A native item, so it has the same height as Select and Close and the bar
+    // morphs it in and out with the system animation.
+    backupItem = UIBarButtonItem(
+      title: NSLocalizedString("calendar_backup_short", comment: ""), style: .done, target: self, action: #selector(backUpSelected))
+    if #available(iOS 26.0, *) { backupItem.style = .prominent }
+    backupItem.tintColor = .systemBlue
+    backupItem.isEnabled = false
     backupItem.accessibilityIdentifier = "calendar.backup_selected"
     backupItem.accessibilityLabel = NSLocalizedString("calendar_backup_action",comment: "")
     view.addSubview(selectionControls)
@@ -1907,19 +1871,15 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     headerBackdrop.isUserInteractionEnabled = selecting
     grid.scrollsToTop = !selecting
     (navigationController?.navigationBar as? CalendarNavigationBar)?.ownsSelectionInput = selecting
+    // The same item objects persist across the switch and the change is
+    // animated, so the bar uses the system transition (a glass morph on iOS 26)
+    // instead of replacing its groups at once.
+    var items: [UIBarButtonItem] = selecting ? [closeItem, backupItem, filterItem] : [selectItem, filterItem]
     if #available(iOS 26.0, *) {
-      let items = selecting ? [filterItem!, backupItem!, closeItem!] : [filterItem!, selectItem!]
-      var groups: [UIBarButtonItemGroup] = []
-      for item in items {
-        if !groups.isEmpty { groups.append(.fixedSpace()) }
-        groups.append(UIBarButtonItemGroup(barButtonItems: [item],representativeItem: nil))
-      }
-      navigationItem.trailingItemGroups = groups
-    } else {
-      navigationItem.setRightBarButtonItems(
-        selecting ? [closeItem, backupItem, filterItem] : [selectItem, filterItem],
-        animated: animated && !UIAccessibility.isReduceMotionEnabled)
+      // A zero fixed space keeps each control in its own glass capsule.
+      items = Array(items.flatMap { [$0, UIBarButtonItem.fixedSpace(0)] }.dropLast())
     }
+    navigationItem.setRightBarButtonItems(items, animated: animated && !UIAccessibility.isReduceMotionEnabled)
   }
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
@@ -3124,6 +3084,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     var startOffset: CGFloat = 0
     var startFocus = CGPoint.zero
     var boundaryDistance: CGFloat = 0
+    /// Focal distance to the content's top edge, in pitch units.
+    var topDistance: CGFloat = 0
     var headerColumns = 3
     var faceLeadingSlots: [Int: Int] = [:]
     /// Stop index chosen at the last release, while its settle is running.
@@ -3212,6 +3174,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       if let face = stage.faces[stage.shownColumns] {
         let g = face.geometry
         pinchTrack.boundaryDistance = (g.height - face.focus.y) / face.pitch
+        pinchTrack.topDistance = face.focus.y / face.pitch
         let probe = CGRect(x: face.focus.x - 1, y: face.focus.y - 1, width: 2, height: 2)
         let nearest = g.visible(in: probe.insetBy(dx: -g.maximumTileHeight, dy: -g.maximumTileHeight))
           .min { a, b in
@@ -3254,6 +3217,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       fraction: anchorFraction, samples: [], extremePitch: stopPitch(count),
       startOffset: grid.contentOffset.y, startFocus: anchorPoint,
       boundaryDistance: (layout.geometry.height - anchorPoint.y - grid.contentOffset.y) / stopPitch(count),
+      topDistance: (anchorPoint.y + grid.contentOffset.y) / stopPitch(count),
       headerColumns: count, faceLeadingSlots: [count: leadingSlots])
     let created = CalendarZoomStage(
       frame: grid.frame, columns: count, pitch: stopPitch(count), focus: anchorPoint,
@@ -3326,7 +3290,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     // to that edge before a gap can open below the content.
     let bottom = stage.bounds.height - gridInsets(showsInterval: true).bottom
     let renderedBottom = pinchTrack.startFocus.y + pinchTrack.boundaryDistance * pitch
-    stage.focus.y = pinchTrack.startFocus.y + max(0, bottom - renderedBottom)
+    // Content shorter than the viewport stays pinned under the top inset
+    // instead of sinking to the bottom edge and jumping back on release.
+    let top = gridInsets(showsInterval: true).top
+    let renderedTop = pinchTrack.startFocus.y - pinchTrack.topDistance * pitch
+    var shift = max(0, bottom - renderedBottom)
+    if renderedTop + shift > top { shift = top - renderedTop }
+    stage.focus.y = pinchTrack.startFocus.y + shift
     updateStageHeader()
     stage.layoutAll()
   }
@@ -3709,8 +3679,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       selected.isEmpty ? NSLocalizedString("calendar_select_items", comment: "") : String(format: NSLocalizedString("calendar_show_selected", comment: ""), selected.count),
       for: .normal)
     selectedButton.isEnabled = !selected.isEmpty
-    backupControl.available = canBackup && !selected.isEmpty
-    backupItem.isEnabled = backupControl.available
+    backupItem.isEnabled = canBackup && !selected.isEmpty
     selectionControls.setNeedsLayout()
     updateHeader(animated: true)
     let next: Chrome =
