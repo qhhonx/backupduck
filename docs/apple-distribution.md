@@ -130,7 +130,7 @@ state to validate the store build.
 The `Checks` GitHub Actions workflow runs on standard hosted runners. Standard
 macOS runners are free for public repositories; do not select paid larger runners
 for this workflow. Superseded checks on the same branch are cancelled.
-Apple checks and direct-download publishing use the same explicit `macos-26`
+Mac checks and direct-download publishing use the same explicit `macos-26`
 runner family so release builds do not silently use an older SDK than checks.
 Both Mac jobs print the selected Xcode, Swift and SDK versions. Runtime
 availability checks still retain macOS 14 support; APIs introduced with the
