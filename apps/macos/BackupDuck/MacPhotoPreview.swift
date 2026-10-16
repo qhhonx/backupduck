@@ -54,7 +54,6 @@ struct MacPhotoPreview: View {
       .preferredColorScheme(.dark).background(Color.black).tint(DuckColors.action)
       .onAppear { session.start() }.onDisappear { session.stop() }
       .onChange(of: policy.choice) { _, _ in session.reloadForPolicy() }
-      .previewCloudConsent()
   }
   private func move(_ direction: Int) {
     guard !session.paging, let asset = session.adjacent(to: session.current.asset, direction: direction) else { return }
@@ -151,10 +150,7 @@ private struct MacPreviewPage: View {
         VStack(spacing: 12) {
           Image(systemName: preview.cloudNeeded ? "icloud.and.arrow.down" : "exclamationmark.circle").font(.largeTitle)
           Text(preview.cloudNeeded ? "preview_cloud_title" : "library_preview_unavailable").font(.callout)
-          Button(PreviewNetworkPolicy.shared.allowed ? "retry_task" : "preview_cloud_allow") {
-            if PreviewNetworkPolicy.shared.allowed { preview.load() }
-            else { PreviewNetworkPolicy.shared.asking = true }
-          }.duckSecondaryAction()
+          Button("retry_task") { preview.load() }.duckSecondaryAction()
         }.padding(20).background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
       }
     }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black).foregroundStyle(.white)

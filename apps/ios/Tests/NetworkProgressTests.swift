@@ -392,6 +392,43 @@ extension NetworkProgressTests {
 // Visual evidence from real SwiftUI/UIKit windows, using in-memory synthetic
 // model values only. These captures are not pixel-diff or fidelity pass tests.
 extension NetworkProgressTests {
+  func testSharedSheetChromeInNativeWindows() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("Synthetic sheet fixtures run only in the dedicated simulator")
+    #endif
+    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let previous = scene.windows.first(where: \.isKeyWindow)
+    let window = UIWindow(windowScene: scene); window.frame = UIScreen.main.bounds; window.windowLevel = .normal + 1
+    defer { window.isHidden = true; previous?.makeKeyAndVisible() }
+    for mode in 0..<3 {
+      let title: LocalizedStringKey = mode == 2
+        ? "Original preparation details for a photo with a long descriptive title"
+        : "original_preparation_detail"
+      let sheet = DuckSheetLayout(title: title,busy: mode == 2,
+        error: mode == 1 ? NSLocalizedString("apple_retry_failed",comment: "") : nil) {
+        Text("Example-photo.HEIC").font(.headline)
+        Text("state_preparing").foregroundStyle(DuckColors.textSecondary)
+      } actions: {
+        DuckSheetAction(title: "settings_done") {}.disabled(mode == 2)
+        if mode == 1 { DuckSheetAction(title: "retry_task",primary: true) {} }
+      }
+      let root = FidelityModalFixture {
+        sheet.environment(\.locale,Locale(identifier: mode == 2 ? "en_US" : "zh_CN"))
+          .environment(\.dynamicTypeSize,mode == 2 ? .accessibility3 : .large)
+      }.preferredColorScheme(mode == 1 ? .dark : .light)
+      let host = UIHostingController(rootView: root)
+      window.rootViewController = host; window.makeKeyAndVisible()
+      try await Task.sleep(for: .milliseconds(900)); host.view.layoutIfNeeded()
+      XCTAssertNotNil(host.presentedViewController,"Exercise a presented native sheet, not an off-screen view")
+      let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+        window.drawHierarchy(in: window.bounds,afterScreenUpdates: true)
+      }
+      let attachment = XCTAttachment(image: image)
+      attachment.name = "Shared sheet chrome — scenario \(mode)"; attachment.lifetime = .keepAlways; add(attachment)
+      window.rootViewController = nil
+    }
+  }
+
   func testFidelityPairedAndTransferWindows() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("Only the dedicated simulator may host synthetic UI fixtures")

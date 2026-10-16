@@ -23,7 +23,7 @@ struct IOSSettingsPage: View {
                   retryingInitialization = true
                   Task { await model.open(); retryingInitialization = false }
                 }.disabled(retryingInitialization).iosPrototypeAction()
-              } else { ProgressView("backup_initializing") }
+              } else { DuckLoadingState("settings_loading") }
             }
             IOSPreferenceSection(title: "device_identity") {
               if let profile = model.deviceSnapshot?.device {
@@ -55,9 +55,6 @@ struct IOSSettingsPage: View {
                 IOSPreferenceValue(value: Locale.current.localizedString(forLanguageCode: Locale.current.language.languageCode?.identifier ?? "en") ?? "—", indicator: nil)
               }.accessibilityIdentifier("settings.language")
             }
-            IOSPreferenceSection(title: "nav_library") {
-              PreviewCloudSetting()
-            }
             IOSPreferenceSection(title: "apple_local_storage") {
               NavigationLink {
                 IOSPrototypeDestination(title: "settings_cache") {
@@ -65,9 +62,7 @@ struct IOSSettingsPage: View {
                 }
               } label: {
                 IOSPreferenceRow(title: "settings_cache", symbol: "internaldrive") {
-                  if let snapshot = model.storage {
-                    IOSPreferenceValue(value: "\(ByteCountFormatter.string(fromByteCount: Int64(snapshot.used_bytes), countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.settings.cache_budget_bytes), countStyle: .file))")
-                  }
+                  IOSPreferenceValue(value: nil)
                 }
               }.buttonStyle(.plain).accessibilityIdentifier("settings.cache")
             }
@@ -413,8 +408,10 @@ private struct IOSStoragePreferences: View {
   @ObservedObject var model: BackupModel
   let scope: StoragePreferenceScope
   @State private var thumbnailBytes = 0
-  @State private var thumbnailBudget = 256
+  @State private var thumbnailBudget = 1024
   @State private var clearingThumbnails = false
+  @State private var thumbnailClearFailed = false
+  @State private var retryingStorage = false
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
@@ -422,32 +419,44 @@ private struct IOSStoragePreferences: View {
           IOSPreferenceSection(title:"library_thumbnail_cache") {
             IOSPreferenceRow(title:"library_thumbnail_used",controlColumnWidth:120) {
               IOSStorageValue(value:bytes(UInt64(thumbnailBytes)),adjustable:false)
+                .accessibilityElement(children: .combine).accessibilityIdentifier("settings.thumbnail_used")
             }
             Divider()
             IOSPreferenceRow(title:"storage_cache_budget",controlColumnWidth:120) {
-              Picker("storage_cache_budget",selection:Binding(get:{ thumbnailBudget },set:{ value in
+              Menu {
+                Picker("storage_cache_budget",selection:Binding(get:{ thumbnailBudget },set:{ value in
                 thumbnailBudget = value
                 Task { await ThumbnailDiskCache.shared.setBudget(value); thumbnailBytes = await ThumbnailDiskCache.shared.usage() }
-              })) { ForEach([64,128,256,512,1024],id: \.self) { Text("\($0) MB").tag($0) } }
-                .pickerStyle(.menu).accessibilityIdentifier("settings.thumbnail_budget")
+              })) { ForEach([256,512,1024,2048,4096],id: \.self) { Text(bytes(UInt64($0) << 20)).tag($0) } }
+                  .pickerStyle(.inline)
+              } label: {
+                IOSStorageValue(value: bytes(UInt64(thumbnailBudget) << 20), adjustable: true)
+              }.buttonStyle(.plain).accessibilityIdentifier("settings.thumbnail_budget")
             }
             Divider()
             Button {
               clearingThumbnails = true
+              thumbnailClearFailed = false
               Task {
-                await ThumbnailDiskCache.shared.removeAll()
+                let removed = await ThumbnailDiskCache.shared.removeAll()
+                thumbnailBytes = await ThumbnailDiskCache.shared.usage()
+                thumbnailClearFailed = !removed
                 NotificationCenter.default.post(name:Notification.Name("LibraryThumbnailsCleared"),object:nil)
-                thumbnailBytes = await ThumbnailDiskCache.shared.usage(); clearingThumbnails = false
+                clearingThumbnails = false
               }
             } label: {
-              IOSPreferenceRow(title:"library_thumbnail_clear",symbol:"trash") { EmptyView() }
+              IOSPreferenceRow(title:"library_thumbnail_clear",symbol:"trash") {
+                if clearingThumbnails { ProgressView().accessibilityLabel(Text("library_thumbnail_clearing")) }
+              }
             }.buttonStyle(.plain).disabled(clearingThumbnails)
+              .accessibilityValue(Text(clearingThumbnails ? "library_thumbnail_clearing" : ""))
               .accessibilityIdentifier("settings.thumbnail_clear")
           }.task {
             thumbnailBytes = await ThumbnailDiskCache.shared.usage()
             thumbnailBudget = await ThumbnailDiskCache.shared.budgetMB
           }
           Text("library_thumbnail_cache_help").font(.footnote).foregroundStyle(DuckColors.textSecondary)
+          if thumbnailClearFailed { DuckNotice(title: "library_thumbnail_clear_failed", tone: .failure) }
         }
         if let snapshot = model.storage {
           if scope == .cache {
@@ -543,11 +552,21 @@ private struct IOSStoragePreferences: View {
         } else if let error = model.storageError {
           DuckNotice(title: LocalizedStringKey(error), tone: .failure)
           Button("retry_task") { Task { await model.refreshStorage() } }.iosPrototypeAction()
-        } else { ProgressView(model.ready ? "storage_loading" : "backup_initializing") }
+        } else if !model.ready, let message = model.message,
+          message != NSLocalizedString("pairing_unlock_wait", comment: ""), !retryingStorage {
+          DuckNotice(title: "storage_settings_unavailable", tone: .failure)
+          Button("retry_task") {
+            retryingStorage = true
+            Task { await model.open(); await model.refreshStorage(); retryingStorage = false }
+          }.iosPrototypeAction()
+        } else {
+          DuckLoadingState(scope == .cache ? "cache_settings_loading" : "log_settings_loading")
+        }
       }.iosPrototypePageBody()
-    }.task { await model.refreshStorage() }
+    }.task(id: model.ready) { await model.refreshStorage() }
   }
-  private func bytes(_ value: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file) }
+  /// Binary units, matching the budgets they are compared with (1 GB = 1024 MB).
+  private func bytes(_ value: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .memory) }
 }
 
 /// Static/read-write values use identical glyph geometry. Only this trailing
@@ -585,7 +604,7 @@ private struct IOSCacheReclaim: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         DuckNotice(title: "storage_reclaim_check_help")
-        if model.reclaimingCache { ProgressView("storage_reclaim_running") }
+        if model.reclaimingCache { DuckLoadingState("storage_reclaim_running") }
         if let snapshot = model.storage, snapshot.used_bytes == 0,
           !model.reclaimingCache, model.storageError == nil,
           model.cacheReclaimResult == nil, model.cacheReclaimError == nil {

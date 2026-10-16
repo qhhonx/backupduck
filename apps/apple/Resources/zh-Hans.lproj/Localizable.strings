@@ -105,13 +105,13 @@
 "desktop_pair_failed" = "未能完成配对";
 "desktop_pair_expired" = "配对二维码已过期";
 "storage_settings" = "存储与诊断";
-"storage_cache_used" = "临时文件已占用";
+"storage_cache_used" = "已占用";
 "storage_disk_free" = "这台设备剩余空间";
-"storage_cache_budget" = "缓存最多占用";
+"storage_cache_budget" = "最多占用";
 "storage_min_free" = "设备至少保留";
 "storage_auto_reclaim" = "传输完成后自动回收";
 "storage_reclaim_note" = "接收端确认已完整收到并校验文件后，自动删除这台设备的中转副本。不会删除系统图库照片或接收端文件，也不依赖云端备份状态。";
-"storage_reclaim_now" = "检查并回收缓存";
+"storage_reclaim_now" = "检查并回收临时文件";
 "logs_retention" = "日志保留时间";
 "logs_days" = "%d 天";
 "logs_limit" = "日志最多保留条数";
@@ -181,7 +181,7 @@
 "receiver_local_network" = "请将两台设备连接到同一局域网，并保持接收端运行。";
 "receiver_address" = "网络地址";
 "receiver_connection_details" = "连接详情";
-"settings_cache" = "本地缓存";
+"settings_cache" = "缓存管理";
 "settings_log_retention" = "日志保留";
 "settings_diagnostics" = "诊断";
 "settings_version" = "版本";
@@ -1018,13 +1018,13 @@
 
 "apple_view_all" = "查看全部";
 
-"ios_cache_preparation_group" = "准备缓存";
+"ios_cache_preparation_group" = "备份临时文件";
 
-"ios_cache_reserve_group" = "保留空间";
+"ios_cache_reserve_group" = "设备可用空间";
 
-"ios_cache_reclaim_group" = "缓存回收";
+"ios_cache_reclaim_group" = "临时文件回收";
 
-"ios_cache_budget_note" = "达到上限时会暂停准备原件，缓存空间恢复后继续。";
+"ios_cache_budget_note" = "发送前准备的原件副本会占用这里的空间，达到上限时暂停准备，释放后继续。";
 
 "ios_cache_reserve_note" = "低于保留空间时会暂停准备原件，不会删除其他文件。";
 
@@ -1129,7 +1129,7 @@
 "preview_aperture" = "光圈";
 "preview_exposure" = "曝光时间";
 "preview_iso" = "ISO";
-"preview_location" = "位置";
+"preview_location" = "拍摄地点";
 
 "scope_title" = "备份范围";
 "scope_type_photo" = "普通照片";
@@ -1150,7 +1150,7 @@
 "library_view_all" = "全部照片";
 "library_view_days" = "日视图";
 "library_view_months" = "月视图";
-"preview_still_file_size" = "照片文件大小";
+"preview_still_file_size" = "静态图大小";
 "preview_loading_info" = "正在读取照片信息";
 "preview_info_unavailable" = "暂时无法读取部分照片信息。";
 "preview_burst_index" = "第 %d 张，共 %d 张";
@@ -1205,10 +1205,40 @@
 "library_select_item" = "选择此项目";
 "library_return_selected" = "返回所选内容";
 
-"library_thumbnail_cache" = "图库缩略图";
+"library_thumbnail_cache" = "浏览缩略图";
 
 "library_thumbnail_clear" = "清理缩略图";
 
-"library_thumbnail_cache_help" = "按网格和封面尺寸缓存预览，超出限额时自动清理较久未使用的图片。清理后会按需重新生成，不影响照片原件或备份文件。";
+"library_thumbnail_cache_help" = "用于图库浏览和封面显示。超过上限时自动清理较久未使用的缩略图；手动清理后，浏览时会重新生成，不删除照片原件或备份文件。";
 
-"library_thumbnail_used" = "缩略图占用";
+"library_thumbnail_used" = "已占用";
+
+"preview_resolution" = "分辨率";
+
+"library_thumbnail_clearing" = "正在清理缩略图";
+
+"library_thumbnail_clear_failed" = "缩略图未能全部清理，请重试。";
+
+"settings_loading" = "正在读取设置…";
+
+"cache_settings_loading" = "正在读取缓存设置…";
+
+"log_settings_loading" = "正在读取日志保留设置…";
+
+"storage_settings_unavailable" = "暂时无法读取设置，请重试。";
+
+"calendar_backup_short" = "备份";
+
+"mac_library_all_photos" = "所有照片";
+
+"mac_library_zoom_out" = "缩小缩略图";
+
+"mac_library_zoom_in" = "放大缩略图";
+
+"mac_library_show_selected" = "显示所选内容";
+
+"mac_library_clear_selection" = "取消选择";
+
+"mac_library_back" = "返回图库";
+
+"library_filter" = "筛选";

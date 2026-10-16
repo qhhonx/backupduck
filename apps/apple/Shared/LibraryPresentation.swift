@@ -104,3 +104,47 @@ extension LibraryPresentationIndex {
   }
   return states
 }
+
+/// A lightweight cover index over real capture dates. Transfer and preview
+/// identity remain asset/burst tokens; calendar periods never become sources.
+struct LibraryCalendarPeriod: Identifiable, Sendable {
+  let id: String
+  let date: Date?
+  let title: String
+  var tokens: [String]
+  var covers: [Int]
+}
+struct LibraryCalendarIndex {
+  private(set) var years: [LibraryCalendarPeriod] = []
+  private(set) var months: [LibraryCalendarPeriod] = []
+  private var yearPositions: [String: Int] = [:]
+  private var monthPositions: [String: Int] = [:]
+  private var sampledDays: [String: Set<Date>] = [:]
+  private var bursts = Set<String>()
+  var calendar: Calendar
+  init(calendar: Calendar = .current) { self.calendar = calendar }
+  mutating func append(id: String, burst: String?, date: Date?, rawIndex: Int) {
+    if let burst, !bursts.insert(burst).inserted { return }
+    let token = burst.map { "burst:" + $0 } ?? id
+    let year = date.flatMap { calendar.dateInterval(of: .year, for: $0)?.start }
+    let month = date.flatMap { calendar.dateInterval(of: .month, for: $0)?.start }
+    let yKey = year.map { String($0.timeIntervalSince1970) } ?? "unknown"
+    let mKey = month.map { String($0.timeIntervalSince1970) } ?? "unknown"
+    let unknown = NSLocalizedString("design_capture_unknown", comment: "")
+    if yearPositions[yKey] == nil {
+      yearPositions[yKey] = years.count
+      years.append(LibraryCalendarPeriod(id: "year:" + yKey,date: year,
+        title: year?.formatted(.dateTime.year()) ?? unknown,tokens: [token],covers: [rawIndex]))
+    }
+    if monthPositions[mKey] == nil {
+      monthPositions[mKey] = months.count
+      months.append(LibraryCalendarPeriod(id: "month:" + mKey,date: month,
+        title: month?.formatted(.dateTime.year().month(.wide)) ?? unknown,tokens: [],covers: []))
+    }
+    guard let position = monthPositions[mKey], months[position].covers.count < 6 else { return }
+    if let date {
+      guard sampledDays[mKey,default: []].insert(calendar.startOfDay(for: date)).inserted else { return }
+    } else if !months[position].covers.isEmpty { return }
+    months[position].tokens.append(token); months[position].covers.append(rawIndex)
+  }
+}

@@ -51,7 +51,7 @@ not belong in the source release. See [public-source policy](../docs/public-sour
 
 ## Apple library extension
 
-Apple senders share consent-aware high-quality media loading, an information
+Apple senders share PhotoKit-managed high-quality media loading, an information
 panel, source-level type/album backup scope and calendar grid geometry. Native
 collections retain stable asset IDs through all/day/month view changes. See
 [component rules](ui-content-rules.md#sender-media-browsing) for ownership and
@@ -59,7 +59,7 @@ collections retain stable asset IDs through all/day/month view changes. See
 do not extend the unfinished Android/Windows senders or imply cloud backup.
 
 The [Apple media interaction contract](apple-media-interactions.md) and its
-[focused interactive reference](apple-media-interactions.html) cover consent,
+[focused interactive reference](apple-media-interactions.html) cover cloud loading,
 searchable album scope, continuous media paging and anchored density changes.
 Use this reference for those flows instead of older inline scope/preview examples.
 

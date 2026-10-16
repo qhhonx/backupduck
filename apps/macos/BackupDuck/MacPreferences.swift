@@ -93,9 +93,6 @@ struct MacPreferences: View {
             Button("retry_task") { Task { await model.refreshDeviceStatus() } }.duckSecondaryAction()
           }
         }
-        settingsCard("nav_library") {
-          PreviewCloudSetting()
-        }
         settingsCard("apple_local_storage") {
           settingsLink("settings_cache", value: model.storage.map {
             "\(cacheBytes($0.used_bytes)) / \(cacheBytes($0.settings.cache_budget_bytes))"

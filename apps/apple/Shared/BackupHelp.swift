@@ -10,12 +10,7 @@ struct BackupHelp: View {
   var body: some View {
     #if os(macOS)
       VStack(spacing: 0) {
-        HStack {
-          Text("help_title").font(.title2.weight(.semibold))
-          Spacer()
-          Button { dismiss() } label: { Image(systemName: "xmark").frame(width: 32, height: 32) }
-            .buttonStyle(.plain).accessibilityLabel(Text("close"))
-        }.padding(20)
+        DuckSheetHeader(title: "help_title",close: { dismiss() })
         Divider()
         helpContent
         Divider()

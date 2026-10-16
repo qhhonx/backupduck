@@ -153,7 +153,7 @@ struct StoragePreferences: View {
         DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
         Button("retry_task") { Task { await model.refreshStorage() } }
       } else {
-        ProgressView(model.ready ? "storage_loading" : "backup_initializing")
+        DuckLoadingState(scope == .cache ? "cache_settings_loading" : scope == .logs ? "log_settings_loading" : "settings_loading")
           .controlSize(.small)
       }
       if model.storage != nil, let error = model.storageError {
@@ -403,7 +403,7 @@ private struct ActivityLogExportSheet: View {
       error: export.failed ? NSLocalizedString("logs_export_failed", comment: "") : nil) {
       Text("logs_privacy_note").foregroundStyle(.secondary)
       if export.preparing {
-        ProgressView("logs_export_preparing").accessibilityIdentifier("activity.export_preparing")
+        DuckLoadingState("logs_export_preparing").accessibilityIdentifier("activity.export_preparing")
       } else if export.url != nil {
         DuckNotice(title: "logs_export_ready")
         Text("logs_export_share_note").foregroundStyle(.secondary)
@@ -497,18 +497,13 @@ struct ActivityLogView: View {
     }
   }
   #if os(iOS)
-  @ScaledMetric(relativeTo: .title2) private var modalTitleSize = 22
   @ScaledMetric(relativeTo: .body) private var bodySize = 16
   @ScaledMetric(relativeTo: .caption) private var captionSize = 13
   @Environment(\.dynamicTypeSize) private var logTextSize
   private var iosLogModal: some View {
     VStack(spacing: 0) {
-      HStack(alignment: .top, spacing: 12) {
-        Text("activity_log").iosPrototypeText(size: modalTitleSize, weight: .bold, lineHeight: 1.3)
-          .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("activity.title")
-        Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 22)).frame(width: 44, height: 44).contentShape(Rectangle()) }
-          .buttonStyle(.plain).foregroundStyle(DuckColors.textSecondary).accessibilityLabel(Text("close"))
-      }.padding(20)
+      DuckSheetHeader(title: "activity_log",titleIdentifier: "activity.title",
+        closeIdentifier: "activity.close",close: { dismiss() })
       Divider()
       VStack(alignment: .leading, spacing: 12) {
           if !logTextSize.isAccessibilitySize {
@@ -535,7 +530,7 @@ struct ActivityLogView: View {
           if journal.entries.isEmpty {
             if journal.failed { DuckNotice(title: "logs_load_retrying", tone: .failure) }
             else if journal.loaded { DuckNotice(title: "logs_empty").accessibilityIdentifier("activity.empty") }
-            else { ProgressView("logs_loading").accessibilityIdentifier("activity.loading") }
+            else { DuckLoadingState("logs_loading").accessibilityIdentifier("activity.loading") }
           }
           ForEach(journal.entries) { entry in
             Button { holdLatest = true; detail = entry } label: {
@@ -599,7 +594,7 @@ struct ActivityLogView: View {
           } else if journal.loaded {
             Text("logs_empty").foregroundStyle(.secondary).accessibilityIdentifier("activity.empty")
           } else {
-            ProgressView("logs_loading").accessibilityIdentifier("activity.loading")
+            DuckLoadingState("logs_loading").accessibilityIdentifier("activity.loading")
           }
         }
         ScrollView {

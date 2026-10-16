@@ -4,6 +4,27 @@ import Combine
 @testable import BackupDuck
 
 final class LibraryPresentationTests: XCTestCase {
+  func testCalendarCoversKeepRealDatesBoundedSamplesAndBurstIdentity() {
+    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    var index = LibraryCalendarIndex(calendar: calendar)
+    let first = calendar.date(from: DateComponents(year: 2026, month: 10, day: 15))!
+    for raw in 0..<50000 {
+      let day = raw / 100
+      let date = calendar.date(byAdding: .day, value: -day, to: first)!
+      index.append(id: "asset-\(raw)",burst: raw < 10 ? "burst-one" : nil,date: date,rawIndex: raw)
+    }
+    index.append(id: "unknown",burst: nil,date: nil,rawIndex: 50000)
+    XCTAssertEqual(index.years.count, 3)
+    XCTAssertEqual(index.months.first?.tokens.first,"burst:burst-one")
+    XCTAssertEqual(index.months.first?.covers.first,0)
+    XCTAssertTrue(index.months.allSatisfy { $0.covers.count <= 6 && $0.covers.count == $0.tokens.count })
+    XCTAssertEqual(index.months.last?.tokens,["unknown"])
+    for period in index.months where period.date != nil {
+      let days = period.covers.map { calendar.startOfDay(for: calendar.date(byAdding: .day,value: -($0/100),to: first)!) }
+      XCTAssertEqual(Set(days).count,days.count)
+    }
+  }
+
   func testMetadataStreamingKeepsBoundedPrefixAndExactByteCount() {
     let buffer = PreviewMetadataBytes()
     for _ in 0..<12 { buffer.append(Data(repeating: 42, count: 262144)) }
@@ -58,7 +79,7 @@ final class LibraryPresentationTests: XCTestCase {
     XCTAssertTrue(broken.loadFailed); XCTAssertTrue(broken.rule.types.isEmpty)
   }
 
-  @MainActor func testNoSpecifiedAlbumsRestoresAllAndUnavailableChoicesStayRestricted() throws {
+  @MainActor func testEmptySpecifiedAlbumsStayRestrictedUntilAllIsEnabled() throws {
     let name = "scope-empty-"+UUID().uuidString
     let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
@@ -66,8 +87,8 @@ final class LibraryPresentationTests: XCTestCase {
     store.save(BackupScopeRule(types: [.photo],restrictAlbums: true,albums: ["missing"]))
     XCTAssertFalse(store.rule.includes(kind: .photo,id: "outside",albumMembers: []))
     store.save(BackupScopeRule(types: [.photo],restrictAlbums: true,albums: []))
-    XCTAssertFalse(store.rule.restrictAlbums)
-    XCTAssertTrue(store.rule.includes(kind: .photo,id: "outside",albumMembers: []))
+    XCTAssertTrue(store.rule.restrictAlbums)
+    XCTAssertFalse(store.rule.includes(kind: .photo,id: "outside",albumMembers: []))
     XCTAssertEqual(BackupScopeStore(defaults: defaults).rule,store.rule)
     var updates = 0
     let observation = store.objectWillChange.sink { updates += 1 }
@@ -99,7 +120,7 @@ final class LibraryPresentationTests: XCTestCase {
     controller.loadViewIfNeeded(); controller.view.frame = CGRect(x: 0,y: 0,width: 402,height: 650)
     let rows = (0..<1000).map { ScopeAlbum(id: "album-\($0)",name: "Album \($0)",count: $0,system: false,cover: nil) }
     func state(_ selected: Set<String>) -> ScopeAlbumGrid {
-      ScopeAlbumGrid(albums: rows,selected: selected,search: "",listMode: false,allSelected: selected.isEmpty,chooseAll: {},choose: { _ in })
+      ScopeAlbumGrid(albums: rows,selected: selected,search: "",listMode: false,choose: { _ in })
     }
     controller.apply(state([])); controller.view.setNeedsLayout(); controller.view.layoutIfNeeded(); controller.collection.layoutIfNeeded()
     let original = try XCTUnwrap(controller.collection.cellForItem(at: IndexPath(item: 0,section: 0)) as? ScopeAlbumCell)
@@ -111,18 +132,13 @@ final class LibraryPresentationTests: XCTestCase {
     XCTAssertLessThan(controller.collection.visibleCells.count,30,"Album covers remain virtualized")
   }
 
-  @MainActor func testPreviewConsentPersistsRefusalAndDoesNotAskRepeatedly() throws {
+  @MainActor func testCloudPreviewDefaultAllowsPhotoKitDespiteObsoleteSavedRefusal() throws {
     let name = "preview-test-" + UUID().uuidString
     let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
     defer { defaults.removePersistentDomain(forName: name) }
+    defaults.set("deny",forKey: "previewCloudConsent")
     let policy = PreviewNetworkPolicy(defaults: defaults)
-    XCTAssertFalse(policy.allowed)
-    policy.requestConsent(); XCTAssertTrue(policy.asking)
-    policy.decide(false); policy.requestConsent(); XCTAssertFalse(policy.asking)
-    let restored = PreviewNetworkPolicy(defaults: defaults)
-    XCTAssertEqual(restored.choice, "deny")
-    restored.decide(true)
-    XCTAssertTrue(PreviewNetworkPolicy(defaults: defaults).allowed)
+    XCTAssertTrue(policy.allowed); XCTAssertEqual(policy.choice,"allow")
   }
 
   func testRangeSelectionRestoresBacktrackedItemsAndPreservesOutsideSnapshot() {

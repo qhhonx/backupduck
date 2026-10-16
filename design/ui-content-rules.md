@@ -98,6 +98,19 @@ Content groups containing explanatory text or standalone actions reserve 20 pt
 inside the bottom edge on Mac. Row-only groups retain zero extra vertical inset;
 row metrics supply their spacing.
 
+## Apple sheet chrome
+
+Shared sheets use `DuckSheetHeader`, including the activity-log sheet and desktop
+Help. Centre title text and the close glyph vertically in one row. Titles wrap
+without shrinking or clipping; close/back controls retain 44 pt targets on iPhone
+and 32 pt on Mac. Busy sheets retain the close target and disable dismissal.
+
+Phone footer actions fill their available column, with centred labels. Two short
+actions share a row; narrow layouts or accessibility text stack them at full
+width. Use `DuckSheetAction` for detail actions instead of desktop-sized buttons.
+Mac footer actions retain their intrinsic widths and trailing alignment. The
+header and footer stay outside the scrolling body, including failure/retry states.
+
 ## Brand resources
 
 Use the approved `assets/AppIcon.png` as the source for launch and system marks.
@@ -150,15 +163,11 @@ missing fields are omitted, never guessed. Information access is read-only.
 
 Grid image targets use cell size times display density, with bounded quality caches
 and visible requests. Detail targets are high quality and bounded to 4096 pixels.
-Local previews work without cloud consent. An explicit attempt to open an unavailable iCloud preview
-requests consent using the shared application sheet; passive thumbnail loading
-never presents it. refusal persists until the user changes the setting.
-Preview consent keeps the shared fitted/large detents and system grabber. Phone
-actions use the same 16 pt type, 52 pt minimum and 10 pt vertical inset as other
-shared confirmations; labels add no second minimum height.
-Consent covers preview network loading, including cellular access under the OS
-network policy, and never starts or authorizes backup. Settings can revoke it;
-revocation cancels outstanding preview requests and clears their image cache.
+PhotoKit may resolve local and iCloud previews automatically under system Photos
+access and network policy. There is no app-level browsing consent or network
+preference. A media-local ring owns loading and retry; browsing never registers
+backup work. Visible cloud requests remain bounded and off-screen prefetch stays
+local. A missing larger rendition must not discard an available tiny cover.
 EXIF reads occur only when information is opened. No private file-size API is used.
 
 ## Photo backup scope
@@ -205,7 +214,7 @@ iPhone album covers use three reusable native columns (a readable list at
 accessibility sizes), explicit item-count units, and display-scale thumbnail targets. Album
 selection is searchable and virtualized; it never expands the parent page.
 Independent choices use checkmarks. Persistent Booleans use leading-label,
-trailing-switch preference rows, including preview network consent on Mac.
+trailing-switch preference rows.
 
 ## Media selection cells
 
@@ -219,5 +228,10 @@ fade the row nor replace it. Pressing a scope choice does not dim its entire lab
 
 Album cover requests use the gallery thumbnail pipeline: exact, display-density
 size, revision-aware bounded cache, reuse/offscreen cancellation, local first,
-and existing preview consent for network fallbacks. Never reset an unchanged
+and system access/network policy for cloud fallbacks. Never reset an unchanged
 cover to its placeholder on a selection update.
+
+Standalone Apple loading states use `DuckLoadingState`, centered across their
+content region with a specific action label. A cache-settings read must not say
+that a backup is loading. Initialization failures expose recovery rather than an
+indefinite spinner. Inline progress beside an action or control retains its slot.

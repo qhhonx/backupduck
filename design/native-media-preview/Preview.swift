@@ -178,7 +178,7 @@ private final class SelectedReference: UIViewController, UICollectionViewDataSou
     func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { let id = ids[p.item]; if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }; cv.reloadItems(at: [p]); title = "已选择 \(selected.count) 项" }
     func browse() {
         guard let first = ids.firstIndex(where: { selected.contains($0) }) else { return }
-        let viewer = ViewerController(index: first); viewer.pictureIDs = ids
+        let viewer = ViewerController(index: first); viewer.pictureIDs = ids; viewer.allowsInformation = false
         viewer.modalPresentationStyle = .custom; viewer.transitioningDelegate = self
         viewer.source = { [weak self] i in
             guard let self else { return nil }; let p = IndexPath(item: i,section: 0)
@@ -211,30 +211,76 @@ private final class ZoomPage: UIScrollView, UIScrollViewDelegate {
         else { let p = g.location(in: image); zoom(to: CGRect(x: p.x-bounds.width/5,y: p.y-bounds.height/5,width: bounds.width/2.5,height: bounds.height/2.5),animated: true) }
     }
 }
-/// A bounded filmstrip layout. Only the settled current item expands; dragging
-/// uses a uniform pitch so scrub position has one unambiguous owner.
+/// One uniform media scale and a matching local crop meet either grid endpoint.
+struct MediaFlightGeometry {
+    let transform: CGAffineTransform
+    let crop: CGRect
+    init(bounds: CGRect, fitted: CGRect, thumbnail: CGRect) {
+        let scale = max(0.0001,max(thumbnail.width/max(1,bounds.width),thumbnail.height/max(1,bounds.height)))
+        transform = CGAffineTransform(translationX: thumbnail.midX-fitted.midX,y: thumbnail.midY-fitted.midY)
+            .scaledBy(x: scale,y: scale)
+        crop = CGRect(x: bounds.midX-thumbnail.width/scale/2,y: bounds.midY-thumbnail.height/scale/2,
+            width: thumbnail.width/scale,height: thumbnail.height/scale)
+    }
+    static func drag(origin: CGPoint, center: CGPoint, translation: CGPoint) -> CGAffineTransform {
+        let scale = max(0.65,1-max(0,translation.y)/1000)
+        return CGAffineTransform(translationX: translation.x+(1-scale)*(origin.x-center.x),
+            y: translation.y+(1-scale)*(origin.y-center.y)).scaledBy(x: scale,y: scale)
+    }
+}
+
+/// Geometry is evaluated for at most two emphasized items, even in a large library.
+/// Paging supplies fractional focus; direct scrubbing owns a uniform compact strip.
 @MainActor final class MediaFilmstripLayout: UICollectionViewLayout {
-    let pitch: CGFloat = 27
+    let pitch: CGFloat = 23
     var current = 0, expansion: CGFloat = 1, aspect: CGFloat = 1
+    var focus: CGFloat?
+    var neighborAspects: [Int: CGFloat] = [:]
     var count: Int { collectionView?.numberOfItems(inSection: 0) ?? 0 }
-    var selectedWidth: CGFloat { 24 + (min(52,max(26,44*aspect))-24)*expansion }
-    var extra: CGFloat { selectedWidth-24+16*expansion }
+    var position: CGFloat { max(0,min(CGFloat(max(0,count-1)),focus ?? CGFloat(current))) }
+    private var emphasis: [(Int,CGFloat)] {
+        let first = Int(floor(position)), fraction = position-CGFloat(first)
+        return [(first,(1-fraction)*expansion),(first+1,fraction*expansion)]
+    }
+    private func expandedWidth(_ index: Int) -> CGFloat {
+        min(60,max(24,30*(neighborAspects[index] ?? aspect)))
+    }
+    private func weight(_ index: Int) -> CGFloat {
+        emphasis.first(where: { $0.0 == index })?.1 ?? 0
+    }
+    var selectedWidth: CGFloat { 20+(expandedWidth(current)-20)*weight(current) }
+    var extra: CGFloat { emphasis.reduce(0) { $0+(expandedWidth($1.0)-20+16)*$1.1 } }
     func center(_ index: Int) -> CGFloat {
-        CGFloat(index)*pitch + (index == current ? 8*expansion+selectedWidth/2 : 12+(index > current ? extra : 0))
+        var x = CGFloat(index)*pitch+10
+        for (item,weight) in emphasis {
+            let widthDelta = (expandedWidth(item)-20)*weight
+            if index > item { x += widthDelta+16*weight }
+            else if index == item { x += widthDelta/2+8*weight }
+        }
+        return x
+    }
+    var focusCenter: CGFloat {
+        let first = Int(floor(position)), fraction = position-CGFloat(first)
+        return center(first)+(center(min(max(0,count-1),first+1))-center(first))*fraction
     }
     func nearest(_ x: CGFloat) -> Int {
-        max(0,min(count-1,Int(round((x-12)/pitch))))
+        guard count > 0 else { return 0 }
+        var low = 0, high = count-1
+        while low < high {
+            let middle = (low+high)/2
+            if x > (center(middle)+center(middle+1))/2 { low = middle+1 }
+            else { high = middle }
+        }
+        return low
     }
     override var collectionViewContentSize: CGSize {
         CGSize(width: max(0,CGFloat(count)*pitch-3+extra),height: collectionView?.bounds.height ?? 44)
     }
     override func layoutAttributesForItem(at path: IndexPath) -> UICollectionViewLayoutAttributes? {
-        guard let collectionView, path.item < count else { return nil }
-        let selected = path.item == current
-        let width: CGFloat = selected ? selectedWidth : 24
-        let height: CGFloat = selected ? 36+8*expansion : 36
+        guard let collectionView, path.item >= 0, path.item < count else { return nil }
+        let width = 20+(expandedWidth(path.item)-20)*weight(path.item)
         let attributes = UICollectionViewLayoutAttributes(forCellWith: path)
-        attributes.frame = CGRect(x: center(path.item)-width/2,y: (collectionView.bounds.height-height)/2,width: width,height: height)
+        attributes.frame = CGRect(x: center(path.item)-width/2,y: (collectionView.bounds.height-30)/2,width: width,height: 30)
         return attributes
     }
     override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
@@ -247,13 +293,55 @@ private final class ZoomPage: UIScrollView, UIScrollViewDelegate {
     override func shouldInvalidateLayout(forBoundsChange bounds: CGRect) -> Bool { bounds.size != collectionView?.bounds.size }
 }
 
+/// One unobtrusive media-local loading owner; known progress is never invented.
+@MainActor final class MediaLoadingIndicator: UIView {
+  let track = CAShapeLayer(), arc = CAShapeLayer(), symbol = UIImageView()
+  var retry: (() -> Void)?
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = UIColor.black.withAlphaComponent(0.45); layer.cornerRadius = 18
+    for shape in [track,arc] { shape.fillColor = UIColor.clear.cgColor; shape.lineWidth = 2; shape.lineCap = .round; layer.addSublayer(shape) }
+    track.strokeColor = UIColor.white.withAlphaComponent(0.3).cgColor; arc.strokeColor = UIColor.white.cgColor
+    symbol.tintColor = .white; symbol.contentMode = .scaleAspectFit; addSubview(symbol)
+    let tap = UITapGestureRecognizer(target: self,action: #selector(retryTapped)); addGestureRecognizer(tap)
+    isAccessibilityElement = true; accessibilityIdentifier = "preview.loading"
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func layoutSubviews() {
+    super.layoutSubviews(); layer.cornerRadius = bounds.width/2
+    let path = UIBezierPath(arcCenter: CGPoint(x: bounds.midX,y: bounds.midY),radius: max(1,bounds.width/2-7),startAngle: -.pi/2,endAngle: .pi*1.5,clockwise: true).cgPath
+    track.frame = bounds; arc.frame = bounds; track.path = path; arc.path = path
+    symbol.frame = bounds.insetBy(dx: 9,dy: 9)
+  }
+  func update(loading: Bool, progress: Double, cloud: Bool, failure: Bool) {
+    isHidden = !loading && !cloud && !failure
+    accessibilityTraits = failure || cloud ? .button : .updatesFrequently
+    accessibilityLabel = NSLocalizedString(failure ? "retry_task" : cloud ? "preview_cloud_setting" : "preview_loading",comment: "")
+    isUserInteractionEnabled = cloud || failure
+    let determinate = progress > 0 && progress <= 1
+    accessibilityValue = loading && determinate ? "\(Int(progress*100))%" : nil
+    track.isHidden = !loading; arc.isHidden = !loading; symbol.isHidden = loading
+    symbol.image = UIImage(systemName: failure ? "exclamationmark.arrow.circlepath" : "icloud.and.arrow.down")
+    CATransaction.begin(); CATransaction.setDisableActions(true); arc.strokeEnd = determinate ? CGFloat(progress) : 0.22; CATransaction.commit()
+    if loading && !determinate && !UIAccessibility.isReduceMotionEnabled {
+      if arc.animation(forKey: "loading.rotation") == nil {
+        let spin = CABasicAnimation(keyPath: "transform.rotation.z"); spin.fromValue = 0; spin.toValue = 2*Double.pi; spin.duration = 1; spin.repeatCount = .infinity; arc.add(spin,forKey: "loading.rotation")
+      }
+    } else { arc.removeAnimation(forKey: "loading.rotation") }
+  }
+  @objc func retryTapped() { retry?() }
+}
+
 private final class ViewerController: UIViewController, UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate, UIGestureRecognizerDelegate {
+    var allowsInformation = true
     var pictureIDs = Array(pictures.indices)
     var index: Int, source: ((Int) -> UIImageView?)?
     let stage = UIView(), pager = UIScrollView(), header = UIView(), footer = UIView(), titleLabel = text("",size: 15,weight: .semibold,color: .white)
-    let status = text("",size: 12,color: .lightGray), progress = UIProgressView(progressViewStyle: .default)
+    let status = text("",size: 12,color: .lightGray), progress = MediaLoadingIndicator()
     let stripLayout = MediaFilmstripLayout()
     lazy var strip = UICollectionView(frame: .zero,collectionViewLayout: stripLayout)
+    var dragOrigin = CGPoint.zero, dragCenter = CGPoint.zero
+    var pageStride: CGFloat { stage.bounds.width+40 }
     var pages: [ZoomPage] = [], suppress = false, chrome = true, infoHeight: CGFloat = 0, infoStart: CGFloat = 0, gestureKind = 0
     var hasConsent = false, consent: UIView?, loadingTask: DispatchWorkItem?, infoAnimator: UIViewPropertyAnimator?
     let info = UIScrollView(), infoBody = UIView()
@@ -265,7 +353,7 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
         pager.accessibilityIdentifier = "preview.pager"; pager.isPagingEnabled = true; pager.showsHorizontalScrollIndicator = false; pager.delegate = self; pager.decelerationRate = .fast
         pager.contentInsetAdjustmentBehavior = .never; view.addSubview(header); view.addSubview(footer)
         let close = button("chevron.left",title: "返回图库") { [weak self] in self?.close() }; close.tintColor = .white; close.frame = CGRect(x: 8,y: 0,width: 44,height: 44); header.addSubview(close)
-        header.addSubview(titleLabel); header.addSubview(status); header.addSubview(progress); progress.tintColor = paleAction; progress.isHidden = true
+        header.addSubview(titleLabel); header.addSubview(status); view.addSubview(progress); progress.isHidden = true
         strip.accessibilityIdentifier = "preview.filmstrip"; strip.backgroundColor = .clear; strip.showsHorizontalScrollIndicator = false; strip.dataSource = self; strip.delegate = self
         strip.register(PictureCell.self,forCellWithReuseIdentifier: "strip"); footer.addSubview(strip)
         info.accessibilityIdentifier = "preview.info"; view.addSubview(info); info.backgroundColor = surface; info.layer.cornerRadius = 20; info.layer.maskedCorners = [.layerMinXMinYCorner,.layerMaxXMinYCorner]; info.addSubview(infoBody)
@@ -274,47 +362,48 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
         let dismissInfo = button("xmark",title: "关闭信息") { [weak self] in self?.setInfo(open: false) }; dismissInfo.tintColor = paleAction; dismissInfo.tag = 6; infoBody.addSubview(dismissInfo)
         let date = text("2026年10月11日",size: 24,weight: .semibold,color: .white); date.frame = CGRect(x: 20,y: 50,width: 320,height: 36); infoBody.addSubview(date)
         let file = text("IMG_0042.HEIC\n12 MP · 3024 × 4032 · 2.4 MB\niPhone · 26 mm · ƒ/1.8 · ISO 100",size: 15,color: .white); file.frame = CGRect(x: 20,y: 100,width: 320,height: 88); infoBody.addSubview(file)
-        let mapTitle = text("拍摄位置 · 示例位置",size: 15,color: .white); mapTitle.frame = CGRect(x: 20,y: 208,width: 320,height: 28); infoBody.addSubview(mapTitle)
+        let mapTitle = text("拍摄地点 · 示例位置",size: 15,color: .white); mapTitle.frame = CGRect(x: 20,y: 208,width: 320,height: 28); infoBody.addSubview(mapTitle)
         let map = MKMapView(frame: CGRect(x: 20,y: 246,width: 320,height: 160)); map.tag = 8; map.isUserInteractionEnabled = false; map.layer.cornerRadius = 12; map.clipsToBounds = true
         map.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 37.3349,longitude: -122.0090),span: MKCoordinateSpan(latitudeDelta: 0.014,longitudeDelta: 0.014)),animated: false); infoBody.addSubview(map)
         let note = text("信息为设计示例，未读取真实照片。",size: 12,color: .lightGray); note.frame = CGRect(x: 20,y: 428,width: 320,height: 30); infoBody.addSubview(note)
         let handlePan = UIPanGestureRecognizer(target: self,action: #selector(infoPan(_:))); infoBody.addGestureRecognizer(handlePan); handlePan.delegate = self
         reloadPages(); updateHeader()
     }
-    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if index == 2 && !hasConsent { showConsent() } }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if index == 2 && !hasConsent { endConsent(allow: true) } }
     override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); layoutMedia(); if let c = consent { layoutConsent(c) } }
     func layoutMedia() {
         let b = view.bounds, top = view.safeAreaInsets.top, bottom = view.safeAreaInsets.bottom
         header.frame = CGRect(x: 0,y: top,width: b.width,height: 74); titleLabel.frame = CGRect(x: 58,y: 3,width: b.width-116,height: 26); titleLabel.textAlignment = .center
         status.frame = CGRect(x: 58,y: 30,width: b.width-116,height: 22); status.textAlignment = .center
         header.viewWithTag(7)?.frame = CGRect(x: b.width-52,y: 0,width: 44,height: 44)
-        progress.frame = CGRect(x: b.width/2-65,y: 58,width: 130,height: 2)
+        progress.frame = CGRect(x: b.width-46,y: min(b.height-bottom-112,pages.count == 3 ? pages[1].image.convert(pages[1].image.bounds,to: view).maxY-44 : b.midY),width: 36,height: 36)
         footer.frame = CGRect(x: 0,y: b.height-bottom-64,width: b.width,height: 64)
         strip.frame = footer.bounds.insetBy(dx: 16,dy: 10); strip.contentInset = UIEdgeInsets(top: 0,left: strip.bounds.width/2-15,bottom: 0,right: strip.bounds.width/2-15)
-        stage.frame = CGRect(x: 0,y: top+74,width: b.width,height: max(100,b.height-top-74-bottom-64-infoHeight))
-        pager.frame = stage.bounds; suppress = true
-        pager.contentSize = CGSize(width: stage.bounds.width*3,height: stage.bounds.height)
-        for (i,p) in pages.enumerated() { p.frame = CGRect(x: CGFloat(i)*stage.bounds.width,y: 0,width: stage.bounds.width,height: stage.bounds.height) }
-        if !pager.isDragging && !pager.isDecelerating { pager.contentOffset.x = stage.bounds.width }
+        stage.frame = CGRect(x: 0,y: 0,width: b.width,height: max(100,b.height-infoHeight))
+        stage.clipsToBounds = true
+        pager.frame = CGRect(x: -20,y: 0,width: pageStride,height: stage.bounds.height); suppress = true
+        pager.contentSize = CGSize(width: pageStride*3,height: stage.bounds.height)
+        for (i,p) in pages.enumerated() { p.frame = CGRect(x: CGFloat(i)*pageStride+20,y: 0,width: stage.bounds.width,height: stage.bounds.height) }
+        if !pager.isDragging && !pager.isDecelerating { pager.contentOffset.x = pageStride }
         suppress = false
         info.frame = CGRect(x: 0,y: b.height-infoHeight,width: b.width,height: infoHeight)
         infoBody.frame = CGRect(x: 0,y: 0,width: b.width,height: 485); info.contentSize = infoBody.bounds.size
         infoBody.viewWithTag(5)?.frame = CGRect(x: b.width/2-18,y: 10,width: 36,height: 4)
         infoBody.viewWithTag(6)?.frame = CGRect(x: b.width-56,y: 20,width: 44,height: 44)
         infoBody.viewWithTag(8)?.frame.size.width = b.width-40
-        header.alpha = chrome && infoHeight < 50 ? 1 : 0; footer.alpha = chrome && infoHeight < 50 ? 1 : 0
+        header.alpha = chrome ? max(0,1-infoHeight/100) : 0; footer.alpha = header.alpha
     }
     func reloadPages(updateStrip: Bool = true) {
         for p in pages { p.removeFromSuperview() }; pages = []
         for i in -1...1 { let actual = max(0,min(pictureIDs.count-1,index+i)), p = ZoomPage(photo: pictures[pictureIDs[actual]]); p.changed = { [weak self] zoomed in self?.pager.isScrollEnabled = !zoomed }; pager.addSubview(p); pages.append(p) }
-        pager.isScrollEnabled = true; layoutMedia(); stripLayout.current = index; stripLayout.invalidateLayout(); if updateStrip { strip.reloadData(); centerStrip(animated: false) }
+        pager.isScrollEnabled = true; layoutMedia(); pager.contentInset = UIEdgeInsets(top: 0,left: index == 0 ? -pageStride : 0,bottom: 0,right: index == pictureIDs.count-1 ? -pageStride : 0); for (slot,page) in pages.enumerated() { page.isHidden = slot == 0 && index == 0 || slot == 2 && index == pictureIDs.count-1 }; stripLayout.current = index; stripLayout.aspect = pictures[pictureIDs[index]].size.width/pictures[pictureIDs[index]].size.height; stripLayout.neighborAspects = Dictionary(uniqueKeysWithValues: (max(0,index-1)...min(pictureIDs.count-1,index+1)).map { ($0,pictures[pictureIDs[$0]].size.width/pictures[pictureIDs[$0]].size.height) }); stripLayout.invalidateLayout(); if updateStrip { strip.reloadData(); centerStrip(animated: false) }
     }
     func updateHeader() { titleLabel.text = "2026年10月11日"; status.text = "14:\(String(format: "%02d",index)) · 示例 \(index+1)" }
     func go(_ i: Int, fromStrip: Bool = false) { let target = max(0,min(pictureIDs.count-1,i)); guard target != index else { return }; index = target; loadingTask?.cancel(); progress.isHidden = true; reloadPages(updateStrip: !fromStrip); updateHeader() }
     func scrollViewDidScroll(_ s: UIScrollView) {
         guard !suppress else { return }
         if s === pager {
-            if !strip.isDragging && !strip.isDecelerating { suppress = true; strip.contentOffset.x = stripLayout.center(index)-strip.bounds.width/2+(s.contentOffset.x/max(1,s.bounds.width)-1)*stripLayout.pitch; suppress = false }
+            if !strip.isDragging && !strip.isDecelerating { stripLayout.focus = CGFloat(index)+s.contentOffset.x/max(1,s.bounds.width)-1; stripLayout.invalidateLayout(); strip.layoutIfNeeded(); suppress = true; strip.contentOffset.x = stripLayout.focusCenter-strip.bounds.width/2; suppress = false }
         } else if s === strip, s.isDragging || s.isDecelerating {
             let next = stripLayout.nearest(s.contentOffset.x+s.bounds.width/2); if next != index {
                 let offset = s.contentOffset; go(next,fromStrip: true); suppress = true; s.contentOffset = offset; suppress = false
@@ -322,8 +411,10 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
         }
     }
     func scrollViewWillBeginDragging(_ scroll: UIScrollView) {
-        stripLayout.expansion = 0; stripLayout.invalidateLayout(); strip.layoutIfNeeded()
-        if scroll === strip { centerStripOffset() }
+        guard scroll === strip else { return }
+        let before = stripLayout.center(index), offset = strip.contentOffset.x
+        stripLayout.focus = nil; stripLayout.expansion = 0; stripLayout.invalidateLayout(); strip.layoutIfNeeded()
+        suppress = true; strip.contentOffset.x = offset+stripLayout.center(index)-before; suppress = false
     }
     func centerStripOffset() {
         suppress = true; strip.contentOffset.x = stripLayout.center(index)-strip.bounds.width/2; suppress = false
@@ -331,18 +422,19 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
     func scrollViewDidEndDecelerating(_ s: UIScrollView) { settle(s) }
     func scrollViewDidEndDragging(_ s: UIScrollView,willDecelerate decelerate: Bool) { if !decelerate { settle(s) } }
     func settle(_ s: UIScrollView) {
+        stripLayout.focus = nil
         if s === pager { go(index+Int(round(s.contentOffset.x/max(1,s.bounds.width)))-1); suppress = true; s.contentOffset.x = s.bounds.width; suppress = false }
         stripLayout.expansion = 1; stripLayout.invalidateLayout(); strip.layoutIfNeeded(); centerStrip(animated: true)
     }
     func centerStrip(animated: Bool) { guard !strip.isDragging && !strip.isDecelerating else { return }; suppress = true; strip.setContentOffset(CGPoint(x: stripLayout.center(index)-strip.bounds.width/2,y: 0),animated: animated); suppress = false }
     func collectionView(_ cv: UICollectionView,numberOfItemsInSection section: Int) -> Int { pictureIDs.count }
     func collectionView(_ cv: UICollectionView,cellForItemAt p: IndexPath) -> UICollectionViewCell {
-        let c = cv.dequeueReusableCell(withReuseIdentifier: "strip",for: p) as! PictureCell; c.photo.image = pictures[pictureIDs[p.item]]; c.layer.cornerRadius = 4; c.clipsToBounds = true; c.layer.borderWidth = p.item == index ? 2 : 0; c.layer.borderColor = UIColor.white.cgColor; return c
+        let c = cv.dequeueReusableCell(withReuseIdentifier: "strip",for: p) as! PictureCell; c.photo.image = pictures[pictureIDs[p.item]]; c.layer.cornerRadius = 4; c.clipsToBounds = true; c.layer.borderWidth = 0; c.layer.borderColor = UIColor.white.cgColor; return c
     }
     func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { go(p.item) }
     func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
         guard consent == nil, !pager.isDragging, !pager.isDecelerating, pages.count == 3, pages[1].zoomScale <= 1.01 else { return false }
-        if let p = g as? UIPanGestureRecognizer { let v = p.velocity(in: view); return abs(v.y)>abs(v.x)*1.4 }
+        if let p = g as? UIPanGestureRecognizer { let v = p.velocity(in: view); return (allowsInformation || v.y > 0) && abs(v.y)>abs(v.x)*1.4 }
         return true
     }
     func gestureRecognizer(_ g: UIGestureRecognizer,shouldReceive touch: UITouch) -> Bool {
@@ -354,8 +446,9 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
         let t = g.translation(in: view), v = g.velocity(in: view)
         switch g.state {
         case .began: gestureKind = t.y >= 0 && v.y >= 0 ? 1 : 2; infoStart = infoHeight; infoAnimator?.stopAnimation(true)
+            dragOrigin = g.location(in: view); let frame = pages[1].image.convert(pages[1].image.bounds,to: view); dragCenter = CGPoint(x: frame.midX,y: frame.midY)
         case .changed:
-            if gestureKind == 1 { pages[1].image.transform = CGAffineTransform(translationX: t.x,y: max(0,t.y)).scaledBy(x: max(0.65,1-max(0,t.y)/1000),y: max(0.65,1-max(0,t.y)/1000)); view.backgroundColor = UIColor.black.withAlphaComponent(max(0.1,1-max(0,t.y)/300)); header.alpha = max(0,1-t.y/80); footer.alpha = header.alpha }
+            if gestureKind == 1 { pages[1].image.transform = MediaFlightGeometry.drag(origin: dragOrigin,center: dragCenter,translation: t); view.backgroundColor = UIColor.black.withAlphaComponent(max(0.1,1-max(0,t.y)/300)); header.alpha = max(0,1-t.y/80); footer.alpha = header.alpha }
             else { infoHeight = max(0,min(view.bounds.height*0.72,infoStart-t.y)); layoutMedia() }
         case .ended,.cancelled:
             if gestureKind == 1 {
@@ -375,8 +468,10 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
         }
     }
     func setInfo(open: Bool) {
-        guard consent == nil else { return }; for p in pages { p.setZoomScale(1,animated: false) }
-        infoHeight = open ? min(500,view.bounds.height*0.45) : 0
+        guard consent == nil, allowsInformation else { return }; for p in pages { p.setZoomScale(1,animated: false) }
+        let image = pictures[pictureIDs[index]].size
+        let fittedHeight = min(view.bounds.height,view.bounds.width*image.height/image.width)
+        infoHeight = open ? min(view.bounds.height*0.7,view.bounds.height-min(fittedHeight,view.bounds.height*0.46)) : 0
         infoAnimator?.stopAnimation(true); infoAnimator = UIViewPropertyAnimator(duration: 0.38,dampingRatio: 0.92) { self.layoutMedia() }; infoAnimator?.startAnimation()
     }
     func close() { guard consent == nil else { return }; loadingTask?.cancel(); dismiss(animated: true) }
@@ -396,10 +491,10 @@ private final class ViewerController: UIViewController, UIScrollViewDelegate, UI
     }
     func layoutConsent(_ dim: UIView) {}
     func endConsent(allow: Bool) {
-        dismiss(animated: true); consent = nil; hasConsent = allow
-        guard allow else { status.text = "仅本地预览 · 示例"; return }; status.text = "正在加载清晰预览…"; progress.isHidden = false; progress.progress = 0.1
+        if consent != nil { dismiss(animated: true) }; consent = nil; hasConsent = allow
+        guard allow else { status.text = "仅本地预览 · 示例"; return }; progress.update(loading: true,progress: 0.1,cloud: false,failure: false)
         let task = DispatchWorkItem { [weak self] in self?.progress.isHidden = true; self?.updateHeader() }; loadingTask = task
-        UIView.animate(withDuration: 1.4) { self.progress.setProgress(1,animated: true) }; DispatchQueue.main.asyncAfter(deadline: .now()+1.8,execute: task)
+        DispatchQueue.main.asyncAfter(deadline: .now()+0.7) { [weak self] in guard let self, self.loadingTask?.isCancelled == false else { return }; self.progress.update(loading: true,progress: 0.65,cloud: false,failure: false) }; DispatchQueue.main.asyncAfter(deadline: .now()+1.8,execute: task)
     }
     var transitionImage: UIImageView { pages[1].image }
 }
@@ -442,27 +537,34 @@ private final class PhotoTransition: NSObject, UIViewControllerAnimatedTransitio
         let container = context.containerView; if presenting { viewer.view.frame = context.finalFrame(for: viewer); container.addSubview(viewer.view) }
         viewer.view.layoutIfNeeded()
         guard let thumb = viewer.source?(viewer.index) else { UIView.animate(withDuration: 0.18,animations: { viewer.view.alpha = self.presenting ? 1 : 0 }) { _ in context.completeTransition(!context.transitionWasCancelled) }; return }
-        let photo = viewer.transitionImage, proxy = UIImageView(image: pictures[viewer.pictureIDs[viewer.index]]); proxy.contentMode = .scaleAspectFill; proxy.clipsToBounds = true
-        let size = pictures[viewer.pictureIDs[viewer.index]].size, bounds = photo.bounds
-        let scale = min(bounds.width/size.width,bounds.height/size.height)
-        let fitted = CGRect(x: bounds.midX-size.width*scale/2,y: bounds.midY-size.height*scale/2,width: size.width*scale,height: size.height*scale)
-        let big = photo.convert(fitted,to: container), small = thumb.convert(thumb.bounds,to: container)
-        proxy.frame = presenting ? small : big; container.addSubview(proxy); photo.isHidden = true; thumb.isHidden = true
-        viewer.view.alpha = presenting ? 0 : 1
-        spring(transitionDuration(using: context)) { proxy.frame = self.presenting ? big : small; viewer.view.alpha = self.presenting ? 1 : 0 } completion: { _ in
-            photo.isHidden = false; thumb.isHidden = false; proxy.removeFromSuperview(); context.completeTransition(!context.transitionWasCancelled)
+        let photo = viewer.transitionImage
+        let held = photo.transform; photo.transform = .identity
+        let big = photo.convert(photo.bounds,to: container), small = thumb.convert(thumb.bounds,to: container)
+        photo.transform = held
+        let flight = MediaFlightGeometry(bounds: photo.bounds,fitted: big,thumbnail: small)
+        let clip = UIView(frame: presenting ? flight.crop : photo.bounds); clip.backgroundColor = .black; photo.mask = clip
+        var clipping: [(UIView,Bool)] = []; var node = photo.superview
+        while let ancestor = node, ancestor !== container { clipping.append((ancestor,ancestor.clipsToBounds)); ancestor.clipsToBounds = false; node = ancestor.superview }
+        thumb.isHidden = true
+        if presenting { photo.transform = flight.transform; viewer.view.backgroundColor = .clear }
+        viewer.header.alpha = presenting ? 0 : viewer.header.alpha; viewer.footer.alpha = presenting ? 0 : viewer.footer.alpha
+        spring(transitionDuration(using: context)) {
+            photo.transform = self.presenting ? .identity : flight.transform
+            clip.frame = self.presenting ? photo.bounds : flight.crop
+            viewer.view.backgroundColor = self.presenting ? .black : .clear
+            viewer.header.alpha = self.presenting ? 1 : 0; viewer.footer.alpha = self.presenting ? 1 : 0
+        } completion: { _ in
+            photo.mask = nil; thumb.isHidden = false
+            for (view,value) in clipping { view.clipsToBounds = value }
+            context.completeTransition(!context.transitionWasCancelled)
         }
     }
 }
 private final class SettingsController: UITableViewController {
     override func viewDidLoad() { super.viewDidLoad(); tableView.backgroundColor = canvas; tableView.register(UITableViewCell.self,forCellReuseIdentifier: "row") }
-    override func tableView(_ tableView: UITableView,numberOfRowsInSection section: Int) -> Int { 3 }
+    override func tableView(_ tableView: UITableView,numberOfRowsInSection section: Int) -> Int { 2 }
     override func tableView(_ tableView: UITableView,cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let c = tableView.dequeueReusableCell(withIdentifier: "row",for: indexPath); var config = c.defaultContentConfiguration();
-        if indexPath.row == 2 {
-            config.text = "从 iCloud 加载预览"; config.secondaryText = "浏览时加载清晰预览，可能使用蜂窝数据；不会开始备份。关闭后仅加载本机可用的预览。"
-            c.contentConfiguration = config; c.accessoryView = UISwitch(); return c
-        }
         c.accessoryView = nil; config.text = indexPath.row == 0 ? "媒体类型" : "指定相簿"; config.secondaryText = indexPath.row == 0 ? "全部类型" : "全部相簿"; config.secondaryText = indexPath.row == 0 ? "全部类型" : "全部相簿"; c.contentConfiguration = config; c.accessoryType = .disclosureIndicator; return c
     }
     override func tableView(_ tableView: UITableView,didSelectRowAt indexPath: IndexPath) {
@@ -488,17 +590,26 @@ private final class AlbumCell: UICollectionViewCell {
 }
 private final class AlbumsController: UICollectionViewController, UISearchResultsUpdating {
     var selected = Set<Int>(), visible = Array(0..<80)
+    let allSwitch = UISwitch()
     init() { let l = UICollectionViewFlowLayout(); l.minimumInteritemSpacing = 12; l.minimumLineSpacing = 16; l.sectionInset = UIEdgeInsets(top: 16,left: 16,bottom: 16,right: 16); super.init(collectionViewLayout: l) }
     required init?(coder: NSCoder) { fatalError() }
     override func viewDidLoad() { super.viewDidLoad(); title = "指定相簿"; collectionView.backgroundColor = canvas; collectionView.register(AlbumCell.self,forCellWithReuseIdentifier: "album")
+        collectionView.contentInset.top = 52
+        let label = text("全部相簿",size: 16); label.frame = CGRect(x: 16,y: -52,width: 200,height: 52)
+        collectionView.addSubview(label); collectionView.addSubview(allSwitch)
+        allSwitch.isOn = true
+        allSwitch.addAction(UIAction { [weak self] _ in
+            guard let self else { return }; self.selected.removeAll(); self.collectionView.reloadData()
+            self.navigationItem.prompt = self.allSwitch.isOn ? "全部相簿" : "0 个指定相簿"
+        },for: .valueChanged)
         let search = UISearchController(searchResultsController: nil); search.searchResultsUpdater = self; search.obscuresBackgroundDuringPresentation = false; search.searchBar.placeholder = "搜索相簿"; navigationItem.searchController = search; navigationItem.hidesSearchBarWhenScrolling = false
     }
-    override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); let side = (view.bounds.width-56)/3; (collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize = CGSize(width: side,height: side+52) }
+    override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); allSwitch.frame = CGRect(x: view.bounds.width-67,y: -42,width: 51,height: 31); let side = (view.bounds.width-56)/3; (collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize = CGSize(width: side,height: side+52) }
     func updateSearchResults(for searchController: UISearchController) { let q = searchController.searchBar.text ?? ""; visible = (0..<80).filter { q.isEmpty || "相簿 \($0+1)".contains(q) }; collectionView.reloadData() }
     override func collectionView(_ cv: UICollectionView,numberOfItemsInSection section: Int) -> Int { visible.count }
     override func collectionView(_ cv: UICollectionView,cellForItemAt p: IndexPath) -> UICollectionViewCell {
         let c = cv.dequeueReusableCell(withReuseIdentifier: "album",for: p) as! AlbumCell, i = visible[p.item]
         c.photo.image = pictures[i%pictures.count]; c.name.text = "相簿 \(i+1)"; c.count.text = "\((i+1)*37) 个项目"; c.check.isHidden = !selected.contains(i); c.photo.alpha = selected.contains(i) ? 0.72 : 1; c.accessibilityIdentifier = "reference.album.\(i)"; c.isAccessibilityElement = true; c.accessibilityTraits = selected.contains(i) ? [.button,.selected] : .button; return c
     }
-    override func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { let i = visible[p.item]; if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }; if let cell = collectionView.cellForItem(at: p) as? AlbumCell { cell.check.isHidden = !selected.contains(i); cell.photo.alpha = selected.contains(i) ? 0.72 : 1 }; navigationItem.prompt = selected.isEmpty ? "全部相簿" : "\(selected.count) 个指定相簿" }
+    override func collectionView(_ cv: UICollectionView,didSelectItemAt p: IndexPath) { let i = visible[p.item]; allSwitch.setOn(false,animated: true); if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }; if let cell = collectionView.cellForItem(at: p) as? AlbumCell { cell.check.isHidden = !selected.contains(i); cell.photo.alpha = selected.contains(i) ? 0.72 : 1 }; navigationItem.prompt = "\(selected.count) 个指定相簿" }
 }

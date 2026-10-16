@@ -28,20 +28,20 @@ final class GridInteractions: XCTestCase {
     let newest = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "1,440"), object: app.staticTexts["calendar.subtitle"])
     XCTAssertEqual(XCTWaiter.wait(for: [newest], timeout: 5), .completed)
     grid.swipeDown()
-    for columns in [5, 10, 20] {
+    for columns in [5, 15, 31] {
       grid.pinch(withScale: 0.55, velocity: -0.7)
       let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "\(columns) columns"), object: grid)
       XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed, "Actual settled value: \(String(describing: grid.value))")
     }
     XCTAssertFalse(app.staticTexts["calendar.subtitle"].isHittable)
     grid.pinch(withScale: 0.55, velocity: -0.7)
-    let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "20 columns"), object: grid)
+    let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "31 columns"), object: grid)
     XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 5), .completed)
     let captions = app.staticTexts.matching(identifier: "calendar.period_heading").allElementsBoundByIndex.filter { $0.isHittable }.sorted { $0.frame.minY < $1.frame.minY }
     for i in 1..<captions.count { XCTAssertGreaterThanOrEqual(captions[i].frame.minY, captions[i - 1].frame.maxY) }
     let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Terminal overview with separated captions"; image.lifetime = .keepAlways; add(image)
     grid.pinch(withScale: 1.7, velocity: 0.7)
-    let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "10 columns"), object: grid)
+    let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "15 columns"), object: grid)
     XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
   }
 
@@ -103,7 +103,7 @@ final class GridInteractions: XCTestCase {
     let app = XCUIApplication(); app.launchArguments = ["--long-library"]; app.launch()
     let grid = app.collectionViews["calendar.grid"]
     XCTAssertTrue(grid.waitForExistence(timeout:10))
-    for columns in [5,10,20] {
+    for columns in [5,15,31] {
       grid.pinch(withScale:0.55,velocity:-0.7)
       let settled = XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@","\(columns) columns"),object:grid)
       XCTAssertEqual(XCTWaiter.wait(for:[settled],timeout:5),.completed)
@@ -194,4 +194,25 @@ final class GridInteractions: XCTestCase {
     selected.lifetime = .keepAlways
     add(selected)
   }
+  func testCompactExpansionPreservesViewportAndExpandedReselectionReturnsNewest() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launch()
+    let grid = app.collectionViews["calendar.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    grid.swipeDown()
+    XCTAssertTrue(app.buttons["Years"].waitForExistence(timeout: 5))
+    let focal = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 300 && $0.frame.midY < 600 })
+    let identifier = focal.identifier, y = focal.frame.midY
+    app.buttons["Library"].tap()
+    XCTAssertTrue(app.tabBars.buttons["Backup"].waitForExistence(timeout: 5))
+    Thread.sleep(forTimeInterval: 0.8)
+    XCTAssertEqual(grid.cells[identifier].frame.midY, y, accuracy: 1,
+      "Expanding the compact icon must not scroll the library")
+    app.tabBars.buttons["Library"].tap()
+    let newest = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "1,440"),
+      object: app.staticTexts["calendar.subtitle"])
+    XCTAssertEqual(XCTWaiter.wait(for: [newest], timeout: 5), .completed)
+    let screen = XCTAttachment(screenshot: app.screenshot()); screen.name = "Expanded Library reselect — newest edge"; screen.lifetime = .keepAlways; add(screen)
+  }
+
 }

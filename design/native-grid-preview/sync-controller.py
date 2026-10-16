@@ -35,7 +35,7 @@ controller = controller.replace('DuckMediaSelection.configure(check)',
 controller = controller.replace('DuckMediaSelection.frame(in: bounds)',
     'CGRect(x: bounds.width - 29, y: bounds.height - 29, width: 23, height: 23)')
 controller = controller.replace('DuckMediaSelection.apply(selected, enabled: enabled, badge: check, image: image)',
-    'check.image = UIImage(systemName: "checkmark.circle.fill"); check.isHidden = !enabled || !selected; image.alpha = selected ? 0.72 : 1')
+    'check.image = UIImage(systemName: "checkmark.circle.fill"); check.isHidden = !enabled || !selected; image.alpha = selected && enabled ? 0.72 : 1')
 controller = controller.replace('"calendar.date_badge"','"calendar.period_heading"')
 expected = reference[:reference.index(start)] + controller + reference[reference.index(end):]
 if args.check:

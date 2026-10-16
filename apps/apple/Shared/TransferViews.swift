@@ -631,9 +631,9 @@ struct BackupTaskRow: View {
           if model.paused { DuckNotice(title: "backup_paused") }
           if retrySubmitted { DuckNotice(title: "apple_retry_submitted", tone: .action) }
         } actions: {
-          Button("settings_done") { preparationDetails = false }.duckSecondaryAction()
+          DuckSheetAction(title: "settings_done") { preparationDetails = false }
           if source.error_code != nil, !retrySubmitted {
-            Button("retry_task") { Task {
+            DuckSheetAction(title: "retry_task",primary: true) { Task {
               guard let receiver = model.pairing?.receiverID else { return }
               retrying = true; retryError = nil
               do {
@@ -641,7 +641,7 @@ struct BackupTaskRow: View {
                 retrySubmitted = true; await model.refresh(includeStorage: false)
               } catch { retryError = error.localizedDescription }
               retrying = false
-            } }.duckPrimaryAction().disabled(retrying)
+            } }.disabled(retrying)
           }
         }
       }

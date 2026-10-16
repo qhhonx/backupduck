@@ -1,4 +1,5 @@
 import Photos
+import ImageIO
 import SwiftUI
 import UIKit
 import XCTest
@@ -7,6 +8,117 @@ import XCTest
 
 /// Run only on a disposable simulator; fixtures remain available for UI checks.
 @MainActor final class LibraryTests: XCTestCase {
+  func testLongLensMetadataRendersInNarrowAndAccessibleInformationPanels() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("Synthetic metadata fixture only")
+    #endif
+    let bitmap = UIGraphicsImageRenderer(size: CGSize(width: 320,height: 480)).image { context in
+      UIColor.systemBlue.setFill(); context.fill(CGRect(x: 0,y: 0,width: 320,height: 480))
+    }
+    let bytes = NSMutableData()
+    let destination = try XCTUnwrap(CGImageDestinationCreateWithData(bytes,"public.jpeg" as CFString,1,nil))
+    let lens = "iPhone 5s back camera 4.15mm f/2.2 - full synthetic lens description"
+    CGImageDestinationAddImage(destination,try XCTUnwrap(bitmap.cgImage),[
+      kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFModel: "iPhone 5s"],
+      kCGImagePropertyExifDictionary: [kCGImagePropertyExifLensModel: lens]
+    ] as CFDictionary)
+    XCTAssertTrue(CGImageDestinationFinalize(destination))
+    var identifier: String?
+    try await PHPhotoLibrary.shared().performChanges {
+      let request = PHAssetCreationRequest.forAsset()
+      let options = PHAssetResourceCreationOptions(); options.originalFilename = "lens-fixture.jpg"
+      request.addResource(with: .photo,data: bytes as Data,options: options)
+      identifier = request.placeholderForCreatedAsset?.localIdentifier
+    }
+    let asset = try XCTUnwrap(PHAsset.fetchAssets(withLocalIdentifiers: [try XCTUnwrap(identifier)],options: nil).firstObject)
+    let model = MediaPreviewModel(asset: asset)
+    model.loadMetadata()
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+      model.metadata.contains { $0.0 == "preview_lens" && $0.1.hasSuffix("full synthetic lens description") }
+    },object: nil)
+    await fulfillment(of: [ready],timeout: 5)
+    for width: CGFloat in [320,440] {
+      let root = VStack(alignment: .leading) {
+        PhotoMetadataPanel(preview: model).padding(20)
+        Spacer(minLength: 0)
+      }.frame(width: width,height: 1400,alignment: .topLeading)
+        .background(Color(DuckColors.surface))
+        .environment(\.dynamicTypeSize,width == 320 ? .large : .accessibility3).environment(\.colorScheme,.dark)
+      let renderer = ImageRenderer(content: root); renderer.scale = 2
+      _ = renderer.uiImage
+      let rendered = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+        !model.metadataLoading && model.metadata.contains { $0.0 == "preview_lens" && $0.1 == lens }
+      },object: nil)
+      await fulfillment(of: [rendered],timeout: 5)
+      let image = try XCTUnwrap(renderer.uiImage)
+      let attachment = XCTAttachment(image: image); attachment.name = "Full lens information — \(Int(width)) pt"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    model.cancelMetadata()
+  }
+
+  func testVisibleGridFindsTinyLocalPhotoBeforeBoundedAutomaticCloudUpgrade() async throws {
+    func check(cancelled: Bool) async throws {
+      let fetch = PHAsset.fetchAssets(with: .image,options: photoLibraryFetchOptions())
+      let asset = try XCTUnwrap(fetch.firstObject)
+      let manager = ControlledThumbnailManager(), pipeline = ThumbnailPipeline(manager: manager)
+      pipeline.disk = nil
+      let local = expectation(description: "Large local request")
+      let tiny = expectation(description: "Tiny local fallback request")
+      let cloud = expectation(description: "Automatic cloud upgrade")
+      manager.onStart = { _,id in
+        if manager.network[id] == true { cloud.fulfill() }
+        else if manager.targets[id]?.width == 64 { tiny.fulfill() }
+        else { local.fulfill() }
+      }
+      let visible = expectation(description: "The grid receives its available local cover")
+      let upgraded = expectation(description: "The grid upgrades to its requested tier")
+      pipeline.request(asset,pixels: 320) { image,_ in
+        guard let image else { return }
+        if max(image.size.width,image.size.height)*image.scale <= 64 { visible.fulfill() }
+        else { upgraded.fulfill() }
+      }
+      await fulfillment(of: [local],timeout: 3)
+      manager.handlers[manager.started[0].1]?(nil,[cancelled ? PHImageCancelledKey : PHImageResultIsInCloudKey: true])
+      await fulfillment(of: [tiny],timeout: 3)
+      manager.handlers[manager.started[0].1]?(nil,[PHImageCancelledKey: true])
+      let small = UIGraphicsImageRenderer(size: CGSize(width: 64,height: 64)).image { _ in }
+      manager.complete(manager.started[1].1,image: small,degraded: true)
+      await fulfillment(of: [visible,cloud],timeout: 3)
+      XCTAssertEqual(manager.targets[manager.started[2].1]?.width,320)
+      let full = UIGraphicsImageRenderer(size: CGSize(width: 320,height: 320)).image { _ in }
+      manager.complete(manager.started[2].1,image: full,degraded: false)
+      await fulfillment(of: [upgraded],timeout: 3)
+      var cached: UIImage?
+      pipeline.request(asset,pixels: 320) { image,_ in cached = image }
+      XCTAssertGreaterThan((cached?.size.width ?? 0)*(cached?.scale ?? 1),64,"Tiny fallback must never occupy the large rendition's cache key")
+      pipeline.clear()
+
+    }
+    try await check(cancelled: false)
+    try await check(cancelled: true)
+  }
+
+  func testDetailLoadingDoesNotDowngradeDisplayedSourcePoster() async throws {
+    let assets = PHAsset.fetchAssets(with: .image,options: photoLibraryFetchOptions())
+    guard let asset = assets.firstObject else { throw XCTSkip("Import synthetic photo fixtures") }
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1
+    func bitmap(_ edge: CGFloat) -> UIImage { UIGraphicsImageRenderer(size: CGSize(width: edge*0.75,height: edge),format: format).image { _ in } }
+    let source = bitmap(1024), degraded = bitmap(128), full = bitmap(2400)
+    let manager = ControlledThumbnailManager()
+    let model = MediaPreviewModel(asset: asset,poster: source,manager: manager)
+    var delivered: [UIImage] = []
+    let observation = model.$image.sink { if let value = $0 { delivered.append(value) } }
+    defer { observation.cancel(); model.cancel() }
+    model.load(promptForCloud: false)
+    let id = try XCTUnwrap(manager.started.first?.1)
+    manager.complete(id,image: degraded,degraded: true)
+    manager.complete(id,image: full,degraded: false)
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in model.image === full },object: nil)
+    await fulfillment(of: [ready],timeout: 3)
+    XCTAssertFalse(delivered.contains { $0 === degraded },"The opening animation must retain the sharper source poster")
+    XCTAssertTrue(model.image === full)
+  }
+
   func testSelectedPreviewSessionKeepsBatchOrderAndLibraryContext() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("Synthetic PhotoKit fixture only")
@@ -111,6 +223,82 @@ import XCTest
     pipeline.clear()
   }
 
+  func testVisibleThumbnailOvertakesHeldPrefetchRequests() async throws {
+    let fetch = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    guard fetch.count >= 61 else { throw XCTSkip("Synthetic Photos fixtures required") }
+    let manager = ControlledThumbnailManager(), pipeline = ThumbnailPipeline(manager: manager)
+    pipeline.disk = nil
+    let primed = expectation(description: "Four speculative native requests start")
+    primed.expectedFulfillmentCount = 4
+    manager.onStart = { _,_ in primed.fulfill() }
+    for i in 0..<60 { pipeline.request(fetch.object(at: i), pixels: 320, priority: .prefetch) { _,_ in } }
+    await fulfillment(of: [primed], timeout: 5)
+    XCTAssertEqual(manager.started.count, 4, "Speculation leaves capacity for the viewport")
+    let visible = fetch.object(at: 60), started = expectation(description: "Visible request starts before background completion")
+    manager.onStart = { asset,_ in if asset.localIdentifier == visible.localIdentifier { started.fulfill() } }
+    pipeline.request(visible, pixels: 320) { _,_ in }
+    await fulfillment(of: [started], timeout: 5)
+    XCTAssertEqual(manager.started.last?.0, visible.localIdentifier)
+    XCTAssertEqual(manager.started.count, 5)
+    pipeline.clear()
+  }
+
+  func testVisibleSubscriberPromotesQueuedPrefetchAndSurvivesItsCancellation() async throws {
+    let fetch = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    guard fetch.count >= 60 else { throw XCTSkip("Synthetic Photos fixtures required") }
+    let manager = ControlledThumbnailManager(), pipeline = ThumbnailPipeline(manager: manager)
+    pipeline.disk = nil
+    // Small mosaic renditions allow wider speculation; asset 50 stays queued.
+    let primed = expectation(description: "Speculative native requests start"); primed.expectedFulfillmentCount = 24
+    manager.onStart = { _,_ in primed.fulfill() }
+    var tickets: [PHImageRequestID] = [], cancelledCallbacks = 0
+    for i in 0..<60 {
+      tickets.append(pipeline.request(fetch.object(at: i), pixels: 64, priority: .prefetch) { _,_ in
+        if i == 50 { cancelledCallbacks += 1 }
+      })
+    }
+    await fulfillment(of: [primed], timeout: 5)
+    let asset = fetch.object(at: 50), started = expectation(description: "Shared queued owner is promoted")
+    manager.onStart = { photo,_ in if photo.localIdentifier == asset.localIdentifier { started.fulfill() } }
+    let received = expectation(description: "Visible subscriber receives the promoted owner's result")
+    pipeline.request(asset, pixels: 64) { image,_ in if image != nil { received.fulfill() } }
+    await fulfillment(of: [started], timeout: 5)
+    XCTAssertEqual(manager.started.last?.0, asset.localIdentifier)
+    pipeline.cancel(tickets[50])
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { _ in }
+    manager.complete(manager.started.last!.1, image: image, degraded: true)
+    await fulfillment(of: [received], timeout: 5)
+    XCTAssertEqual(cancelledCallbacks, 0)
+    pipeline.clear()
+  }
+
+  func testBackgroundPreparationBoundsPixelsAndPreservesPreviewBeforeFinalNil() async throws {
+    let fetch = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    guard let asset = fetch.firstObject else { throw XCTSkip("Synthetic Photos fixtures required") }
+    let manager = ControlledThumbnailManager(), pipeline = ThumbnailPipeline(manager: manager)
+    pipeline.disk = nil
+    let started = expectation(description: "Native request starts")
+    manager.onStart = { _,_ in started.fulfill() }
+    let received = expectation(description: "Prepared preview survives final nil")
+    let blank = expectation(description: "Final nil must not erase a delivered preview"); blank.isInverted = true
+    pipeline.request(asset, pixels: 320) { image,_ in
+      if let image {
+        XCTAssertLessThanOrEqual(max(image.size.width, image.size.height) * image.scale, 320)
+        received.fulfill()
+      } else { blank.fulfill() }
+    }
+    await fulfillment(of: [started], timeout: 5)
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 1024, height: 1024)).image { ctx in
+      UIColor.systemBlue.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 1024, height: 1024))
+    }
+    let native = manager.started[0].1
+    manager.complete(native, image: image, degraded: true)
+    manager.complete(native, image: nil, degraded: false)
+    await fulfillment(of: [received], timeout: 5)
+    await fulfillment(of: [blank], timeout: 0.1)
+    pipeline.clear()
+  }
+
   func testThumbnailFallbackIsSmallAndDoesNotReplaceRequestedSizeTier() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("Synthetic PhotoKit fixture only")
@@ -154,6 +342,8 @@ import XCTest
       a.addAssets([photo, video] as NSArray)
       let b = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: "Scope fixture B")
       b.addAssets([photo] as NSArray)
+      let c = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: "Scope fixture C")
+      c.addAssets([video] as NSArray)
       albumIDs = [a.placeholderForCreatedAssetCollection.localIdentifier, b.placeholderForCreatedAssetCollection.localIdentifier]
     }
     // Keep these synthetic albums for subsequent native settings inspection.
@@ -478,6 +668,133 @@ import XCTest
     XCTAssertEqual(ids.count, count)
     return ids
   }
+  /// A centre-cropped grid poster keeps its true place inside the photo frame,
+  /// so a later full-aspect image adds the sides without magnifying the centre.
+  /// An iCloud original can download for seconds. The device's local full-aspect
+  /// rendition must replace the square grid crop at once, even though smaller.
+  @MainActor func testViewerAdoptsLocalFullAspectRenditionOverSquareCrop() async throws {
+    let fetch = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    var landscape: PHAsset?
+    fetch.enumerateObjects { asset, _, stop in
+      if asset.pixelWidth > asset.pixelHeight, asset.mediaSubtypes.isEmpty { landscape = asset; stop.pointee = true }
+    }
+    guard let asset = landscape else { throw XCTSkip("A landscape synthetic photo is required") }
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1
+    let square = UIGraphicsImageRenderer(size: CGSize(width: 448, height: 448), format: format).image { _ in }
+    let aspect = CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
+    let local = UIGraphicsImageRenderer(size: CGSize(width: 300, height: (300 / aspect).rounded()), format: format).image { _ in }
+    let manager = ControlledThumbnailManager()
+    let model = MediaPreviewModel(asset: asset, poster: square, manager: manager)
+    model.load()
+    let localRequest = try XCTUnwrap(manager.started.first { manager.network[$0.1] == false })
+    XCTAssertTrue(manager.started.contains { manager.network[$0.1] == true }, "The large request still runs")
+    manager.complete(localRequest.1, image: local, degraded: false)
+    try await Task.sleep(nanoseconds: 50_000_000)
+    XCTAssertTrue(model.image === local, "A smaller full-aspect rendition replaces the square crop")
+    model.cancel()
+  }
+  @MainActor func testViewerShowsCroppedPosterAtItsTruePlaceInPhotoFrame() {
+    let scroll = MediaZoomScroll(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+    scroll.mediaSize = CGSize(width: 4032, height: 3024)
+    scroll.layoutIfNeeded()
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1
+    let square = UIGraphicsImageRenderer(size: CGSize(width: 352, height: 352), format: format).image { _ in }
+    let full = UIGraphicsImageRenderer(size: CGSize(width: 352, height: 264), format: format).image { _ in }
+    scroll.display(square)
+    XCTAssertEqual(scroll.photo.contentMode, .scaleAspectFit)
+    XCTAssertFalse(scroll.showsFullAspect)
+    scroll.display(full)
+    XCTAssertEqual(scroll.photo.contentMode, .scaleAspectFill)
+    XCTAssertTrue(scroll.showsFullAspect)
+    XCTAssertTrue(MediaZoomScroll.matchesAspect(CGSize(width: 1600, height: 1201), CGSize(width: 4032, height: 3024)))
+  }
+
+  // MARK: Decoded thumbnail tables
+
+  private func tableURL(_ name: String) -> URL {
+    FileManager.default.temporaryDirectory.appendingPathComponent("table-tests-\(UUID().uuidString)")
+      .appendingPathComponent(name)
+  }
+  private func solid(_ color: UIColor, _ size: CGSize) -> CGImage {
+    UIGraphicsImageRenderer(size: size, format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }())
+      .image { context in color.setFill(); context.fill(CGRect(origin: .zero, size: size)) }.cgImage!
+  }
+  /// Blue, green and red bytes at a pixel of a BGRX table image.
+  private func pixel(_ image: CGImage, x: Int, y: Int) -> [UInt8] {
+    let data = image.dataProvider!.data! as Data
+    let offset = y * image.bytesPerRow + x * 4
+    return Array(data[offset..<offset + 3])
+  }
+
+  func testThumbnailTableReturnsStoredSquareFromTheMapping() throws {
+    let table = ThumbnailTable(url: tableURL("a.table"), side: 32, capacity: 64)
+    XCTAssertTrue(table.available)
+    XCTAssertFalse(table.contains("a|1"))
+    table.store("a|1", image: solid(.red, CGSize(width: 120, height: 60)))
+    XCTAssertTrue(table.contains("a|1"))
+    XCTAssertFalse(table.contains("a|2"), "A new revision is a different entry")
+    let image = try XCTUnwrap(table.image("a|1"))
+    XCTAssertEqual(image.width, 32)
+    XCTAssertEqual(image.height, 32)
+    XCTAssertEqual(image.bytesPerRow % 64, 0, "Rows stay aligned for Core Animation")
+    let center = pixel(image, x: 16, y: 16)
+    XCTAssertLessThan(center[0], 8); XCTAssertLessThan(center[1], 8); XCTAssertGreaterThan(center[2], 247)
+    XCTAssertNil(table.image("missing|1"))
+  }
+
+  func testThumbnailTablePersistsUntilGeometryChangesOrItIsCleared() throws {
+    let url = tableURL("b.table")
+    do {
+      let table = ThumbnailTable(url: url, side: 32, capacity: 64)
+      table.store("b|1", image: solid(.green, CGSize(width: 40, height: 40)))
+    }
+    let reopened = ThumbnailTable(url: url, side: 32, capacity: 64)
+    XCTAssertTrue(reopened.contains("b|1"), "Entries survive relaunch")
+    XCTAssertGreaterThan(reopened.usage, 0)
+    reopened.clear()
+    XCTAssertFalse(reopened.contains("b|1"))
+    reopened.store("b|1", image: solid(.green, CGSize(width: 40, height: 40)))
+    let resized = ThumbnailTable(url: url, side: 48, capacity: 64)
+    XCTAssertFalse(resized.contains("b|1"), "A different geometry starts empty")
+  }
+
+  func testThumbnailTableReplacesTheLeastRecentlyUsedSlot() {
+    let table = ThumbnailTable(url: tableURL("c.table"), side: 32, capacity: 4)
+    let image = solid(.blue, CGSize(width: 32, height: 32))
+    for key in ["a", "b", "c", "d"] { table.store(key, image: image) }
+    _ = table.image("a")
+    table.store("e", image: image)
+    XCTAssertTrue(table.contains("a"), "A recently read entry stays")
+    XCTAssertFalse(table.contains("b"), "The oldest entry gives way")
+    XCTAssertTrue(table.contains("e"))
+  }
+
+  func testThumbnailTableStaysWithinItsBudgetLimit() {
+    let table = ThumbnailTable(url: tableURL("d.table"), side: 32, capacity: 64)
+    table.limit = 3
+    let image = solid(.blue, CGSize(width: 32, height: 32))
+    for i in 0..<20 { table.store("k\(i)", image: image) }
+    XCTAssertEqual(table.count, 3)
+    XCTAssertTrue(table.isFull)
+    XCTAssertEqual(table.usage, 16_384 + 3 * table.entryBytes, "Usage counts header and stored entries")
+    table.clear()
+    XCTAssertEqual(table.usage, 0)
+    XCTAssertFalse(table.isFull)
+  }
+
+  func testThumbnailTableSizesFollowThisDevicesGrids() {
+    for columns in [3, 5, 15, 31] as [CGFloat] {
+      let pixels = ThumbnailTables.tilePixels(columns: columns)
+      XCTAssertEqual(pixels % 16, 0)
+      XCTAssertGreaterThanOrEqual(pixels, 32)
+      let screen = UIScreen.main, width = min(screen.bounds.width, screen.bounds.height)
+      if UIDevice.current.userInterfaceIdiom == .phone {
+        XCTAssertGreaterThanOrEqual(CGFloat(pixels), width / columns * screen.scale, "Never upscales a tile")
+        XCTAssertLessThan(CGFloat(pixels), width / columns * screen.scale + 16)
+      }
+    }
+    XCTAssertLessThanOrEqual(ThumbnailTables.overviewSide, ThumbnailTables.detailSide)
+  }
 }
 
 private final class FastDegradedImageManager: PHCachingImageManager {
@@ -493,4 +810,25 @@ private final class FastDegradedImageManager: PHCachingImageManager {
     return PHImageRequestID(started)
   }
   override func cancelImageRequest(_ requestID: PHImageRequestID) {}
+}
+
+@MainActor private final class ControlledThumbnailManager: PHCachingImageManager, @unchecked Sendable {
+  var started: [(String, PHImageRequestID)] = []
+  var targets: [PHImageRequestID:CGSize] = [:]
+  var network: [PHImageRequestID:Bool] = [:]
+  var handlers: [PHImageRequestID: (UIImage?, [AnyHashable: Any]?) -> Void] = [:]
+  var onStart: (PHAsset, PHImageRequestID) -> Void = { _,_ in }
+  override func requestImage(for asset: PHAsset, targetSize: CGSize, contentMode: PHImageContentMode,
+    options: PHImageRequestOptions?, resultHandler: @escaping (UIImage?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
+    let id = PHImageRequestID(started.count + 1)
+    targets[id] = targetSize; network[id] = options?.isNetworkAccessAllowed ?? false
+    started.append((asset.localIdentifier, id)); handlers[id] = resultHandler
+    onStart(asset, id)
+    return id
+  }
+  func complete(_ id: PHImageRequestID, image: UIImage?, degraded: Bool) {
+    handlers[id]?(image, [PHImageResultIsDegradedKey: degraded])
+  }
+  override func cancelImageRequest(_ id: PHImageRequestID) { handlers.removeValue(forKey: id) }
+
 }

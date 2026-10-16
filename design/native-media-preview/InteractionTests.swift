@@ -40,7 +40,7 @@ final class InteractionTests: XCTestCase {
         strip.coordinate(withNormalizedOffset: CGVector(dx: 0.8,dy: 0.5)).press(forDuration: 0.05,thenDragTo: strip.coordinate(withNormalizedOffset: CGVector(dx: 0.2,dy: 0.5)),withVelocity: .slow,thenHoldForDuration: 0.2)
         XCTAssertFalse(app.staticTexts["14:02 · 示例 3"].exists)
         pager.swipeUp()
-        XCTAssertTrue(app.staticTexts["拍摄位置 · 示例位置"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["拍摄地点 · 示例位置"].waitForExistence(timeout: 3))
         app.buttons["关闭信息"].tap()
         XCTAssertTrue(app.buttons["返回图库"].waitForExistence(timeout: 3))
         pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.35)).press(forDuration: 0.05,thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.9)),withVelocity: .slow,thenHoldForDuration: 0.1)

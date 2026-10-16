@@ -245,7 +245,7 @@ import AppKit
   private var densityPair = ""
   private var dates: [Date?] = []
   private var cached: [String: LibraryTimelineGeometry] = [:]
-  private var from = LibraryTimelineGeometry(dates: [], mode: .all, width: 1, target: 135, inset: 28, gap: 8, headerHeight: 44)
+  private var from = LibraryTimelineGeometry(dates: [], mode: .all, width: 1, target: 135, inset: 2, gap: 2, headerHeight: 44)
   private var to: LibraryTimelineGeometry?
   private var fromHeaders: [Int: LibraryTimelineGeometry.Header] = [:]
   private var toHeaders: [Int: LibraryTimelineGeometry.Header] = [:]
@@ -257,7 +257,7 @@ import AppKit
     density = CGFloat(columns); super.init()
   }
   func columns(for target: CGFloat, mode: LibraryViewMode) -> Int {
-    max(mode == .months ? 7 : 3, Int(((collectionView?.enclosingScrollView?.contentSize.width ?? 1)-48)/(target+8)))
+    max(mode == .months ? 7 : 1, Int(((collectionView?.enclosingScrollView?.contentSize.width ?? 1)-4)/(target+2)))
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override func prepare() {
@@ -274,7 +274,7 @@ import AppKit
     let key = "\(mode.rawValue)|\(columns)"
     if let geometry = cached[key] { return geometry }
     let geometry = LibraryTimelineGeometry(dates: dates, mode: mode, width: collectionView?.enclosingScrollView?.contentSize.width ?? 1,
-      target: 135, inset: 28, gap: 8, headerHeight: 44, columns: columns)
+      target: 135, inset: 2, gap: 2, headerHeight: 44, columns: columns)
     cached[key] = geometry; return geometry
   }
   func beginMorph(mode: LibraryViewMode, columns: Int) {
@@ -282,19 +282,19 @@ import AppKit
   }
   func setProgress(_ value: CGFloat) { progress = min(1, max(0, value)); invalidateLayout() }
   func updateDensity(_ value: CGFloat, startMode: LibraryViewMode) {
-    prepare(); density = min(14, max(3, value))
-    let stops = Array(3...14)
-    let low = stops.last { CGFloat($0) <= density } ?? 3
-    let high = stops.first { CGFloat($0) >= density } ?? 14
-    let lowMode: LibraryViewMode = low < 7 ? (startMode == .all ? .all : .days) : .months
-    let highMode: LibraryViewMode = high < 7 ? lowMode : .months
+    prepare(); density = min(40, max(1, value))
+    let stops = Array(1...40)
+    let low = stops.last { CGFloat($0) <= density } ?? 1
+    let high = stops.first { CGFloat($0) >= density } ?? 40
+    let lowMode: LibraryViewMode = startMode
+    let highMode: LibraryViewMode = startMode
     let pair = "\(low)|\(high)|\(startMode.rawValue)"
     if pair != densityPair {
       densityPair = pair; from = geometry(mode: lowMode, columns: low); to = geometry(mode: highMode, columns: high); rebuildHeaders()
     }
     // Image scale, rather than column count, follows the fingers linearly.
     let a = from.items.first?.width ?? 1, b = to?.items.first?.width ?? 1
-    let desired = max(1, ((collectionView?.enclosingScrollView?.contentSize.width ?? 1) - 56 - (density - 1)*8)/density)
+    let desired = max(1, ((collectionView?.enclosingScrollView?.contentSize.width ?? 1) - 4 - (density - 1)*2)/density)
     progress = a == b ? 0 : min(1, max(0, (a-desired)/(a-b)))
     invalidateLayout()
   }

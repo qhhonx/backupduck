@@ -21,73 +21,13 @@ struct NativeMacVideo: NSViewRepresentable {
 }
 #endif
 
-/// Network consent applies only to browsing. It never registers backup work.
+/// Browsing allows PhotoKit to resolve cloud previews by default. This does not
+/// register preparation or backup work and ignores obsolete app consent values.
 @MainActor final class PreviewNetworkPolicy: ObservableObject {
   static let shared = PreviewNetworkPolicy()
-  @Published private(set) var choice: String
-  @Published var asking = false
-  var allowed: Bool { choice == "allow" }
-  init(defaults: UserDefaults = .standard) {
-    self.defaults = defaults
-    let saved = defaults.string(forKey: "previewCloudConsent") ?? "ask"
-    choice = ["ask", "allow", "deny"].contains(saved) ? saved : "ask"
-  }
-  private let defaults: UserDefaults
-  func requestConsent() { if choice == "ask" { asking = true } }
-  func decide(_ allow: Bool) {
-    choice = allow ? "allow" : "deny"
-    defaults.set(choice, forKey: "previewCloudConsent")
-    asking = false
-  }
-}
-struct PreviewCloudSetting: View {
-  @ObservedObject private var policy = PreviewNetworkPolicy.shared
-  var body: some View {
-    #if os(macOS)
-    MacPreferenceRow(title: "preview_cloud_setting", note: "preview_cloud_setting_note") { control }
-    #else
-    IOSPreferenceRow(title: "preview_cloud_setting", note: "preview_cloud_setting_note") { control }
-    #endif
-  }
-  private var control: some View {
-    Toggle("preview_cloud_setting", isOn: Binding(get: { policy.allowed }, set: { policy.decide($0) }))
-      .labelsHidden().toggleStyle(.switch).accessibilityIdentifier("settings.preview_cloud")
-  }
-}
-private struct PreviewConsent: ViewModifier {
-  @ObservedObject private var policy = PreviewNetworkPolicy.shared
-  @Environment(\.colorScheme) private var inheritedAppearance
-  var appearance: ColorScheme?
-  func body(content: Content) -> some View {
-    content.onAppear {
-      #if DEBUG
-      if ProcessInfo.processInfo.arguments.contains("--preview-consent-fixture") { policy.asking = true }
-      #endif
-    }.sheet(isPresented: $policy.asking) {
-      DuckSheetLayout(title: "preview_cloud_title", desktopMinHeight: 240, desktopIdealHeight: 300) {
-        Text("preview_cloud_note").fixedSize(horizontal: false, vertical: true)
-      } actions: {
-        Button { policy.decide(false) } label: { Text("preview_cloud_not_now").frame(maxWidth: .infinity) }
-          #if os(iOS)
-            .iosPrototypeAction()
-          #else
-            .duckSecondaryAction()
-          #endif
-          .accessibilityIdentifier("preview.cloud.decline")
-        Button { policy.decide(true) } label: { Text("preview_cloud_allow").frame(maxWidth: .infinity) }
-          #if os(iOS)
-            .iosPrototypeAction(primary: true)
-          #else
-            .duckPrimaryAction()
-          #endif
-          .accessibilityIdentifier("preview.cloud.allow")
-      }.environment(\.colorScheme, appearance ?? inheritedAppearance).preferredColorScheme(appearance)
-        .accessibilityElement(children: .contain).accessibilityIdentifier("preview.cloud.consent")
-    }
-  }
-}
-extension View {
-  func previewCloudConsent(appearance: ColorScheme? = nil) -> some View { modifier(PreviewConsent(appearance: appearance)) }
+  @Published private(set) var choice = "allow"
+  var allowed: Bool { true }
+  init(defaults: UserDefaults = .standard) {}
 }
 
 @MainActor final class MediaPreviewModel: ObservableObject {
@@ -112,7 +52,33 @@ extension View {
   private var generation = UUID()
   private var cloudPoster = false
   private var promptForCloud = true
-  init(asset: PHAsset, poster: LibraryImage? = nil) { self.asset = asset; image = poster }
+  private let manager: PHImageManager
+  init(asset: PHAsset, poster: LibraryImage? = nil, manager: PHImageManager = .default()) {
+    self.asset = asset; image = poster; self.manager = manager
+  }
+  private func adoptPoster(_ incoming: LibraryImage) {
+    if let current = image {
+      #if os(iOS)
+      let edge: (LibraryImage) -> CGFloat = { max($0.size.width,$0.size.height) * $0.scale }
+      #else
+      let edge: (LibraryImage) -> CGFloat = { image in
+        CGFloat(image.representations.map { max($0.pixelsWide,$0.pixelsHigh) }.max() ?? Int(max(image.size.width,image.size.height)))
+      }
+      #endif
+      // A full-aspect image replaces a centre-cropped grid poster even when
+      // smaller: the crop cannot show the photo's sides, and leaving it shows
+      // a small square with empty bands (worst for wide panoramas).
+      let mediaAspect = CGFloat(max(1, asset.pixelWidth)) / CGFloat(max(1, asset.pixelHeight))
+      let fullAspect: (LibraryImage) -> Bool = {
+        abs(log(($0.size.width / max(1, $0.size.height)) / mediaAspect)) < 0.02
+      }
+      if fullAspect(incoming), !fullAspect(current) {
+        image = incoming; return
+      }
+      guard edge(incoming) >= edge(current) else { return }
+    }
+    image = incoming
+  }
   var kind: String {
     asset.burstIdentifier != nil ? "burst" : asset.mediaType == .video ? "video"
       : asset.mediaSubtypes.contains(.photoLive) ? "motion" : "photo"
@@ -145,12 +111,25 @@ extension View {
         Task { @MainActor in guard self?.generation == expected else { return }; self?.progress = value }
       }
     }
+    // The device keeps a small full-aspect rendition even for iCloud-only
+    // originals. Request it locally first: the large request below can wait on
+    // a download, and until then the only pixels were the grid's square crop.
+    let local = PHImageRequestOptions()
+    local.isNetworkAccessAllowed = false
+    local.deliveryMode = .opportunistic; local.resizeMode = .fast
+    requests.append(manager.requestImage(for: asset, targetSize: CGSize(width: 512, height: 512),
+      contentMode: .aspectFit, options: local) { [weak self] value, _ in
+      Task { @MainActor in
+        guard let self, self.generation == expected, let value else { return }
+        self.adoptPoster(value)
+      }
+    })
     let size = CGSize(width: min(4096, max(1600, pixels)), height: min(4096, max(1600, pixels)))
-    requests.append(PHImageManager.default().requestImage(for: asset, targetSize: size,
+    requests.append(manager.requestImage(for: asset, targetSize: size,
       contentMode: .aspectFit, options: options) { [weak self] value, info in
       Task { @MainActor in
         guard let self, self.generation == expected else { return }
-        if let value { self.image = value }
+        if let value { self.adoptPoster(value) }
         if info?[PHImageResultIsInCloudKey] as? Bool == true { self.cloudPoster = true }
         guard info?[PHImageResultIsDegradedKey] as? Bool != true else { return }
         if self.asset.mediaType != .video && !self.asset.mediaSubtypes.contains(.photoLive) {
@@ -163,7 +142,7 @@ extension View {
       options.progressHandler = { [weak self] value, _, _, _ in Task { @MainActor in
         guard self?.generation == expected else { return }; self?.progress = value
       } }
-      requests.append(PHImageManager.default().requestPlayerItem(forVideo: asset, options: options) { [weak self] item, info in
+      requests.append(manager.requestPlayerItem(forVideo: asset, options: options) { [weak self] item, info in
         Task { @MainActor in
           guard let self, self.generation == expected else { return }
           self.player = item.map(AVPlayer.init(playerItem:)); self.finish(item != nil, info: info)
@@ -175,7 +154,7 @@ extension View {
       options.progressHandler = { [weak self] value, _, _, _ in Task { @MainActor in
         guard self?.generation == expected else { return }; self?.progress = value
       } }
-      requests.append(PHImageManager.default().requestLivePhoto(for: asset, targetSize: size,
+      requests.append(manager.requestLivePhoto(for: asset, targetSize: size,
         contentMode: .aspectFit, options: options) { [weak self] value, info in
         Task { @MainActor in
           guard let self, self.generation == expected, info?[PHLivePhotoInfoIsDegradedKey] as? Bool != true else { return }
@@ -190,11 +169,9 @@ extension View {
     let networkRequired = error?.domain == PHPhotosErrorDomain && error?.code == PHPhotosError.Code.networkAccessRequired.rawValue
     cloudNeeded = !available && (info?[PHImageResultIsInCloudKey] as? Bool == true || cloudPoster || networkRequired)
     failure = !available && !cloudNeeded
-    if cloudNeeded && promptForCloud { PreviewNetworkPolicy.shared.requestConsent() }
   }
   func activate() {
     promptForCloud = true
-    if cloudNeeded { PreviewNetworkPolicy.shared.requestConsent() }
   }
   func deactivate() { promptForCloud = false; player?.pause() }
   func moveBurst(_ direction: Int) {
@@ -208,7 +185,7 @@ extension View {
   func cancel() {
     generation = UUID()
     metadataGeneration = UUID()
-    requests.forEach { PHImageManager.default().cancelImageRequest($0) }; requests = []
+    requests.forEach { manager.cancelImageRequest($0) }; requests = []
     if let metadataRequest { PHAssetResourceManager.default().cancelDataRequest(metadataRequest) }; metadataRequest = nil
     player?.pause(); loading = false; metadataLoading = false
   }
@@ -244,7 +221,6 @@ extension View {
         Task { @MainActor in
           guard let self, self.generation == expected, self.metadataGeneration == expectedMetadata else { return }
           self.metadataLoading = false; self.metadataUnavailable = true; self.metadataRequest = nil
-          if (error as NSError).domain == PHPhotosErrorDomain && (error as NSError).code == PHPhotosError.Code.networkAccessRequired.rawValue { PreviewNetworkPolicy.shared.requestConsent() }
         }
         return
       }
@@ -368,6 +344,7 @@ struct BurstPreviewControls: View {
   }
 }
 struct PhotoMetadataPanel: View {
+  @Environment(\.dynamicTypeSize) private var textSize
   @ObservedObject private var policy = PreviewNetworkPolicy.shared
   @ObservedObject var preview: MediaPreviewModel
   private var cameraFields: [(String, String)] { preview.metadata.filter { ["preview_camera", "preview_lens", "preview_aperture", "preview_exposure", "preview_iso"].contains($0.0) } }
@@ -385,7 +362,7 @@ struct PhotoMetadataPanel: View {
           Text(preview.filename.isEmpty ? NSLocalizedString("library_filter_" + preview.kind, comment: "") : preview.filename).font(.headline)
             .lineLimit(2).textSelection(.enabled)
         }
-        Text("\(preview.asset.pixelWidth) × \(preview.asset.pixelHeight)").font(.subheadline).monospacedDigit()
+        informationRow(("preview_resolution", "\(preview.asset.pixelWidth) × \(preview.asset.pixelHeight)"))
           .accessibilityIdentifier("preview.info.dimensions")
         if preview.asset.mediaType == .video { Label(videoDurationLabel(preview.asset.duration), systemImage: "clock").font(.subheadline) }
         ForEach(Array(fileFields.enumerated()), id: \.offset) { _, field in informationRow(field) }
@@ -399,12 +376,12 @@ struct PhotoMetadataPanel: View {
         VStack(alignment: .leading, spacing: 10) {
           Label("preview_location", systemImage: "map").font(.subheadline).foregroundStyle(DuckColors.textSecondary)
           Map(initialPosition: .region(MKCoordinateRegion(center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
-            Marker("design_capture_time", coordinate: location.coordinate)
+            Marker("preview_location", coordinate: location.coordinate).annotationTitles(.hidden)
           }.mapStyle(.standard).frame(height: 160).clipShape(RoundedRectangle(cornerRadius: 14))
             .allowsHitTesting(false).accessibilityLabel(Text("preview_location")).id(preview.asset.localIdentifier)
         }
       }
-      if preview.metadataLoading { ProgressView("preview_loading_info").font(.footnote) }
+      if preview.metadataLoading { DuckLoadingState("preview_loading_info").font(.footnote) }
       if preview.metadataUnavailable {
         Text("preview_info_unavailable").font(.footnote).foregroundStyle(DuckColors.textSecondary)
         if policy.allowed {
@@ -415,10 +392,21 @@ struct PhotoMetadataPanel: View {
       .task(id: preview.asset.localIdentifier) { preview.loadMetadata() }.onDisappear { preview.cancelMetadata() }
   }
   private func informationRow(_ field: (String, String)) -> some View {
-    HStack(alignment: .firstTextBaseline, spacing: 16) {
-      Text(LocalizedStringKey(field.0)).foregroundStyle(DuckColors.textSecondary)
-      Spacer(minLength: 8)
-      Text(field.1).multilineTextAlignment(.trailing)
+    Group {
+      if textSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 6) {
+          Text(LocalizedStringKey(field.0)).foregroundStyle(DuckColors.textSecondary)
+          Text(field.1).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+          Text(LocalizedStringKey(field.0)).foregroundStyle(DuckColors.textSecondary)
+            .fixedSize(horizontal: true, vertical: false)
+          Spacer(minLength: 8)
+          Text(field.1).multilineTextAlignment(.trailing).lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
     }.font(.subheadline)
   }
 }

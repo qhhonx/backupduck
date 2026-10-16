@@ -137,7 +137,7 @@ struct DeviceNameEditor: View {
       DuckNotice(title: "device_name_note")
       #endif
       if !valid { Text("device_name_invalid").font(.callout).foregroundStyle(DuckColors.failure) }
-      if model.savingDevice { ProgressView("apple_working") }
+      if model.savingDevice { DuckLoadingState("apple_working") }
     } actions: {
       #if os(iOS)
       Button { dismiss() } label: { Text("device_cancel").frame(maxWidth: .infinity) }

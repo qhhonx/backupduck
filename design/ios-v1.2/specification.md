@@ -29,3 +29,10 @@ older inline album switches and simple preview examples for these flows. Its
 [contract](../apple-media-interactions.md) defines separate searchable scope
 editors, shared consent sheets, dark media browsing, an information drawer/sidebar
 and anchored continuous density changes. Check the native host independently.
+
+## Sheet chrome
+
+Sheet titles and close glyphs share the same vertical centre. Titles may wrap;
+close targets remain 44 pt. Phone footer buttons fill their row or stacked column
+and centre their labels. The native shared header also serves activity logs;
+error and retry states preserve the same fixed header/footer ownership.

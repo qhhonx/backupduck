@@ -1,6 +1,12 @@
 import AVFoundation
 import UIKit
 
+/// The production adapter traces launch timing; the reference has no launch path.
+enum LaunchTrace {
+  static let enabled = false
+  static func mark(_ event: String, once: Bool = true) {}
+}
+
 @main final class GridPreviewApp: UIResponder, UIApplicationDelegate {
   func application(
     _ application: UIApplication, configurationForConnecting session: UISceneSession,
@@ -139,6 +145,9 @@ final class GridPreviewScene: UIResponder, UIWindowSceneDelegate {
     window.rootViewController = tabs
     window.makeKeyAndVisible()
     self.window = window
+    if ProcessInfo.processInfo.arguments.contains("--pinch-regression") {
+      GridPinchRegression.run(grid)
+    }
   }
 }
 
@@ -187,5 +196,42 @@ private enum GridPreviewMovie {
     }
     input.markAsFinished()
     writer.finishWriting { if writer.status == .completed { completion() } }
+  }
+}
+
+/// Deterministic native motion for intermediate-frame inspection. Synthetic
+/// assets remain numbered; this drives the same stage as the pinch recognizer.
+@MainActor private final class GridPinchRegression {
+  static func run(_ grid: CalendarGridController) {
+    func later(_ seconds: Double, _ action: @escaping () -> Void) {
+      DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: action)
+    }
+    func start(_ columns: Int, newest: Bool = false, selecting: Bool = false) {
+      if grid.stage != nil { grid.completeStage() }
+      grid.selecting = selecting
+      grid.selected = selecting ? Set(grid.assets.filter { $0.live }.map(\.id)) : []
+      grid.density(columns: columns, at: 735)
+      if grid.stage != nil { grid.completeStage() }
+      grid.place(newest ? .greatestFiniteMagnitude : grid.layout.geometry.tiles[735].frame.midY - 500)
+      grid.grid.reloadData(); grid.grid.layoutIfNeeded()
+      grid.beginStage(point: CGPoint(x: 105, y: grid.grid.contentOffset.y + 500), item: nil, distance: 300)
+    }
+    // A three-column face held at a five-column pitch must fill both edges.
+    later(1) { start(3) }
+    for i in 0...30 { later(1.1 + Double(i) / 60) { grid.updateStage(distance: 300 - CGFloat(i) * 4.7) } }
+    later(2.2) { grid.updateStage(distance: 163) }
+    later(3.5) { grid.updateStage(distance: 159) }
+    later(4.5) { grid.finishStage(cancelled: false) }
+    // Enlarged five-column contents reverse without changing their row phase.
+    later(6) { start(5, selecting: true) }
+    for i in 0...30 { later(6.1 + Double(i) / 60) { grid.updateStage(distance: 300 + CGFloat(i) * 5.5) } }
+    later(7.3) { grid.updateStage(distance: 455) }
+    later(8.5) { grid.finishStage(cancelled: false) }
+    // Gapless overview, reversal, newest boundary, then adoption.
+    later(10) { start(5, newest: true) }
+    for i in 0...30 { later(10.1 + Double(i) / 60) { grid.updateStage(distance: 300 - CGFloat(i) * 3) } }
+    later(11.5) { grid.updateStage(distance: 215) }
+    later(12.5) { grid.updateStage(distance: 210) }
+    later(13.5) { grid.finishStage(cancelled: false) }
   }
 }

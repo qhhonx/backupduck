@@ -59,14 +59,17 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 @MainActor final class PhotoLibraryModel: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
   // Resolve current media in the native viewport at presentation/return time.
   var previewFrame: ((String) -> CGRect?)?
+  var previewPoster: ((String) -> LibraryImage?)?
 
   @Published private(set) var total = 0
   @Published private(set) var loaded = 0
   @Published private(set) var generation = 0
   @Published private(set) var contentGeneration = 0
   @Published private(set) var loading = false
-  @Published private(set) var authorized = false
-  @Published private(set) var authorizationStatus: PHAuthorizationStatus = .notDetermined
+  // Read at creation (a cheap synchronous query) so the first frame shows the
+  // library rather than the permission placeholder until `open()` runs.
+  @Published private(set) var authorized = PhotoLibraryModel.allowed(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+  @Published private(set) var authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
   @Published private(set) var requestingPermission = false
   @Published private(set) var filter: LibraryFilter = .all
   private var requestedFilter: LibraryFilter = .all
@@ -104,6 +107,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   }
 
   func open(requestPermission: Bool = false) async {
+    LaunchTrace.mark("library open")
     guard !requestingPermission else { return }
     if requestPermission { requestingPermission = true }
     defer { if requestPermission { requestingPermission = false } }
@@ -118,9 +122,41 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     }
     if fetch == nil { await reload() }
   }
+  nonisolated static func allowed(_ access: PHAuthorizationStatus) -> Bool {
+    access == .authorized || access == .limited
+  }
+  /// Sorted fetch for a filter; identical for the launch prewarm and reloads.
+  nonisolated static func fetchAssets(_ filter: LibraryFilter) -> PHFetchResult<PHAsset> {
+    let options = photoLibraryFetchOptions(for: filter)
+    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    return PHAsset.fetchAssets(with: options)
+  }
+  /// The launch fetch, started from app init so it overlaps scene setup instead
+  /// of waiting for the library view's first task, with the library's change
+  /// token from just before it.
+  private static var earlyFetch: Task<(PHFetchResult<PHAsset>, PHPersistentChangeToken), Never>?
+  static func prewarm() {
+    // `-no-launch-prewarm` keeps the old start for side-by-side launch traces.
+    guard earlyFetch == nil, !ProcessInfo.processInfo.arguments.contains("-no-launch-prewarm"),
+      allowed(PHPhotoLibrary.authorizationStatus(for: .readWrite)) else { return }
+    earlyFetch = Task.detached(priority: .userInitiated) {
+      LaunchTrace.mark("early fetch start")
+      let token = PHPhotoLibrary.shared().currentChangeToken
+      LaunchTrace.mark("early change token")
+      let fetch = fetchAssets(.all)
+      LaunchTrace.mark("early fetch done (\(fetch.count))")
+      return (fetch, token)
+    }
+  }
+  /// Hands over the early fetch once, for the default filter.
+  private static func takeEarlyFetch(for filter: LibraryFilter)
+    -> Task<(PHFetchResult<PHAsset>, PHPersistentChangeToken), Never>? {
+    defer { earlyFetch = nil }
+    return filter == .all ? earlyFetch : nil
+  }
   @discardableResult func applyAuthorization(_ access: PHAuthorizationStatus) -> Bool {
     authorizationStatus = access
-    let allowed = access == .authorized || access == .limited
+    let allowed = Self.allowed(access)
     if !allowed {
       // Invalidate suspended metadata fetches before clearing visible state.
       requestGeneration += 1
@@ -155,6 +191,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   }
   func reload(resetWindow: Bool = false) async {
     guard authorized else { return }
+    LaunchTrace.mark("library reload start")
     requestGeneration += 1
     cancelMetadata?(); cancelMetadata = nil
     let expected = requestGeneration
@@ -164,17 +201,27 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let previousCursor = resetWindow ? 0 : presentation.cursor
     let anchor = resetWindow ? nil : scrollAnchorID
     let selected = selection
+    let early = Self.takeEarlyFetch(for: selectedFilter)
     let work = Task.detached(priority: .userInitiated) {
-      let options = photoLibraryFetchOptions(for: selectedFilter)
-      options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-      let fetch = PHAsset.fetchAssets(with: options)
+      var fetch: PHFetchResult<PHAsset>
+      if let (early, token) = await early?.value {
+        fetch = early
+        // The model's observer is registered by now: a change before that was
+        // not delivered to it, so an advanced token means fetching again.
+        if !PHPhotoLibrary.shared().currentChangeToken.isEqual(token) {
+          LaunchTrace.mark("early fetch stale")
+          fetch = Self.fetchAssets(selectedFilter)
+        }
+      } else { fetch = Self.fetchAssets(selectedFilter) }
       let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
+      LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
       index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
       return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys))
     }
     cancelMetadata = { work.cancel() }
     let result = await work.value
+    LaunchTrace.mark("library fetch done (\(result.0.count) assets)")
     guard expected == requestGeneration, authorized else { return }
     cancelMetadata = nil
     fetch = result.0
@@ -370,49 +417,96 @@ actor ThumbnailDiskCache {
   static let shared = ThumbnailDiskCache()
   let directory: URL
   private let defaults: UserDefaults
-  private var indexed = false, generation = 0, totalBytes = 0
+  private var indexed = false, indexing = false, generation = 0, totalBytes = 0
+  private var clearing = false
   private var lastTrim = Date.distantPast
   private var encodingCount = 0
   private var encodingWaiters: [CheckedContinuation<Void,Never>] = []
   private var queuedEncodingBytes = 0
   private var availableWriteBytes: Int64?, capacityChecked = Date.distantPast
   private var entries: [String: (bytes: Int, accessed: Date)] = [:]
+  /// The app's cache also owns the decoded bitmap tables; test instances do not.
+  private let ownsTables: Bool
   init(directory: URL? = nil, defaults: UserDefaults = .standard) {
     self.directory = directory ?? FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0]
       .appendingPathComponent("LibraryThumbnails-v1",isDirectory:true)
     self.defaults = defaults
+    ownsTables = directory == nil
   }
+  private var tableBytes: Int { ownsTables ? ThumbnailTables.usage : 0 }
   private func name(_ key: String) -> String {
-    SHA256.hash(data:Data(key.utf8)).map { String(format:"%02x",$0) }.joined() + ".jpg"
+    let digits = Array("0123456789abcdef".utf8)
+    var bytes: [UInt8] = []; bytes.reserveCapacity(68)
+    for byte in SHA256.hash(data: Data(key.utf8)) {
+      bytes.append(digits[Int(byte >> 4)]); bytes.append(digits[Int(byte & 15)])
+    }
+    return String(decoding: bytes, as: UTF8.self) + ".jpg"
   }
-  private func index() {
-    guard !indexed else { return }; indexed = true
+  private nonisolated static func scan(_ directory: URL) -> [String: (bytes: Int, accessed: Date)] {
     try? FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     let keys: [URLResourceKey] = [.fileSizeKey,.contentModificationDateKey]
+    var result: [String: (bytes: Int, accessed: Date)] = [:]
     for file in (try? FileManager.default.contentsOfDirectory(at:directory,includingPropertiesForKeys:keys)) ?? [] {
       guard file.pathExtension == "jpg",let values = try? file.resourceValues(forKeys:Set(keys)) else { continue }
-      entries[file.lastPathComponent] = (values.fileSize ?? 0,values.contentModificationDate ?? .distantPast)
+      result[file.lastPathComponent] = (values.fileSize ?? 0,values.contentModificationDate ?? .distantPast)
     }
+    return result
+  }
+  private func adopt(_ scanned: [String: (bytes: Int, accessed: Date)], generation scannedGeneration: Int) {
+    guard !indexed, scannedGeneration == generation else { return }
+    indexed = true; indexing = false
+    // Reads and writes during the scan already updated their own entries.
+    entries.merge(scanned) { current, _ in current }
     totalBytes = entries.values.reduce(0) { $0+$1.bytes }
     trim()
   }
-  var budgetMB: Int { max(64,defaults.integer(forKey:"libraryThumbnailBudgetMB") == 0 ? 256 : defaults.integer(forKey:"libraryThumbnailBudgetMB")) }
-  func usage() -> Int { index(); return totalBytes }
-  func setBudget(_ mb: Int) { defaults.set(mb,forKey:"libraryThumbnailBudgetMB"); index(); trim() }
+  /// Budget accounting needs the full index; serving a read does not. Scanning
+  /// tens of thousands of files must never delay the first thumbnails.
+  private func indexInBackground() {
+    guard !indexed, !indexing else { return }
+    indexing = true
+    let directory = directory, version = generation
+    Task.detached(priority: .utility) { [weak self] in
+      let scanned = Self.scan(directory)
+      await self?.adopt(scanned, generation: version)
+    }
+  }
+  private func index() {
+    guard !indexed else { return }
+    adopt(Self.scan(directory), generation: generation)
+  }
+  /// Phones have ample storage and speed matters more; the default allows a
+  /// large rebuildable rendition cache.
+  var budgetMB: Int { Self.budgetMB(defaults) }
+  nonisolated static func budgetMB(_ defaults: UserDefaults) -> Int {
+    let stored = defaults.integer(forKey:"libraryThumbnailBudgetMB")
+    return max(64, stored == 0 ? 1024 : stored)
+  }
+  /// Includes the decoded bitmap tables, which share this cache's budget and clearing.
+  func usage() -> Int { index(); return totalBytes + tableBytes }
+  func setBudget(_ mb: Int) {
+    defaults.set(mb,forKey:"libraryThumbnailBudgetMB")
+    if ownsTables { ThumbnailTables.applyBudget(mb*1024*1024) }
+    index(); trim()
+  }
   func read(_ key: String) async -> (UIImage?, Int) {
-    index(); let filename = name(key), version = generation
-    guard let entry = entries[filename] else { return (nil,version) }
+    guard !clearing else { return (nil, generation) }
+    indexInBackground()
+    let filename = name(key), version = generation
+    let entry = entries[filename]
+    if indexed, entry == nil { return (nil,version) }
     let url = directory.appendingPathComponent(filename)
-    entries[filename] = (entry.bytes,Date())
-    let image = await Task.detached(priority:.userInitiated) {
-      guard let data = try? Data(contentsOf:url),let image = UIImage(data:data) else { return nil as UIImage? }
-      return image.preparingForDisplay() ?? image
+    let loaded = await Task.detached(priority:.userInitiated) { () -> (UIImage, Int)? in
+      guard let data = try? Data(contentsOf:url),let image = UIImage(data:data) else { return nil }
+      return (image.preparingForDisplay() ?? image, data.count)
     }.value
+    let image = loaded?.0
     guard generation == version else { return (nil,generation) }
-    if image == nil,let corrupt = entries.removeValue(forKey:filename) {
+    if let loaded { entries[filename] = (entry?.bytes ?? loaded.1,Date()) }
+    if image == nil,entry != nil,let corrupt = entries.removeValue(forKey:filename) {
       totalBytes -= corrupt.bytes; try? FileManager.default.removeItem(at:url)
     }
-    if image != nil,Date().timeIntervalSince(entry.accessed) > 60 {
+    if image != nil,let entry,Date().timeIntervalSince(entry.accessed) > 60 {
       Task.detached(priority:.utility) { try? FileManager.default.setAttributes([.modificationDate:Date()],ofItemAtPath:url.path) }
     }
     return (image,version)
@@ -422,7 +516,7 @@ actor ThumbnailDiskCache {
     else { encodingWaiters.removeFirst().resume() }
   }
   func store(_ image: UIImage,key: String,generation expected: Int) async {
-    guard expected == generation else { return }; index()
+    guard !clearing, expected == generation else { return }; indexInBackground()
     let filename = name(key),url = directory.appendingPathComponent(filename)
     // Encoding must not serialize thousands of foreground reads behind writes.
     let bytes = image.cgImage.map { $0.bytesPerRow*$0.height } ?? Int(image.size.width*image.size.height*image.scale*image.scale*4)
@@ -448,14 +542,14 @@ actor ThumbnailDiskCache {
     availableWriteBytes = availableWriteBytes.map { $0-Int64(data.count) }
     do {
       try data.write(to:url,options:.atomic); entries[filename] = (data.count,Date()); totalBytes += data.count
-      if totalBytes > budgetMB*1024*1024 || Date().timeIntervalSince(lastTrim) > 30 { trim() }
+      if indexed, totalBytes + tableBytes > budgetMB*1024*1024 || Date().timeIntervalSince(lastTrim) > 30 { trim() }
     }
     catch { return }
   }
   private func trim() {
     lastTrim = Date()
     var total = totalBytes
-    let limit = budgetMB*1024*1024, expiry = Date().addingTimeInterval(-30*24*3600)
+    let limit = max(0, budgetMB*1024*1024 - tableBytes), expiry = Date().addingTimeInterval(-30*24*3600)
     guard total > limit || entries.values.contains(where: { $0.accessed < expiry }) else { return }
     for (name,entry) in entries.sorted(by: { $0.value.accessed < $1.value.accessed }) {
       guard total > limit || entry.accessed < expiry else { break }
@@ -464,15 +558,324 @@ actor ThumbnailDiskCache {
     }
     totalBytes = total
   }
-  func removeAll() {
+  @discardableResult func removeAll() async -> Bool {
+    guard !clearing else { return false }
+    clearing = true
     generation += 1
-    try? FileManager.default.removeItem(at:directory)
-    entries.removeAll(); indexed = false; totalBytes = 0
+    let directory = directory
+    let removed = await Task.detached(priority: .userInitiated) {
+      do {
+        if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return true
+      } catch { return false }
+    }.value
+    entries.removeAll(); indexing = false; indexed = removed; totalBytes = 0
+    ThumbnailTables.clear()
+    clearing = false
+    if !removed { index() }
+    return removed
   }
 }
+/// Decoded thumbnails in one memory-mapped file per size (the Fast Image Cache
+/// approach): pixels are stored once, already decoded and row-aligned for Core
+/// Animation, and read back as a `CGImage` that points into the mapping, so a
+/// hit costs no PhotoKit request, no decode and no copy. Slots are found by
+/// hashing the key (identifier plus revision) with a short probe window; each
+/// slot's header holds the key tag and a recency tick, so the file needs no
+/// separate index and a torn write simply reads as empty. Rebuildable cache
+/// data: it lives in Caches and is cleared with thumbnails. A table lives for
+/// the process and is never unmapped, because returned images point into it.
+final class ThumbnailTable: @unchecked Sendable {
+  let side: Int, capacity: Int, rowBytes: Int, entryBytes: Int
+  private let headerBytes: Int, length: Int
+  private let base: UnsafeMutableRawPointer?
+  private let fd: Int32
+  let url: URL
+  private let lock = NSLock()
+  private var tick: UInt32 = 1
+  private var used = 0
+  private var limitValue: Int
+  private static let probes = 8
+  private static let space = CGColorSpace(name: CGColorSpace.sRGB)!
+  private static let bitmapInfo = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+  let writes = DispatchQueue(label: "app.backupduck.thumbnail-table", qos: .utility)
+  init(url: URL, side: Int, capacity: Int) {
+    self.url = url; self.side = side; self.capacity = capacity; limitValue = capacity
+    rowBytes = (side * 4 + 63) / 64 * 64
+    entryBytes = rowBytes * side
+    headerBytes = (capacity * 16 + 16383) / 16384 * 16384
+    length = headerBytes + capacity * entryBytes
+    try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    fd = open(url.path, O_RDWR | O_CREAT, 0o644)
+    var mapped: UnsafeMutableRawPointer?
+    if fd >= 0 {
+      var info = stat()
+      // A different geometry is a different table; sparse until written.
+      if fstat(fd, &info) == 0, Int(info.st_size) != length { ftruncate(fd, 0); ftruncate(fd, off_t(length)) }
+      let pointer = mmap(nil, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
+      if pointer != MAP_FAILED { mapped = pointer }
+    }
+    base = mapped
+    if let base {
+      for slot in 0..<capacity {
+        tick = max(tick, base.load(fromByteOffset: slot * 16 + 8, as: UInt32.self))
+        if base.load(fromByteOffset: slot * 16, as: UInt64.self) != 0 { used += 1 }
+      }
+    }
+  }
+  /// The most entries the cache budget allows; when reached, new entries only
+  /// replace the least recently used entry in their probe window.
+  var limit: Int {
+    get { lock.lock(); defer { lock.unlock() }; return limitValue }
+    set { lock.lock(); limitValue = min(capacity, max(0, newValue)); lock.unlock() }
+  }
+  var count: Int { lock.lock(); defer { lock.unlock() }; return used }
+  var isFull: Bool { lock.lock(); defer { lock.unlock() }; return used >= limitValue }
+  var available: Bool { base != nil }
+  static func tag(_ key: String) -> UInt64 {
+    var hash: UInt64 = 0xcbf29ce484222325
+    for byte in key.utf8 { hash = (hash ^ UInt64(byte)) &* 0x100000001b3 }
+    return hash == 0 ? 1 : hash
+  }
+  private func slot(for tag: UInt64) -> Int? {
+    guard let base else { return nil }
+    let start = Int(tag % UInt64(capacity))
+    for i in 0..<Self.probes {
+      let s = (start + i) % capacity
+      if base.load(fromByteOffset: s * 16, as: UInt64.self) == tag { return s }
+    }
+    return nil
+  }
+  func contains(_ key: String) -> Bool {
+    lock.lock(); defer { lock.unlock() }
+    return slot(for: Self.tag(key)) != nil
+  }
+  /// The stored thumbnail, backed directly by the mapped file.
+  func image(_ key: String) -> CGImage? {
+    guard let base else { return nil }
+    lock.lock()
+    guard let s = slot(for: Self.tag(key)) else { lock.unlock(); return nil }
+    tick &+= 1
+    base.storeBytes(of: tick, toByteOffset: s * 16 + 8, as: UInt32.self)
+    lock.unlock()
+    guard let provider = CGDataProvider(dataInfo: nil, data: base + headerBytes + s * entryBytes,
+      size: entryBytes, releaseData: { _, _, _ in }) else { return nil }
+    return CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: rowBytes,
+      space: Self.space, bitmapInfo: CGBitmapInfo(rawValue: Self.bitmapInfo), provider: provider,
+      decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+  }
+  /// Draws an aspect-filled square into the key's slot on the calling thread.
+  func store(_ key: String, image: CGImage) {
+    guard let base else { return }
+    let tag = Self.tag(key)
+    lock.lock()
+    if slot(for: tag) != nil { lock.unlock(); return }
+    let start = Int(tag % UInt64(capacity)), full = used >= limitValue
+    var empty: Int?, oldestSlot: Int?, oldest = UInt32.max
+    for i in 0..<Self.probes {
+      let s = (start + i) % capacity
+      if base.load(fromByteOffset: s * 16, as: UInt64.self) == 0 {
+        if empty == nil { empty = s }
+        continue
+      }
+      let t = base.load(fromByteOffset: s * 16 + 8, as: UInt32.self)
+      if t < oldest { oldest = t; oldestSlot = s }
+    }
+    // At the budget limit an entry can only take an occupied slot's place.
+    guard let chosen = full ? oldestSlot : empty ?? oldestSlot else { lock.unlock(); return }
+    if chosen == empty { used += 1 }
+    // Empty while drawing: a reader never adopts a half-written slot.
+    base.storeBytes(of: UInt64(0), toByteOffset: chosen * 16, as: UInt64.self)
+    lock.unlock()
+    guard let context = CGContext(data: base + headerBytes + chosen * entryBytes, width: side, height: side,
+      bitsPerComponent: 8, bytesPerRow: rowBytes, space: Self.space, bitmapInfo: Self.bitmapInfo)
+    else { return }
+    let w = CGFloat(image.width), h = CGFloat(image.height), edge = CGFloat(side)
+    let factor = max(edge / max(1, w), edge / max(1, h))
+    context.interpolationQuality = .high
+    context.draw(image, in: CGRect(x: (edge - w * factor) / 2, y: (edge - h * factor) / 2,
+      width: w * factor, height: h * factor))
+    lock.lock()
+    tick &+= 1
+    base.storeBytes(of: tick, toByteOffset: chosen * 16 + 8, as: UInt32.self)
+    base.storeBytes(of: tag, toByteOffset: chosen * 16, as: UInt64.self)
+    lock.unlock()
+  }
+  /// Bytes held by stored entries. Counted from slot headers: the sparse file's
+  /// allocated blocks lag behind dirty mapped pages until they are written back.
+  var usage: Int {
+    lock.lock(); defer { lock.unlock() }
+    return used == 0 ? 0 : headerBytes + used * entryBytes
+  }
+  /// Forgets every entry and returns the pixel blocks to the file system while
+  /// the mapping stays valid for any image still on screen.
+  func clear() {
+    guard let base else { return }
+    lock.lock(); defer { lock.unlock() }
+    memset(base, 0, headerBytes)
+    used = 0
+    var hole = fpunchhole_t(fp_flags: 0, reserved: 0, fp_offset: off_t(headerBytes), fp_length: off_t(length - headerBytes))
+    _ = fcntl(fd, F_PUNCHHOLE, &hole)
+  }
+}
+
+/// The overview table holds every library item at mosaic size; the detail table
+/// keeps recently used month-overview thumbnails. Entry sizes follow this
+/// device's widest possible grid (iPhone SE to iPad), rounded up to 16 pixels,
+/// so no device stores more pixels than it shows or upscales its mosaics.
+enum ThumbnailTables {
+  /// `-no-thumbnail-table` disables the tables for side-by-side measurement.
+  static let enabled = !ProcessInfo.processInfo.arguments.contains("-no-thumbnail-table")
+  static let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("ThumbnailTables", isDirectory: true)
+  /// Pixels of one tile at `columns` across the widest grid this device shows:
+  /// portrait phone width, or the long edge on iPad.
+  static func tilePixels(columns: CGFloat) -> Int {
+    let screen = UIScreen.main
+    let width = UIDevice.current.userInterfaceIdiom == .pad
+      ? max(screen.bounds.width, screen.bounds.height) : min(screen.bounds.width, screen.bounds.height)
+    let pixels = width / columns * screen.scale
+    return max(32, Int((pixels / 16).rounded(.up)) * 16)
+  }
+  /// The densest (31-column) and month (15-column) overviews.
+  static let overviewSide = tilePixels(columns: 31), detailSide = tilePixels(columns: 15)
+  static let overview = table("overview", side: overviewSide, capacity: 98_304, share: overviewShare)
+  static let detail = table("detail", side: detailSide, capacity: 8_192, share: detailShare)
+  static let overviewShare = 0.5, detailShare = 0.2
+  private static func table(_ name: String, side: Int, capacity: Int, share: Double) -> ThumbnailTable {
+    let table = ThumbnailTable(url: directory.appendingPathComponent("\(name)-\(side).table"), side: side, capacity: capacity)
+    table.limit = limit(table, share: share, budget: ThumbnailDiskCache.budgetMB(.standard) * 1024 * 1024)
+    return table
+  }
+  private static func limit(_ table: ThumbnailTable, share: Double, budget: Int) -> Int {
+    Int(Double(budget) * share) / table.entryBytes
+  }
+  /// Shares of the thumbnail cache budget. The overview gets the largest share
+  /// because it serves the whole library; renditions use what the tables leave.
+  static func applyBudget(_ bytes: Int) {
+    for (table, share) in [(overview, overviewShare), (detail, detailShare)] {
+      let limit = limit(table, share: share, budget: bytes)
+      table.limit = limit
+      // A lowered budget starts the table over; it refills newest first.
+      if table.count > limit { table.clear() }
+    }
+  }
+  static func key(_ id: String, revision: Int64) -> String { "\(id)|\(revision)" }
+  /// The sharpest stored thumbnail for a displayed pixel width.
+  static func image(_ id: String, revision: Int64, pixels: CGFloat) -> CGImage? {
+    guard enabled, pixels <= CGFloat(detailSide) else { return nil }
+    let key = key(id, revision: revision)
+    if pixels > CGFloat(overviewSide), let sharp = detail.image(key) { return sharp }
+    return overview.image(key)
+  }
+  /// Any stored thumbnail, sharpest first, to show while a larger one loads.
+  static func placeholder(_ id: String, revision: Int64) -> CGImage? {
+    guard enabled else { return nil }
+    let key = key(id, revision: revision)
+    return detail.image(key) ?? overview.image(key)
+  }
+  /// Stores a delivered small thumbnail in each table it is sharp enough for.
+  static func remember(_ id: String, revision: Int64, pixels: CGFloat, image: CGImage) {
+    guard enabled, pixels <= CGFloat(detailSide) else { return }
+    let key = key(id, revision: revision), edge = min(image.width, image.height)
+    overview.writes.async {
+      if edge * 5 >= overviewSide * 4 { overview.store(key, image: image) }
+      if pixels > CGFloat(overviewSide), edge * 5 >= detailSide * 4 { detail.store(key, image: image) }
+    }
+  }
+  /// The PhotoKit request size that fills an overview entry from local renditions.
+  static var prefillPixels: CGFloat { CGFloat(max(64, overviewSide * 2)) }
+  static var usage: Int { overview.usage + detail.usage }
+  static func clear() { overview.clear(); detail.clear() }
+}
+
+/// Bounded background bitmap work keeps native image callbacks cheap on the UI
+/// actor. The renderer produces standard-range pixels at the requested tier.
+private enum ThumbnailImagePreparation {
+  struct Result { let image: UIImage; let small: UIImage }
+  static let queue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "app.backupduck.thumbnail-preparation"
+    queue.maxConcurrentOperationCount = min(4, ProcessInfo.processInfo.activeProcessorCount)
+    queue.qualityOfService = .userInitiated
+    return queue
+  }()
+  /// Dense mosaics request PhotoKit's own small renditions, which arrive close to
+  /// their display size. Decoding them needs no redraw or bounded render queue.
+  static let light = DispatchQueue(label: "app.backupduck.thumbnail-light", qos: .userInitiated,
+    attributes: .concurrent)
+  static func prepareSmall(_ image: UIImage) async -> Result {
+    await withCheckedContinuation { continuation in
+      light.async {
+        let ready = autoreleasepool { image.preparingForDisplay() ?? image }
+        continuation.resume(returning: Result(image: ready, small: ready))
+      }
+    }
+  }
+  static func prepare(_ image: UIImage, target: CGSize, mode: PHImageContentMode,
+    prefetch: Bool) async -> Result {
+    await withCheckedContinuation { continuation in
+      let work = BlockOperation {
+        let result = autoreleasepool {
+          let format = UIGraphicsImageRendererFormat()
+          format.scale = 1; format.preferredRange = .standard
+          func resized(_ source: UIImage, to target: CGSize, fill: Bool) -> UIImage {
+            let ratio = fill
+              ? max(target.width / max(1, source.size.width), target.height / max(1, source.size.height))
+              : min(target.width / max(1, source.size.width), target.height / max(1, source.size.height))
+            let size = CGSize(width: source.size.width * ratio, height: source.size.height * ratio)
+            let canvas = fill ? target : size
+            return UIGraphicsImageRenderer(size: canvas, format: format).image { _ in
+              source.draw(in: CGRect(x: (canvas.width-size.width)/2, y: (canvas.height-size.height)/2,
+                width: size.width, height: size.height))
+            }
+          }
+          let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+          let bounded = pixels.width > target.width || pixels.height > target.height
+            ? resized(image, to: target, fill: mode == .aspectFill) : image
+          let ready = bounded.preparingForDisplay() ?? bounded
+          let small = target.width == 64 && mode == .aspectFill
+            && ready.size.width * ready.scale == 64 && ready.size.height * ready.scale == 64
+            ? ready : resized(ready, to: CGSize(width: 64, height: 64), fill: true)
+          return Result(image: ready, small: small)
+        }
+        continuation.resume(returning: result)
+      }
+      work.queuePriority = prefetch ? .low : .high
+      work.qualityOfService = prefetch ? .utility : .userInitiated
+      queue.addOperation(work)
+    }
+  }
+}
+
 #endif
 
+/// Opt-in launch timing (launch argument `-launch-trace`) for device diagnosis.
+/// Milliseconds since process start are printed to the console; nothing is
+/// recorded otherwise.
+enum LaunchTrace {
+  static let enabled = ProcessInfo.processInfo.arguments.contains("-launch-trace")
+  private static let processStart: Double = {
+    var info = kinfo_proc(), size = MemoryLayout<kinfo_proc>.stride
+    var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+    sysctl(&mib, 4, &info, &size, nil, 0)
+    let start = info.kp_proc.p_un.__p_starttime
+    return Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000
+  }()
+  private static var marked: Set<String> = []
+  private static let lock = NSLock()
+  static func mark(_ event: String, once: Bool = true) {
+    guard enabled else { return }
+    lock.lock(); defer { lock.unlock() }
+    if once, !marked.insert(event).inserted { return }
+    let ms = (Date().timeIntervalSince1970 - processStart) * 1000
+    print(String(format: "[launch] %7.1f ms %@", ms, event))
+  }
+}
+
 @MainActor final class ThumbnailPipeline {
+  enum Priority: Int { case prefetch, visible }
   private let manager: PHCachingImageManager
   #if os(iOS)
   var disk: ThumbnailDiskCache? = .shared
@@ -492,7 +895,15 @@ actor ThumbnailDiskCache {
     var cloud = false
     var hasImage = false
     var retriedFast = false
+    var triedSmallFallback = false
+    var needsCloud = false
+    var cancelledLarge = false
     var diskGeneration = 0
+    var priority: Priority = .visible
+    var queued = false
+    var resultVersion = 0
+    var requestVersion = 0
+    var delivery: Task<Void, Never>?
   }
   private var pending: [PHImageRequestID: Pending] = [:]
   private var owners: [PHImageRequestID:PHImageRequestID] = [:]
@@ -500,6 +911,9 @@ actor ThumbnailDiskCache {
   private var inFlight: [NSString:PHImageRequestID] = [:]
   private var localQueue: [PHImageRequestID] = []
   private var localCursor = 0
+  private var prefetchQueue: [PHImageRequestID] = []
+  private var prefetchCursor = 0
+  private var writebackBytes = 0, writebackCount = 0
   private var activeLocal: Set<PHImageRequestID> = []
   private var localPumpScheduled = false
   private var cloudQueue: [PHImageRequestID] = []
@@ -528,8 +942,14 @@ actor ThumbnailDiskCache {
     cacheObservation = NotificationCenter.default.publisher(for:Notification.Name("LibraryThumbnailsCleared"))
       .sink { [weak self] _ in self?.clear() }
   }
+  /// PhotoKit cuts thumbnails up to 352 px from its stored small rendition
+  /// (about 5 ms each); slightly larger requests decode the original (about
+  /// 35 ms each, measured on device by other PhotoKit grids). Requests just
+  /// above that edge, such as three iPhone columns, use the fast rendition.
+  static let renditionEdge: CGFloat = 352
   func size(_ requested: CGFloat) -> CGSize {
-    let edge = min(1024, max(64, (requested / 64).rounded(.up) * 64))
+    var edge = min(1024, max(64, (requested / 64).rounded(.up) * 64))
+    if requested > Self.renditionEdge, requested <= 460 { edge = Self.renditionEdge }
     return CGSize(width: edge, height: edge)
   }
   private func smallKey(_ asset: PHAsset) -> NSString {
@@ -538,31 +958,10 @@ actor ThumbnailDiskCache {
   func poster(for asset: PHAsset) -> LibraryImage? {
     posters.object(forKey:smallKey(asset)) ?? smallPosters.object(forKey: smallKey(asset))
   }
+  /// The caller supplies already prepared 64-pixel fallback pixels.
   private func rememberSmall(_ image: LibraryImage, asset: PHAsset) {
     #if os(iOS)
-    let format = UIGraphicsImageRendererFormat(); format.scale = 1
-    let size = CGSize(width: 64,height: 64)
-    let thumb = UIGraphicsImageRenderer(size: size,format: format).image { _ in
-      let source = image.size; let factor = max(64/max(1,source.width),64/max(1,source.height))
-      image.draw(in: CGRect(x: (64-source.width*factor)/2,y: (64-source.height*factor)/2,width: source.width*factor,height: source.height*factor))
-    }
-    smallPosters.setObject(thumb,forKey: smallKey(asset),cost: 64*64*4)
-    #endif
-  }
-  private func tierImage(_ image: LibraryImage, target: CGSize, mode: PHImageContentMode) -> LibraryImage {
-    #if os(iOS)
-    guard target.width <= 128,image.size.width*image.scale > target.width || image.size.height*image.scale > target.height else { return image }
-    let format = UIGraphicsImageRendererFormat(); format.scale = 1
-    let factor = mode == .aspectFill
-      ? max(target.width/max(1,image.size.width),target.height/max(1,image.size.height))
-      : min(target.width/max(1,image.size.width),target.height/max(1,image.size.height))
-    let size = CGSize(width: image.size.width*factor,height: image.size.height*factor)
-    let canvas = mode == .aspectFill ? target : size
-    return UIGraphicsImageRenderer(size:canvas,format:format).image { _ in
-      image.draw(in:CGRect(x:(canvas.width-size.width)/2,y:(canvas.height-size.height)/2,width:size.width,height:size.height))
-    }
-    #else
-    return image
+    smallPosters.setObject(image, forKey: smallKey(asset), cost: imageCost(image, target: CGSize(width: 64, height: 64)))
     #endif
   }
   private func imageCost(_ image: LibraryImage, target: CGSize) -> Int {
@@ -581,7 +980,7 @@ actor ThumbnailDiskCache {
   }
   @discardableResult func request(
     _ asset: PHAsset, pixels: CGFloat, contentMode: PHImageContentMode = .aspectFill,
-    completion: @escaping (LibraryImage?, Bool) -> Void
+    priority: Priority = .visible, completion: @escaping (LibraryImage?, Bool) -> Void
   ) -> PHImageRequestID {
     let target = size(pixels)
     let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(Int(target.width))|\(contentMode.rawValue)" as NSString
@@ -599,6 +998,10 @@ actor ThumbnailDiskCache {
     let id = sequence
     if let owner = inFlight[key],pending[owner] != nil {
       owners[id] = owner; subscribers[owner,default:[:]][id] = completion
+      if priority == .visible, pending[owner]?.priority == .prefetch {
+        pending[owner]?.priority = .visible
+        if pending[owner]?.queued == true { localQueue.append(owner); pumpLocal() }
+      }
       return id
     }
     requestsStarted += 1
@@ -609,17 +1012,32 @@ actor ThumbnailDiskCache {
         let callbacks = Array(self?.subscribers[id]?.values ?? Dictionary<PHImageRequestID,(LibraryImage?,Bool)->Void>().values)
         callbacks.forEach { $0(image,cloud) }
       })
+    pending[id]?.priority = priority
+    enqueueLocal(id)
+    return id
+  }
+  /// Disk hits share admission and memory limits with native loads. A large
+  /// cache revisit must not decode every queued cover before it can be shown.
+  private func startLocal(_ id: PHImageRequestID) {
+    guard let item = pending[id] else { return }
     #if os(iOS)
-    if let disk {
-      let version = epoch, cacheKey = key as String
-      Task { [weak self] in
+    // PhotoKit's small renditions are faster than our JPEG round trip.
+    if let disk, item.target.width > 128 {
+      let asset = item.asset, target = item.target, priority = item.priority
+      let version = epoch, cacheKey = item.key as String
+      Task(priority: priority == .visible ? .userInitiated : .utility) { [weak self] in
         let (image,generation) = await disk.read(cacheKey)
         guard let self,self.epoch == version,let item = self.pending[id] else { return }
         self.pending[id]?.diskGeneration = generation
         if let image {
-          self.cache.setObject(image,forKey:item.key,cost:self.imageCost(image,target:item.target))
-          self.rememberSmall(image,asset:item.asset)
-          item.completion(image,false); self.finish(id)
+          let prepared = await ThumbnailImagePreparation.prepare(image, target: item.target,
+            mode: item.contentMode, prefetch: item.priority == .prefetch)
+          guard self.epoch == version, self.pending[id] != nil else { return }
+          LaunchTrace.mark("first disk thumbnail")
+          self.cache.setObject(prepared.image, forKey: item.key, cost: self.imageCost(prepared.image, target: item.target))
+          self.rememberSmall(prepared.small, asset: item.asset)
+          item.completion(prepared.image, false); self.finish(id)
+          self.activeLocal.remove(id); self.pumpLocal(); self.pumpCloud()
         } else {
           let fallbackKey = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|64|\(PHImageContentMode.aspectFill.rawValue)"
           if target.width > 64 {
@@ -627,133 +1045,218 @@ actor ThumbnailDiskCache {
             guard self.epoch == version,self.pending[id] != nil else { return }
             if let fallback { self.rememberSmall(fallback,asset:asset); item.completion(fallback,false) }
           }
-          self.localQueue.append(id); self.pumpLocal()
+          self.start(id, network: false)
         }
       }
-    } else { localQueue.append(id); pumpLocal() }
+    } else { start(id, network: false) }
     #else
-    localQueue.append(id); pumpLocal()
+    start(id, network: false)
     #endif
-    return id
   }
-  /// PhotoKit submission itself runs on the main actor. Dense scenes must not
-  /// submit thousands of native requests in a single layout pass. Deferring a
-  /// small bounded batch also lets reused/offscreen cells cancel before work starts.
+  private func enqueueLocal(_ id: PHImageRequestID) {
+    guard let item = pending[id] else { return }
+    pending[id]?.queued = true
+    if item.priority == .prefetch { prefetchQueue.append(id) } else { localQueue.append(id) }
+    pumpLocal()
+  }
+  private func estimatedBytes(_ item: Pending) -> Int {
+    Int(item.target.width * item.target.height * 4) + (item.target.width == 64 ? 0 : 64 * 64 * 4)
+  }
   private func hasLocalCapacity(for id: PHImageRequestID) -> Bool {
     guard let item = pending[id] else { return true }
-    let bytes = activeLocal.compactMap { pending[$0] }.reduce(0) { $0+Int($1.target.width*$1.target.height*4) }
-    return activeLocal.isEmpty || bytes+Int(item.target.width*item.target.height*4) <= 24*1024*1024
+    let active = activeLocal.union(activeCloud)
+    let bytes = active.compactMap { pending[$0] }.reduce(writebackBytes) { $0 + estimatedBytes($1) }
+    return writebackCount + active.count < 512 && bytes + estimatedBytes(item) <= 32 * 1024 * 1024
+  }
+  private func nextLocal() -> PHImageRequestID? {
+    while localCursor < localQueue.count {
+      let id = localQueue[localCursor]
+      if let item = pending[id], item.queued, item.priority == .visible { return id }
+      localCursor += 1
+    }
+    while prefetchCursor < prefetchQueue.count {
+      let id = prefetchQueue[prefetchCursor]
+      if let item = pending[id], item.queued, item.priority == .prefetch {
+        // Speculation cannot occupy every native slot before the viewport moves.
+        let active = activeLocal.filter { pending[$0]?.priority == .prefetch }.count
+        return active < (item.target.width <= 128 ? 24 : 4) ? id : nil
+      }
+      prefetchCursor += 1
+    }
+    return nil
+  }
+  /// Visible work overtakes speculative warmup. Native submissions are batched;
+  /// bitmap preparation and durable cache writes have their own bounded work.
+  /// Small mosaic renditions are cheap and numerous; larger ones keep the
+  /// tighter bound that protects memory and native decoding.
+  private func hasSlot(for id: PHImageRequestID) -> Bool {
+    guard let item = pending[id] else { return true }
+    if item.target.width <= 128 { return activeLocal.count < 96 }
+    return activeLocal.filter { (pending[$0]?.target.width ?? 0) > 128 }.count < 24
   }
   private func pumpLocal() {
-    guard !localPumpScheduled, localCursor < localQueue.count, activeLocal.count < 24,
-      hasLocalCapacity(for:localQueue[localCursor]) else { return }
+    guard !localPumpScheduled, let next = nextLocal(), hasSlot(for: next),
+      hasLocalCapacity(for: next) else { return }
     localPumpScheduled = true
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       self.localPumpScheduled = false
       var submitted = 0
-      while self.localCursor < self.localQueue.count, self.activeLocal.count < 24, submitted < 8 {
-        let id = self.localQueue[self.localCursor]
-        guard self.hasLocalCapacity(for:id) else { break }
-        self.localCursor += 1
-        guard self.pending[id] != nil else { continue }
+      while submitted < 32, let id = self.nextLocal(), self.hasSlot(for: id),
+        self.hasLocalCapacity(for: id) {
+        if self.pending[id]?.priority == .visible { self.localCursor += 1 }
+        else { self.prefetchCursor += 1 }
+        self.pending[id]?.queued = false
         self.activeLocal.insert(id)
-        self.start(id, network: false)
+        self.startLocal(id)
         submitted += 1
       }
-      if self.localCursor >= self.localQueue.count {
-        self.localQueue.removeAll(keepingCapacity: true)
-        self.localCursor = 0
-      } else if self.localCursor > 256 {
-        self.localQueue.removeFirst(self.localCursor)
-        self.localCursor = 0
+      if self.localCursor > 256 || self.localCursor == self.localQueue.count {
+        self.localQueue.removeFirst(self.localCursor); self.localCursor = 0
+      }
+      if self.prefetchCursor > 256 || self.prefetchCursor == self.prefetchQueue.count {
+        self.prefetchQueue.removeFirst(self.prefetchCursor); self.prefetchCursor = 0
       }
       self.pumpLocal()
     }
   }
-  private func start(_ id: PHImageRequestID, network: Bool, forceQuality: Bool = false) {
+  private func start(_ id: PHImageRequestID, network: Bool, forceQuality: Bool = false, smallFallback: Bool = false) {
     guard let item = pending[id] else { return }
     pending[id]?.cloud = network
+    pending[id]?.requestVersion += 1
+    let attempt = pending[id]?.requestVersion
     let requestOptions = options(network: network, video: item.asset.mediaType == .video,
-      pixels: forceQuality ? 320 : item.target.width)
+      pixels: smallFallback ? 64 : forceQuality ? 320 : item.target.width)
     // Fast format delivers exactly once, even when its result is marked degraded.
     // Waiting for another result leaves all local concurrency slots occupied.
     let singleResult = requestOptions.deliveryMode != .opportunistic
-    let request = manager.requestImage(for: item.asset, targetSize: item.target,
+    let request = manager.requestImage(for: item.asset, targetSize: smallFallback ? CGSize(width: 64,height: 64) : item.target,
       contentMode: item.contentMode, options: requestOptions) { [weak self] image, info in
       let cancelled = info?[PHImageCancelledKey] as? Bool == true
       let degraded = info?[PHImageResultIsDegradedKey] as? Bool == true
+      let error = info?[PHImageErrorKey] as? NSError
       let cloud = info?[PHImageResultIsInCloudKey] as? Bool == true
+        || (error?.domain == PHPhotosErrorDomain && error?.code == PHPhotosError.Code.networkAccessRequired.rawValue)
       Task { @MainActor in
-        guard let self, let item = self.pending[id], item.cloud == network else { return }
-        if cancelled { self.finish(id); self.activeLocal.remove(id); self.activeCloud.remove(id); self.pumpLocal(); self.pumpCloud(); return }
-        if let raw = image {
-          let image = self.tierImage(raw,target: item.target,mode: item.contentMode)
-          self.pending[id]?.hasImage = true
-          self.rememberSmall(image,asset: item.asset)
-          let posterKey = self.smallKey(item.asset)
-          let old = self.posters.object(forKey:posterKey)
-          #if os(iOS)
-          if old == nil || image.size.width*image.scale >= old!.size.width*old!.scale {
-            self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
-          }
-          #else
-          self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
-          #endif
-          if !degraded || singleResult {
-            self.cache.setObject(image, forKey: item.key, cost: self.imageCost(image,target: item.target))
-            #if os(iOS)
-            if let disk = self.disk {
-              let key = item.key as String, generation = item.diskGeneration
-              let small = self.smallPosters.object(forKey:self.smallKey(item.asset))
-              let smallKey = "\(item.asset.localIdentifier)|\(PhotoLibraryModel.revision(item.asset))|64|\(PHImageContentMode.aspectFill.rawValue)"
-              let version = self.epoch
-              Task(priority:.utility) { [weak self] in
-                if let small { await disk.store(small,key:smallKey,generation:generation) }
-                await disk.store(image,key:key,generation:generation)
-                guard let self,self.epoch == version else { return }
-                self.finish(id); self.activeLocal.remove(id); self.activeCloud.remove(id)
-                self.pumpLocal(); self.pumpCloud()
-              }
-            }
-            #endif
-          }
-          item.completion(image, false)
-        }
-        guard !degraded || singleResult else { return }
-        #if os(iOS)
-        // The pixels reach the UI immediately. Retain the producer slot until
-        // writeback completes so a fast burst cannot overflow the bounded JPEG
-        // queue and silently discard otherwise reusable large renditions.
-        if image != nil,self.disk != nil { return }
-        #endif
-        if image == nil && !cloud && !network && item.target.width <= 128 && !item.retriedFast {
-          // Fast format can have no existing local rendition. Try the same small
-          // target with opportunistic delivery once, without fetching an original.
-          self.pending[id]?.retriedFast = true; self.start(id,network: false,forceQuality: true); return
-        }
-        if !network { self.activeLocal.remove(id); self.pumpLocal() }
-        if image == nil && cloud && !network {
-          item.completion(nil, true)
-          if PreviewNetworkPolicy.shared.allowed {
-            self.cloudQueue.append(id); self.pumpCloud()
-          } else {
-            // Passive browsing never opens a permission sheet. An explicit
-            // attempt to open cloud-only media owns the consent decision.
-            self.finish(id)
-          }
-        } else {
-          if image == nil && !item.hasImage { item.completion(nil, cloud) }
-          self.finish(id)
-          self.activeCloud.remove(id)
-          self.pumpCloud()
+        guard let self, self.pending[id]?.requestVersion == attempt else { return }
+        let previous = self.pending[id]?.delivery
+        self.pending[id]?.delivery = Task { @MainActor [weak self] in
+          await previous?.value
+          guard self?.pending[id]?.requestVersion == attempt else { return }
+          await self?.receive(id, network: network, image: image, cancelled: cancelled,
+            degraded: degraded, cloud: cloud, singleResult: singleResult, smallFallback: smallFallback)
         }
       }
     }
     pending[id]?.native = request
   }
+  /// Serialize each native request's callbacks across background preparation;
+  /// a final nil result must not discard a preview that is still being decoded.
+  private func receive(_ id: PHImageRequestID, network: Bool, image: LibraryImage?,
+    cancelled: Bool, degraded: Bool, cloud: Bool, singleResult: Bool, smallFallback: Bool) async {
+    guard let item = pending[id], item.cloud == network else { return }
+    if !smallFallback, !network, (image == nil || cancelled), item.target.width > 128,
+      !item.hasImage, !item.triedSmallFallback {
+      pending[id]?.triedSmallFallback = true; pending[id]?.needsCloud = cloud; pending[id]?.cancelledLarge = cancelled
+      // PhotoKit may have a local tiny rendition while the larger crop needs
+      // the cloud. Reuse the same admission slot and never cache it as large.
+      start(id,network: false,smallFallback: true)
+      return
+    }
+    if smallFallback {
+      if let image {
+        #if os(iOS)
+        let version = epoch
+        let prepared = await ThumbnailImagePreparation.prepare(image,target: CGSize(width: 64,height: 64),mode: .aspectFill,prefetch: item.priority == .prefetch)
+        guard epoch == version, pending[id] != nil else { return }
+        let image = prepared.image
+        rememberSmall(image,asset: item.asset)
+        #endif
+        pending[id]?.hasImage = true
+        item.completion(image,item.needsCloud)
+      }
+      activeLocal.remove(id); pumpLocal()
+      if (item.needsCloud || item.cancelledLarge) && PreviewNetworkPolicy.shared.allowed && item.priority == .visible {
+        cloudQueue.append(id); pumpCloud()
+      } else {
+        if image == nil { item.completion(nil,item.needsCloud) }
+        finish(id)
+      }
+      return
+    }
+    if cancelled { self.finish(id); self.activeLocal.remove(id); self.activeCloud.remove(id); self.pumpLocal(); self.pumpCloud(); return }
+    if let raw = image {
+      #if os(iOS)
+      self.pending[id]?.resultVersion += 1
+      let resultVersion = self.pending[id]?.resultVersion, version = self.epoch
+      let prepared = item.target.width <= 128
+        ? await ThumbnailImagePreparation.prepareSmall(raw)
+        : await ThumbnailImagePreparation.prepare(raw, target: item.target,
+          mode: item.contentMode, prefetch: item.priority == .prefetch)
+      guard self.epoch == version, self.pending[id]?.resultVersion == resultVersion else { return }
+      let image = prepared.image
+      self.rememberSmall(prepared.small, asset: item.asset)
+      #else
+      let image = raw
+      #endif
+      self.pending[id]?.hasImage = true
+      LaunchTrace.mark("first native thumbnail (\(Int(item.target.width)) px)")
+      let posterKey = self.smallKey(item.asset)
+      let old = self.posters.object(forKey:posterKey)
+      #if os(iOS)
+      if old == nil || image.size.width*image.scale >= old!.size.width*old!.scale {
+        self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
+      }
+      #else
+      self.posters.setObject(image,forKey:posterKey,cost:self.imageCost(image,target:item.target))
+      #endif
+      if !degraded || singleResult {
+        self.cache.setObject(image, forKey: item.key, cost: self.imageCost(image,target: item.target))
+        #if os(iOS)
+        if let disk = self.disk, item.target.width > 128 {
+          let key = item.key as String, generation = item.diskGeneration
+          let small = prepared.small
+          let smallKey = "\(item.asset.localIdentifier)|\(PhotoLibraryModel.revision(item.asset))|64|\(PHImageContentMode.aspectFill.rawValue)"
+          let bytes = self.imageCost(image, target: item.target)
+            + (key == smallKey ? 0 : self.imageCost(small, target: CGSize(width: 64, height: 64)))
+          self.writebackBytes += bytes; self.writebackCount += 1
+          Task(priority: .utility) { [weak self] in
+            if key != smallKey { await disk.store(small, key: smallKey, generation: generation) }
+            await disk.store(image, key: key, generation: generation)
+            guard let self else { return }
+            self.writebackBytes -= bytes; self.writebackCount -= 1
+            self.pumpLocal(); self.pumpCloud()
+          }
+        }
+        #endif
+      }
+      item.completion(image, false)
+    }
+    guard !degraded || singleResult else { return }
+    if image == nil && !cloud && !network && item.target.width <= 128 && !item.retriedFast {
+      // Fast format can have no existing local rendition. Try the same small
+      // target with opportunistic delivery once, without fetching an original.
+      self.pending[id]?.retriedFast = true; self.start(id,network: false,forceQuality: true); return
+    }
+    if !network { self.activeLocal.remove(id); self.pumpLocal() }
+    if image == nil && cloud && !network {
+      item.completion(nil, true)
+      if PreviewNetworkPolicy.shared.allowed, item.priority == .visible {
+        self.cloudQueue.append(id); self.pumpCloud()
+      } else {
+        // Speculative off-screen work remains local; visible requests own
+        // the bounded cloud slots.
+        self.finish(id)
+      }
+    } else {
+      if image == nil && !item.hasImage { item.completion(nil, cloud) }
+      self.finish(id)
+      self.activeCloud.remove(id)
+      self.pumpCloud()
+    }
+  }
   private func pumpCloud() {
-    while activeCloud.count < 3 && !cloudQueue.isEmpty {
+    while activeCloud.count < 3, let next = cloudQueue.first, hasLocalCapacity(for: next) {
       let id = cloudQueue.removeFirst()
       guard pending[id] != nil else { continue }
       activeCloud.insert(id)
@@ -761,7 +1264,10 @@ actor ThumbnailDiskCache {
     }
   }
   private func finish(_ id: PHImageRequestID) {
-    if let item = pending.removeValue(forKey:id),inFlight[item.key] == id { inFlight.removeValue(forKey:item.key) }
+    if let item = pending.removeValue(forKey:id) {
+      item.delivery?.cancel()
+      if inFlight[item.key] == id { inFlight.removeValue(forKey:item.key) }
+    }
     for subscriber in subscribers.removeValue(forKey:id)?.keys ?? Dictionary<PHImageRequestID,(LibraryImage?,Bool)->Void>().keys {
       owners.removeValue(forKey:subscriber)
     }
@@ -804,9 +1310,11 @@ actor ThumbnailDiskCache {
   func clear() {
     epoch &+= 1
     let requests = pending.values.map(\.native)
+    pending.values.forEach { $0.delivery?.cancel() }
     pending.removeAll(); owners.removeAll(); subscribers.removeAll(); inFlight.removeAll()
     cloudQueue.removeAll(); activeCloud.removeAll()
     localQueue.removeAll(); localCursor = 0; activeLocal.removeAll()
+    prefetchQueue.removeAll(); prefetchCursor = 0
     requests.filter { $0 != PHInvalidImageRequestID }.forEach { manager.cancelImageRequest($0) }
     cache.removeAllObjects(); posters.removeAllObjects(); smallPosters.removeAllObjects()
     manager.stopCachingImagesForAllAssets()

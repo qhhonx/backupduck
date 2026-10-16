@@ -105,13 +105,13 @@
 "desktop_pair_failed" = "Unable to complete pairing";
 "desktop_pair_expired" = "Pairing code expired";
 "storage_settings" = "Storage and diagnostics";
-"storage_cache_used" = "Temporary files used";
+"storage_cache_used" = "Used";
 "storage_disk_free" = "Free space on this device";
-"storage_cache_budget" = "Maximum cache size";
+"storage_cache_budget" = "Maximum usage";
 "storage_min_free" = "Keep free on this device";
 "storage_auto_reclaim" = "Reclaim after transfer";
 "storage_reclaim_note" = "After the receiver confirms complete, verified receipt, automatically remove this device’s relay copies. Library originals and receiver files are kept. Cloud backup is independent.";
-"storage_reclaim_now" = "Check and reclaim cache";
+"storage_reclaim_now" = "Check and reclaim temporary files";
 "logs_retention" = "Keep logs for";
 "logs_days" = "%d days";
 "logs_limit" = "Maximum log entries";
@@ -181,7 +181,7 @@
 "receiver_local_network" = "Keep both devices on the same local network. The receiver must be running to accept transfers.";
 "receiver_address" = "Network address";
 "receiver_connection_details" = "Connection details";
-"settings_cache" = "Local cache";
+"settings_cache" = "Cache management";
 "settings_log_retention" = "Log retention";
 "settings_diagnostics" = "Diagnostics";
 "settings_version" = "Version";
@@ -1018,13 +1018,13 @@
 
 "apple_view_all" = "View all";
 
-"ios_cache_preparation_group" = "Preparation cache";
+"ios_cache_preparation_group" = "Temporary backup files";
 
-"ios_cache_reserve_group" = "Free-space reserve";
+"ios_cache_reserve_group" = "Device free space";
 
-"ios_cache_reclaim_group" = "Cache reclamation";
+"ios_cache_reclaim_group" = "Temporary file cleanup";
 
-"ios_cache_budget_note" = "Preparation waits at the limit and resumes when cache space is available.";
+"ios_cache_budget_note" = "Original copies prepared for sending use this space. Preparation waits at the limit and resumes after space is freed.";
 
 "ios_cache_reserve_note" = "Preparation waits below the reserve. Other files are kept.";
 
@@ -1129,7 +1129,7 @@
 "preview_aperture" = "Aperture";
 "preview_exposure" = "Exposure";
 "preview_iso" = "ISO";
-"preview_location" = "Location";
+"preview_location" = "Capture location";
 
 "scope_title" = "Backup scope";
 "scope_type_photo" = "Still photos";
@@ -1150,7 +1150,7 @@
 "library_view_all" = "All photos";
 "library_view_days" = "Days";
 "library_view_months" = "Months";
-"preview_still_file_size" = "Still photo size";
+"preview_still_file_size" = "Still image size";
 "preview_loading_info" = "Loading photo information";
 "preview_info_unavailable" = "Some photo information is unavailable.";
 "preview_burst_index" = "Frame %d of %d";
@@ -1205,10 +1205,40 @@
 "library_select_item" = "Select Item";
 "library_return_selected" = "Back to Selected Items";
 
-"library_thumbnail_cache" = "Library thumbnails";
+"library_thumbnail_cache" = "Browsing thumbnails";
 
 "library_thumbnail_clear" = "Clear thumbnails";
 
-"library_thumbnail_cache_help" = "Stores previews sized for each grid and cover. The cache is rebuilt as needed, evicts older previews automatically, and never stores originals or backup files.";
+"library_thumbnail_cache_help" = "Used for gallery browsing and covers. Older thumbnails are removed above the limit. After clearing, browsing generates them again. Original photos and backup files are kept.";
 
-"library_thumbnail_used" = "Thumbnails used";
+"library_thumbnail_used" = "Used";
+
+"preview_resolution" = "Resolution";
+
+"library_thumbnail_clearing" = "Clearing thumbnails";
+
+"library_thumbnail_clear_failed" = "Some thumbnails could not be cleared. Try again.";
+
+"settings_loading" = "Loading settings…";
+
+"cache_settings_loading" = "Loading cache settings…";
+
+"log_settings_loading" = "Loading log retention settings…";
+
+"storage_settings_unavailable" = "Settings could not be loaded. Try again.";
+
+"calendar_backup_short" = "Back Up";
+
+"mac_library_all_photos" = "All Photos";
+
+"mac_library_zoom_out" = "Smaller thumbnails";
+
+"mac_library_zoom_in" = "Larger thumbnails";
+
+"mac_library_show_selected" = "Show selected";
+
+"mac_library_clear_selection" = "Clear selection";
+
+"mac_library_back" = "Back to library";
+
+"library_filter" = "Filter";

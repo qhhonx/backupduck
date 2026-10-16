@@ -8,7 +8,7 @@ Years use cover cards. Months sample at most six day covers into one mosaic per 
 preserves the chosen asset as the destination anchor at the next level. The All
 view remains a chronological, virtualized collection. Its held pinch can cross
 one/three/five columns and dense month/year overviews, with a terminal year
-overview. Cover-index pinch moves Years → Months → All separately. On iOS 26+, native TabBar minimization owns the
+overview. Cover-index pinch triggers Years → Months → All changes without following the fingers. On iOS 26+, native TabBar minimization owns the
 full-bar-to-compact-button motion. A centered material surface holds Years/Months/All alongside the compact button;
 no accessory row is installed above full navigation. Native navigation items
 provide the existing filter and Select/Close actions with native sizing and
@@ -69,9 +69,9 @@ implementation with real PhotoKit IDs, cancellation and shared semantic colors.
 ## Scene motion
 
 Period controls animate matching photo IDs and fade unmatched content. Dense
-pinch scales/crossfades bounded canonical viewport images around one stable photo;
-it does not interpolate individual rows. Keep at most three scene images, stop
-at the year overview, and avoid overlapping floating captions. Month compositions
+pinch scales/crossfades live tile faces around one stable photo; it does not
+reflow the native collection per frame. Stop at the thirty-one-column year
+overview and avoid overlapping floating captions. Month compositions
 support one through six covers including mirrored modules.
 
 `--movie-cover` creates a small local synthetic movie and places it on calendar
@@ -87,8 +87,12 @@ regular accessory row. No timeout detaches a compact control. The title/subtitle
 over a translucent black edge, with a 6 pt trailing gap beyond the native safe
 area. Selection preserves hierarchy and density; overview taps enlarge before
 selection, and two-finger scaling remains available. Phone options omit original
-aspect. Scale release adopts the visible next density using the last valid
-two-touch pose, with a critically damped 360 ms settlement.
+aspect. Pinch drives a live tile stage on a shared lattice: densities crossfade in
+place around one photo. Direction changes retarget the current mixture after
+small reversal travel, independently of date-range changes at geometric density
+midpoints. Held fades keep running while the fingers rest; the newest boundary
+constrains shrinking content during the gesture. Release preserves the preview
+and settles on a critically damped spring before the native collection is adopted.
 
 After changing production Grid behavior, run `sync-controller.py` to update the
 standalone controller, then `--check` before building. This only writes the
@@ -101,3 +105,33 @@ UIImage directly, independently of hidden view-layer display commits.
 Generated thumbnail dimensions are pixels, with renderer scale one and cache
 costs calculated from actual image bytes. Applying the screen multiplier again
 would invalidate the bounded-cache fixture and can hide or invent eviction bugs.
+
+`--pinch-regression` drives a repeatable generated-library sequence through the
+same native stage: a three-column face held at five-column size, reversed
+five/three faces with selection, and a newest-edge overview. Inspect the complete
+recording, including both side edges and the final collection handoff. Ordinary
+faces retain native duration, Live Photo and selection/status badges. Destination
+row phases remain anchored through reversal and adoption. Extra horizontal slots
+are chronological neighbors, materialized only for the current viewport.
+
+The newest-edge overview fixture permits space below the incoming layout during
+a held crossfade. Blending alone must not move the vertical focus to fill it;
+retain the source layout's scale constraint until release.
+
+The stage transforms whole native-size cell decorations. Gapless/ordinary faces
+share an animated gap and clip, so outgoing photos cannot fill target separators.
+Adoption seeds visible native cells with the stage's retained displayed images
+before replacement requests, rejects smaller fallback callbacks, and retains a
+cover through the first native commit. Compact native Library taps expand only;
+reselection of the expanded tab returns to newest. Generated-image motion checks
+must be supplemented by cache-eviction/late-delivery checks and physical-library
+acceptance; immediate synthetic loaders do not establish PhotoKit continuity.
+
+## Dense pixel ownership
+
+The mirrored controller hands dense canvas pixels directly to a renewed gesture
+and retains its cover until replacement strips publish. Layer groups track
+gapless scaling, while captions remain at reading size. Source tests also delay
+the bitmap queue, evict thumbnail caches, recycle strips and deliver request
+callbacks synchronously. Generated media can check these ownership paths, but
+does not establish real-library PhotoKit latency or physical frame pacing.

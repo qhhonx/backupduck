@@ -2,6 +2,9 @@ import Photos
 import UIKit
 import XCTest
 import Darwin
+#if NUKE_BENCHMARK
+import Nuke
+#endif
 @testable import BackupDuck
 
 /// Controlled loader timing isolates cache/scheduling cost from PhotoKit and iCloud.
@@ -14,19 +17,44 @@ import Darwin
     let assets = (0..<min(480,fetch.count)).map { fetch.object(at:$0) }
     var rows: [[String:Any]] = []
     for round in 0..<3 {
-      for baseline in round % 2 == 0 ? [true,false] : [false,true] {
+      var strategies = ["baseline","candidate"]
+      #if NUKE_BENCHMARK
+      strategies += ["nuke_default","nuke_tuned"]
+      #endif
+      // Rotate order to avoid systematically giving one strategy the warm host.
+      let pivot = round % strategies.count
+      strategies = Array(strategies.dropFirst(pivot)) + Array(strategies.prefix(pivot))
+      for strategy in strategies {
+        let baseline = strategy == "baseline"
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at:directory) }
         let manager = BenchmarkImageManager()
         let old = BenchmarkBaselinePipeline(manager:manager)
         let new = ThumbnailPipeline(manager:manager)
         old.disk = nil; new.disk = nil
-        func request(_ asset:PHAsset,_ side:CGFloat,_ completion:@escaping (UIImage?,Bool)->Void)->PHImageRequestID {
-          baseline ? old.request(asset,pixels:side,completion:completion) : new.request(asset,pixels:side,completion:completion)
+        #if NUKE_BENCHMARK
+        let nuke = NukeBenchmarkAdapter(manager:manager,tuned:strategy == "nuke_tuned")
+        #endif
+        func request(_ asset:PHAsset,_ side:CGFloat,prefetch:Bool = false,_ completion:@escaping (UIImage?,Bool)->Void)->PHImageRequestID {
+          #if NUKE_BENCHMARK
+          if strategy.hasPrefix("nuke_") { return nuke.request(asset,side:side,prefetch:prefetch,completion:completion) }
+          #endif
+          return baseline ? old.request(asset,pixels:side,completion:completion) : new.request(asset,pixels:side,priority:prefetch ? .prefetch : .visible,completion:completion)
         }
-        func clearMemory() { if baseline { old.clear() } else { new.clear() } }
-        func cancel(_ id:PHImageRequestID) { if baseline { old.cancel(id) } else { new.cancel(id) } }
+        func clearMemory() {
+          #if NUKE_BENCHMARK
+          if strategy.hasPrefix("nuke_") { nuke.clearMemory(); return }
+          #endif
+          if baseline { old.clear() } else { new.clear() }
+        }
+        func cancel(_ id:PHImageRequestID) {
+          #if NUKE_BENCHMARK
+          if strategy.hasPrefix("nuke_") { nuke.cancel(id); return }
+          #endif
+          if baseline { old.cancel(id) } else { new.cancel(id) }
+        }
         func scenario(_ name:String,side:CGFloat,repeats:Int=1,cancelHalf:Bool=false) async {
+          let pulse = BenchmarkMainActorPulse(); pulse.start()
           let started = CACurrentMediaTime(), before = manager.started
           var first: [Double] = [], complete: [Double] = [], seenFirst = Set<Int>(),seenComplete = Set<Int>()
           let count = assets.count*repeats
@@ -43,28 +71,95 @@ import Darwin
             if cancelHalf && token % 2 == 0 { cancel(id) }
           }
           await fulfillment(of:[done],timeout:30)
+          pulse.stop()
+          XCTAssertEqual(complete.count, cancelHalf ? count / 2 : count, "No request may disappear from a latency result")
+          if name.hasSuffix("repeat") { XCTAssertEqual(manager.started-before, 0, "A seeded cache revisit must not refetch") }
           func percentile(_ values:[Double],_ p:Double)->Double {
             let v = values.sorted(); return v.isEmpty ? -1 : v[min(v.count-1,Int(Double(v.count-1)*p))]
           }
-          rows.append(["strategy":baseline ? "baseline62" : "candidate","round":round,"scenario":name,
+          rows.append(["strategy":strategy,"round":round,"scenario":name,
             "requests":count,"loader_starts":manager.started-before,"completed":complete.count,
             "elapsed_ms":(CACurrentMediaTime()-started)*1000,"first_p50_ms":percentile(first,0.5),
             "first_p95_ms":percentile(first,0.95),"final_p50_ms":percentile(complete,0.5),"final_p95_ms":percentile(complete,0.95),
+            "main_gap_p95_ms":pulse.percentile(0.95),"main_gap_max_ms":pulse.gaps.max() ?? 0,
             "resident_bytes":residentBytes()])
+        }
+        func visibleDuringPrefetch() async {
+          clearMemory()
+          let background = expectation(description: "Speculative requests drain")
+          background.expectedFulfillmentCount = assets.count - 24
+          var backgroundSeen = Set<Int>()
+          for i in 0..<(assets.count - 24) {
+            _ = request(assets[i], 320, prefetch: true) { image,_ in
+              if let image, image.size.width * image.scale >= 320,
+                backgroundSeen.insert(i).inserted { background.fulfill() }
+            }
+          }
+          try? await Task.sleep(for: .milliseconds(5))
+          let visible = expectation(description: "Viewport overtakes speculative requests")
+          visible.expectedFulfillmentCount = 24
+          let started = CACurrentMediaTime(), before = manager.started
+          let pulse = BenchmarkMainActorPulse(); pulse.start()
+          var times: [Double] = [], seen = Set<Int>()
+          for i in (assets.count - 24)..<assets.count {
+            _ = request(assets[i], 320) { image,_ in
+              if let image, image.size.width * image.scale >= 320, seen.insert(i).inserted {
+                times.append((CACurrentMediaTime()-started)*1000); visible.fulfill()
+              }
+            }
+          }
+          await fulfillment(of: [visible], timeout: 30)
+          pulse.stop()
+          let elapsed = (CACurrentMediaTime()-started)*1000, sorted = times.sorted()
+          XCTAssertEqual(times.count, 24)
+          rows.append(["strategy":strategy,"round":round,"scenario":"visible_during_prefetch",
+            "requests":24,"loader_starts":manager.started-before,"completed":times.count,
+            "elapsed_ms":elapsed,"first_p50_ms":sorted.isEmpty ? -1 : sorted[sorted.count/2],
+            "first_p95_ms":sorted.isEmpty ? -1 : sorted[Int(Double(sorted.count-1)*0.95)],
+            "final_p50_ms":sorted.isEmpty ? -1 : sorted[sorted.count/2],
+            "final_p95_ms":sorted.isEmpty ? -1 : sorted[Int(Double(sorted.count-1)*0.95)],
+            "main_gap_p95_ms":pulse.percentile(0.95),"main_gap_max_ms":pulse.gaps.max() ?? 0,
+            "resident_bytes":residentBytes()])
+          await fulfillment(of: [background], timeout: 30)
         }
         await scenario("cold_dense",side:64)
         await scenario("memory_repeat",side:64)
         clearMemory(); await scenario("duplicate_dense",side:64,repeats:5)
         clearMemory(); await scenario("cancel_scroll",side:128,cancelHalf:true)
+        await visibleDuringPrefetch()
         clearMemory(); await scenario("cover_upgrade",side:320)
+        clearMemory(); await scenario("prefetch_dense",side:64)
+        await scenario("prefetch_revisit",side:64)
+        #if NUKE_BENCHMARK
+        if strategy.hasPrefix("nuke_") { try nuke.enableDisk(directory:directory) }
+        else if baseline { old.disk = BenchmarkBaselineDiskCache(directory:directory) }
+        else { new.disk = ThumbnailDiskCache(directory:directory) }
+        #else
         if baseline { old.disk = BenchmarkBaselineDiskCache(directory:directory) }
         else { new.disk = ThumbnailDiskCache(directory:directory) }
+        #endif
         clearMemory(); await scenario("disk_seed",side:64)
-        // Let utility writes settle before reopening the memory layer.
+        // Let utility writes settle, then reopen the disk object to exclude staged RAM data.
         try? await Task.sleep(for:.seconds(2))
+        #if NUKE_BENCHMARK
+        if strategy.hasPrefix("nuke_") { try nuke.reopenDisk() }
+        else if baseline { old.disk = BenchmarkBaselineDiskCache(directory:directory) }
+        else { new.disk = ThumbnailDiskCache(directory:directory) }
+        #else
+        if baseline { old.disk = BenchmarkBaselineDiskCache(directory:directory) }
+        else { new.disk = ThumbnailDiskCache(directory:directory) }
+        #endif
         clearMemory(); await scenario("disk_repeat",side:64)
         clearMemory(); await scenario("disk_cover_seed",side:320)
         try? await Task.sleep(for:.seconds(2))
+        #if NUKE_BENCHMARK
+        if strategy.hasPrefix("nuke_") { try nuke.reopenDisk() }
+        else if baseline { old.disk = BenchmarkBaselineDiskCache(directory:directory) }
+        else { new.disk = ThumbnailDiskCache(directory:directory) }
+        #else
+        if baseline { old.disk = BenchmarkBaselineDiskCache(directory:directory) }
+        else { new.disk = ThumbnailDiskCache(directory:directory) }
+        #endif
         clearMemory(); await scenario("disk_cover_repeat",side:320)
         clearMemory()
         if baseline { old.disk = nil } else { new.disk = nil }
@@ -85,7 +180,7 @@ import Darwin
   }
 }
 
-@MainActor private final class BenchmarkImageManager: PHCachingImageManager, @unchecked Sendable {
+@MainActor final class BenchmarkImageManager: PHCachingImageManager, @unchecked Sendable {
   var started = 0
   var work: [PHImageRequestID:DispatchWorkItem] = [:]
   var images: [Int:UIImage] = [:]
@@ -115,4 +210,27 @@ import Darwin
   override func cancelImageRequest(_ requestID:PHImageRequestID) { work.removeValue(forKey:requestID)?.cancel() }
   override func startCachingImages(for assets:[PHAsset],targetSize:CGSize,contentMode:PHImageContentMode,options:PHImageRequestOptions?) {}
   override func stopCachingImagesForAllAssets() {}
+}
+
+/// Main-queue scheduling delay is a CPU-contention proxy, not measured render FPS.
+@MainActor private final class BenchmarkMainActorPulse {
+  private var timer: DispatchSourceTimer?
+  private var last: CFTimeInterval = 0
+  var gaps: [Double] = []
+  func start() {
+    last = CACurrentMediaTime()
+    let timer = DispatchSource.makeTimerSource(queue: .main)
+    timer.schedule(deadline: .now() + .milliseconds(2), repeating: .milliseconds(2))
+    timer.setEventHandler { [weak self] in
+      guard let self else { return }
+      let now = CACurrentMediaTime()
+      gaps.append(max(0, (now-last)*1000-2)); last = now
+    }
+    self.timer = timer; timer.resume()
+  }
+  func stop() { timer?.cancel(); timer = nil }
+  func percentile(_ p: Double) -> Double {
+    let values = gaps.sorted()
+    return values.isEmpty ? 0 : values[Int(Double(values.count-1)*p)]
+  }
 }

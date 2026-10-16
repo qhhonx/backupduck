@@ -2,6 +2,8 @@ import SwiftUI
 
 @main struct BackupDuckApp: App {
   init() {
+    LaunchTrace.mark("app init")
+    PhotoLibraryModel.prewarm()
     if #available(iOS 26.0, *) { } else {
       // Legacy scroll-edge appearance must not turn transparent above media.
       let appearance = UITabBarAppearance()

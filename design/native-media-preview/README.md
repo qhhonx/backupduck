@@ -25,8 +25,8 @@ xcodegen generate --spec design/native-media-preview/project.yml --project build
   previous/next arrows. Desktop arrow-key navigation remains appropriate.
 - A native horizontal pager and independently draggable thumbnail strip. Both
   describe the same current item; strip movement is not a row of five buttons.
-- A compact, content-sized cloud confirmation, one explanation, two equal-width
-  actions with the primary action trailing. Use the shared grabber and expandable large detent. Loading belongs to the current item's header.
+- Automatic cloud-preview loading with a single media-local progress ring.
+  The example uses a synthetic timed load and does not perform network access.
 - Information moves into the photo context. A map is visible when information is
   opened and location exists; there is no extra reveal-map action. Only actual
   metadata may populate the production information view.
@@ -55,7 +55,7 @@ storage. See [source study](source-study.md).
 The sender implementation uses a UIKit-owned three-slot paging scroll view,
 separate virtualized scrubbing strip with a compact dragging state and expanded settled current item, interruptible information drawer and a
 current-asset return destination. It retains PhotoKit media and existing backup
-state; the standalone reference remains synthetic. Consent uses the shared fitted and large detents with a system grabber. Actual asset location opens a map with
+state; the standalone reference remains synthetic. PhotoKit handles preview loading under system access and network policy. Actual asset location opens a map with
 information. Album covers have cancellable local requests and a 24 MiB cache.
 The production calendar uses anchored collection attributes and a critically
 damped release response documented in the media interaction contract. None of
@@ -68,3 +68,27 @@ items. Its leading browse icon reuses the same viewer and photo-flight animator
 with a bounded batch. Back and downward drag return to that review. Production
 adds the shared selection model, current-item toggle, Deselect All and Done;
 this reference does not access PhotoKit or backup data.
+
+## Detail motion geometry
+
+The media viewport extends behind overlay controls. Paging uses a 40 pt gap;
+fractional page progress transfers emphasis between neighbouring filmstrip
+items. Direct scrubbing compacts the strip while preserving its current position.
+The layout visits a bounded visible range even for large item counts. The
+reference and production share the MediaFlightGeometry and MediaFilmstripLayout
+mechanisms: a live media node scales with a synchronously animated local crop,
+and downward shrinking preserves the grabbed point. Native page deceleration
+and zoom remain UIKit-owned. Generated images cannot establish PhotoKit quality,
+cache correctness, video continuity or physical-device gesture performance.
+
+The media reference now uses the same compact loading-ring component and removes
+filmstrip selection borders. Its selected-review viewer rejects information
+gestures. Information uses an aspect-aware top viewport and continuous chrome
+fading. Its timed loading state is explicitly synthetic; production uses a
+synchronous native media page, retains actual source posters and waits for
+AVKit's first-frame readiness. The reference does not establish video readiness,
+cloud progress accuracy or physical-device acceptance.
+
+Cloud previews now start automatically through PhotoKit in production. The native
+reference's cloud example starts its synthetic loading ring directly; settings
+expose only type and album editors. Application preview consent is retired.

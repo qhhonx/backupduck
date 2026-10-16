@@ -56,6 +56,54 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.buttons["transfers.sort"].label.contains(label))
   }
 
+  @MainActor func testVideoDetailRetainsViewportAndReturnsToItsGridCell() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
+    launchIsolated(app)
+    app.buttons["library.filter"].tap(); app.buttons["Videos"].tap()
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    guard let cell = grid.cells.allElementsBoundByIndex.first(where: { $0.isHittable }) else { throw XCTSkip("Import synthetic video") }
+    let identity = cell.identifier, origin = cell.frame
+    print("VIDEO_ENTRY \(Date().timeIntervalSince1970)")
+    cell.tap()
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    let video = app.descendants(matching: .any)["library.preview.video"].firstMatch
+    XCTAssertTrue(video.waitForExistence(timeout: 10))
+    recordWindow(app,"Video detail — first actual frame")
+    print("VIDEO_RETURN \(Date().timeIntervalSince1970)")
+    app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    XCTAssertEqual(grid.cells[identity].frame.minY,origin.minY,accuracy: 1)
+    XCTAssertEqual(grid.cells[identity].frame.minX,origin.minX,accuracy: 1)
+  }
+
+  @MainActor func testViewerUsesStableFullViewportThroughZoomAndPaging() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
+    let close = app.buttons["library.preview.close"], photo = app.images["library.preview.photo"]
+    XCTAssertTrue(close.waitForExistence(timeout: 5)); XCTAssertTrue(photo.waitForExistence(timeout: 8))
+    let center = photo.frame
+    XCTAssertEqual(center.midX,app.frame.midX,accuracy: 2)
+    XCTAssertEqual(center.midY,app.frame.midY,accuracy: 2)
+    let identity = photo.value as? String
+    let pager = app.scrollViews["library.preview.pager"]
+    pager.coordinate(withNormalizedOffset: CGVector(dx: 0.55,dy: 0.5)).press(forDuration: 0.05,
+      thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.51,dy: 0.5)),withVelocity: .slow,thenHoldForDuration: 0.2)
+    XCTAssertEqual(photo.value as? String,identity,"A short reversed page drag retains the current asset")
+    photo.doubleTap(); photo.doubleTap(); photo.tap()
+    XCTAssertTrue(close.waitForExistence(timeout: 5))
+    XCTAssertEqual(photo.frame.midY,center.midY,accuracy: 2,"Chrome changes do not refit the photo")
+    recordWindow(app,"Detail — fitted viewport after zoom and chrome")
+    close.tap(); XCTAssertTrue(grid.waitForExistence(timeout: 5))
+  }
+
   @MainActor func testMediaPreviewNavigationAndInformation() throws {
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -115,11 +163,11 @@ final class SettingsTests: XCTestCase {
     for _ in 0..<6 { if types.isHittable { break }; app.swipeUp() }; types.tap()
     XCTAssertFalse(photo.isSelected); photo.tap()
     app.buttons["page.header.back"].tap(); app.buttons["backup.scope.albums"].tap()
-    app.buttons["backup.scope.all_albums"].tap()
-    XCTAssertTrue(app.buttons["backup.scope.all_albums"].isSelected)
+    app.switches["backup.scope.all_albums"].tap()
+    XCTAssertEqual(app.switches["backup.scope.all_albums"].value as? String,"1")
   }
 
-  @MainActor func testScopeAlbumGridAndPreviewSettingExplanation() throws {
+  @MainActor func testScopeAlbumGridAndAutomaticCloudPreviews() throws {
     continueAfterFailure = false
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -129,8 +177,8 @@ final class SettingsTests: XCTestCase {
     for _ in 0..<6 { if source.isHittable { break }; app.swipeUp() }; source.tap()
     let albums = app.buttons["backup.scope.albums"]
     for _ in 0..<6 { if albums.isHittable { break }; app.swipeUp() }; albums.tap()
-    let all = app.buttons["backup.scope.all_albums"]
-    XCTAssertTrue(all.waitForExistence(timeout: 8)); all.tap()
+    let all = app.switches["backup.scope.all_albums"]
+    XCTAssertTrue(all.waitForExistence(timeout: 8)); if all.value as? String != "1" { all.tap() }
     XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"All albums")
     let choices = app.collectionViews["backup.scope.choices"]
     XCTAssertTrue(choices.waitForExistence(timeout: 8))
@@ -142,15 +190,13 @@ final class SettingsTests: XCTestCase {
     let original = cells[0].frame
     cells[0].tap(); XCTAssertTrue(cells[0].isSelected); XCTAssertEqual(cells[0].frame,original)
     recordWindow(app,"Three-column album covers — shared media selection")
-    cells[0].tap(); XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"All albums")
+    cells[0].tap(); XCTAssertEqual(all.value as? String,"0")
+    XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"Selected albums: 0")
+    all.tap(); XCTAssertEqual(all.value as? String,"1")
     app.buttons["page.header.back"].tap(); app.buttons["page.header.back"].tap()
     navigation(app,3).tap()
-    let toggle = app.switches["settings.preview_cloud"]
-    for _ in 0..<5 { if toggle.isHittable { break }; app.swipeUp() }
-    XCTAssertTrue(toggle.isHittable)
-    let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "This may use cellular data")).firstMatch
-    XCTAssertTrue(note.isHittable)
-    recordWindow(app,"Preview network setting — purpose and consequence")
+    XCTAssertFalse(app.switches["settings.preview_cloud"].exists)
+    recordWindow(app,"Settings — cloud previews are automatic")
   }
 
   @MainActor func testScopeChoicesChineseDarkAccessibility() throws {
@@ -178,28 +224,50 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Chinese accessibility album choices — readable list")
   }
 
-  @MainActor func testCloudConsentUsesSharedSheetAndCanDecline() throws {
+  @MainActor func testDisabledBackupToolbarDoesNotTapPhotoThroughIt() throws {
+    try checkDisabledBackupToolbar(language: "en",locale: "en_US")
+  }
+
+  @MainActor func testDisabledBackupToolbarChineseLargeTextDoesNotTapPhotoThroughIt() throws {
+    try checkDisabledBackupToolbar(language: "zh-Hans",locale: "zh_CN",largeText: true)
+  }
+
+  @MainActor private func checkDisabledBackupToolbar(language: String,locale: String,largeText: Bool = false) throws {
     continueAfterFailure = false
-    let app = XCUIApplication()
-    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "--preview-consent-fixture"]
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(\(language))","-AppleLocale",locale]
+    if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL","-duckAppearance","dark"] }
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    app.buttons["library.select_mode"].tap()
+    recordWindow(app,"Selection toolbar — unavailable backup action")
+    let backup = app.buttons.matching(identifier: "calendar.backup_selected").firstMatch
+    XCTAssertTrue(backup.waitForExistence(timeout: 5)); XCTAssertFalse(backup.isEnabled)
+    let count = app.buttons["calendar.review_selected"].label
+    let anchor = grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.minY > 180 }
+    let anchorFrame = anchor?.frame
+    backup.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).tap()
+    if let anchor, let anchorFrame { XCTAssertEqual(anchor.frame,anchorFrame,"An unavailable action must not trigger native scroll-to-top") }
+    let belowButton = app.coordinate(withNormalizedOffset: .zero).withOffset(
+      CGVector(dx: backup.frame.midX,dy: backup.frame.maxY + 8))
+    belowButton.tap()
+    if let anchor, let anchorFrame { XCTAssertEqual(anchor.frame,anchorFrame,"Header taps must not move the photo grid") }
+    XCTAssertEqual(app.buttons["calendar.review_selected"].label,count)
+    XCTAssertFalse(app.buttons["library.preview.close"].exists)
+    XCTAssertTrue(grid.cells.allElementsBoundByIndex.allSatisfy { !$0.isSelected })
+    recordWindow(app,"Disabled backup toolbar — tap stays in chrome")
+  }
+
+  @MainActor func testDetailOpensWithoutAppCloudConsent() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
     launchIsolated(app)
     let grid = app.collectionViews["library.grid"]
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
     try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
-    let allow = app.buttons["preview.cloud.allow"]
-    XCTAssertTrue(allow.waitForExistence(timeout: 5))
-    XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
-    XCTAssertFalse(app.alerts.firstMatch.exists)
-    let originalTitleY = app.staticTexts["Load previews from iCloud"].frame.minY
-    let title = app.staticTexts["Load previews from iCloud"]
-    XCTAssertTrue(title.exists)
-    title.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.05,
-      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.15)),withVelocity: .slow,thenHoldForDuration: 0.1)
-    XCTAssertGreaterThan(originalTitleY-title.frame.minY,8,"Consent keeps the shared native expandable sheet behavior")
-    XCTAssertEqual(allow.frame.height,52,accuracy: 2,"Consent actions share the confirmation component height")
-    recordWindow(app,"Application cloud consent — shared sheet contract")
-    app.buttons["preview.cloud.decline"].tap()
     XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["preview.cloud.allow"].exists)
+    recordWindow(app,"Detail — automatic PhotoKit preview loading")
     app.buttons["library.preview.close"].tap()
   }
 
@@ -232,6 +300,24 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"Mid-library expansion — stable identity and continuous layout")
   }
 
+  @MainActor func testRepeatedDensePinchesRetainPublishedMosaics() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US",
+      "-calendarGridLaunchColumns","5"]
+    launchIsolated(app)
+    let grid = app.collectionViews["library.grid"]
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
+    grid.swipeDown(); grid.swipeDown()
+    var previous = 5
+    for (step,columns) in [15,31,15,31,15,5].enumerated() {
+      grid.pinch(withScale: columns > previous ? 0.55 : 1.7,velocity: columns > previous ? -0.7 : 0.7)
+      let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","\(columns) columns"),object: grid)
+      XCTAssertEqual(XCTWaiter.wait(for: [settled],timeout: 8),.completed)
+      if step == 1 || step == 3 || step == 5 { recordWindow(app,"Repeated overview pinch — step \(step), \(columns) columns") }
+      previous = columns
+    }
+  }
+
   @MainActor func testSelectionRetainsDenseViewAndZoomsBeforeSelecting() throws {
     continueAfterFailure = false
     let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
@@ -240,13 +326,13 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
     func zoomOut() { app.buttons["library.filter"].tap(); app.buttons["Display Options"].tap(); app.buttons["Zoom Out"].tap() }
     zoomOut(); zoomOut(); zoomOut()
-    let terminal = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","20 columns"),object: grid)
+    let terminal = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","31 columns"),object: grid)
     XCTAssertEqual(XCTWaiter.wait(for: [terminal],timeout: 5),.completed)
     app.buttons["library.select_mode"].tap()
-    XCTAssertEqual(grid.value as? String,"20 columns","Entering selection preserves overview density")
+    XCTAssertEqual(grid.value as? String,"31 columns","Entering selection preserves overview density")
     recordWindow(app,"Selection at the retained dense overview")
     grid.coordinate(withNormalizedOffset: CGVector(dx: 0.47,dy: 0.15)).tap()
-    let month = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","10 columns"),object: grid)
+    let month = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","15 columns"),object: grid)
     XCTAssertEqual(XCTWaiter.wait(for: [month],timeout: 5),.completed)
     grid.coordinate(withNormalizedOffset: CGVector(dx: 0.47,dy: 0.15)).tap()
     let selectable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","5 columns"),object: grid)
@@ -262,10 +348,10 @@ final class SettingsTests: XCTestCase {
   }
   @MainActor func testSmallOutwardPinchCommitsVisibleSingleColumn() throws {
     continueAfterFailure = false
-    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US"]
+    let app = XCUIApplication(); app.launchArguments = ["-AppleLanguages","(en)","-AppleLocale","en_US","-calendarGridLaunchColumns","3"]
     launchIsolated(app)
     let grid = app.collectionViews["library.grid"]
-    XCTAssertTrue(grid.waitForExistence(timeout: 10)); grid.swipeDown()
+    XCTAssertTrue(grid.waitForExistence(timeout: 10))
     let photo = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 280 && $0.frame.midY < 550 && $0.frame.midX > 130 && $0.frame.midX < 300 })
     let id = photo.identifier
     photo.pinch(withScale: 1.2,velocity: 0.5)
@@ -273,7 +359,17 @@ final class SettingsTests: XCTestCase {
     XCTAssertEqual(XCTWaiter.wait(for: [settled],timeout: 5),.completed)
     XCTAssertTrue(grid.cells[id].isHittable)
     recordWindow(app,"Small outward pinch commits the visible single column")
-    grid.pinch(withScale: 0.8,velocity: -0.5)
+    let single = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 180 && $0.frame.midY < 700 })
+    let origin = single.frame, identity = single.identifier
+    single.tap()
+    XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
+    recordWindow(app,"Single-column detail — source crop retained")
+    app.buttons["library.preview.close"].tap()
+    XCTAssertTrue(grid.waitForExistence(timeout: 5))
+    XCTAssertEqual(grid.cells[identity].frame.minY,origin.minY,accuracy: 1)
+    XCTAssertEqual(grid.cells[identity].frame.size,origin.size)
+    recordWindow(app,"Single-column return — settled source cell")
+    grid.pinch(withScale: 0.65,velocity: -0.8)
     let reverse = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","3 columns"),object: grid)
     XCTAssertEqual(XCTWaiter.wait(for: [reverse],timeout: 5),.completed,"Actual reverse density: \(String(describing:grid.value))")
   }
@@ -405,6 +501,9 @@ final class SettingsTests: XCTestCase {
     let strip = app.collectionViews["library.preview.filmstrip"]
     XCTAssertTrue(strip.waitForExistence(timeout: 5)); XCTAssertEqual(strip.cells.count,3)
     let pager = app.scrollViews["library.preview.pager"]
+    pager.swipeUp()
+    XCTAssertFalse(app.staticTexts["preview.info.dimensions"].exists,"Selected-item detail does not open information")
+    XCTAssertTrue(strip.isHittable)
     pager.swipeLeft()
     XCTAssertEqual(strip.cells.count,3)
     recordWindow(app,"Selected review — same viewer limited to batch")
@@ -463,19 +562,16 @@ final class SettingsTests: XCTestCase {
     recordWindow(app,"iPhone calendar — year covers in dark appearance")
   }
 
-  @MainActor func testMediaPreviewLargeTextConsentAndInformation() throws {
+  @MainActor func testMediaPreviewLargeTextAutomaticLoadingAndInformation() throws {
     continueAfterFailure = false
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
-      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "--preview-consent-fixture"]
+      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
     launchIsolated(app)
     let grid = app.collectionViews["library.grid"]
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
     try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).tap()
-    XCTAssertTrue(app.buttons["preview.cloud.allow"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.buttons["preview.cloud.decline"].isHittable)
-    recordWindow(app,"Preview consent — Chinese accessibility text")
-    app.buttons["preview.cloud.decline"].tap()
+    XCTAssertFalse(app.buttons["preview.cloud.allow"].exists)
     XCTAssertTrue(app.buttons["library.preview.close"].waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["library.preview.info"].exists)
     XCTAssertTrue(app.buttons["library.preview.close"].isHittable)
@@ -818,6 +914,12 @@ final class SettingsTests: XCTestCase {
     }
   }
 
+  @MainActor private func assertSheetHeader(_ app: XCUIApplication,title: String,close: String) {
+    let heading = app.staticTexts[title], dismiss = app.buttons[close]
+    XCTAssertTrue(heading.waitForExistence(timeout: 10)); XCTAssertTrue(dismiss.isHittable)
+    XCTAssertEqual(heading.frame.midY,dismiss.frame.midY,accuracy: 3,"Sheet title and close glyph share a vertical centre")
+  }
+
   @MainActor func testActivityLogOpensIndependentlyAndExports() {
     continueAfterFailure = false
     let app = XCUIApplication()
@@ -846,6 +948,7 @@ final class SettingsTests: XCTestCase {
       app.swipeUp()
     }
     XCTAssertTrue(details.exists && details.isHittable)
+    assertSheetHeader(app,title: "activity.title",close: "activity.close")
     let latest = app.buttons["activity.latest"]
     XCTAssertTrue(latest.isHittable)
     let latestPosition = latest.frame
@@ -866,6 +969,8 @@ final class SettingsTests: XCTestCase {
       recordWindow(app, "Activity detail footer unavailable")
     }
     XCTAssertTrue(detailDone.isHittable)
+    assertSheetHeader(app,title: "sheet.title",close: "sheet.close")
+    XCTAssertGreaterThan(detailDone.frame.width,app.frame.width*0.7,"A single phone footer action fills the content width")
     let detailScreen = XCTAttachment(screenshot: app.screenshot()); detailScreen.name = "Activity entry — independent detail sheet"
     detailScreen.lifetime = .keepAlways; add(detailScreen)
     detailDone.tap()
@@ -879,6 +984,7 @@ final class SettingsTests: XCTestCase {
     export.tap()
     let share = app.buttons["activity.export_share"]
     XCTAssertTrue(share.waitForExistence(timeout: 10), "Export must prepare a fresh report in the current window before sharing")
+    assertSheetHeader(app,title: "sheet.title",close: "sheet.close")
     XCTAssertFalse(app.otherElements["ActivityListView"].exists, "Preparing a file must not claim the system share operation completed")
     let prepared = XCTAttachment(screenshot: app.screenshot())
     prepared.name = "Diagnostic report — ready in current export sheet"; prepared.lifetime = .keepAlways; add(prepared)
@@ -901,10 +1007,17 @@ final class SettingsTests: XCTestCase {
     launchIsolated(app); navigation(app,3).tap()
     let cache = app.buttons["settings.cache"]
     XCTAssertTrue(cache.waitForExistence(timeout:10)); cache.tap()
-    XCTAssertTrue(app.staticTexts["Library thumbnails"].waitForExistence(timeout:5))
+    XCTAssertTrue(app.staticTexts["Browsing thumbnails"].waitForExistence(timeout:5))
     XCTAssertTrue(app.buttons["settings.thumbnail_budget"].exists)
     XCTAssertTrue(app.buttons["settings.thumbnail_clear"].isHittable)
     recordWindow(app,"Thumbnail cache size, budget and safe clearing")
+    app.buttons["settings.thumbnail_clear"].tap()
+    let used = app.descendants(matching: .any)["settings.thumbnail_used"].firstMatch
+    let cleared = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+      used.label.contains("Zero") || used.label.contains("0 KB") || used.label.contains("0 bytes")
+    },object: nil)
+    XCTAssertEqual(XCTWaiter.wait(for: [cleared],timeout: 8),.completed)
+    recordWindow(app,"Thumbnail clear completion — measured usage refreshed")
   }
 
   @MainActor func testMainNavigationAndCacheIsolation() {
@@ -1357,6 +1470,7 @@ final class SettingsTests: XCTestCase {
     let log = app.buttons["settings.activity_log"]
     for _ in 0..<12 { if log.isHittable { break }; app.swipeUp() }
     XCTAssertTrue(log.isHittable); log.tap()
+    assertSheetHeader(app,title: "activity.title",close: "activity.close")
     let latest = app.buttons["activity.latest"]
     XCTAssertTrue(latest.waitForExistence(timeout: 10)); XCTAssertTrue(latest.isHittable)
     let position = latest.frame.minY
@@ -1490,7 +1604,8 @@ final class SettingsTests: XCTestCase {
     first.press(forDuration: 0.5, thenDragTo: fourth, withVelocity: .slow, thenHoldForDuration: 0)
     XCTAssertTrue(app.buttons["library.select_mode"].waitForExistence(timeout: 5))
     XCTAssertGreaterThanOrEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 4)
-    let backup = app.buttons["calendar.backup_selected"]
+    recordWindow(app,"Selection toolbar — unavailable backup action")
+    let backup = app.buttons.matching(identifier: "calendar.backup_selected").firstMatch
     XCTAssertTrue(backup.exists);XCTAssertLessThan(backup.frame.maxY,220,"Backup stays beside the filter in the native header")
     let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Native continuous selection toolbar"; image.lifetime = .keepAlways; add(image)
     first.press(forDuration: 0.5, thenDragTo: fourth, withVelocity: .slow, thenHoldForDuration: 0)

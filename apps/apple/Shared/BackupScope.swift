@@ -24,7 +24,7 @@ struct BackupScopeRule: Codable, Equatable {
   var restrictAlbums = false
   var albums: Set<String> = []
   var albumNames: [String: String] = [:]
-  var usesSpecifiedAlbums: Bool { restrictAlbums && !albums.isEmpty }
+  var usesSpecifiedAlbums: Bool { restrictAlbums }
   func includes(kind: BackupMediaKind?, id: String, albumMembers: Set<String>) -> Bool {
     guard let kind, types.contains(kind) else { return false }
     return !usesSpecifiedAlbums || albumMembers.contains(id)
@@ -62,8 +62,7 @@ struct BackupScopeRule: Codable, Equatable {
     } else { rule = BackupScopeRule() }
   }
   func save(_ choice: BackupScopeRule) {
-    var next = choice
-    if next.albums.isEmpty { next.restrictAlbums = false }
+    let next = choice
     guard next != rule || loadFailed else { return }
     guard let data = try? JSONEncoder().encode(next) else { return }
     defaults.set(data, forKey: "photoBackupScope"); rule = next
@@ -211,10 +210,15 @@ struct BackupScopeEditor: View {
         #endif
       } else {
         #if os(iOS)
+        IOSPreferenceGroup {
+          IOSPreferenceRow(title: "scope_all_albums") {
+            Toggle("scope_all_albums", isOn: allAlbums).labelsHidden().toggleStyle(.switch)
+              .accessibilityIdentifier("backup.scope.all_albums")
+          }
+        }.padding(.horizontal, 16)
         ScopeAlbumGrid(albums: model.albums.filter { !$0.system || (store.rule.usesSpecifiedAlbums && store.rule.albums.contains($0.id)) },
           selected: store.rule.usesSpecifiedAlbums ? store.rule.albums : [], search: search,
-          listMode: textSize.isAccessibilitySize, allSelected: !store.rule.usesSpecifiedAlbums,
-          chooseAll: { var next = store.rule; next.restrictAlbums = false; next.albums = []; next.albumNames = [:]; store.save(next) },
+          listMode: textSize.isAccessibilitySize,
           choose: selectAlbum)
         missingAlbums.padding(.horizontal,16)
         #else
@@ -228,12 +232,14 @@ struct BackupScopeEditor: View {
       .frame(height: destination == .albums ? 440 : 208, alignment: .top)
       #endif
   }
+  #if os(macOS)
   private var albumList: some View {
     List {
             Section {
-              choiceRow(title: NSLocalizedString("scope_all_albums", comment: ""), symbol: "rectangle.stack", selected: !store.rule.restrictAlbums) {
-                var next = store.rule; next.restrictAlbums = false; next.albums = []; next.albumNames = [:]; store.save(next)
-              }.accessibilityIdentifier("backup.scope.all_albums")
+              MacPreferenceRow(title: "scope_all_albums") {
+                Toggle("scope_all_albums", isOn: allAlbums).labelsHidden().toggleStyle(.switch)
+                  .accessibilityIdentifier("backup.scope.all_albums")
+              }
             }
             albumSection(system: false, title: "scope_my_albums")
             albumSection(system: true, title: "scope_existing_albums")
@@ -257,6 +263,7 @@ struct BackupScopeEditor: View {
           .scrollContentBackground(.hidden)
           .accessibilityIdentifier("backup.scope.choices")
   }
+  #endif
   private var missingAlbums: some View {
     let missing = store.rule.usesSpecifiedAlbums ? store.rule.albums.subtracting(Set(model.albums.map(\.id))) : []
     return VStack(alignment: .leading, spacing: 8) {
@@ -269,6 +276,13 @@ struct BackupScopeEditor: View {
         }
       }
     }
+  }
+  private var allAlbums: Binding<Bool> {
+    Binding(get: { !store.rule.restrictAlbums }, set: { enabled in
+      var next = store.rule
+      next.restrictAlbums = !enabled; next.albums = []; next.albumNames = [:]
+      store.save(next)
+    })
   }
   private func selectAlbum(_ album: ScopeAlbum) {
     searchFocused = false

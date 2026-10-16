@@ -10,8 +10,6 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   let selected: Set<String>
   let search: String
   let listMode: Bool
-  let allSelected: Bool
-  let chooseAll: () -> Void
   let choose: (ScopeAlbum) -> Void
   func makeUIViewController(context: Context) -> ScopeAlbumController { ScopeAlbumController() }
   static func dismantleUIViewController(_ controller: ScopeAlbumController, coordinator: ()) {
@@ -26,11 +24,11 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
 @MainActor final class ScopeAlbumController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
   let layout = UICollectionViewFlowLayout()
   lazy var collection = UICollectionView(frame: .zero, collectionViewLayout: layout)
-  let all = UIButton(type: .system), empty = UILabel()
+  let empty = UILabel()
   var rows: [ScopeAlbum] = []
   var selected = Set<String>()
   var listMode = false
-  var chooseAll: (() -> Void)?, choose: ((ScopeAlbum) -> Void)?
+  var choose: ((ScopeAlbum) -> Void)?
   var policyObservation: AnyCancellable?
   private var previousWidth: CGFloat = 0
   override func viewDidLoad() {
@@ -43,11 +41,6 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
     collection.accessibilityIdentifier = "backup.scope.choices"
     collection.register(ScopeAlbumCell.self,forCellWithReuseIdentifier: "scope.album")
     view.addSubview(collection)
-    all.contentHorizontalAlignment = .leading; all.titleLabel?.font = .preferredFont(forTextStyle: .body)
-    all.titleLabel?.adjustsFontForContentSizeCategory = true
-    all.accessibilityIdentifier = "backup.scope.all_albums"
-    all.addAction(UIAction { [weak self] _ in self?.chooseAll?() },for: .touchUpInside)
-    view.addSubview(all)
     empty.text = NSLocalizedString("scope_albums_empty",comment: "")
     empty.font = .preferredFont(forTextStyle: .body); empty.numberOfLines = 0; empty.textAlignment = .center
     empty.textColor = UIColor(DuckColors.textSecondary); collection.backgroundView = empty
@@ -59,9 +52,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let allHeight = max(52,UIFont.preferredFont(forTextStyle: .body).lineHeight+24)
-    all.frame = CGRect(x: 16,y: 0,width: view.bounds.width-32,height: allHeight)
-    collection.frame = CGRect(x: 0,y: allHeight+4,width: view.bounds.width,height: max(0,view.bounds.height-allHeight-4))
+    collection.frame = view.bounds
     if previousWidth != view.bounds.width {
       previousWidth = view.bounds.width; updateSize(); refreshVisible()
     }
@@ -75,24 +66,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
     }
     let geometryChanged = listMode != source.listMode
     rows = visible; selected = source.selected; listMode = source.listMode
-    chooseAll = source.chooseAll; choose = source.choose
-    var configuration = UIButton.Configuration.plain()
-    configuration.title = NSLocalizedString("scope_all_albums",comment: "")
-    configuration.image = UIImage(systemName: "rectangle.stack")
-    configuration.imagePadding = 12
-    configuration.baseForegroundColor = UIColor(DuckColors.text)
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 12,leading: 16,bottom: 12,trailing: 16)
-    configuration.background.backgroundColor = UIColor(DuckColors.surface)
-    configuration.background.cornerRadius = 12
-    all.configuration = configuration
-    all.accessibilityTraits = source.allSelected ? [.button,.selected] : .button
-    all.setTitle(NSLocalizedString("scope_all_albums",comment: ""),for: .normal)
-    all.accessibilityValue = source.allSelected ? NSLocalizedString("selected",comment: "") : nil
-    // The fixed trailing check does not dim or animate the entire choice row.
-    let check = all.viewWithTag(58) as? UIImageView ?? UIImageView(image: UIImage(systemName: "checkmark"))
-    if check.superview == nil { check.tag = 58; check.tintColor = UIColor(DuckColors.action); all.addSubview(check) }
-    check.frame = CGRect(x: max(0,view.bounds.width-32-40),y: 14,width: 24,height: 24)
-    check.isHidden = !source.allSelected
+    choose = source.choose
     if geometryChanged { updateSize() }
     if membershipChanged || contentChanged { collection.reloadData() }
     else { refreshVisible() }

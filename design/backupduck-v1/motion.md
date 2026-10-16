@@ -51,13 +51,24 @@ zoom ownership, scope navigation and accessibility acceptance.
 
 The focused [iPhone calendar Grid contract](../iphone-calendar-grid.md) supersedes
 the older phone coupling of calendar grouping/density and per-item interpolation.
-Period controls move only matching visible covers and fade unmatched content.
-Pinch scales canonical viewport scenes around one photo, crosses multiple density
-brackets without lifting, and settles scale/opacity over 360 ms. Three bounded
-scene images replace per-frame native-cell reflow. Cancellation restores the
-initial scene/context; Reduce Motion adopts state without spatial animation.
-Native bottom-bar minimization remains system-owned; period controls rise/fade
-beside its compact native button while inertia begins. Navigation actions retain native
+Period controls move matching visible covers and zoom-crossfade the rest over
+about 340 ms: toward All the outgoing level expands and the incoming grid settles
+from slightly smaller; toward Years the outgoing level recedes. All-grid pinch
+uses a live virtualized tile stage on a shared lattice: every density is drawn
+at the same on-screen cell pitch around one photo. Dividers take the shown
+density's scaled gap in one frame and snap to device pixels; only cell contents
+crossfade while fingers rest (about 1.2 s for ordinary grids and 0.85 s for dense
+overviews). A new pair needs deliberate travel; small reversals
+retarget its current mixture without resetting it. Date text follows geometric
+density independently of photo blending. A short dead zone precedes tracking;
+the newest boundary constrains shrinking content during the gesture. Release
+preserves the preview target and settles on a critically damped spring
+(omega 12.5, fitted to Photos release recordings), finishing any remaining blend
+within the settle, and adopts the native collection only when it ends.
+Cancellation restores the initial density; Reduce Motion adopts state without
+spatial animation. Native bottom-bar minimization remains system-owned; period
+controls follow its morph event, rising 14 pt on a 300 ms spring 130 ms after the
+compact platter starts to form, and fading within 80 ms on expansion. Navigation actions retain native
 sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
@@ -69,12 +80,28 @@ the node. Paging updates the settled controller and centre offset atomically.
 Filmstrip geometry compacts for dragging and expands the settled item over
 250 ms, with immediate adoption under Reduce Motion.
 
-Phone calendar snapshots follow held gesture scale directly. Release uses the
-last valid two-touch pose and a native critically damped 360 ms spring; terminal
-one-touch coordinates cannot replace the focal photo. Source/destination layer
-anchors use their own photo coordinates. Calendar period entry rises from below,
-while expansion fades it; actual native compact-button visibility owns the
-lifecycle rather than timers or library scroll position.
+For detail paging, distinguish a user's direct filmstrip drag from the strip
+following page progress: the latter continuously transfers emphasis between two
+neighbouring thumbnails instead of snapping to a compact row on touch-down.
+Live media entry/return uses one uniform transform and a UIView crop mask driven
+by the same animator; an unrelated mask easing must not finish ahead of the
+photo. Chrome overlays a stable full-screen fitted viewport. Preserve the grabbed
+point while a downward drag scales the photo and allow subsequent two-axis
+movement. Native scroll deceleration remains the page-settling owner. These
+detail parameters are implementation approximations, not measured private APIs.
+
+Media loading must not replace a flying node. Use a synchronously laid out native
+page and retain the displayed poster until AVKit reports its first frame ready.
+Suspend zoom/layout resets during a flight. One media-local ring owns loading
+feedback; header dates do not turn into loading messages. Information travel
+updates native photo geometry and panel geometry in the same animation owner,
+with continuous chrome fading. Selected-item detail rejects information gestures
+and actions, while retaining downward return and horizontal paging.
+
+Phone calendar pinch tracks two-finger distance linearly after the dead zone;
+terminal one-touch coordinates cannot replace the focal photo. Calendar period
+entry rises from below, while expansion fades it; the native bar's minimization
+event owns the lifecycle rather than timers or library scroll position.
 
 For comparable gestures, study original-speed recordings and densely sample the
 transition. Use coarse full-video frames to find phase boundaries, then sample
@@ -104,3 +131,24 @@ Period exit starts on the native compact button's touch-down. Inspect the
 presentation-layer overlap interval at source-frame cadence, not just the
 settled full bar. Finish the period fade before full native controls become
 visible in its region; their model opacity alone is insufficient.
+
+Scaled-down faces extend their visible rows with chronological neighbors rather
+than exposing empty horizontal canvas. Destination row phases align around the
+focal photo, survive reversal, and are retained by the adopted collection.
+Ordinary-grid media and selection/status badges share the native cell component
+throughout the transition; a handoff must not introduce a second decoration pass.
+
+Cell decorations scale with the complete photo node in native cell coordinates.
+Gapless/ordinary transitions use one shared animated cell clip and gap across
+all faces. Native adoption transfers retained displayed pixels and geometry to
+visible cells before removing a one-commit stage cover; cache eviction and late
+small previews cannot create a placeholder regression. Compact tab expansion
+only changes navigation/period visibility. Already expanded Library reselection
+owns return-to-newest scrolling. Additional library edge shadows are disabled.
+
+Dense handoff waits for published replacement bitmaps, rather than a single
+run-loop turn. A renewed gesture reads the pixels actually on screen even when
+thumbnail caches have evicted their source images. Gapless mosaics scale as a
+group; their period captions remain unscaled. Ordinary-grid gap and decoration
+behavior is unchanged. Exercise slow bitmap publication, immediate request
+callbacks, strip recycling and repeated dense gestures with cache eviction.
