@@ -314,6 +314,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     guard let fetch, presentation.rows.indices.contains(index) else { return nil }
     return fetch.object(at: presentation.rows[index].rawIndex)
   }
+  /// The fetch index behind a presented row, without faulting its asset.
+  func rawIndex(at index: Int) -> Int? {
+    presentation.rows.indices.contains(index) ? presentation.rows[index].rawIndex : nil
+  }
   func identifier(at index: Int) -> String? {
     guard presentation.rows.indices.contains(index) else { return nil }
     return presentation.rows[index].key
@@ -615,11 +619,17 @@ final class ThumbnailTable: @unchecked Sendable {
   private var used = 0
   private var limitValue: Int
   private static let probes = 8
-  private static let space = CGColorSpace(name: CGColorSpace.sRGB)!
+  nonisolated(unsafe) private static var direct = CGDataProviderDirectCallbacks(version: 0,
+    getBytePointer: { info in info.map { UnsafeRawPointer($0) } }, releaseBytePointer: nil,
+    getBytesAtPosition: nil, releaseInfo: nil)
+  /// Pixels are stored in this colour space. Core Animation converts any other
+  /// space to the display's on every commit, so a host whose display is not
+  /// sRGB passes the display's own space and converts once while storing.
+  let space: CGColorSpace
   private static let bitmapInfo = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
   let writes = DispatchQueue(label: "app.backupduck.thumbnail-table", qos: .utility)
-  init(url: URL, side: Int, capacity: Int) {
-    self.url = url; self.side = side; self.capacity = capacity; limitValue = capacity
+  init(url: URL, side: Int, capacity: Int, space: CGColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!) {
+    self.url = url; self.side = side; self.capacity = capacity; limitValue = capacity; self.space = space
     rowBytes = (side * 4 + 63) / 64 * 64
     entryBytes = rowBytes * side
     headerBytes = (capacity * 16 + 16383) / 16384 * 16384
@@ -677,10 +687,15 @@ final class ThumbnailTable: @unchecked Sendable {
     tick &+= 1
     base.storeBytes(of: tick, toByteOffset: s * 16 + 8, as: UInt32.self)
     lock.unlock()
-    guard let provider = CGDataProvider(dataInfo: nil, data: base + headerBytes + s * entryBytes,
-      size: entryBytes, releaseData: { _, _, _ in }) else { return nil }
+    // A direct provider hands out the mapped bytes as they are. A data provider
+    // probed every entry's pages for readability on creation, which cost more
+    // than the rest of an overview scroll frame on the main thread.
+    let entry = UnsafeMutableRawPointer(base + headerBytes + s * entryBytes)
+    guard let provider = withUnsafePointer(to: &Self.direct, {
+      CGDataProvider(directInfo: entry, size: off_t(entryBytes), callbacks: $0)
+    }) else { return nil }
     return CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: rowBytes,
-      space: Self.space, bitmapInfo: CGBitmapInfo(rawValue: Self.bitmapInfo), provider: provider,
+      space: space, bitmapInfo: CGBitmapInfo(rawValue: Self.bitmapInfo), provider: provider,
       decode: nil, shouldInterpolate: true, intent: .defaultIntent)
   }
   /// Draws an aspect-filled square into the key's slot on the calling thread.
@@ -707,7 +722,7 @@ final class ThumbnailTable: @unchecked Sendable {
     base.storeBytes(of: UInt64(0), toByteOffset: chosen * 16, as: UInt64.self)
     lock.unlock()
     guard let context = CGContext(data: base + headerBytes + chosen * entryBytes, width: side, height: side,
-      bitsPerComponent: 8, bytesPerRow: rowBytes, space: Self.space, bitmapInfo: Self.bitmapInfo)
+      bitsPerComponent: 8, bytesPerRow: rowBytes, space: space, bitmapInfo: Self.bitmapInfo)
     else { return }
     let w = CGFloat(image.width), h = CGFloat(image.height), edge = CGFloat(side)
     let factor = max(edge / max(1, w), edge / max(1, h))

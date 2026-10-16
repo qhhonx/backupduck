@@ -4,7 +4,7 @@ import SwiftUI
 import CoreTransferable
 import UniformTypeIdentifiers
 
-struct StorageSettings: Codable {
+struct StorageSettings: Codable, Equatable {
   var cache_budget_bytes: UInt64
   var receiver_budget_bytes: UInt64
   var min_free_bytes: UInt64
@@ -12,7 +12,7 @@ struct StorageSettings: Codable {
   var log_days: Int
   var log_limit: Int
 }
-struct StorageSnapshot: Decodable {
+struct StorageSnapshot: Decodable, Equatable {
   var settings: StorageSettings
   let used_bytes: UInt64
   let free_bytes: UInt64

@@ -191,6 +191,21 @@ struct MacLibraryGrid: NSViewRepresentable {
         scroll.reflectScrolledClipView(clip)
       }
     }
+    // Paging older rows in while scrolling republished the library, which
+    // re-evaluated the whole window and relaid the toolbar (about 40 ms) every
+    // few hundred photos. The Mac reads the remaining rows in one background
+    // pass shortly after the newest page is on screen.
+    if library.hasMoreRows, c.bulkGeneration != library.generation {
+      c.bulkGeneration = library.generation
+      let library = library, generation = library.generation
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        for _ in 0..<40 where library.hasMoreRows && library.generation == generation {
+          await library.loadAllRows()
+          if library.hasMoreRows { try? await Task.sleep(nanoseconds: 250_000_000) }
+        }
+      }
+    }
     if c.networkAllowed != networkPolicy.allowed {
       c.networkAllowed = networkPolicy.allowed; c.refreshVisibleImages()
     }
@@ -301,6 +316,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       guard dense else { canvas.reset(); return }
       canvas.pipeline = parent.library.thumbnails
       canvas.assetAt = { [weak self] index in self?.asset(at: index) }
+      canvas.factAt = { [weak self] index in self?.fact(at: index) }
       canvas.count = count
       canvas.frame = collection.bounds
       let columns = max(1, layout.columns)
@@ -327,8 +343,9 @@ struct MacLibraryGrid: NSViewRepresentable {
         guard count > 0 else { return nil }
         return (max(0, min(count - 1, rowStart * columns - leading)), max(0, min(count - 1, (rowEnd + 1) * columns - 1 - leading)))
       }
-      let paths = collection.indexPathsForVisibleItems().sorted()
-      guard let first = paths.first?.item, let last = paths.last?.item else { return nil }
+      // Called on every scroll step; the ends need no sort.
+      let items = collection.indexPathsForVisibleItems().map(\.item)
+      guard let first = items.min(), let last = items.max() else { return nil }
       return (first, last)
     }
     /// A click on an overview tile steps toward the grid around that photo.
@@ -479,6 +496,16 @@ struct MacLibraryGrid: NSViewRepresentable {
     // library model indexes newest first, so every display index is mirrored
     // against the number of items the collection currently holds.
     func asset(at item: Int) -> PHAsset? { parent.library.asset(at: count - 1 - item) }
+    /// Capture date from the prefill's facts when known, so scrolling an
+    /// overview does not fetch a PhotoKit batch for two dates.
+    func date(at item: Int) -> Date? {
+      if let fact = fact(at: item) { return fact.date }
+      return asset(at: item)?.creationDate
+    }
+    func fact(at item: Int) -> MacThumbnailTables.Fact? {
+      let library = parent.library
+      return library.rawIndex(at: count - 1 - item).flatMap { MacThumbnailTables.fact(library.fetch, at: $0) }
+    }
     func identifier(at item: Int) -> String? { parent.library.identifier(at: count - 1 - item) }
     /// A visible cell as a flight endpoint, in window coordinates.
     func flightCell(_ match: (PhotoCell) -> Bool) -> MacCoverFlightSource? {
@@ -578,6 +605,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       stage.frame = scroll.contentView.frame; stage.autoresizingMask = [.width,.height]
       stage.referenceSide = { [weak self] columns in (self?.naturalPitch(columns) ?? 3)-(self?.gap(columns) ?? 2) }
       stage.denseAsset = { [weak self] index in self?.asset(at: index) }
+      stage.denseFact = { [weak self] index in self?.fact(at: index) }
       stage.thumbnails = parent.library.thumbnails
       stage.makeTile = { [weak self] index, side in
         guard let self, let asset = self.asset(at: index) else { return NSView() }
@@ -688,6 +716,47 @@ struct MacLibraryGrid: NSViewRepresentable {
       link.add(to: .main,forMode: .common); settleLink = link
     }
     @objc private func settleTick(_ link: CADisplayLink) { settleFrame() }
+    // MARK: Scroll benchmark
+    /// `-scroll-benchmark`: after each density change the grid scrolls itself
+    /// towards older photos at 1500 pt/s for four seconds, driven by the display,
+    /// and appends frame statistics to /tmp/scroll-benchmark.log.
+    static let scrollBenchmark = ProcessInfo.processInfo.arguments.contains("-scroll-benchmark")
+    private var benchLink: CADisplayLink?, benchStart: CFTimeInterval = 0, benchLast: CFTimeInterval = 0
+    private var benchIntervals: [Double] = [], benchScheduled = false, benchDuration: Double = 1.0 / 60
+    var bulkGeneration = -1
+    func scheduleBenchmark() {
+      guard Self.scrollBenchmark, !benchScheduled else { return }
+      benchScheduled = true
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.startBenchmark() }
+    }
+    private func startBenchmark() {
+      guard let scroll = collection?.enclosingScrollView else { benchScheduled = false; return }
+      benchIntervals = []; benchLast = 0; benchStart = CACurrentMediaTime()
+      let link = scroll.displayLink(target: self, selector: #selector(benchTick(_:)))
+      link.add(to: .main, forMode: .common); benchLink = link
+    }
+    @objc private func benchTick(_ link: CADisplayLink) {
+      guard let scroll = collection?.enclosingScrollView else { return }
+      if benchLast > 0 { benchIntervals.append(link.timestamp - benchLast) }
+      benchLast = link.timestamp
+      benchDuration = max(0.004, link.targetTimestamp - link.timestamp)
+      let clip = scroll.contentView
+      let step = 1500 * (benchIntervals.last ?? benchDuration)
+      clip.scroll(to: CGPoint(x: 0, y: max(0, clip.bounds.minY - step))); scroll.reflectScrolledClipView(clip)
+      guard CACurrentMediaTime() - benchStart > 4 || clip.bounds.minY <= 0 else { return }
+      link.invalidate(); benchLink = nil; benchScheduled = false
+      let total = benchIntervals.reduce(0, +)
+      let hitches = benchIntervals.filter { $0 > benchDuration * 1.5 }
+      let hitchTime = hitches.reduce(0) { $0 + ($1 - benchDuration) }
+      let sorted = benchIntervals.sorted()
+      let at = benchIntervals.indices.filter { benchIntervals[$0] > benchDuration * 1.5 }.map(String.init).joined(separator: ",")
+      let line = String(format: "columns=%d frames=%d refresh=%.0fHz mean=%.1fms p99=%.1fms max=%.1fms hitches=%d hitch-ratio=%.1fms/s at=%@\n",
+        (collection?.collectionViewLayout as? LibraryTimelineLayout)?.columns ?? 0, benchIntervals.count, 1 / benchDuration,
+        total / Double(max(1, benchIntervals.count)) * 1000, (sorted.isEmpty ? 0 : sorted[Int(Double(sorted.count - 1) * 0.99)]) * 1000,
+        (sorted.last ?? 0) * 1000, hitches.count, total > 0 ? hitchTime / total * 1000 : 0, at)
+      if let h = FileHandle(forWritingAtPath: "/tmp/scroll-benchmark.log") { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!) }
+      else { try? line.write(toFile: "/tmp/scroll-benchmark.log", atomically: false, encoding: .utf8) }
+    }
     private func settleFrame() {
       guard let stage = zoomStage, let settle else { stopLayoutAnimation(); return }
       let now = CACurrentMediaTime()
@@ -751,6 +820,7 @@ struct MacLibraryGrid: NSViewRepresentable {
         self.updateDense()
       }
       stopLayoutAnimation(); scrolled()
+      scheduleBenchmark()
     }
     @objc func magnify(_ recognizer: NSMagnificationGestureRecognizer) {
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout,
@@ -945,23 +1015,27 @@ struct MacLibraryGrid: NSViewRepresentable {
           self.asset(at: path.item).map { (path, $0.localIdentifier) }
         })
         if first <= 48 { parent.library.loadMore() }
-        let range = max(0, first - 24)..<min(self.count, last + 49)
-        // Overview tiles already in the decoded table need no PhotoKit preheat;
-        // on iPhone faulting their assets was a large share of scroll time.
-        let tabled = self.layoutDense
-        let assets = range.compactMap { self.asset(at: $0) }.filter { !tabled || !MacThumbnailTables.contains($0) }
-        parent.library.thumbnails.preheat(
-          assets, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
-        let visible = (first...last).prefix(400).compactMap { self.asset(at: $0) }
+        // An overview shows thousands of photos: faulting each PhotoKit asset to
+        // preheat it or to look up its backup state (no badges are drawn there)
+        // was most of the main thread while it scrolled. Its tiles come from
+        // the decoded tables; only the date range below is read.
+        let dense = self.layoutDense
+        if !dense {
+          let range = max(0, first - 24)..<min(self.count, last + 49)
+          parent.library.thumbnails.preheat(
+            range.compactMap { self.asset(at: $0) }, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
+        }
+        let visible = dense ? [] : (first...last).prefix(400).compactMap { self.asset(at: $0) }
         // The range spans the first and last photo on screen; an overview shows
         // thousands, so the ends are read directly rather than from a prefix.
-        if let date = self.asset(at: first)?.creationDate {
-          let last = self.asset(at: last)?.creationDate ?? date
+        if let date = self.date(at: first) {
+          let last = self.date(at: last) ?? date
           let title = Calendar.current.isDate(date,equalTo: last,toGranularity: .month)
             ? date.formatted(.dateTime.year().month(.wide))
             : date.formatted(.dateTime.year().month(.wide)) + " – " + last.formatted(.dateTime.year().month(.wide))
           if parent.navigation.visibleDate != title { parent.navigation.visibleDate = title }
         }
+        guard !dense else { return }
         let groups = await parent.library.visibleGroups(visible)
         guard !Task.isCancelled, generation == self.parent.library.generation else { return }
         guard let states = await librarySourceStates(groups, receiver: receiverID) else { return }
@@ -1098,6 +1172,97 @@ private final class MacMarqueeView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
+/// Grid badges are layers drawn from cached bitmaps. Badges were image views
+/// holding SF Symbols, then labels: every cell that scrolled in re-rasterized
+/// its symbols and re-typeset its text on the main thread, and each badge view
+/// added layer-tree and tracking-area work. A cell is now one view.
+@MainActor final class MacBadgeLayer: CALayer {
+  var symbol: String? { didSet { if symbol != oldValue { refresh() } } }
+  var tint: NSColor = .white { didSet { if tint != oldValue { refresh() } } }
+  var scale: CGFloat = 2 { didSet { if scale != oldValue { refresh() } } }
+  private let glyph = CALayer()
+  private static var cache: [String: CGImage] = [:]
+  static let still: [String: CAAction] = [
+    "contents": NSNull(), "bounds": NSNull(), "position": NSNull(), "frame": NSNull(), "hidden": NSNull(),
+  ]
+  override init() {
+    super.init()
+    actions = Self.still
+    glyph.contentsGravity = .resizeAspect
+    glyph.actions = Self.still
+    addSublayer(glyph)
+  }
+  override init(layer: Any) { super.init(layer: layer) }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func layoutSublayers() {
+    super.layoutSublayers()
+    glyph.frame = bounds.insetBy(dx: bounds.width * 0.2, dy: bounds.height * 0.2)
+  }
+  private func refresh() {
+    glyph.contentsScale = scale
+    glyph.contents = symbol.flatMap { Self.image($0, tint: tint, scale: scale) }
+  }
+  private static func image(_ name: String, tint: NSColor, scale: CGFloat) -> CGImage? {
+    let key = "\(name)|\(tint.description)|\(scale)"
+    if let cached = cache[key] { return cached }
+    guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+      .withSymbolConfiguration(.init(pointSize: 14, weight: .semibold).applying(.init(paletteColors: [tint]))) else { return nil }
+    var rect = CGRect(origin: .zero, size: symbol.size)
+    let image = symbol.cgImage(forProposedRect: &rect, context: nil, hints: [.ctm: AffineTransform(scale: scale)])
+    cache[key] = image
+    return image
+  }
+}
+
+/// A text badge (video length, burst count) as a layer from a cached bitmap.
+@MainActor final class MacTextBadgeLayer: CALayer {
+  var text = "" { didSet { if text != oldValue { refresh() } } }
+  var scale: CGFloat = 2 { didSet { if scale != oldValue { refresh() } } }
+  /// Width of the text alone, in points.
+  private(set) var textWidth: CGFloat = 0
+  private var weight: NSFont.Weight = .regular
+  private let glyph = CALayer()
+  private static var cache: [String: (image: CGImage, size: CGSize)] = [:]
+  init(weight: NSFont.Weight, fill: NSColor, radius: CGFloat) {
+    self.weight = weight
+    super.init()
+    actions = MacBadgeLayer.still
+    backgroundColor = fill.cgColor
+    cornerRadius = radius
+    glyph.contentsGravity = .center
+    glyph.actions = MacBadgeLayer.still
+    addSublayer(glyph)
+  }
+  override init(layer: Any) { super.init(layer: layer) }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func layoutSublayers() {
+    super.layoutSublayers()
+    glyph.frame = bounds
+  }
+  private func refresh() {
+    let rendered = text.isEmpty ? nil : Self.image(text, weight: weight, scale: scale)
+    glyph.contentsScale = scale
+    glyph.contents = rendered?.image
+    textWidth = rendered?.size.width ?? 0
+  }
+  private static func image(_ text: String, weight: NSFont.Weight, scale: CGFloat) -> (image: CGImage, size: CGSize)? {
+    let key = "\(text)|\(weight.rawValue)|\(scale)"
+    if let cached = cache[key] { return cached }
+    let string = NSAttributedString(string: text, attributes: [
+      .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: weight), .foregroundColor: NSColor.white,
+    ])
+    let measured = string.size()
+    let size = CGSize(width: ceil(measured.width), height: ceil(measured.height))
+    let image = NSImage(size: size, flipped: false) { _ in string.draw(at: .zero); return true }
+    var rect = CGRect(origin: .zero, size: size)
+    guard let cg = image.cgImage(forProposedRect: &rect, context: nil, hints: [.ctm: AffineTransform(scale: scale)])
+    else { return nil }
+    if cache.count > 2000 { cache.removeAll() }
+    cache[key] = (cg, size)
+    return (cg, size)
+  }
+}
+
 @MainActor final class PhotoCell: NSCollectionViewItem {
   private var pipeline: ThumbnailPipeline?
   private var request: PHImageRequestID = PHInvalidImageRequestID
@@ -1107,15 +1272,19 @@ private final class MacMarqueeView: NSView {
   private(set) var presentationID: String?
   private let photoLayer = CALayer()
   private(set) var displayedImage: NSImage?
-  private let media = NSImageView()
-  private let status = NSImageView()
-  private let cloud = NSImageView()
-  private let selectionMark = NSImageView()
+  private let media = MacBadgeLayer()
+  private let status = MacBadgeLayer()
+  private let cloud = MacBadgeLayer()
+  private let selectionMark = MacBadgeLayer()
   private var selectionVisible = true
   private var statusState: String?
   private var groupCount: Int?
-  private let burstCount = NSTextField(labelWithString: "")
-  private let duration = NSTextField(labelWithString: "")
+  private let burstCount = MacTextBadgeLayer(weight: .medium, fill: .black.withAlphaComponent(0.45), radius: 4)
+  private let duration = MacTextBadgeLayer(weight: .semibold, fill: .black.withAlphaComponent(0.55), radius: 5)
+  /// Hover help for the visible status and burst badges, as tooltip rectangles
+  /// on the cell's one view.
+  private var statusTip: String?
+  private var burstTip: String?
   private var groupDescription = ""
   override func loadView() {
     view = NSView()
@@ -1133,31 +1302,14 @@ private final class MacMarqueeView: NSView {
     view.layer?.addSublayer(selectionOutline)
     selectionOutline.borderColor = NSColor.controlAccentColor.cgColor
     for badge in [media, status, cloud, selectionMark] {
-      badge.wantsLayer = true
-      badge.contentTintColor = .white
-      badge.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.38).cgColor
-      badge.layer?.cornerRadius = 12
-      badge.imageScaling = .scaleProportionallyUpOrDown
-      view.addSubview(badge)
+      badge.backgroundColor = NSColor.black.withAlphaComponent(0.38).cgColor
+      badge.cornerRadius = 12
+      view.layer?.addSublayer(badge)
     }
-    burstCount.textColor = .white
-    burstCount.backgroundColor = .black.withAlphaComponent(0.45)
-    burstCount.drawsBackground = true
-    burstCount.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-    burstCount.alignment = .center
-    burstCount.wantsLayer = true
-    burstCount.layer?.cornerRadius = 4
     burstCount.isHidden = true
-    view.addSubview(burstCount)
-    duration.textColor = .white
-    duration.backgroundColor = NSColor.black.withAlphaComponent(0.55)
-    duration.drawsBackground = true
-    duration.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-    duration.alignment = .center
-    duration.wantsLayer = true
-    duration.layer?.cornerRadius = 5
+    view.layer?.addSublayer(burstCount)
     duration.isHidden = true
-    view.addSubview(duration)
+    view.layer?.addSublayer(duration)
     cloud.isHidden = true
     media.isHidden = true
     view.setAccessibilityElement(true)
@@ -1172,14 +1324,20 @@ private final class MacMarqueeView: NSView {
     CATransaction.commit()
     // Badges sit on the photo, not the cell, so original aspect keeps them on it.
     let f = photoFrame()
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    let scale = view.window?.backingScaleFactor ?? 2
+    for badge in [media, status, cloud, selectionMark] { badge.scale = scale }
+    burstCount.scale = scale; duration.scale = scale
     media.frame = NSRect(x: f.minX + 7, y: f.minY + 7, width: 18, height: 18)
     burstCount.frame = NSRect(x: f.minX + 28, y: f.minY + 7, width: 36, height: 18)
-    let durationWidth = min(f.width - 16, max(42, duration.intrinsicContentSize.width + 12))
+    let durationWidth = min(f.width - 16, max(42, duration.textWidth + 12))
     duration.frame = NSRect(x: f.maxX - durationWidth - 7, y: f.minY + 7, width: durationWidth, height: 18)
     cloud.frame = NSRect(x: f.minX + 8, y: f.minY + 8, width: 24, height: 24)
     status.frame = NSRect(x: f.maxX - 32, y: f.minY + 8, width: 24, height: 24)
     selectionMark.frame = NSRect(x: f.maxX - 30, y: f.minY + 6, width: 24, height: 24)
     selectionOutline.frame = photoFrame()
+    CATransaction.commit()
+    updateTips()
   }
   override var isSelected: Bool {
     didSet {
@@ -1216,9 +1374,9 @@ private final class MacMarqueeView: NSView {
     let symbol =
       asset.burstIdentifier != nil ? "square.stack" : asset.mediaSubtypes.contains(.photoLive)
       ? "livephoto" : asset.mediaType == .video ? "video.fill" : nil
-    media.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
+    media.symbol = symbol
     media.isHidden = symbol == nil || asset.mediaType == .video
-    duration.stringValue = asset.mediaType == .video ? videoDurationLabel(asset.duration) : ""
+    duration.text = asset.mediaType == .video ? videoDurationLabel(asset.duration) : ""
     duration.isHidden = asset.mediaType != .video
     view.needsLayout = true
     view.setAccessibilityLabel(
@@ -1236,7 +1394,7 @@ private final class MacMarqueeView: NSView {
           MacThumbnailTables.remember(asset, image: cg)
         }
       }
-      self.cloud.image = NSImage(systemSymbolName: "icloud", accessibilityDescription: nil)
+      self.cloud.symbol = "icloud"
       self.cloud.isHidden = image != nil || !inCloud
     }
   }
@@ -1304,28 +1462,43 @@ private final class MacMarqueeView: NSView {
   func setGroup(count: Int?, state: String?) {
     groupCount = count
     if count != nil {
-      media.image = NSImage(systemSymbolName: "square.stack", accessibilityDescription: nil)
+      media.symbol = "square.stack"
       media.isHidden = false
     }
-    burstCount.stringValue = count.map(String.init) ?? ""
+    burstCount.text = count.map(String.init) ?? ""
     burstCount.isHidden = count == nil
     groupDescription = count.map { String(format: NSLocalizedString("library_burst_count", comment: ""), $0) + ". " } ?? ""
-    burstCount.toolTip = NSLocalizedString("library_burst_selection", comment: "")
+    burstTip = count == nil ? nil : NSLocalizedString("library_burst_selection", comment: "")
     setState(state)
   }
   func setState(_ state: String?) {
     statusState = state
-    status.image = NSImage(systemSymbolName: taskSymbol(state), accessibilityDescription: nil)
-    status.contentTintColor = state == "failed" ? .systemOrange : .white
-    status.toolTip = groupDescription + NSLocalizedString(
+    status.symbol = state == nil ? nil : taskSymbol(state)
+    status.tint = state == "failed" ? .systemOrange : .white
+    let detail = groupDescription + NSLocalizedString(
       state == "received" ? "state_received_detail" : state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
-    view.setAccessibilityValue(status.toolTip)
+    view.setAccessibilityValue(detail)
     status.isHidden = selectionVisible || state == nil
+    statusTip = detail
+    updateTips()
+  }
+  /// A tooltip registers a tracking area that every scroll step recomputes;
+  /// only a visible badge carries one.
+  private var tipsShown = false
+  private func updateTips() {
+    let tips = [(status, statusTip), (burstCount as CALayer, burstTip)].compactMap { layer, tip in
+      layer.isHidden ? nil : tip.map { (layer.frame, $0) }
+    }
+    guard tipsShown || !tips.isEmpty else { return }
+    view.removeAllToolTips()
+    for (rect, tip) in tips { view.addToolTip(rect, owner: tip as NSString, userData: nil) }
+    tipsShown = !tips.isEmpty
   }
   func setSelectionVisible(_ value: Bool) {
     selectionVisible = value
     view.layer?.borderWidth = 0
     status.isHidden = value || statusState == nil
+    updateTips()
     updateSelectionMark()
   }
   /// Selection is an accent outline around the photo, as in Photos: no check
@@ -2048,6 +2221,8 @@ struct MacCalendarGrid: NSViewRepresentable {
   var count = 0
   var pipeline: ThumbnailPipeline?
   var assetAt: ((Int) -> PHAsset?)?
+  /// Key and date without faulting the asset, once the prefill has read them.
+  var factAt: ((Int) -> MacThumbnailTables.Fact?)?
   private var layers: [Int: CALayer] = [:]
   private var requests: [Int: PHImageRequestID] = [:]
   private var pool: [CALayer] = []
@@ -2060,7 +2235,11 @@ struct MacCalendarGrid: NSViewRepresentable {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect); wantsLayer = true; layer?.masksToBounds = true
     layer?.actions = Self.actions
+    layerContentsRedrawPolicy = .never
   }
+  // The canvas draws nothing itself; its tiles are sublayers.
+  override var wantsUpdateLayer: Bool { true }
+  override func updateLayer() {}
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   private func snap(_ value: CGFloat) -> CGFloat {
     let scale = window?.backingScaleFactor ?? 2
@@ -2104,12 +2283,16 @@ struct MacCalendarGrid: NSViewRepresentable {
             layers[index] = layer
           }
           layer.frame = CGRect(x: x0, y: y0, width: max(0.5, x1 - x0), height: max(0.5, y1 - y0))
-          if layer.contents == nil, requests[index] == nil, let asset = assetAt?(index), let pipeline {
+          if layer.contents == nil, requests[index] == nil, let pipeline {
             let pixels = max(64, (pitch * scale).rounded(.up))
-            // A stored decoded thumbnail needs no request at all.
-            let stored = MacThumbnailTables.image(asset, pixels: pitch * scale)
+            // A stored decoded thumbnail needs no request at all, and with the
+            // prefill's key no asset either.
+            let known = factAt?(index)
+            let found = known == nil ? assetAt?(index) : nil
+            guard let key = known?.key ?? found.map(MacThumbnailTables.key) else { continue }
+            let stored = MacThumbnailTables.image(key: key, pixels: pitch * scale)
             if let stored { layer.contents = stored.image }
-            if stored?.sharp != true {
+            if stored?.sharp != true, let asset = found ?? assetAt?(index) {
               let id = pipeline.request(asset, pixels: pixels, priority: .visible) { [weak self, weak layer] image, _ in
                 guard let self, let layer, self.layers[index] === layer, let image else { return }
                 CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -2143,15 +2326,23 @@ struct MacCalendarGrid: NSViewRepresentable {
   /// the top until the next pushes it away.
   private var pills: [String: CALayer] = [:]
   private static var pillImages: [String: CGImage] = [:]
+  private static var titles: [String: String] = [:]
   private func periodKey(_ index: Int, yearly: Bool) -> (key: String, title: String)? {
-    guard let asset = assetAt?(index) else { return nil }
-    guard let date = asset.creationDate else {
+    let date: Date?
+    if let fact = factAt?(index) { date = fact.date } else {
+      guard let asset = assetAt?(index) else { return nil }
+      date = asset.creationDate
+    }
+    guard let date else {
       let unknown = NSLocalizedString("design_capture_unknown", comment: "")
       return ("?", unknown)
     }
     let parts = Calendar.current.dateComponents([.year, .month], from: date)
-    if yearly { return ("\(parts.year ?? 0)", date.formatted(.dateTime.year())) }
-    return ("\(parts.year ?? 0)-\(parts.month ?? 0)", date.formatted(.dateTime.year().month(.wide)))
+    let key = yearly ? "\(parts.year ?? 0)" : "\(parts.year ?? 0)-\(parts.month ?? 0)"
+    if let title = Self.titles[key] { return (key, title) }
+    let title = yearly ? date.formatted(.dateTime.year()) : date.formatted(.dateTime.year().month(.wide))
+    Self.titles[key] = title
+    return (key, title)
   }
   private func renderPills(columns: Int, origin: CGPoint, pitch: CGFloat, rows: ClosedRange<Int>, leading: Int, pin: CGFloat) {
     let yearly = columns >= (MacLibraryDensity.overview.last ?? 40)
@@ -2222,7 +2413,6 @@ struct MacCalendarGrid: NSViewRepresentable {
     layer.actions = Self.actions
     layer.contentsGravity = .resizeAspectFill
     layer.masksToBounds = true
-    layer.minificationFilter = .trilinear
     layer.backgroundColor = NSColor.quaternaryLabelColor.cgColor
     return layer
   }
@@ -2359,6 +2549,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   var releaseTile: ((NSView) -> Void)?
   var referenceSide: (Int) -> CGFloat = { _ in 1 }
   var denseAsset: ((Int) -> PHAsset?)?
+  var denseFact: ((Int) -> MacThumbnailTables.Fact?)?
   var thumbnails: ThumbnailPipeline?
   private func faceGap(_ columns: Int) -> CGFloat { MacLibraryDensity.isDense(columns) ? 0 : 2 }
   private final class Face: NSView {
@@ -2512,6 +2703,7 @@ struct MacCalendarGrid: NSViewRepresentable {
       canvas.count = count
       canvas.pipeline = thumbnails
       canvas.assetAt = denseAsset
+      canvas.factAt = denseFact
       canvas.render(columns: columns, origin: origin, pitch: pitch, visible: bounds, leading: face.leading)
       return
     }

@@ -504,7 +504,10 @@ private struct ProcessingEventsResult: Decodable {
     guard !refreshing else { return }
     refreshing = true
     defer { refreshing = false }
-    waitingForNetwork = BackgroundTransfer.shared.waitingForNetwork
+    // Periodic refreshes publish only changes: every assignment of a published
+    // property re-evaluates each view observing the model, which on the Mac is
+    // the whole window, and dropped frames from a scrolling library.
+    updateWaitingForNetwork()
     do {
       let revisionData = try await Bridge.call(["op": "sender_revision"])
       let revision = try JSONDecoder().decode(Int64.self, from: revisionData)
@@ -527,8 +530,12 @@ private struct ProcessingEventsResult: Decodable {
         summary = try JSONDecoder().decode(SenderSummary.self, from: data)
       }
       queueRevision = revision
-      waitingForNetwork = BackgroundTransfer.shared.waitingForNetwork
+      updateWaitingForNetwork()
     } catch { message = error.localizedDescription }
+  }
+  private func updateWaitingForNetwork() {
+    let waiting = BackgroundTransfer.shared.waitingForNetwork
+    if waitingForNetwork != waiting { waitingForNetwork = waiting }
   }
   @discardableResult func retry(_ id: Int64) async -> Bool {
     do {
@@ -804,8 +811,9 @@ private struct ProcessingEventsResult: Decodable {
     guard ready else { return }
     do {
       let data = try await Bridge.call(["op": "storage_status", "receiver": false])
-      storage = try JSONDecoder().decode(StorageSnapshot.self, from: data)
-      storageError = nil
+      let snapshot = try JSONDecoder().decode(StorageSnapshot.self, from: data)
+      if storage != snapshot { storage = snapshot }
+      if storageError != nil { storageError = nil }
       lastStorageRefresh = Date()
     } catch { storageError = error.localizedDescription }
   }

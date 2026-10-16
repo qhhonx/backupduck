@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Photos
 import SwiftUI
 
@@ -9,6 +10,48 @@ enum MacLibraryLevel: String, CaseIterable, Identifiable {
   var title: String { self == .all ? "mac_library_all_photos" : "calendar_" + rawValue }
 }
 
+@MainActor final class MacVisibleRange: ObservableObject {
+  @Published var title = ""
+}
+
+/// Sets the window subtitle from AppKit. As a SwiftUI `navigationSubtitle`, each
+/// change of the visible range re-evaluated and re-laid out the whole toolbar
+/// (about 40 ms, resolving every toolbar symbol again): a dropped frame each
+/// time a fast scroll crossed a month.
+struct MacLibrarySubtitle: NSViewRepresentable {
+  let range: MacVisibleRange
+  /// A subtitle that replaces the range (a selection count, or empty while the
+  /// viewer or another page is showing).
+  let fixed: String?
+  func makeNSView(context: Context) -> MacSubtitleProbe { MacSubtitleProbe(range: range) }
+  func updateNSView(_ view: MacSubtitleProbe, context: Context) {
+    view.fixed = fixed
+    // SwiftUI clears the subtitle when it changes the window title in the same
+    // pass, so the subtitle is applied again after the pass.
+    DispatchQueue.main.async { [weak view] in view?.apply() }
+  }
+}
+
+@MainActor final class MacSubtitleProbe: NSView {
+  var fixed: String? { didSet { if fixed != oldValue { apply() } } }
+  private var title = ""
+  private var sink: AnyCancellable?
+  init(range: MacVisibleRange) {
+    super.init(frame: .zero)
+    title = range.title
+    sink = range.$title.sink { [weak self] value in
+      MainActor.assumeIsolated { self?.title = value; self?.apply() }
+    }
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); apply() }
+  func apply() {
+    let value = fixed ?? title
+    if let window, window.subtitle != value { window.subtitle = value }
+  }
+}
+
 /// This is a browsing index, not a backup queue. Only bounded cover samples are
 /// retained per period; the complete membership remains in PhotoKit.
 @MainActor final class MacLibraryNavigation: ObservableObject {
@@ -16,7 +59,14 @@ enum MacLibraryLevel: String, CaseIterable, Identifiable {
   @Published var originalAspect = false
   @Published var focusToken: String?
   @Published var focusRevision = 0
-  @Published var visibleDate = ""
+  /// The capture range on screen. It changes on almost every frame of a fast
+  /// scroll, so it is published apart from this object: publishing it here
+  /// re-evaluated the whole window, sidebar and grid included, on each change.
+  let visibleRange = MacVisibleRange()
+  var visibleDate: String {
+    get { visibleRange.title }
+    set { if visibleRange.title != newValue { visibleRange.title = newValue } }
+  }
   /// The viewer lives in the window toolbar, as in Photos: title and subtitle
   /// describe the current photo, and the controls drive the open viewer.
   /// True from the moment the viewer opens until it starts to close, so the

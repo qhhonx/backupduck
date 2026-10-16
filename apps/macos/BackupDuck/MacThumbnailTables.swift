@@ -16,8 +16,20 @@ enum MacThumbnailTables {
   private static let budget = 1024 * 1024 * 1024
   static let overview = table("mac-overview", side: overviewSide, capacity: 131_072, share: 0.5)
   static let detail = table("mac-detail", side: detailSide, capacity: 16_384, share: 0.2)
+  /// The main display's own colour space. Core Animation colour-matched every
+  /// sRGB tile to it on each commit, a third of the overview's scroll time; the
+  /// tables store pixels already matched. A different display profile gets its
+  /// own files, named by a short digest of the profile.
+  static let space: CGColorSpace = NSScreen.main?.colorSpace?.cgColorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
+  private static let spaceTag: String = {
+    guard let data = space.copyICCData() as Data? else { return "srgb" }
+    var hash: UInt64 = 1469598103934665603
+    for byte in data { hash = (hash ^ UInt64(byte)) &* 1099511628211 }
+    return String(hash, radix: 36)
+  }()
   private static func table(_ name: String, side: Int, capacity: Int, share: Double) -> ThumbnailTable {
-    let table = ThumbnailTable(url: directory.appendingPathComponent("\(name)-\(side).table"), side: side, capacity: capacity)
+    let table = ThumbnailTable(url: directory.appendingPathComponent("\(name)-\(spaceTag)-\(side).table"),
+      side: side, capacity: capacity, space: space)
     table.limit = Int(Double(budget) * share) / table.entryBytes
     return table
   }
@@ -26,8 +38,10 @@ enum MacThumbnailTables {
   /// is sharp enough to stand without a request. A small overview thumbnail
   /// still fills a month-overview tile at once; the sharper one follows.
   static func image(_ asset: PHAsset, pixels: CGFloat) -> (image: CGImage, sharp: Bool)? {
+    image(key: key(asset), pixels: pixels)
+  }
+  static func image(key: String, pixels: CGFloat) -> (image: CGImage, sharp: Bool)? {
     guard enabled, pixels <= CGFloat(detailSide) * 1.25 else { return nil }
-    let key = key(asset)
     if pixels > CGFloat(overviewSide) * 1.25 {
       if let sharp = detail.image(key) { return (sharp, true) }
       return overview.image(key).map { ($0, false) }
@@ -71,18 +85,21 @@ enum MacThumbnailTables {
       options.isSynchronous = true
       options.isNetworkAccessAllowed = false
       let size = CGSize(width: overviewSide * 2, height: overviewSide * 2)
-      let total = fetch.count
+      let total = fetch.count, id = ObjectIdentifier(fetch)
+      var facts = [Fact?](repeating: nil, count: total)
       var index = 0
       while index < total, !Task.isCancelled {
         let end = min(total, index + 256)
-        await withTaskGroup(of: Void.self) { group in
+        let found = await withTaskGroup(of: [(Int, Fact)].self) { group in
           for lane in 0..<3 {
             group.addTask {
+              var out: [(Int, Fact)] = []
               var i = index + lane
               while i < end, !Task.isCancelled {
                 autoreleasepool {
                   let asset = fetch.object(at: i)
                   let key = key(asset)
+                  out.append((i, Fact(key: key, date: asset.creationDate)))
                   if !overview.contains(key) {
                     manager.requestImage(for: asset, targetSize: size, contentMode: .aspectFill, options: options) { image, _ in
                       guard let image, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
@@ -92,12 +109,29 @@ enum MacThumbnailTables {
                 }
                 i += 3
               }
+              return out
             }
           }
+          return await group.reduce(into: []) { $0 += $1 }
         }
+        for (i, fact) in found { facts[i] = fact }
         index = end
         try? await Task.sleep(nanoseconds: 20_000_000)
       }
+      guard !Task.isCancelled else { return }
+      let done = facts
+      await MainActor.run { if prefilled == id { known = (id, done) } }
     }
+  }
+  /// Table key and capture date by fetch index, gathered by the prefill pass that
+  /// already reads every asset off the main thread. The overview mosaics scroll
+  /// through thousands of photos a second; faulting each `PHAsset` there cost a
+  /// tenth of the main thread.
+  struct Fact: Sendable { let key: String; let date: Date? }
+  @MainActor private static var known: (fetch: ObjectIdentifier, facts: [Fact?])?
+  @MainActor static func fact(_ fetch: PHFetchResult<PHAsset>?, at index: Int) -> Fact? {
+    guard let fetch, let known, known.fetch == ObjectIdentifier(fetch), known.facts.indices.contains(index)
+    else { return nil }
+    return known.facts[index]
   }
 }

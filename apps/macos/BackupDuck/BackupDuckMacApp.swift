@@ -163,8 +163,8 @@ struct MacWorkspace: View {
         : Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title)))
       // The visible capture range (or the selection count) lives in the window
       // subtitle, as in Photos, instead of a strip above the media.
-      .navigationSubtitle(destination == .library && library.authorized
-        ? (previewAsset != nil && libraryNavigation.viewerOpen ? "" : librarySubtitle) : "")
+      .background(MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: destination == .library && library.authorized
+        ? (previewAsset != nil && libraryNavigation.viewerOpen ? "" : librarySubtitle) : ""))
       .toolbar {
         // The open viewer uses the window toolbar instead of a second bar in
         // the content: back, then information and Live playback.
@@ -364,11 +364,10 @@ struct MacWorkspace: View {
       Text(libraryNavigation.viewerSubtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
     }.fixedSize().accessibilityElement(children: .combine).accessibilityIdentifier("library.preview.title")
   }
-  private var librarySubtitle: String {
-    if !library.selection.isEmpty {
-      return String(format: NSLocalizedString("library_selected_count", comment: ""), library.selection.count)
-    }
-    return libraryNavigation.visibleDate
+  /// The selection count, or nil for the visible range.
+  private var librarySubtitle: String? {
+    guard !library.selection.isEmpty else { return nil }
+    return String(format: NSLocalizedString("library_selected_count", comment: ""), library.selection.count)
   }
   /// Every level change keeps one focus photo. It flies from where it was to
   /// where it lands; when the destination shows another photo for that period,

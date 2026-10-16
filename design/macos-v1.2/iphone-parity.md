@@ -75,7 +75,7 @@ host implementation of the same rule; **open** = not done.
 | 64-pixel buckets, 352-px rendition edge | `ThumbnailPipeline.size` | shared |
 | Cross-tier fallback so a tier change never blanks | `posters`, `smallPosters` | shared (macOS fallback added) |
 | Rebuildable disk cache with budget | `ThumbnailDiskCache` | **open** (iOS only) |
-| Decoded memory-mapped thumbnail tables | `ThumbnailTable` | mac (`MacThumbnailTables`: overview 48 px prefilled for the library, detail 96 px; fed by every delivered grid image, read as an instant placeholder by grid cells and zoom tiles, and overview preheat skips tabled photos. Drilling from the year overview into the grid: 0 of 600 new cells blank with tables, 528 of 600 without; `-no-thumbnail-table` for A/B) |
+| Decoded memory-mapped thumbnail tables | `ThumbnailTable` | mac (`MacThumbnailTables`: overview 48 px prefilled for the library, detail 96 px; fed by every delivered grid image, read as an instant placeholder by grid cells and zoom tiles, and overview preheat skips tabled photos. Pixels are stored in the display's colour space; the prefill also records each photo's table key and capture date, so overview scrolling reads no `PHAsset`. Drilling from the year overview into the grid: 0 of 600 new cells blank with tables, 528 of 600 without; `-no-thumbnail-table` for A/B) |
 | Small-tier requests skip the disk layer and use wide admission | pipeline | **open** |
 | Bulk PhotoKit fetch for dense strips | `PhotoLibraryModel` | shared (`loadAllRows`) |
 | Launch snapshot of the newest edge | `LaunchSnapshot` | **open** |

@@ -157,6 +157,44 @@ content (blank-tile flashes seen in the first revision are gone).
   pixels they show, never by date: a late thumbnail callback or a rotating
   year card otherwise pairs one photo's pixels with another photo's identity.
 
+## Scroll smoothness
+
+Measured with the `-scroll-benchmark` launch argument (Release build): after each
+density change the grid scrolls itself at 1500 pt/s for four seconds and logs
+frame intervals and the hitch ratio (time beyond one refresh per second of
+scrolling) to `/tmp/scroll-benchmark.log`. Main-thread costs were found with
+Time Profiler and, for "which view redraws" and "who publishes", with debugger
+breakpoints on `-[NSViewBackingLayer display]` and
+`ObservableObjectPublisher.send()`. Hitch ratio in ms/s, first pass after launch
+on a large library:
+
+| Stop | Before | After |
+| --- | --- | --- |
+| 4 columns | 30 | 8–17 |
+| 6 columns | 71 | 0 |
+| 9 columns | 241 | 0–10 |
+| Month overview | 17 | 0 |
+| Year overview | 54 | 0 |
+
+What mattered, roughly in order:
+
+- Any published change re-evaluates every view observing that object; on the
+  Mac that is the whole window, and the toolbar relays out and resolves every
+  symbol again (30–45 ms). Periodic model refreshes must publish only changes;
+  the visible date range lives in its own object and reaches the window
+  subtitle through AppKit; and All Photos reads the remaining rows once after
+  the newest page instead of publishing a page every few hundred photos.
+- Overview tiles store pixels in the display's colour space. Core Animation
+  colour-matched each sRGB tile on every commit.
+- Overview tiles never fault a `PHAsset` while scrolling: the background prefill
+  records each table key and capture date by fetch index.
+- Table images use a direct data provider. A copying provider checked each
+  entry's pages for readability as each image was created.
+- Grid badges and text are layers from cached bitmaps, so a cell is one view.
+  Image views and labels re-rasterized symbols and re-typeset text for each
+  cell that scrolled in, and each subview added layer-tree and tracking-area
+  work; tooltips exist only for visible badges.
+
 ## Not verified
 
 Pinch and scroll-wheel zoom feel, rubber-band limits, the interruption of a
