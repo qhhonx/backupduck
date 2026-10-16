@@ -357,11 +357,15 @@ private struct MacMediaZoom: NSViewRepresentable {
       return
     }
     if event.phase == .began { wheelX = 0; wheelY = 0; wheelHandled = false }
-    if !event.momentumPhase.isEmpty { return }
+    if !event.momentumPhase.isEmpty {
+      if abs(wheelX) > abs(wheelY) { _ = MacPagerForwarding.forward(event, from: self) }
+      return
+    }
     wheelX += event.scrollingDeltaX; wheelY += event.scrollingDeltaY
     if abs(wheelX) > abs(wheelY) {
       // Sideways belongs to the page controller's own live swipe.
-      nextResponder?.scrollWheel(with: event); return
+      if !MacPagerForwarding.forward(event, from: self) { nextResponder?.scrollWheel(with: event) }
+      return
     }
     guard !wheelHandled, abs(wheelY) > 60 else { return }
     wheelHandled = true
@@ -416,10 +420,27 @@ private struct MacVideoWithPoster: NSViewRepresentable {
 /// A video keeps paging: sideways trackpad scrolls go to the page controller
 /// instead of scrubbing, and a mouse drag outside the control bar swipes.
 @MainActor private final class MacPagingPlayerView: AVPlayerView {
+  private var sideways = false
   override func scrollWheel(with event: NSEvent) {
-    if abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) || !event.momentumPhase.isEmpty {
-      superview?.nextResponder?.scrollWheel(with: event)
-    } else { super.scrollWheel(with: event) }
+    // A sideways gesture belongs to paging for its whole length, momentum
+    // included; AVPlayerView would otherwise scrub with it.
+    if event.phase == .began || (event.phase == [] && event.momentumPhase == []) {
+      sideways = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+    }
+    if sideways, MacPagerForwarding.forward(event, from: self) { return }
+    super.scrollWheel(with: event)
+  }
+}
+/// Hands a scroll event to the enclosing page controller, which owns the
+/// interactive swipe. The hosting views between them do not pass it on.
+@MainActor enum MacPagerForwarding {
+  static func forward(_ event: NSEvent, from view: NSView) -> Bool {
+    var current: NSView? = view.superview
+    while let candidate = current {
+      if let pager = candidate.nextResponder as? NSPageController { pager.scrollWheel(with: event); return true }
+      current = candidate.superview
+    }
+    return false
   }
 }
 @MainActor private final class MacVideoSurface: NSView {

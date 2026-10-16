@@ -364,7 +364,11 @@ struct PhotoMetadataPanel: View {
         }
         informationRow(("preview_resolution", "\(preview.asset.pixelWidth) × \(preview.asset.pixelHeight)"))
           .accessibilityIdentifier("preview.info.dimensions")
-        if preview.asset.mediaType == .video { Label(videoDurationLabel(preview.asset.duration), systemImage: "clock").font(.subheadline) }
+        if preview.asset.mediaType == .video {
+          // A labelled row like the resolution above, not an unexplained icon.
+          informationRow(("preview_video_duration", videoDurationLabel(preview.asset.duration)))
+            .accessibilityIdentifier("preview.info.duration")
+        }
         ForEach(Array(fileFields.enumerated()), id: \.offset) { _, field in informationRow(field) }
       }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(DuckColors.subtle, in: RoundedRectangle(cornerRadius: 14))
       if !cameraFields.isEmpty {
