@@ -11,6 +11,8 @@ import SwiftUI
   @StateObject private var library = PhotoLibraryModel()
   @AppStorage("duckAppearance") private var appearance = "system"
   private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
+  /// Starts the photo list fetch before the first window, as on iPhone.
+  init() { PhotoLibraryModel.prewarm() }
   var body: some Scene {
     Window("brand_name", id: "main") {
       MacWorkspace(model: model, library: library)
@@ -69,7 +71,7 @@ struct MacWorkspace: View {
   @State private var destination: MacDestination? = .backup
   private var initialSettingsRoute: MacSettingsRoute?
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
-  @State private var density = MacLibraryDensity.standard
+  @State private var density = MacLibraryDensity.remembered
   @State private var pairSheet = false
   @State private var selectedPhotoDetails: PHAsset?
   @State private var confirmSelectedBackup = false
@@ -310,6 +312,7 @@ struct MacWorkspace: View {
               receiverID: model.pairing?.receiverID, columns: density, selecting: true,
               active: destination == .library,
               preview: openMedia, enterSelection: { librarySelecting = true }, resize: { density = $0 })
+              .onChange(of: density, initial: false) { _, value in MacLibraryDensity.remember(value) }
               .allowsHitTesting(libraryNavigation.level == .all && previewAsset == nil)
               .accessibilityHidden(libraryNavigation.level != .all || previewAsset != nil)
             ForEach([MacLibraryLevel.months, .years]) { level in

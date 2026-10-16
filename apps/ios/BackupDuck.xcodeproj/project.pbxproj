@@ -26,6 +26,7 @@
 		3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */; };
 		4D365D4AAD7ACC05CDBC3FF9 /* GridZoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
+		561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		59C9230E2BCD7A2AA0FE809B /* CalendarGridController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A160B6BAB13F144F368454F2 /* CalendarGridController.swift */; };
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */; };
@@ -122,6 +123,7 @@
 		C2DDE6D0D49315701CCCE445 /* BackupDuck.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BackupDuck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPicker.swift; sourceTree = "<group>"; };
 		C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalImport.swift; sourceTree = "<group>"; };
+		CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TesterFeedback.swift; sourceTree = "<group>"; };
 		D39898A776B4A23AF72454A2 /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnosticsTests.swift; sourceTree = "<group>"; };
 		D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverPage.swift; sourceTree = "<group>"; };
@@ -235,6 +237,7 @@
 				E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */,
 				831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */,
 				2DD73467DFE30B87BA715C9D /* StorageModel.swift */,
+				CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */,
 				DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */,
 				060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */,
 				F110AD52A05DA30D64850E6D /* TransferProgress.swift */,
@@ -449,6 +452,7 @@
 				3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */,
 				0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
+				561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */,
 				3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */,
 				81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */,
 				C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */,

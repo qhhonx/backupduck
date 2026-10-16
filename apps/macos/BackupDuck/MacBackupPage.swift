@@ -62,7 +62,7 @@ struct MacBackupPage: View {
         DuckRecentTransfers(model: model, showTransfers: { showTransfers("all") })
 
 
-      }.frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity, alignment: .leading).padding(28)
+      }.frame(maxWidth: .infinity, alignment: .leading).padding(28)
   }
   private var receiverSummary: some View {
     DuckSurface {

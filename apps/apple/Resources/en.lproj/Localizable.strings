@@ -1140,6 +1140,7 @@
 "scope_empty" = "No media types selected";
 "scope_album_count" = "Selected albums: %d";
 "scope_all_albums" = "All albums";
+"scope_all_albums_summary" = "Every album is included";
 "scope_restrict_albums" = "Use selected albums only";
 "scope_album_unavailable" = "Album unavailable or access restricted";
 "scope_albums_empty" = "No accessible albums";
@@ -1244,3 +1245,4 @@
 "mac_library_back" = "Back to library";
 
 "library_filter" = "Filter";
+"settings_feedback_group" = "Feedback group";

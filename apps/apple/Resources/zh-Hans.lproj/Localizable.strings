@@ -1140,6 +1140,7 @@
 "scope_empty" = "未选择媒体类型";
 "scope_album_count" = "%d 个指定相簿";
 "scope_all_albums" = "全部相簿";
+"scope_all_albums_summary" = "包含所有相簿";
 "scope_restrict_albums" = "仅备份指定相簿";
 "scope_album_unavailable" = "相簿不可用或访问受限";
 "scope_albums_empty" = "没有可访问的相簿";
@@ -1244,3 +1245,4 @@
 "mac_library_back" = "返回图库";
 
 "library_filter" = "筛选";
+"settings_feedback_group" = "用户反馈群";

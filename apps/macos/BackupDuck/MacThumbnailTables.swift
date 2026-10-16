@@ -13,9 +13,26 @@ enum MacThumbnailTables {
   static let overviewSide = 48, detailSide = 96
   static let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("ThumbnailTables", isDirectory: true)
-  private static let budget = 1024 * 1024 * 1024
-  static let overview = table("mac-overview", side: overviewSide, capacity: 131_072, share: 0.5)
-  static let detail = table("mac-detail", side: detailSide, capacity: 16_384, share: 0.2)
+  /// The browsing-thumbnail limit in Settings, shared in name and default with
+  /// the iPhone (1 GB). The Mac keeps no rendition files; the tables are its cache.
+  static let budgetKey = "libraryThumbnailBudgetMB"
+  static var budgetMB: Int {
+    let stored = UserDefaults.standard.integer(forKey: budgetKey)
+    return max(64, stored == 0 ? 1024 : stored)
+  }
+  static var usage: Int { overview.usage + detail.usage }
+  static func setBudget(_ mb: Int) {
+    UserDefaults.standard.set(mb, forKey: budgetKey)
+    for (table, share) in [(overview, overviewShare), (detail, detailShare)] {
+      let limit = Int(Double(mb * 1024 * 1024) * share) / table.entryBytes
+      table.limit = limit
+      // A lowered limit starts the table over; it refills newest first.
+      if table.count > limit { table.clear(); prefilled = nil }
+    }
+  }
+  static let overviewShare = 0.5, detailShare = 0.2
+  static let overview = table("mac-overview", side: overviewSide, capacity: 131_072, share: overviewShare)
+  static let detail = table("mac-detail", side: detailSide, capacity: 16_384, share: detailShare)
   /// The main display's own colour space. Core Animation colour-matched every
   /// sRGB tile to it on each commit, a third of the overview's scroll time; the
   /// tables store pixels already matched. A different display profile gets its
@@ -30,7 +47,7 @@ enum MacThumbnailTables {
   private static func table(_ name: String, side: Int, capacity: Int, share: Double) -> ThumbnailTable {
     let table = ThumbnailTable(url: directory.appendingPathComponent("\(name)-\(spaceTag)-\(side).table"),
       side: side, capacity: capacity, space: space)
-    table.limit = Int(Double(budget) * share) / table.entryBytes
+    table.limit = Int(Double(budgetMB * 1024 * 1024) * share) / table.entryBytes
     return table
   }
   static func key(_ asset: PHAsset) -> String { "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))" }
@@ -67,7 +84,14 @@ enum MacThumbnailTables {
     }
   }
   static func contains(_ asset: PHAsset) -> Bool { enabled && overview.contains(key(asset)) }
-  static func clear() { overview.clear(); detail.clear() }
+  /// Clears both tables and the in-memory thumbnails; the next library visit
+  /// refills the overview from local renditions.
+  @MainActor static func clear() async {
+    prefillTask?.cancel()
+    await Task.detached(priority: .userInitiated) { overview.clear(); detail.clear() }.value
+    prefilled = nil
+    NotificationCenter.default.post(name: Notification.Name("LibraryThumbnailsCleared"), object: nil)
+  }
   nonisolated(unsafe) private static var prefilled: ObjectIdentifier?
   nonisolated(unsafe) private static var prefillTask: Task<Void, Never>?
   /// Fills the overview table for the whole library from local renditions, newest

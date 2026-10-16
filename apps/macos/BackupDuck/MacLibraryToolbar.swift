@@ -136,6 +136,17 @@ enum MacLibraryDensity {
   /// year-like) whose column counts follow the window width, as in Photos.
   static let grid = [3, 4, 6, 9]
   static let standard = 4
+  /// Like Photos and the iPhone, a relaunch opens at the grid last browsed;
+  /// after an overview it opens at the densest grid stop.
+  static let launchKey = "macLibraryLaunchColumns"
+  static var remembered: Int {
+    let stored = UserDefaults.standard.integer(forKey: launchKey)
+    return grid.contains(stored) ? stored : standard
+  }
+  static func remember(_ columns: Int) {
+    let value = grid.contains(columns) ? columns : (isDense(columns) ? grid.last ?? standard : standard)
+    if UserDefaults.standard.integer(forKey: launchKey) != value { UserDefaults.standard.set(value, forKey: launchKey) }
+  }
   static let denseThreshold = 12
   nonisolated(unsafe) static var overview = [20, 40]
   static var columns: [Int] { grid + overview }

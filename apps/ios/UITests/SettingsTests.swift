@@ -179,7 +179,7 @@ final class SettingsTests: XCTestCase {
     for _ in 0..<6 { if albums.isHittable { break }; app.swipeUp() }; albums.tap()
     let all = app.switches["backup.scope.all_albums"]
     XCTAssertTrue(all.waitForExistence(timeout: 8)); if all.value as? String != "1" { all.tap() }
-    XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"All albums")
+    XCTAssertEqual(app.staticTexts["backup.scope.album_count"].label,"Every album is included")
     let choices = app.collectionViews["backup.scope.choices"]
     XCTAssertTrue(choices.waitForExistence(timeout: 8))
     XCTAssertFalse(app.staticTexts["System albums"].exists)

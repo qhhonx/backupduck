@@ -4,6 +4,7 @@ import ObjectiveC
 
 struct IOSSettingsPage: View {
   @ObservedObject var model: BackupModel
+  @ObservedObject private var feedback = TesterFeedback.shared
   @State private var logs = false
   @State private var editingName = false
   @AppStorage("duckAppearance") private var appearance = "system"
@@ -82,6 +83,14 @@ struct IOSSettingsPage: View {
                 IOSPreferenceRow(title: "help_title", symbol: "questionmark.circle") { IOSPreferenceValue(value: nil) }
               }.buttonStyle(.plain).accessibilityIdentifier("settings.help")
               Divider()
+              if feedback.available {
+                Link(destination: TesterFeedback.group) {
+                  IOSPreferenceRow(title: "settings_feedback_group", symbol: "bubble.left.and.bubble.right") {
+                    IOSPreferenceValue(value: "Telegram", indicator: "arrow.up.right")
+                  }
+                }.buttonStyle(.plain).accessibilityIdentifier("settings.feedback_group")
+                Divider()
+              }
               NavigationLink { IOSAboutPage() } label: {
                 IOSPreferenceRow(title: "about_title") {
                   IOSPreferenceValue(value: Bundle.main.object(forInfoDictionaryKey: "BackupDuckReleaseVersion") as? String ?? "—")
@@ -93,6 +102,7 @@ struct IOSSettingsPage: View {
       }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
         .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
         .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
+        .task { await feedback.check() }
     }.sheet(isPresented: $logs) { ActivityLogView() }
       .sheet(isPresented: $editingName) {
         if let name = model.deviceSnapshot?.device.name { DeviceNameEditor(model: model, name: name) }

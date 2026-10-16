@@ -38,6 +38,7 @@
 		4E618D2C7A1408F629769B90 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */; };
 		4F1E7FB39D919B01369C6DD7 /* MacContentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F941BCA663CC6304E15B267F /* MacContentSection.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
+		561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		5A5E6C3AB210B8C9C05DBC43 /* MacThumbnailTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */; };
 		5CF1BD56CBDCD7E472D030D9 /* LibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */; };
 		5DE59819DB2238A145624F54 /* MacLibraryToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF765111BDFA86DCC54E86EC /* MacLibraryToolbar.swift */; };
@@ -47,6 +48,7 @@
 		61C4EF5217307370D283286C /* BackupDuckMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B4243B08406794F3828620 /* BackupDuckMacApp.swift */; };
 		6350BF4EADFAA3A28C8BEDB0 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2240B6B1E76D07784056F214 /* AppUpdater.swift */; };
 		64F85AB521BF4B782B32B053 /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */; };
+		672B37337E77D129DE2AA775 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		68F824F3F15EC1764EC4AE85 /* FileThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354D47FCA5E06447D8ACA477 /* FileThumbnails.swift */; };
 		69BA8406F5A49E8DF01A26A0 /* MacPreferenceMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F250A5F8512FA49DE595FB1D /* MacPreferenceMenu.swift */; };
 		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
@@ -174,6 +176,7 @@
 		C2DDE6D0D49315701CCCE445 /* BackupDuck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BackupDuck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPreferenceGroup.swift; sourceTree = "<group>"; };
 		C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalImport.swift; sourceTree = "<group>"; };
+		CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TesterFeedback.swift; sourceTree = "<group>"; };
 		CCBAA8805437D418DF9BA83A /* MacStatusMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStatusMenu.swift; sourceTree = "<group>"; };
 		D39898A776B4A23AF72454A2 /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConcurrencySettings.swift; sourceTree = "<group>"; };
@@ -302,6 +305,7 @@
 				E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */,
 				831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */,
 				2DD73467DFE30B87BA715C9D /* StorageModel.swift */,
+				CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */,
 				DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */,
 				060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */,
 				F110AD52A05DA30D64850E6D /* TransferProgress.swift */,
@@ -507,6 +511,7 @@
 				4E618D2C7A1408F629769B90 /* ReceiverAvailability.swift in Sources */,
 				2659D01A3B79AE92EE128F5C /* ReceiverDiscovery.swift in Sources */,
 				CEBCC1F3A2C35C55D6A8F985 /* StorageModel.swift in Sources */,
+				672B37337E77D129DE2AA775 /* TesterFeedback.swift in Sources */,
 				D5B539034F3EBFF8E833783C /* TransferConcurrencySettings.swift in Sources */,
 				CC12DED1A14F0A19D1900BCB /* TransferDiagnostics.swift in Sources */,
 				6C2D6D4B6C95B05C4E0EE58D /* TransferProgress.swift in Sources */,
@@ -560,6 +565,7 @@
 				03588CE5C11BE87A090609A4 /* ReceiverAvailability.swift in Sources */,
 				9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
+				561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */,
 				3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */,
 				81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */,
 				C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */,

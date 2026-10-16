@@ -195,7 +195,10 @@ struct BackupScopeEditor: View {
           }
         }.padding(10).background(DuckColors.subtle,in: RoundedRectangle(cornerRadius: 10))
           .padding(.horizontal, 16).padding(.top, 12)
-        Text(store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count) : NSLocalizedString("scope_all_albums", comment: ""))
+        // Always present so the grid never moves when a choice changes; with All
+        // Albums on it states the effect instead of repeating the switch title.
+        Text(store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count)
+          : NSLocalizedString("scope_all_albums_summary", comment: ""))
           .font(.callout).foregroundStyle(DuckColors.textSecondary).padding(.horizontal, 16)
           .accessibilityIdentifier("backup.scope.album_count")
       }
@@ -233,35 +236,55 @@ struct BackupScopeEditor: View {
       #endif
   }
   #if os(macOS)
+  /// Album covers in a grid, as on iPhone: user albums, plus any system album
+  /// that is already chosen. The surrounding sheet owns search and the summary.
   private var albumList: some View {
-    List {
-            Section {
-              MacPreferenceRow(title: "scope_all_albums") {
-                Toggle("scope_all_albums", isOn: allAlbums).labelsHidden().toggleStyle(.switch)
-                  .accessibilityIdentifier("backup.scope.all_albums")
-              }
-            }
-            albumSection(system: false, title: "scope_my_albums")
-            albumSection(system: true, title: "scope_existing_albums")
-            let missing = store.rule.usesSpecifiedAlbums ? store.rule.albums.subtracting(Set(model.albums.map(\.id))) : []
-            if !missing.isEmpty {
-              Section("scope_album_unavailable") {
-                ForEach(missing.sorted(), id: \.self) { id in
-                  choiceRow(title: store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable", comment: ""), symbol: "rectangle.slash", selected: store.rule.restrictAlbums) {
-                    var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
-                  }
-                }
-              }
-            }
+    let chosen = store.rule.usesSpecifiedAlbums ? store.rule.albums : []
+    let visible = model.albums.filter { (!$0.system || chosen.contains($0.id))
+      && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+    return GeometryReader { proxy in
+      // Three covers fill the width, as on iPhone.
+      let side = max(80, floor((proxy.size.width - 32 - 24) / 3))
+      ScrollView {
+      VStack(alignment: .leading, spacing: 12) {
+        MacPreferenceGroup {
+          MacPreferenceRow(title: "scope_all_albums") {
+            Toggle("scope_all_albums", isOn: allAlbums).labelsHidden().toggleStyle(.switch)
+              .accessibilityIdentifier("backup.scope.all_albums")
+          }
         }
-      #if os(iOS)
-          .listStyle(.insetGrouped)
-          #else
-          .listStyle(.inset)
-          #endif
-          .environment(\.defaultMinListRowHeight, DuckPreferenceMetrics.rowHeight)
-          .scrollContentBackground(.hidden)
-          .accessibilityIdentifier("backup.scope.choices")
+        if visible.isEmpty && !model.loading {
+          Text("scope_albums_empty").foregroundStyle(DuckColors.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 24)
+        }
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: 12, alignment: .top), count: 3),
+          alignment: .leading, spacing: 16) {
+          ForEach(visible) { album in albumCover(album, side: side, selected: chosen.contains(album.id)) }
+        }
+        missingAlbums
+      }.padding(16)
+      }.accessibilityIdentifier("backup.scope.choices")
+    }
+  }
+  private func albumCover(_ album: ScopeAlbum, side: CGFloat, selected: Bool) -> some View {
+    Button { selectAlbum(album) } label: {
+      VStack(alignment: .leading, spacing: 4) {
+        // The iPhone's image-choice treatment (`DuckMediaSelection`): the cover
+        // dims and a check sits at its corner; nothing changes size.
+        ReadOnlyMediaThumbnail(asset: album.cover, width: side, height: side)
+          .opacity(selected ? 0.72 : 1)
+          .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "checkmark.circle.fill").resizable().foregroundStyle(DuckColors.action)
+              .background(Circle().fill(.white)).frame(width: 23, height: 23).padding(6)
+              .opacity(selected ? 1 : 0)
+          }
+        Text(album.name).font(.callout).foregroundStyle(DuckColors.text).lineLimit(2)
+        Text(albumItemCount(album.count)).font(.caption).foregroundStyle(DuckColors.textSecondary)
+      }.frame(width: side, alignment: .leading).contentShape(Rectangle())
+    }.buttonStyle(.plain).transaction { $0.animation = nil }
+      .accessibilityIdentifier("backup.scope.album." + album.id)
+      .accessibilityLabel(Text(album.name)).accessibilityValue(Text(albumItemCount(album.count)))
+      .accessibilityAddTraits(selected ? .isSelected : [])
   }
   #endif
   private var missingAlbums: some View {
@@ -305,28 +328,6 @@ struct BackupScopeEditor: View {
         #if os(iOS)
         .padding(.horizontal,16)
         #endif
-      }
-    }
-  }
-  @ViewBuilder private func albumSection(system: Bool, title: LocalizedStringKey) -> some View {
-    let visible = model.albums.filter { $0.system == system && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
-    if !visible.isEmpty {
-      Section(title) {
-        ForEach(visible) { album in
-          Button { selectAlbum(album)          } label: {
-            HStack(spacing: 12) {
-              ReadOnlyMediaThumbnail(asset: album.cover)
-              VStack(alignment: .leading, spacing: 4) {
-                Text(album.name).foregroundStyle(DuckColors.text)
-                Text(albumItemCount(album.count)).font(.caption).foregroundStyle(DuckColors.textSecondary)
-              }
-              Spacer(minLength: 12)
-              selectionMark(store.rule.restrictAlbums && store.rule.albums.contains(album.id))
-            }.frame(minHeight: DuckPreferenceMetrics.rowHeight).contentShape(Rectangle())
-          }.buttonStyle(DuckChoiceButtonStyle()).transaction { $0.animation = nil }.listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-            .accessibilityLabel(Text(album.name)).accessibilityValue(Text(albumItemCount(album.count)))
-            .accessibilityAddTraits(store.rule.restrictAlbums && store.rule.albums.contains(album.id) ? .isSelected : [])
-        }
       }
     }
   }

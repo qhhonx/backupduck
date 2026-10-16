@@ -30,7 +30,7 @@ host implementation of the same rule; **open** = not done.
 | Tap on an overview tile drills down one stop | `density(columns:at:)` | mac (`drillDown`) |
 | Years/Months: one pinch past a threshold changes level once | `triggerCoverPinch` | **open** (toolbar only) |
 | Cover pinch anchors on the card under the fingers | contract | **open** |
-| Level change moves and fades layers on one curve | contract | mac (scale 1.12 / 0.92 about the centre; matched-photo flights **open**) |
+| Level change moves and fades layers on one curve | contract | mac (scale 1.12 / 0.92 about the centre) |
 | Every level change keeps one focus photo (selection, else nearest the centre) and flies it | contract | mac (display-link flight clipped to the content area under the toolbar, re-aiming at the live destination each frame; cross-fades when the destination period shows another photo. the source is captured at the click, before All Photos loads or a year card rotates. All six directions checked in slow motion: five fly the same photo; All→Years cross-fades because the centred photo is not one of the year's month photos) |
 
 ## Stage and motion
@@ -52,6 +52,7 @@ host implementation of the same rule; **open** = not done.
 | Behaviour | Where | Mac |
 | --- | --- | --- |
 | Newest edge is the resting position, bottom aligned | contract | mac |
+| Relaunch opens at the density last browsed | `rememberedColumns` | mac (`MacLibraryDensity.remembered`: the last grid stop, the densest grid after an overview) |
 | Newest-edge footer with totals | contract | mac (no sync state) |
 | Older pages appear above without moving the viewport | `LibraryTimeline` | mac |
 | Visible capture range as subtitle | contract | mac |
@@ -74,11 +75,13 @@ host implementation of the same rule; **open** = not done.
 | --- | --- | --- |
 | 64-pixel buckets, 352-px rendition edge | `ThumbnailPipeline.size` | shared |
 | Cross-tier fallback so a tier change never blanks | `posters`, `smallPosters` | shared (macOS fallback added) |
-| Rebuildable disk cache with budget | `ThumbnailDiskCache` | **open** (iOS only) |
+| Rebuildable disk cache with budget | `ThumbnailDiskCache` | not used (iOS only: measured no launch or scroll gain on the Mac, where the decoded tables cover the overviews) |
+| Browsing-thumbnail usage, limit and clearing in Settings | `IOSStoragePreferences` | mac (`MacThumbnailCacheGroup`: same keys, 1 GB default, limit shared by the tables) |
 | Decoded memory-mapped thumbnail tables | `ThumbnailTable` | mac (`MacThumbnailTables`: overview 48 px prefilled for the library, detail 96 px; fed by every delivered grid image, read as an instant placeholder by grid cells and zoom tiles, and overview preheat skips tabled photos. Pixels are stored in the display's colour space; the prefill also records each photo's table key and capture date, so overview scrolling reads no `PHAsset`. Drilling from the year overview into the grid: 0 of 600 new cells blank with tables, 528 of 600 without; `-no-thumbnail-table` for A/B) |
 | Small-tier requests skip the disk layer and use wide admission | pipeline | **open** |
 | Bulk PhotoKit fetch for dense strips | `PhotoLibraryModel` | shared (`loadAllRows`) |
-| Launch snapshot of the newest edge | `LaunchSnapshot` | **open** |
+| Launch fetch started from app init | `PhotoLibraryModel.prewarm` | shared |
+| Launch snapshot of the newest edge | `LaunchSnapshot` | not used (removed on iPhone too) |
 | Library changes during iCloud sync keep pixels and position | contract | partial |
 
 ## Verification

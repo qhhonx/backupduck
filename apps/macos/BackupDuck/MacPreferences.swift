@@ -35,6 +35,7 @@ struct MacPreferences: View {
   @State private var route: MacSettingsRoute?
   @State private var renaming = false
   @AppStorage("macListThumbnails") private var thumbnails = true
+  @ObservedObject private var feedback = TesterFeedback.shared
   @AppStorage("macFolderListLayout") private var folderLayout = "flat"
   @AppStorage("duckAppearance") private var appearance = "system"
   @State private var languageOpenFailed = false
@@ -42,12 +43,6 @@ struct MacPreferences: View {
     titleChanged: @escaping (String) -> Void = { _ in }, initialRoute: MacSettingsRoute? = nil) {
     self.model = model; self.folders = folders ?? .shared; self.showFolders = showFolders; self.titleChanged = titleChanged
     _route = State(initialValue: initialRoute)
-  }
-  private func cacheBytes(_ bytes: UInt64) -> String {
-    if bytes == 0 { return "0 KB" }
-    let formatter = ByteCountFormatter()
-    formatter.countStyle = .file; formatter.allowsNonnumericFormatting = false
-    return formatter.string(fromByteCount: Int64(clamping: bytes))
   }
   private var languageName: String {
     Locale.current.localizedString(forLanguageCode: Bundle.main.preferredLocalizations.first ?? "en") ?? "—"
@@ -73,6 +68,7 @@ struct MacPreferences: View {
         }
       }
     }.background(DuckColors.canvas).tint(DuckColors.action)
+      .task { await feedback.check() }
       .onAppear {
         if UserDefaults.standard.string(forKey: "macRequestedSettingsRoute") == "about" { showAbout() }
         titleChanged(route?.title ?? "nav_settings")
@@ -94,9 +90,9 @@ struct MacPreferences: View {
           }
         }
         settingsCard("apple_local_storage") {
-          settingsLink("settings_cache", value: model.storage.map {
-            "\(cacheBytes($0.used_bytes)) / \(cacheBytes($0.settings.cache_budget_bytes))"
-          }, first: true) { route = .cache }.accessibilityIdentifier("settings.cache")
+          // Two caches live behind this row (browsing thumbnails and backup
+          // preparation), so it shows no single figure, as on iPhone.
+          settingsLink("settings_cache", first: true) { route = .cache }.accessibilityIdentifier("settings.cache")
         }
 
       }.frame(maxWidth: .infinity)
@@ -118,6 +114,13 @@ struct MacPreferences: View {
     }
         settingsCard("apple_help_about") {
           settingsLink("help_title", first: true) { route = .help }
+          if feedback.available {
+            Button { NSWorkspace.shared.open(TesterFeedback.group) } label: {
+              settingRow("settings_feedback_group", symbol: "bubble.left.and.bubble.right") {
+                MacPreferenceValue(value: "Telegram", indicator: "arrow.up.right")
+              }.contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityIdentifier("settings.feedback_group")
+          }
           settingsLink("about_title", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") { route = .about }
         }
     }.frame(maxWidth: .infinity, alignment: .leading)
