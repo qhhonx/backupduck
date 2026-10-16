@@ -1,7 +1,7 @@
-BackupDuck 0.3.0 introduces the native Mac sender in TestFlight.
+BackupDuck 0.4.0 rebuilds the Mac photo library to match Photos.
 
-Test pairing with the current Android / Pixel receiver, selecting a few photos or videos, and backing up a user-selected folder. Check settings, transfer history, pause/resume, reconnection, and light/dark appearance. Confirm that source files are retained.
+Switch between Years, Months and All Photos; zoom All Photos with the toolbar and pinch through the grid and overview stops; select with click, Shift/Command, marquee and arrow keys; open photos and videos and page with keys, swipes and the trackpad. Check backup scope by media type and album, Settings > Cache (browsing thumbnails), folder backup, pairing with the current Android / Pixel receiver, pause/resume, and light/dark appearance.
 
 This Mac build is sandboxed and uses TestFlight for updates. Access folders through the system picker; direct-download Mac data may live in a separate container. Google Photos cloud backup is independent of device receipt. Receiver download: https://backupduck.app/.
 
-When reporting a problem, include the app version, device model, steps and error message. Do not include private photos or pairing codes.
+Questions and feedback: Settings > Feedback group opens the Telegram tester group. When reporting a problem, include the app version, device model, steps and error message. Do not include private photos or pairing codes.

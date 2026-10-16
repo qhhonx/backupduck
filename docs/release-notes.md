@@ -1,193 +1,53 @@
-# 0.3.0 — build 86
+# 0.4.0 — build 87
 
-- Open straight into the library: the photo list starts loading while the app
-  launches, the first frame no longer passes through the permission screen, and
-  grid cells are cheaper to create.
+iPhone and iPad library
 
-# 0.3.0 — build 85
+- Browse Years, Months and All Photos as in Photos, with one pinch core for
+  every zoom step and level change, matched-photo motion between levels, and
+  gapless month and year overviews with period labels.
+- Open the library faster: the photo list starts loading while the app
+  launches, and decoded thumbnails stored in memory-mapped tables fill the dense
+  overviews without blank tiles or dropped frames.
+- Keep browsing steady while iCloud updates the library, and reopen at the
+  density last browsed.
+- Show photos and videos in one native viewer with information (camera, lens,
+  location, file and video length), Live Photo and burst browsing, a
+  media-local loading indicator, and review of the current selection.
+- Use the system bar transition and equal-size controls when entering and
+  leaving selection.
 
-- Open the library without the saved launch picture: the first screen now fills
-  from stored thumbnails as soon as the library is indexed.
+Mac library
 
-# 0.3.0 — build 84
+- Rebuild the Photos library around the same zoom core: Years, Months and All
+  Photos with matched-photo level changes, six zoom stops including month and
+  year overview mosaics, floating month headings and period pills.
+- Select as in Photos: an outline around the photo, original aspect with the
+  outline on the photo, marquee selection from any gap, and Left/Right that
+  continue across rows, with Shift to extend.
+- Open media in the window toolbar with an immersive mode, instant key paging,
+  animated swipes (including over videos) and a return to the photo's cell.
+- Scroll every density without dropped frames in Release measurements, and
+  reopen at the grid density last browsed.
 
-- Keep small decoded thumbnails in memory-mapped tables sized for this device's
-  month and year grids, filled in the background from local renditions, so the
-  densest overviews scroll without blank tiles or dropped frames. Larger grids
-  show these soft thumbnails until each sharp one arrives instead of empty cells.
-- Count the decoded tables toward the thumbnail cache limit, which now defaults
-  to 1 GB and offers up to 4 GB, and show usage and limit in the same units.
+Both Apple apps
 
-# 0.3.0 — build 83
+- Choose backup scope by media type and by album, with album covers in a grid
+  and an All Albums switch.
+- Manage browsing thumbnails in Settings: usage, a limit (1 GB by default, up to
+  4 GB) and clearing, shown in the same binary units as the other caches.
+- Load iCloud previews automatically; the separate browsing consent setting is
+  removed. Browsing never registers preparation or backup work.
+- Share sheet headers, loading and failure states across detail, activity-log
+  and Help sheets.
+- Offer the Mac app through TestFlight in addition to the direct download.
+- Link the Telegram feedback group from Settings, above About, in TestFlight
+  builds only.
 
-- Rework the Mac Photos library around independent Years, Months and All Photos
-  browsing, oldest to newest and resting at the newest edge as in Photos, with
-  native window toolbar controls, discrete zoom steps and animated level changes.
-- Open media inside the current window, retain filtered and selected contexts,
-  add a bounded thumbnail strip, and return to the current photo in the grid.
-- Use desktop single-click, Command/Shift selection, double-click and keyboard
-  preview conventions; share progressive previews, media information and durable
-  selected-backup submission with the Apple media pipeline.
-- Show the whole photo immediately when opening an iCloud original that is still
-  downloading, using the device's small full-aspect copy, instead of a small
-  square crop with empty bands (most visible on panoramas).
+The Android receiver is unchanged apart from its version.
 
-# 0.3.0 — build 82
-
-- Keep a photo's framing fixed while it opens from the library grid: the grid's
-  square thumbnail sits at its true place in the photo instead of filling it, so
-  the arriving full image no longer appears to stretch sideways.
-
-# 0.3.0 — build 81
-
-- Preserve the dense mosaic's published pixels when a renewed pinch starts after
-  thumbnail-cache eviction. Keep the animation cover until visible replacement
-  strips publish instead of exposing a partly drawn canvas.
-- Initialize strip contexts before synchronous image callbacks and isolate
-  publication scheduling across recycled strip generations.
-- Scale gapless dense faces through a shared node, refreshing tile membership at
-  viewport boundaries while preserving unscaled captions and ordinary dividers.
-
-# 0.3.0 — build 80
-
-- Share vertically centred sheet headers across detail, activity-log and desktop
-  Help sheets, retaining wrapping titles and platform-sized close targets.
-- Make original-preparation and source-photo detail footer actions fill their
-  iPhone column, matching other phone sheets; keep desktop actions compact and
-  trailing aligned. Preserve fixed chrome in busy, error and retry states.
-
-# 0.3.0 — build 79
-
-- Allow PhotoKit to load iCloud previews automatically; remove the separate
-  browsing network setting and application consent prompt.
-- Keep available cropped fallback pixels in single-column browsing, request the
-  uncropped target before density adoption, and retain sharper source posters
-  through progressive detail loading.
-- Recover cancelled cell requests when they reappear. If a larger local thumbnail
-  is unavailable, try PhotoKit's small local rendition before its bounded cloud
-  upgrade; never cache that fallback as the larger rendition.
-- Separate the selection header actions into independent native material groups.
-  Keep unavailable backup actions visibly disabled, absorb header-region taps and
-  suspend native scroll-to-top during selection to preserve the photo anchor.
-- Wrap complete lens information and hide the redundant map-pin title beneath
-  the capture-location heading.
-
-# 0.3.0 — build 78
-
-- Preserve uncropped single-column photos through detail return, separate selected
-  video duration from its selection badge, and name the selected backup action.
-- Use consistent information labels and show the iCloud preview explanation when
-  enabling the setting, with cancellation preserving the previous consent.
-- Use an All Albums switch with an explicit empty restricted scope. Choosing an
-  album disables All; enabling All clears individual choices.
-- Clarify browsing thumbnails, temporary backup files and device space settings.
-  Align cache values and menus, and show thumbnail clearing progress and failures.
-- Center standalone loading states, name the settings being read, and expose
-  initialization failure recovery instead of leaving cache settings waiting.
-
-# 0.3.0 — build 77
-
-- Keep native detail pages and displayed source posters available before image
-  loading, and prepare the small entry pose before revealing the media.
-- Retain video posters until the first actual playback frame is ready. Keep
-  media geometry fixed through entry, downward drag and return to the grid.
-- Replace redundant header loading text, spinner and linear progress with one
-  media-local loading ring and compact recovery state.
-- Match selected-detail Done styling, remove filmstrip selection borders, and
-  disable information gestures and actions in selected-item detail.
-- Move ordinary detail media and information together into an aspect-aware top
-  viewport, with continuous fading of the viewer controls.
-
-# 0.3.0 — build 76
-
-- Keep iPhone detail media in a stable full-screen viewport under its controls,
-  with a narrow inter-photo paging gap and bounded first/last-page bouncing.
-- Drive filmstrip emphasis and position continuously from page progress, while
-  direct scrubbing retains its own compact position and stable selected batch.
-- Use the same live media transform and crop for entering and leaving detail;
-  keep a dragged photo anchored under the finger while shrinking.
-- Hide viewer chrome during magnification and restore it when opening information.
-
-# 0.3.0 — build 75
-
-- Show the last newest-edge library screen in the first launch frame and fade to
-  live cells when their images are ready, instead of a blank canvas flash.
-- Resolve dense overview and pinch assets with bulk PhotoKit fetches and a
-  bounded asset cache, removing per-asset materialization stalls on large libraries.
-- Make pinching in Years and Months trigger one level change, as Photos does,
-  instead of a finger-following zoom.
-
-# 0.3.0 — build 74
-
-- Index the newest library items with one bulk PhotoKit fetch at launch. On a
-  large iPhone library the first thumbnails now appear in about 0.4 s
-  after process start, instead of about 1.0–1.5 s.
-
-# 0.3.0 — build 73
-
-- Draw the iPhone dense month and year overviews as bitmap strips instead of
-  thousands of cells, removing the scrolling stalls measured in profiles.
-- Keep the library zoom menu open so zoom in and out can be repeated.
-- Carry period labels, top shadows and badges with moving photos in Years,
-  Months and All switches, fade glass period headings and the navigation bar,
-  and start the switch immediately on a spring matched to Photos.
-- Request three-column thumbnails at PhotoKit's fast stored-rendition size.
-
-# 0.3.0 — build 72
-
-- Switch iPhone library dividers in one frame with the previewed density and
-  snap them to device pixels, as Photos does, instead of thinning them while
-  photos crossfade. Finish the remaining crossfade within the release settle.
-- Keep browsing undisturbed while iCloud updates the library: identical rebuilds
-  are ignored, changes wait for running motion and preserve cached thumbnails
-  and the focused photo's position.
-- Show the newest photos sooner at launch, serve dense overview thumbnails
-  directly from Photos with wider concurrency, and stop waiting for the disk
-  cache index before the first thumbnails.
-- Reopen the library at three or five columns according to the last browsing
-  density, and reduce the terminal year-overview stretch.
-
-# 0.3.0 — build 71
-
-- Keep compact Library taps limited to native tab expansion. Return to newest
-  only when reselecting the already expanded Library tab.
-- Scale complete cell decorations with the photo and clip all fading faces to
-  one continuously changing gap, avoiding separators that appear only at the end.
-- Transfer displayed images directly to native cells across cache eviction and
-  delayed fallback callbacks. Adopt the same geometry beneath a one-commit cover.
-- Remove additional library edge shadows that changed when hiding the collection.
-
-# 0.3.0 — build 70
-
-- Preserve vertical focus during held library photo crossfades. Allow the
-  incoming overview to end above the viewport bottom rather than shifting the
-  anchor as its opacity changes. Retain the side-coverage and row-phase fixes
-  and shared animated media badges from build 69.
-
-# 0.3.0 — build 69
-
-- Fill the full iPhone pinch viewport with neighboring row slots while layouts
-  shrink, and retain the focal photo's destination row phase through reversal
-  and settlement to avoid whole-column sideways travel.
-- Share video-duration, Live Photo, selection and backup-state decorations
-  between ordinary grid cells and animated tiles so collection adoption does
-  not introduce missing badges.
-
-# 0.3.0 — build 68
-
-- Prepare iPhone thumbnail pixels away from the UI thread and prioritize visible
-  images over speculative layout warmup. Keep native loading independent of
-  bounded disk writeback, and bound disk-hit decoding as well as acquisition.
-- Retain small images for dense transition tiles separately from sharper return
-  images. Preserve shared request cancellation, preview ordering, cache revisions
-  and late-write invalidation.
-
-# 0.3.0 — build 67
-
-- Refine iPhone library pinch transitions with direction-aware previews,
-  interruptible photo blending, independent date-range changes, live bottom-edge
-  constraints and a slower, non-bouncing release. Releasing preserves the current
-  preview target even before its natural thumbnail size is reached.
+Release metadata: version 0.4.0, build 87. Application identities, signing and
+update feeds are unchanged from 0.3.0; see [upgrade compatibility](upgrading.md).
+TestFlight availability is separate from the Mac and Android release.
 
 # 0.3.0
 

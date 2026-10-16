@@ -1,7 +1,7 @@
-BackupDuck 0.3.0 updates the native iPhone and iPad sender interface.
+BackupDuck 0.4.0 rebuilds the iPhone and iPad photo library.
 
-Test pairing with the current Android / Pixel receiver, selecting a few photos or videos, existing-library backup, and automatic backup of newly added photos. Include Live Photos and burst frames where available. Check settings, transfer history, pause/resume, reconnection, and light/dark appearance.
+Test Years, Months and All Photos: pinch between zoom steps and levels, scroll the month and year overviews, open photos and videos (information, Live Photos, bursts), and select items to back up. Check backup scope by media type and album, Settings > Cache (browsing thumbnails), pairing with the current Android / Pixel receiver, pause/resume, and light/dark appearance.
 
 Connection status and transfer completion are separate. Confirm that source photos and existing history remain intact. Google Photos cloud backup runs independently on the receiver; iOS background execution is controlled by the system. Receiver download: https://backupduck.app/.
 
-When reporting a problem, include the app version, device model, steps and error message. Do not include private photos or pairing codes.
+Questions and feedback: Settings > Feedback group opens the Telegram tester group. When reporting a problem, include the app version, device model, steps and error message. Do not include private photos or pairing codes.
