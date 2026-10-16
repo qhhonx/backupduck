@@ -228,11 +228,16 @@ struct MacWorkspace: View {
     }
     // The title is centred, as in Photos: the date, then time and position.
     // Plain text, not a control: no shared glass background behind it.
+    #if compiler(>=6.2)
     if #available(macOS 26.0, *) {
       ToolbarItem(placement: .principal) { viewerTitle }.sharedBackgroundVisibility(.hidden)
     } else {
       ToolbarItem(placement: .principal) { viewerTitle }
     }
+    #else
+    // Xcode 16's SDK cannot resolve this modifier, even behind #available.
+    ToolbarItem(placement: .principal) { viewerTitle }
+    #endif
     // Live playback lives on the photo's own badge; no second control here.
     ToolbarItemGroup(placement: .primaryAction) {
       Toggle(isOn: Binding(get: { libraryNavigation.viewerInfo }, set: { value in
