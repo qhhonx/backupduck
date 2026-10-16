@@ -8,6 +8,8 @@ import Photos
 /// The overview table covers the library at year-overview size; the detail table
 /// keeps month-overview thumbnails. Rebuildable cache data in Caches.
 enum MacThumbnailTables {
+  /// `-no-thumbnail-table` turns the tables off for side-by-side measurement.
+  static let enabled = !ProcessInfo.processInfo.arguments.contains("-no-thumbnail-table")
   static let overviewSide = 48, detailSide = 96
   static let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("ThumbnailTables", isDirectory: true)
@@ -24,7 +26,7 @@ enum MacThumbnailTables {
   /// is sharp enough to stand without a request. A small overview thumbnail
   /// still fills a month-overview tile at once; the sharper one follows.
   static func image(_ asset: PHAsset, pixels: CGFloat) -> (image: CGImage, sharp: Bool)? {
-    guard pixels <= CGFloat(detailSide) * 1.25 else { return nil }
+    guard enabled, pixels <= CGFloat(detailSide) * 1.25 else { return nil }
     let key = key(asset)
     if pixels > CGFloat(overviewSide) * 1.25 {
       if let sharp = detail.image(key) { return (sharp, true) }
@@ -32,15 +34,25 @@ enum MacThumbnailTables {
     }
     return (overview.image(key) ?? detail.image(key)).map { ($0, true) }
   }
-  /// Stores a delivered thumbnail in each table it is sharp enough for.
-  static func remember(_ asset: PHAsset, pixels: CGFloat, image: CGImage) {
-    guard pixels <= CGFloat(detailSide) * 1.25 else { return }
+  /// Any stored thumbnail, sharpest first: what a grid cell or a zoom tile
+  /// shows at once while its own size loads, so no tile is ever blank for a
+  /// photo the library has shown before.
+  static func placeholder(_ asset: PHAsset) -> CGImage? {
+    guard enabled else { return nil }
+    let key = key(asset)
+    return detail.image(key) ?? overview.image(key)
+  }
+  /// Stores a delivered thumbnail in each table it is sharp enough for. Grid
+  /// cells deliver larger images; the table draws them down to its tile size.
+  static func remember(_ asset: PHAsset, pixels: CGFloat = 0, image: CGImage) {
+    guard enabled else { return }
     let key = key(asset), edge = min(image.width, image.height)
     overview.writes.async {
       if edge * 5 >= overviewSide * 4 { overview.store(key, image: image) }
-      if pixels > CGFloat(overviewSide), edge * 5 >= detailSide * 4 { detail.store(key, image: image) }
+      if edge * 5 >= detailSide * 4 { detail.store(key, image: image) }
     }
   }
+  static func contains(_ asset: PHAsset) -> Bool { enabled && overview.contains(key(asset)) }
   static func clear() { overview.clear(); detail.clear() }
   nonisolated(unsafe) private static var prefilled: ObjectIdentifier?
   nonisolated(unsafe) private static var prefillTask: Task<Void, Never>?
@@ -48,7 +60,7 @@ enum MacThumbnailTables {
   /// first, in the background. Nothing is downloaded and nothing is requested
   /// for assets already stored.
   @MainActor static func prefill(_ fetch: PHFetchResult<PHAsset>?) {
-    guard let fetch, prefilled != ObjectIdentifier(fetch), overview.available else { return }
+    guard enabled, let fetch, prefilled != ObjectIdentifier(fetch), overview.available else { return }
     prefilled = ObjectIdentifier(fetch)
     prefillTask?.cancel()
     prefillTask = Task.detached(priority: .utility) {

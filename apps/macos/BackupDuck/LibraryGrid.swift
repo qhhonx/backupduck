@@ -946,7 +946,10 @@ struct MacLibraryGrid: NSViewRepresentable {
         })
         if first <= 48 { parent.library.loadMore() }
         let range = max(0, first - 24)..<min(self.count, last + 49)
-        let assets = range.compactMap { self.asset(at: $0) }
+        // Overview tiles already in the decoded table need no PhotoKit preheat;
+        // on iPhone faulting their assets was a large share of scroll time.
+        let tabled = self.layoutDense
+        let assets = range.compactMap { self.asset(at: $0) }.filter { !tabled || !MacThumbnailTables.contains($0) }
         parent.library.thumbnails.preheat(
           assets, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
         let visible = (first...last).prefix(400).compactMap { self.asset(at: $0) }
@@ -1196,7 +1199,12 @@ private final class MacMarqueeView: NSView {
     assetID = asset.localIdentifier
     imageKey = key
     let current = token
-    if !sameAsset { photoLayer.contents = nil; displayedImage = nil }
+    if !sameAsset {
+      displayedImage = nil
+      // A decoded table thumbnail fills the cell at once while its own size
+      // loads; without it a reused cell stays blank until PhotoKit delivers.
+      photoLayer.contents = MacThumbnailTables.placeholder(asset)
+    }
     // The layer always fills its own frame; original aspect shrinks the frame to
     // the photo's rectangle (animated), so the selection outline hugs the photo.
     assetAspect = asset.pixelHeight > 0 ? CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight) : 1
@@ -1224,6 +1232,9 @@ private final class MacMarqueeView: NSView {
       guard let self, self.token == current else { return }
       if let image {
         self.retainDisplayedImage(image)
+        if !inCloud, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+          MacThumbnailTables.remember(asset, image: cg)
+        }
       }
       self.cloud.image = NSImage(systemSymbolName: "icloud", accessibilityDescription: nil)
       self.cloud.isHidden = image != nil || !inCloud
@@ -2283,6 +2294,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     mediaLayer.isHidden = symbol == nil
     outline.isHidden = !selected
     arrange()
+    if let stored = MacThumbnailTables.placeholder(asset) { photo.contents = stored }
     request = pipeline.request(asset, pixels: pixels, contentMode: .aspectFill) { [weak self] image, _ in
       guard let self, let image else { return }
       self.show(image)
@@ -2588,6 +2600,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     return CATransform3DTranslate(t, anchor.x - center.x, anchor.y - center.y, 0)
   }
 }
+
 
 
 
