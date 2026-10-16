@@ -419,16 +419,27 @@ private struct MacVideoWithPoster: NSViewRepresentable {
 }
 /// A video keeps paging: sideways trackpad scrolls go to the page controller
 /// instead of scrubbing, and a mouse drag outside the control bar swipes.
+/// AVPlayerView's own subviews receive scroll events and scrub with them
+/// before any ancestor sees them, so sideways gestures over a video are taken
+/// from the window's event stream instead and handed to the page controller.
 @MainActor private final class MacPagingPlayerView: AVPlayerView {
+  private var monitor: Any?
   private var sideways = false
-  override func scrollWheel(with event: NSEvent) {
-    // A sideways gesture belongs to paging for its whole length, momentum
-    // included; AVPlayerView would otherwise scrub with it.
-    if event.phase == .began || (event.phase == [] && event.momentumPhase == []) {
-      sideways = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
+    guard window != nil else { return }
+    monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+      guard let self, event.window === self.window, !self.isHiddenOrHasHiddenAncestor,
+        self.bounds.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
+      // The direction is decided when a gesture begins and kept through its
+      // momentum, so a sideways swipe never turns into scrubbing halfway.
+      if event.phase == .began || (event.phase == [] && event.momentumPhase == []) {
+        self.sideways = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+      }
+      guard self.sideways else { return event }
+      return MacPagerForwarding.forward(event, from: self) ? nil : event
     }
-    if sideways, MacPagerForwarding.forward(event, from: self) { return }
-    super.scrollWheel(with: event)
   }
 }
 /// Hands a scroll event to the enclosing page controller, which owns the
