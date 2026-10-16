@@ -11,11 +11,16 @@ concurrency:
 jobs:
   release:
     if: github.event.repository.private == false
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Show Apple build toolchain
+        run: |
+          xcodebuild -version
+          xcrun swiftc --version
+          xcrun --sdk macosx --show-sdk-version
       - name: Check version
         id: version
         env:
