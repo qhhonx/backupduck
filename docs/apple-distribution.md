@@ -109,8 +109,10 @@ Revisit the declaration before changing cryptography or distribution geography.
 Keep the English and Chinese Beta descriptions, marketing/privacy links, review
 instructions and per-build testing notes current together. Use the custom-domain
 website and privacy page; do not retain old RC pairing/migration instructions.
-Each Apple project keeps English testing notes in
-`TestFlight/WhatToTest.en-US.txt`; Cloud attaches these to uploaded builds.
+Each Apple project keeps testing notes in English and Simplified Chinese, in
+`TestFlight/WhatToTest.en-US.txt` and `TestFlight/WhatToTest.zh-Hans.txt`; Cloud
+attaches each file to the matching TestFlight language of uploaded builds. Keep
+both files current together and each well under 2 KB.
 Update these files with the release instead of relying on manual console edits.
 The attachment is automatic; writing release-specific testing instructions is
 part of the source change, not an automatically generated summary of commits.
