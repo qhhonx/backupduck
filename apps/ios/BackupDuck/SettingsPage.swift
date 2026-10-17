@@ -253,7 +253,7 @@ struct IOSPrototypeDestination<Content: View>: View {
 /// replace that bar-visibility gate with stack/transition safety checks. This is
 /// scoped to the actual NavigationStack's UINavigationController, not a global
 /// UIKit extension or a custom full-screen drag/pop implementation.
-private struct IOSNativeEdgeBack: UIViewControllerRepresentable {
+struct IOSNativeEdgeBack: UIViewControllerRepresentable {
   func makeUIViewController(context: Context) -> EdgeBackController { EdgeBackController() }
   func updateUIViewController(_ controller: EdgeBackController, context: Context) {
     controller.installWhenAttached()

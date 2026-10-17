@@ -32,6 +32,11 @@ filter includes every category. Album selection has search, user albums with any
 selection count, local cover thumbnails, unavailable selections and a clear
 All albums switch. Enabling it clears individual choices; choosing an album disables it. Disabling it with no choices remains an empty restricted scope, never an implicit expansion to all albums. Unavailable retained IDs remain restrictive. iPhone uses three reusable cover columns and an item-count
 unit. Media-cell selection follows the shared bottom-trailing badge contract.
+A cover tap or click chooses; the long-press or secondary-click menu opens the
+album read-only in the shared library grid, and Back restores the picker as it
+was. The system pickers have no album-level choice: PhotoKit's picker opens an
+album on tap and selects individual items inside it, so there is no system
+gesture to reuse for choosing a whole album.
 
 Type and album dimensions intersect; changes apply to new discovery and the next
 existing-library snapshot, not queued jobs. Manual selection remains authoritative.

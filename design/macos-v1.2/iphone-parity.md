@@ -84,6 +84,19 @@ host implementation of the same rule; **open** = not done.
 | Launch snapshot of the newest edge | `LaunchSnapshot` | not used (removed on iPhone too) |
 | Library changes during iCloud sync keep pixels and position | contract | partial |
 
+## Backup scope albums
+
+| Behaviour | Where | Mac |
+| --- | --- | --- |
+| Three equal cover columns, shared selection look (0.72 opacity, 23 pt check), summary line always shown | `ScopeAlbumGrid` | mac (`BackupScopeEditor.albumList`) |
+| Tap / click on a cover toggles its choice | `ScopeAlbumGrid` | mac |
+| Open an album read-only from the cover menu (long press / secondary click) or accessibility action | `ScopeAlbumBrowser` | mac (`MacScopeAlbumBrowser`, in the backup settings sheet; title and Back follow the album) |
+| Album photos use the library grid with an album-scoped model | `PhotoLibraryModel(collection:)` | shared (virtualized grid, paging, thumbnail pipeline and tables) |
+| Album page offers the same choose / deselect toggle, nothing else that changes scope | `ScopeAlbumBrowser` | mac |
+| Back keeps the picker's scroll position, search and selection | navigation stack | mac (the picker stays laid out, hidden, under the album) |
+| Album grid in a sheet opens tiled at the newest edge | `IOSLibraryGrid` | mac (scroll restore and the requested column count wait for a real width, since the sheet's first pass is a few points wide; the album grid reads the thumbnail tables but never starts the library-wide prefill) |
+| Photo viewer from an opened album | `IOSPreviewPresentation` | **open** (double click does nothing in the sheet) |
+
 ## Verification
 
 Motion is judged on a **Release** build, from 60 fps recordings of the app window

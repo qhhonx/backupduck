@@ -207,12 +207,20 @@ layout immediately. Desktop magnification also updates during the gesture.
 Virtualization uses bounded visible-rectangle lookup for cells and headings.
 
 Backup scope shows two summary destinations, Media types and Specified albums.
-No album IDs means All albums; removing the final explicit choice restores that
-mode. Retained but unavailable selected albums never widen the scope. Show user
+All albums is an explicit switch. Removing the final explicit choice keeps the
+scope restricted and empty until All albums is turned on again. Retained but unavailable selected albums never widen the scope. Show user
 albums initially; fetch previously selected system albums only to preserve edits.
 iPhone album covers use three reusable native columns (a readable list at
 accessibility sizes), explicit item-count units, and display-scale thumbnail targets. Album
 selection is searchable and virtualized; it never expands the parent page.
+A tap (iPhone) or click (Mac) on a cover toggles its choice; covers stay the
+choosing surface because unselected covers carry no mark to aim at. The cover's
+long-press menu (iPhone), secondary-click menu (Mac) and an accessibility action
+open the album read-only in the library grid, backed by an album-scoped
+`PhotoLibraryModel` with its own paging, thumbnail pipeline and scroll. Browsing
+never changes the scope or registers work; the album page's only scope control
+is the same explicit choose/deselect toggle. Back returns to the picker with its
+scroll position, search, summary line and selection unchanged.
 Independent choices use checkmarks. Persistent Booleans use leading-label,
 trailing-switch preference rows.
 

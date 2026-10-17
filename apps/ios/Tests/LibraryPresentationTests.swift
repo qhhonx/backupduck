@@ -66,6 +66,27 @@ final class LibraryPresentationTests: XCTestCase {
     XCTAssertEqual(BackupMediaKind.classify(image: true, video: false, live: false, burst: true), .burst)
     XCTAssertNil(BackupMediaKind.classify(image: false, video: false, live: false, burst: false))
   }
+  func testAlbumToggleLeavesAllAlbumsAndKeepsAnEmptyChoiceRestricted() {
+    let all = BackupScopeRule(types: [.photo, .video])
+    let family = all.toggling(album: "family", name: "Family")
+    XCTAssertTrue(family.restrictAlbums)
+    XCTAssertEqual(family.albums, ["family"]); XCTAssertEqual(family.albumNames, ["family": "Family"])
+    XCTAssertEqual(family.types, all.types, "Choosing an album never changes media types")
+    XCTAssertTrue(family.choosesAlbum("family")); XCTAssertFalse(all.choosesAlbum("family"))
+    let both = family.toggling(album: "travel", name: "Travel")
+    XCTAssertEqual(both.albums, ["family", "travel"])
+    XCTAssertTrue(both.includes(kind: .video, id: "t", albumMembers: ["t"]))
+    XCTAssertFalse(both.includes(kind: .burst, id: "t", albumMembers: ["t"]), "Types still intersect albums")
+    let travel = both.toggling(album: "family", name: "Family")
+    XCTAssertEqual(travel.albums, ["travel"]); XCTAssertNil(travel.albumNames["family"])
+    let none = travel.toggling(album: "travel", name: "Travel")
+    XCTAssertTrue(none.restrictAlbums, "Removing the last album must not widen to the whole library")
+    XCTAssertTrue(none.albums.isEmpty)
+    XCTAssertFalse(none.includes(kind: .photo, id: "any", albumMembers: []))
+    // A stale choice retained under All albums is cleared, not resurrected.
+    var stale = all; stale.albums = ["old"]; stale.albumNames = ["old": "Old"]
+    XCTAssertEqual(stale.toggling(album: "family", name: "Family").albums, ["family"])
+  }
   @MainActor func testBackupScopePersistsAndUnreadablePolicyFailsClosed() throws {
     let name = "scope-test-" + UUID().uuidString
     let defaults = try XCTUnwrap(UserDefaults(suiteName: name))

@@ -48,6 +48,17 @@ struct BackupScopeRule: Codable, Equatable {
     }
     return result
   }
+  /// One album choice: the first explicit choice leaves All albums. Removing
+  /// the last keeps the scope restricted (and empty) until All albums is on.
+  func toggling(album id: String, name: String) -> Self {
+    var next = self
+    if !next.restrictAlbums { next.albums = []; next.albumNames = [:] }
+    next.restrictAlbums = true
+    if next.albums.contains(id) { next.albums.remove(id); next.albumNames.removeValue(forKey: id) }
+    else { next.albums.insert(id); next.albumNames[id] = name }
+    return next
+  }
+  func choosesAlbum(_ id: String) -> Bool { usesSpecifiedAlbums && albums.contains(id) }
 }
 @MainActor final class BackupScopeStore: ObservableObject {
   static let shared = BackupScopeStore()
@@ -122,12 +133,14 @@ struct BackupScopeSettings: View {
   }
 }
 
-struct ScopeAlbum: Identifiable {
+struct ScopeAlbum: Identifiable, Hashable {
   let id: String
   let name: String
   let count: Int
   let system: Bool
   let cover: PHAsset?
+  static func == (a: Self, b: Self) -> Bool { a.id == b.id }
+  func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 @MainActor final class ScopeAlbumsModel: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
   static let shared = ScopeAlbumsModel()
@@ -172,9 +185,21 @@ struct ScopeAlbum: Identifiable {
 
 struct BackupScopeEditor: View {
   let destination: BackupScopeDestination
+  #if os(macOS)
+  /// The sheet owns the opened album so its title and Back follow it.
+  var opened: Binding<ScopeAlbum?> = .constant(nil)
+  #endif
   @ObservedObject private var store = BackupScopeStore.shared
   @StateObject private var model = ScopeAlbumsModel.shared
   @State private var search = ""
+  #if os(iOS)
+  @State private var openedAlbum: ScopeAlbum?
+  #else
+  private var openedAlbum: ScopeAlbum? {
+    get { opened.wrappedValue }
+    nonmutating set { opened.wrappedValue = newValue }
+  }
+  #endif
   @FocusState private var searchFocused: Bool
   @Environment(\.dynamicTypeSize) private var textSize
   #if os(iOS)
@@ -222,17 +247,27 @@ struct BackupScopeEditor: View {
         ScopeAlbumGrid(albums: model.albums.filter { !$0.system || (store.rule.usesSpecifiedAlbums && store.rule.albums.contains($0.id)) },
           selected: store.rule.usesSpecifiedAlbums ? store.rule.albums : [], search: search,
           listMode: textSize.isAccessibilitySize,
-          choose: selectAlbum)
+          choose: selectAlbum, open: openAlbum)
         missingAlbums.padding(.horizontal,16)
         #else
         albumList
         #endif
         if model.loading && destination == .albums { ProgressView("library_loading").frame(maxWidth: .infinity) }
       }
-    }.background(DuckColors.canvas).tint(DuckColors.action)
+    }
+    #if os(macOS)
+    // The picker stays laid out underneath, so its scroll position, search and
+    // selection are unchanged on Back.
+    .opacity(openedAlbum == nil ? 1 : 0).allowsHitTesting(openedAlbum == nil)
+    .accessibilityHidden(openedAlbum != nil)
+    .overlay { if let openedAlbum { MacScopeAlbumBrowser(album: openedAlbum) } }
+    #endif
+    .background(DuckColors.canvas).tint(DuckColors.action)
       .task { if destination == .albums { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) } }
       #if os(macOS)
       .frame(height: destination == .albums ? 440 : 208, alignment: .top)
+      #else
+      .navigationDestination(item: $openedAlbum) { album in ScopeAlbumBrowser(album: album) }
       #endif
   }
   #if os(macOS)
@@ -282,6 +317,12 @@ struct BackupScopeEditor: View {
         Text(albumItemCount(album.count)).font(.caption).foregroundStyle(DuckColors.textSecondary)
       }.frame(width: side, alignment: .leading).contentShape(Rectangle())
     }.buttonStyle(.plain).transaction { $0.animation = nil }
+      // A click chooses, as on iPhone; the secondary-click menu opens the album.
+      .contextMenu {
+        Button("scope_album_view") { openAlbum(album) }
+        Button(selected ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+      }
+      .accessibilityAction(named: Text("scope_album_view")) { openAlbum(album) }
       .accessibilityIdentifier("backup.scope.album." + album.id)
       .accessibilityLabel(Text(album.name)).accessibilityValue(Text(albumItemCount(album.count)))
       .accessibilityAddTraits(selected ? .isSelected : [])
@@ -309,12 +350,12 @@ struct BackupScopeEditor: View {
   }
   private func selectAlbum(_ album: ScopeAlbum) {
     searchFocused = false
-    var next = store.rule
-    if !next.restrictAlbums { next.albums = []; next.albumNames = [:] }
-    next.restrictAlbums = true
-    if next.albums.contains(album.id) { next.albums.remove(album.id); next.albumNames.removeValue(forKey: album.id) }
-    else { next.albums.insert(album.id); next.albumNames[album.id] = album.name }
-    store.save(next)
+    store.save(store.rule.toggling(album: album.id, name: album.name))
+  }
+  /// Browsing reads the album only: it changes neither the scope nor any work.
+  private func openAlbum(_ album: ScopeAlbum) {
+    searchFocused = false
+    openedAlbum = album
   }
   private var typeChoices: some View {
     VStack(spacing: 0) {

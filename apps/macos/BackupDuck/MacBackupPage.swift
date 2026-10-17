@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 struct MacBackupPage: View {
@@ -84,14 +85,20 @@ struct MacBackupPreferences: View {
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss
   @State private var scopeDestination: BackupScopeDestination?
+  @State private var openedAlbum: ScopeAlbum?
+  private var title: LocalizedStringKey {
+    if let openedAlbum { return "\(openedAlbum.name)" }
+    return LocalizedStringKey(scopeDestination?.title ?? "backup_settings")
+  }
+  private func back() { if openedAlbum != nil { openedAlbum = nil } else { scopeDestination = nil } }
   private var busy: Bool { model.changingHistory || model.changingAutoBackup || model.savingConcurrency }
   var body: some View {
-    DuckSheetLayout(title: LocalizedStringKey(scopeDestination?.title ?? "backup_settings"), busy: busy,
+    DuckSheetLayout(title: title, busy: busy,
       desktopMinHeight: scopeDestination == .types ? 340 : 360,
       desktopIdealHeight: scopeDestination == .types ? 392 : scopeDestination == .albums ? 640 : 560,
-      back: scopeDestination == nil ? nil : { scopeDestination = nil }) {
+      back: scopeDestination == nil ? nil : back) {
       if let scopeDestination {
-        BackupScopeEditor(destination: scopeDestination)
+        BackupScopeEditor(destination: scopeDestination, opened: $openedAlbum)
       } else {
       MacPreferenceGroup(title: "source_system_library") { DuckLibrarySource(model: model, compactMac: true) }
       BackupScopeSettings(navigate: { scopeDestination = $0 })
@@ -100,8 +107,64 @@ struct MacBackupPreferences: View {
       }
     } actions: {
       Button("settings_done") {
-        if scopeDestination != nil { scopeDestination = nil } else { dismiss() }
+        if scopeDestination != nil { back() } else { dismiss() }
       }.duckSecondaryAction().disabled(busy)
+    }
+  }
+}
+
+/// One album's photos in the Mac library grid, read-only, inside the backup
+/// settings sheet. Its own scoped model keeps the main library's fetch,
+/// selection and scroll untouched; browsing registers no work.
+struct MacScopeAlbumBrowser: View {
+  let album: ScopeAlbum
+  @StateObject private var library: PhotoLibraryModel
+  @StateObject private var navigation = MacLibraryNavigation()
+  @ObservedObject private var store = BackupScopeStore.shared
+  @ObservedObject private var model = BackupModel.shared
+  @State private var columns = MacLibraryDensity.standard
+  init(album: ScopeAlbum) {
+    self.album = album
+    _library = StateObject(wrappedValue: PhotoLibraryModel(collection: album.id))
+  }
+  var body: some View {
+    let chosen = store.rule.choosesAlbum(album.id)
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(spacing: 12) {
+        Text(albumItemCount(library.fetch == nil ? album.count : library.total))
+          .font(.callout).foregroundStyle(DuckColors.textSecondary)
+        Spacer(minLength: 12)
+        Button(chosen ? "scope_album_deselect" : "scope_album_choose") {
+          store.save(store.rule.toggling(album: album.id, name: album.name))
+        }.duckSecondaryAction().accessibilityIdentifier("backup.scope.album_browser.choose")
+      }.padding(.horizontal, 16).padding(.top, 12)
+      content.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }.background(DuckColors.canvas)
+      .task { await library.open() }
+      .onDisappear { library.thumbnails.clear() }
+  }
+  @ViewBuilder private var content: some View {
+    switch library.placeholder {
+    case .loading?: DuckLoadingState("library_loading")
+    case .empty?:
+      Text("scope_album_no_photos").foregroundStyle(DuckColors.textSecondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityIdentifier("backup.scope.album_browser.empty")
+    case let placeholder?:
+      MacLibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,
+        requestAccess: { Task { await library.open(requestPermission: true) } }, clearFilter: {})
+    case nil:
+      // The sheet's first pass proposes a near-zero width; a grid laid out then
+      // showed one frame of 1 pt cells. Mount it once the page has its width.
+      GeometryReader { proxy in
+        if proxy.size.width > 120 {
+          MacLibraryGrid(library: library, navigation: navigation,
+            preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")",
+            queueRevision: model.queueRevision, receiverID: model.pairing?.receiverID,
+            columns: columns, selecting: false, prefillsTables: false, resize: { columns = $0 })
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .accessibilityIdentifier("backup.scope.album_browser")
+        }
+      }
     }
   }
 }
