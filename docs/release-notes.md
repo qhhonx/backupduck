@@ -1,3 +1,24 @@
+# 0.4.1 — build 88
+
+Backup scope albums (iPhone, iPad and Mac)
+
+- Open an album from the Specified albums picker to see its photos before
+  choosing it: long-press a cover on iPhone and iPad, or secondary-click it on
+  Mac, then choose View Photos. The album uses the library's own grid and
+  viewer (iPhone and iPad), and its page can choose or deselect the album.
+- A tap or click on a cover still chooses the album. Browsing changes neither
+  the backup scope nor any queued work, and Back returns to the picker at the
+  same position with the same search and choices.
+- Mac: an album or short library page opened inside a sheet no longer shows a
+  strip of tiny tiles or an empty grid before its photos appear.
+
+Removing the last specified album still leaves an empty scope until All albums
+is turned on again. The Android receiver is unchanged apart from its version.
+
+Release metadata: version 0.4.1, build 88. Application identities, signing and
+update feeds are unchanged from 0.4.0; see [upgrade compatibility](upgrading.md).
+TestFlight availability is separate from the Mac and Android release.
+
 # 0.4.0 — build 87
 
 iPhone and iPad library

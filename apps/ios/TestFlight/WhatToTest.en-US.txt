@@ -1,7 +1,7 @@
-BackupDuck 0.4.0 rebuilds the iPhone and iPad photo library.
+BackupDuck 0.4.1 lets you look inside an album before choosing it for backup.
 
-Test Years, Months and All Photos: pinch between zoom steps and levels, scroll the month and year overviews, open photos and videos (information, Live Photos, bursts), and select items to back up. Check backup scope by media type and album, Settings > Cache (browsing thumbnails), pairing with the current Android / Pixel receiver, pause/resume, and light/dark appearance.
+Go to Backup > More settings > Specified albums. Tap a cover: it is chosen or deselected, as before. Long-press a cover and choose View Photos: the album opens in the library grid. Scroll, pinch and open photos; the circle at the top right chooses or deselects this album. Go back: the list should be at the same place, with your search and choices unchanged. Viewing an album never changes what is backed up. Try light and dark appearance and a large album.
 
-Connection status and transfer completion are separate. Confirm that source photos and existing history remain intact. Google Photos cloud backup runs independently on the receiver; iOS background execution is controlled by the system. Receiver download: https://backupduck.app/.
+Removing the last specified album leaves nothing in scope; turn All albums on to back up the whole library again.
 
-Questions and feedback: Settings > Feedback group opens the Telegram tester group. When reporting a problem, include the app version, device model, steps and error message. Do not include private photos or pairing codes.
+Questions and feedback: Settings > Feedback group opens the Telegram tester group. Include the app version, device model, steps and error message. Do not include private photos or pairing codes.

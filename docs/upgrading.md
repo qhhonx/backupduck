@@ -1,13 +1,14 @@
 # Upgrade compatibility
 
-0.3.0 uses build 47 and 0.4.0 uses build 87, with the same application
-identities, signing certificates, update keys and feeds. Discovering a release
+0.3.0 uses build 47, 0.4.0 uses build 87 and 0.4.1 uses build 88, with the same
+application identities, signing certificates, update keys and feeds. Discovering a release
 and installing it are separate compatibility questions. Automatic checking is not unattended installation.
 
 ## Release discovery
 
 | Installed official version | macOS Check for updates | Android receiver Check for updates | iOS |
 | --- | --- | --- | --- |
+| BackupDuck 0.4.0 | Supports discovering 0.4.1 through the same signed feed | Supports the stable 0.4.1 tag and BackupDuck metadata | No built-in updater; TestFlight controls availability |
 | BackupDuck 0.3.0 | Supports discovering 0.4.0 through the same signed feed | Supports the stable 0.4.0 tag and BackupDuck metadata | No built-in updater; TestFlight controls availability |
 | BackupDuck 0.2.0-rc.1 / rc.2 / rc.3 | Supports discovering 0.3.0 through the retained signed feed | Supports the stable 0.3.0 tag and BackupDuck metadata; RC.1's certificate difference affects installation, not discovery | No built-in updater; TestFlight controls availability |
 | PhotoBridge 0.1.x | Supports discovery through the retained PhotoBridge feed and public key | The old updater requires PhotoBridge repository URLs and APK names; ordinary BackupDuck metadata is rejected | No built-in updater; the application identity changed |
@@ -28,6 +29,7 @@ compatibility path; retaining the website address alone does not fix it.
 
 | Installed official version | macOS | Android receiver | iOS |
 | --- | --- | --- | --- |
+| BackupDuck 0.4.0 | Eligible for a signed Sparkle update | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight when the new build is available |
 | BackupDuck 0.3.0 | Eligible for a signed Sparkle update | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight when the new build is available |
 | BackupDuck 0.2.0-rc.2 / rc.3 | Eligible for a signed Sparkle update | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight when the new build is available |
 | BackupDuck 0.2.0-rc.1 | Eligible for a signed Sparkle update | Different signing certificate; cannot update in place | Update through the same TestFlight application |
