@@ -5,12 +5,14 @@ import UIKit
 
 /// The surrounding page owns search and the scope summary. UIKit owns reusable
 /// covers, visible requests and scroll position through selection changes.
+/// A tap chooses an album, as before; the long-press menu opens it to browse.
 struct ScopeAlbumGrid: UIViewControllerRepresentable {
   let albums: [ScopeAlbum]
   let selected: Set<String>
   let search: String
   let listMode: Bool
   let choose: (ScopeAlbum) -> Void
+  var open: (ScopeAlbum) -> Void = { _ in }
   func makeUIViewController(context: Context) -> ScopeAlbumController { ScopeAlbumController() }
   static func dismantleUIViewController(_ controller: ScopeAlbumController, coordinator: ()) {
     for cell in controller.collection.visibleCells { (cell as? ScopeAlbumCell)?.setDisplaying(false) }
@@ -29,6 +31,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   var selected = Set<String>()
   var listMode = false
   var choose: ((ScopeAlbum) -> Void)?
+  var open: ((ScopeAlbum) -> Void)?
   var policyObservation: AnyCancellable?
   private var previousWidth: CGFloat = 0
   override func viewDidLoad() {
@@ -66,7 +69,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
     }
     let geometryChanged = listMode != source.listMode
     rows = visible; selected = source.selected; listMode = source.listMode
-    choose = source.choose
+    choose = source.choose; open = source.open
     if geometryChanged { updateSize() }
     if membershipChanged || contentChanged { collection.reloadData() }
     else { refreshVisible() }
@@ -87,8 +90,37 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
     }
   }
   func configure(_ cell: ScopeAlbumCell, at index: Int) {
-    cell.configure(rows[index],selected: selected.contains(rows[index].id),listMode: listMode,
+    let album = rows[index]
+    cell.configure(album,selected: selected.contains(album.id),listMode: listMode,
       scale: traitCollection.displayScale,pipeline: ScopeThumbnailCache.pipeline)
+    cell.accessibilityCustomActions = [UIAccessibilityCustomAction(name: NSLocalizedString("scope_album_view",comment: "")) { [weak self] _ in
+      self?.open?(album); return true
+    }]
+  }
+  func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemsAt paths: [IndexPath], point: CGPoint) -> UIContextMenuConfiguration? {
+    guard let path = paths.first, rows.indices.contains(path.item) else { return nil }
+    let album = rows[path.item], chosen = selected.contains(album.id)
+    return UIContextMenuConfiguration(identifier: album.id as NSString, previewProvider: nil) { [weak self] _ in
+      UIMenu(children: [
+        UIAction(title: NSLocalizedString("scope_album_view",comment: ""),image: UIImage(systemName: "photo.on.rectangle")) { _ in self?.open?(album) },
+        UIAction(title: NSLocalizedString(chosen ? "scope_album_deselect" : "scope_album_choose",comment: ""),
+          image: UIImage(systemName: chosen ? "xmark.circle" : "checkmark.circle")) { _ in self?.choose?(album) },
+      ])
+    }
+  }
+  /// The menu lifts the cover alone, as Photos lifts an album, not the caption.
+  private func coverPreview(_ configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+    guard let id = configuration.identifier as? String, let index = rows.firstIndex(where: { $0.id == id }),
+      let cell = collection.cellForItem(at: IndexPath(item: index,section: 0)) as? ScopeAlbumCell else { return nil }
+    let parameters = UIPreviewParameters()
+    parameters.visiblePath = UIBezierPath(roundedRect: cell.photo.bounds,cornerRadius: cell.photo.layer.cornerRadius)
+    return UITargetedPreview(view: cell.photo,parameters: parameters)
+  }
+  func collectionView(_ collectionView: UICollectionView, contextMenuConfiguration configuration: UIContextMenuConfiguration, highlightPreviewForItemAt path: IndexPath) -> UITargetedPreview? {
+    coverPreview(configuration)
+  }
+  func collectionView(_ collectionView: UICollectionView, contextMenuConfiguration configuration: UIContextMenuConfiguration, dismissalPreviewForItemAt path: IndexPath) -> UITargetedPreview? {
+    coverPreview(configuration)
   }
   func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { rows.count }
   func collectionView(_ collectionView: UICollectionView, cellForItemAt path: IndexPath) -> UICollectionViewCell {
@@ -173,4 +205,64 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   func cancel() { pipeline?.cancel(request); request = PHInvalidImageRequestID; requestKey = ""; token = UUID() }
   func invalidateImage() { cancel(); photo.image = nil; placeholder.isHidden = false }
   override func prepareForReuse() { super.prepareForReuse(); setDisplaying(false); album = nil; photo.image = nil }
+}
+
+/// One album's photos in the library grid, read-only. It has its own scoped
+/// model (fetch, paging, thumbnail pipeline and scroll), so the main library
+/// and the picker behind it keep their state; nothing here registers work.
+struct ScopeAlbumBrowser: View {
+  let album: ScopeAlbum
+  @StateObject private var library: PhotoLibraryModel
+  @ObservedObject private var store = BackupScopeStore.shared
+  @ObservedObject private var model = BackupModel.shared
+  @State private var preview: IOSPreviewItem?
+  @Environment(\.dismiss) private var dismiss
+  init(album: ScopeAlbum) {
+    self.album = album
+    _library = StateObject(wrappedValue: PhotoLibraryModel(collection: album.id))
+  }
+  var body: some View {
+    VStack(spacing: 0) {
+      IOSPrototypeHeader(title: "\(album.name)", back: { dismiss() }) {
+        let chosen = store.rule.choosesAlbum(album.id)
+        Button { store.save(store.rule.toggling(album: album.id, name: album.name)) } label: {
+          Image(systemName: chosen ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
+            .frame(width: 44, height: 44).contentShape(Rectangle())
+        }.buttonStyle(.plain).foregroundStyle(DuckColors.action)
+          .accessibilityLabel(Text(chosen ? "scope_album_deselect" : "scope_album_choose"))
+          .accessibilityAddTraits(chosen ? .isSelected : [])
+          .accessibilityIdentifier("backup.scope.album_browser.choose")
+      }
+      content.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).tint(DuckColors.action)
+      .toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      .background(IOSNativeEdgeBack().frame(width: 0, height: 0).allowsHitTesting(false))
+      .background(IOSPreviewPresentation(item: preview, library: library) { preview = nil }.frame(width: 0, height: 0))
+      .task { await library.open() }
+      .onDisappear { library.thumbnails.clear() }
+  }
+  @ViewBuilder private var content: some View {
+    switch library.placeholder {
+    case .loading?: DuckLoadingState("library_loading")
+    case .empty?:
+      Text("scope_album_no_photos").font(.body).foregroundStyle(DuckColors.textSecondary)
+        .multilineTextAlignment(.center).padding(24).accessibilityIdentifier("backup.scope.album_browser.empty")
+    case let placeholder?:
+      LibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,
+        requestAccess: { Task { await library.open(requestPermission: true) } })
+    case nil:
+      IOSLibraryGrid(library: library,
+        preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")",
+        queueRevision: model.queueRevision, receiverID: model.pairing?.receiverID,
+        backupModel: model, selectionEnabled: false, browseOnly: true,
+        onPreview: { index, frame in
+          guard let asset = library.asset(at: index) else { return }
+          var transaction = Transaction(); transaction.disablesAnimations = true
+          withTransaction(transaction) {
+            preview = IOSPreviewItem(asset: asset, frame: frame,
+              poster: library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for: asset))
+          }
+        }).accessibilityIdentifier("backup.scope.album_browser").duckLibraryViewport()
+    }
+  }
 }

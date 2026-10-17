@@ -13,6 +13,10 @@ struct MacLibraryGrid: NSViewRepresentable {
   var columns: Int
   var selecting = true
   var active = true
+  /// The overview table prefill is app-wide and keyed by one fetch: only the
+  /// library grid may start it. An album grid reads the tables but would cancel
+  /// the library's pass and make it start over when the album closes.
+  var prefillsTables = true
   var preview: (PHAsset) -> Void = { _ in }
   var enterSelection: () -> Void = {}
   var resize: (Int) -> Void = { _ in }
@@ -245,7 +249,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       c.applyingSelection = false
     }
     c.updateFooter()
-    MacThumbnailTables.prefill(library.fetch)
+    if prefillsTables { MacThumbnailTables.prefill(library.fetch) }
   }
   static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
     coordinator.stopLayoutAnimation()
@@ -432,6 +436,11 @@ struct MacLibraryGrid: NSViewRepresentable {
     /// A layout pass changed the document height. A viewport resting at the
     /// newest edge stays there until the person scrolls away.
     func contentResized() {
+      // The first update can run before the grid has a width (a sheet's first
+      // pass), when the requested column count cannot be applied yet.
+      if appliedColumns == nil, width() > 120, let layout = collection?.collectionViewLayout as? LibraryTimelineLayout {
+        syncDensity(columns: parent.columns, layout: layout)
+      }
       guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView else { return }
       let clip = scroll.contentView, height = settledContentHeight
       guard clip.bounds.maxY < height - 2 else { return }
@@ -1562,7 +1571,9 @@ private final class MacMarqueeView: NSView {
         reflectScrolledClipView(contentView)
       }
     }
-    if contentSize.width > 0, contentSize.height > 0, let restore = restoreScroll {
+    // Restoring at a transient few-point width (a sheet's first pass) measured
+    // the content at that width and left the viewport untiled.
+    if contentSize.width > 120, contentSize.height > 0, let restore = restoreScroll {
       restoreScroll = nil
       restore(self)
     }

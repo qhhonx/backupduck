@@ -1201,6 +1201,10 @@
 "preview_cloud_setting_note" = "Load clear photo and video previews while browsing. This may use cellular data and does not start a backup. When off, only previews available on this device load.";
 
 "scope_album_item" = "%@ item";
+"scope_album_view" = "View Photos";
+"scope_album_choose" = "Choose Album";
+"scope_album_deselect" = "Deselect Album";
+"scope_album_no_photos" = "This album has no accessible photos or videos.";
 
 "library_browse_selected" = "Browse Selected Items";
 "library_deselect_item" = "Deselect Item";

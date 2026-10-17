@@ -14,6 +14,9 @@ struct IOSLibraryGrid: UIViewRepresentable {
   @ObservedObject var backupModel: BackupModel = BackupModel.shared
   var showSupplementaryContent = false
   var selectionEnabled = true
+  /// Browsing without selection (an album opened from backup scope): no
+  /// long-press range selection and no Select accessibility action.
+  var browseOnly = false
   var onPreview: (Int, CGRect) -> Void = { _, _ in }
   var onBeginSelection: (Int) -> Void = { _ in }
   func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -38,10 +41,12 @@ struct IOSLibraryGrid: UIViewRepresentable {
     view.register(TimelineDateHeader.self, forSupplementaryViewOfKind: LibraryTimelineLayout.headerKind, withReuseIdentifier: "timeline")
     view.dataSource = context.coordinator
     view.delegate = context.coordinator
-    let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
-    press.minimumPressDuration = 0.4
-    press.cancelsTouchesInView = true
-    view.addGestureRecognizer(press)
+    if !browseOnly {
+      let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
+      press.minimumPressDuration = 0.4
+      press.cancelsTouchesInView = true
+      view.addGestureRecognizer(press)
+    }
     if !showSupplementaryContent {
       let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinch(_:)))
       view.addGestureRecognizer(pinch)
@@ -386,7 +391,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     }
     func configure(_ cell: PhotoCell, path: IndexPath) {
       if let asset = parent.library.asset(at: path.item) {
-        cell.accessibilityCustomActions = parent.selectionEnabled ? nil : [UIAccessibilityCustomAction(name: NSLocalizedString("library_select", comment: ""), actionHandler: { [weak self, weak cell] _ in
+        cell.accessibilityCustomActions = parent.selectionEnabled || parent.browseOnly ? nil : [UIAccessibilityCustomAction(name: NSLocalizedString("library_select", comment: ""), actionHandler: { [weak self, weak cell] _ in
           guard let self, let cell, let path = self.collection?.indexPath(for: cell) else { return false }
           self.parent.onBeginSelection(path.item)
           return true
@@ -995,7 +1000,7 @@ struct IOSPreviewItem: Identifiable {
   review.present(viewer,animated: false)
 }
 
-private struct IOSPreviewPresentation: UIViewControllerRepresentable {
+struct IOSPreviewPresentation: UIViewControllerRepresentable {
   let item: IOSPreviewItem?
   let library: PhotoLibraryModel
   let close: () -> Void

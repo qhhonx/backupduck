@@ -365,6 +365,39 @@ import XCTest
     XCTAssertEqual(cursor.ids, [video.localIdentifier], "Changing settings cannot change an existing frozen scan")
   }
 
+  func testAlbumScopedLibraryBrowsesOnlyThatAlbumWithoutChangingScope() async throws {
+    #if !targetEnvironment(simulator)
+    throw XCTSkip("This fixture is simulator-only")
+    #endif
+    guard PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized else {
+      throw XCTSkip("Authorize only the disposable simulator's synthetic library first")
+    }
+    let images = PHAsset.fetchAssets(with: .image, options: photoLibraryFetchOptions())
+    guard images.count >= 600 else { throw XCTSkip("At least 600 synthetic images required") }
+    let members = images.objects(at: IndexSet(integersIn: 0..<600))
+    var albumID = ""
+    try await PHPhotoLibrary.shared().performChanges {
+      let album = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: "Scope fixture browse")
+      album.addAssets(members as NSArray)
+      albumID = album.placeholderForCreatedAssetCollection.localIdentifier
+    }
+    // Keep this synthetic album for native scrolling inspection.
+    let store = BackupScopeStore.shared, rule = store.rule
+    let library = PhotoLibraryModel(collection: albumID)
+    await library.open()
+    XCTAssertEqual(library.total, 600, "The album fetch pages its own membership, not the library")
+    let ids = Set(members.map(\.localIdentifier))
+    for index in 0..<library.loaded {
+      let asset = try XCTUnwrap(library.asset(at: index))
+      XCTAssertTrue(ids.contains(asset.localIdentifier))
+    }
+    let missing = PhotoLibraryModel(collection: "missing-album-fixture")
+    await missing.open()
+    XCTAssertEqual(missing.total, 0, "A missing album reads as empty, never as the whole library")
+    if case .empty? = missing.placeholder {} else { XCTFail("A missing album shows the empty state") }
+    XCTAssertEqual(store.rule, rule, "Browsing an album never changes the backup scope")
+  }
+
   func testPhotoKitPredicatesIncludeImportedStillFixtures() async throws {
     #if !targetEnvironment(simulator)
     throw XCTSkip("Synthetic PhotoKit fixture only")

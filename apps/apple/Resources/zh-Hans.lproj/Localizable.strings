@@ -1201,6 +1201,10 @@
 "preview_cloud_setting_note" = "浏览时通过网络加载照片和视频的清晰预览，可能使用蜂窝数据；不会开始备份。关闭后仅加载本机可用的预览。";
 
 "scope_album_item" = "%@ 个项目";
+"scope_album_view" = "查看照片";
+"scope_album_choose" = "选择此相簿";
+"scope_album_deselect" = "取消选择此相簿";
+"scope_album_no_photos" = "这个相簿中没有可访问的照片或视频。";
 
 "library_browse_selected" = "浏览所选内容";
 "library_deselect_item" = "取消选择此项目";

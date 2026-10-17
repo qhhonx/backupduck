@@ -91,6 +91,13 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   var scrollAnchorInset: CGFloat = 0
   private(set) var scrollResetGeneration = 0
   let thumbnails = ThumbnailPipeline()
+  /// When set, the model browses one album (PhotoKit collection) with the same
+  /// filter, sort, paging and thumbnail pipeline as the whole library.
+  let collectionID: String?
+  init(collection: String? = nil) {
+    collectionID = collection
+    super.init()
+  }
 
   // Display rows can group multiple burst assets, so loaded < total does not
   // describe the raw PhotoKit cursor's remaining pagination range.
@@ -126,10 +133,14 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     access == .authorized || access == .limited
   }
   /// Sorted fetch for a filter; identical for the launch prewarm and reloads.
-  nonisolated static func fetchAssets(_ filter: LibraryFilter) -> PHFetchResult<PHAsset> {
+  nonisolated static func fetchAssets(_ filter: LibraryFilter, collection: String? = nil) -> PHFetchResult<PHAsset> {
     let options = photoLibraryFetchOptions(for: filter)
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-    return PHAsset.fetchAssets(with: options)
+    guard let collection else { return PHAsset.fetchAssets(with: options) }
+    // A missing or revoked album reads as empty, never as the whole library.
+    guard let album = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [collection], options: nil).firstObject
+    else { return PHAsset.fetchAssets(withLocalIdentifiers: [], options: options) }
+    return PHAsset.fetchAssets(in: album, options: options)
   }
   /// The launch fetch, started from app init so it overlaps scene setup instead
   /// of waiting for the library view's first task, with the library's change
@@ -201,7 +212,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let previousCursor = resetWindow ? 0 : presentation.cursor
     let anchor = resetWindow ? nil : scrollAnchorID
     let selected = selection
-    let early = Self.takeEarlyFetch(for: selectedFilter)
+    let collection = collectionID
+    let early = collection == nil ? Self.takeEarlyFetch(for: selectedFilter) : nil
     let work = Task.detached(priority: .userInitiated) {
       var fetch: PHFetchResult<PHAsset>
       if let (early, token) = await early?.value {
@@ -212,7 +224,7 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
           LaunchTrace.mark("early fetch stale")
           fetch = Self.fetchAssets(selectedFilter)
         }
-      } else { fetch = Self.fetchAssets(selectedFilter) }
+      } else { fetch = Self.fetchAssets(selectedFilter, collection: collection) }
       let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
       LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
