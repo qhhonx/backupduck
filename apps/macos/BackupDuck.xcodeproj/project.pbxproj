@@ -59,6 +59,7 @@
 		473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
 		48F9514A642E13552542884B /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B2BBD178F50928C83270C3 /* MediaPreview.swift */; };
 		499607CACCC1EAB40F291747 /* FolderMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604819320A8AF91EACFAD75F /* FolderMedia.swift */; };
+		4A399B931DB6FEC5E0A49513 /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		4ABE6EA6A021BEE3C4FC219D /* SampleImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F7A3A20E9363511E3B6AE3 /* SampleImages.swift */; };
 		4D0280088673A807EFBD1DB5 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		4D769768A020BD036490DB39 /* FolderMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604819320A8AF91EACFAD75F /* FolderMedia.swift */; };
@@ -92,6 +93,7 @@
 		6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		6C2D6D4B6C95B05C4E0EE58D /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
+		701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
 		718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		7225487446C54C5E547FC03F /* MacSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28814E83AEE7E65D31C3D8E /* MacSettings.swift */; };
@@ -115,6 +117,7 @@
 		85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
 		87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
 		8951226286A3DA55DBB2779A /* MacTransferPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85204BF10B1F250E2C6DE2A4 /* MacTransferPage.swift */; };
+		895F17EA658AB2CA29D86E70 /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		8EEE967E8A10D32C28A9BD64 /* MacStoragePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C3C31E72546B643D76B89C /* MacStoragePanel.swift */; };
 		8F1B6E81FDDF6E284B34A4F0 /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		91CDFB25BE6272ADF8938558 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
@@ -273,6 +276,7 @@
 		ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGrid.swift; sourceTree = "<group>"; };
 		B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPlaceholder.swift; sourceTree = "<group>"; };
 		B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRefreshScheduler.swift; sourceTree = "<group>"; };
+		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B28814E83AEE7E65D31C3D8E /* MacSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettings.swift; sourceTree = "<group>"; };
 		B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
 		B72FC357EF7DA79C6D4817FE /* MacConnect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConnect.swift; sourceTree = "<group>"; };
@@ -436,6 +440,7 @@
 				728F0586C99805E1F1C10684 /* DuckTokens.swift */,
 				533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */,
 				BC599E760BD43DB668596349 /* GridZoom.swift */,
+				B2541E61CA97AADB0BC21233 /* HelpCenter.swift */,
 				C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */,
 				B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */,
 				9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */,
@@ -692,6 +697,7 @@
 				D63988A6A0724C364B6ECB6E /* FolderSourcesPage.swift in Sources */,
 				17A337617A0FFA79F33E0348 /* FolderWatch.swift in Sources */,
 				8F1B6E81FDDF6E284B34A4F0 /* GridZoom.swift in Sources */,
+				4A399B931DB6FEC5E0A49513 /* HelpCenter.swift in Sources */,
 				77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */,
 				C84580505ED4197D543ED861 /* LibraryGrid.swift in Sources */,
 				D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */,
@@ -760,6 +766,7 @@
 				D1D2BD332ECE16D9C0652DCD /* FolderSourcesPage.swift in Sources */,
 				0580D04376A914EA653FB910 /* FolderWatch.swift in Sources */,
 				7A2F288A085221BD17FDFE0F /* GridZoom.swift in Sources */,
+				895F17EA658AB2CA29D86E70 /* HelpCenter.swift in Sources */,
 				E5C60307D89C89193AAD3CB9 /* HistoricalImport.swift in Sources */,
 				AE0CCA33751E1E44FA797F71 /* LibraryGrid.swift in Sources */,
 				4D0280088673A807EFBD1DB5 /* LibraryPlaceholder.swift in Sources */,
@@ -825,6 +832,7 @@
 				1DAE3203534279498E99F2AA /* FolderSourcesPage.swift in Sources */,
 				EC66FE86B71813AB9352D07F /* FolderWatch.swift in Sources */,
 				25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */,
+				701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */,
 				50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */,

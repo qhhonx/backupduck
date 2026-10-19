@@ -49,7 +49,7 @@ struct IOSSettings: View {
         }
         Section {
           NavigationLink {
-            ScrollView { BackupHelp().padding() }.navigationTitle("settings_help_center").navigationBarTitleDisplayMode(.inline)
+            HelpCenter()
           } label: { DuckSettingsLabel(title: "settings_help_center", symbol: "questionmark", color: DuckGlyph.orange) }
             .accessibilityIdentifier("settings.help")
           if feedback.available {
@@ -227,6 +227,9 @@ struct IOSSettingsDetail: View {
     case "autoBackup": IOSAutoBackupSettings(model: model)
     case "advanced": IOSAdvancedSettings(model: model)
     case "about": IOSAboutSettings()
+    case "help": HelpCenter()
+    case let topic where topic.hasPrefix("help."):
+      if let found = (HelpCenter.tasks + HelpCenter.problems).first(where: { "help." + $0.id == topic }) { HelpArticle(topic: found) }
     default: ContentUnavailableView(name, systemImage: "questionmark")
     }
   }

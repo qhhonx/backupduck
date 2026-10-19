@@ -1,0 +1,8 @@
+{
+  "id": "settings.help-article",
+  "page": "settings",
+  "step": "help.offline",
+  "title": "Settings › Help Center › Can't reach the Pixel",
+  "extends": "base-paired",
+  "expect": ["One help article in plain words: the likely causes in order and what happens by itself."]
+}

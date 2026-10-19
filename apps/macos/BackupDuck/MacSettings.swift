@@ -148,7 +148,7 @@ struct MacSettings: View {
     case .autoBackup: MacAutoBackupSettings(model: model)
     case .appearance: MacAppearanceSettings()
     case .language: MacLanguageSettings(languageName: languageName)
-    case .help: ScrollView { BackupHelp().padding(24) }
+    case .help: NavigationStack { HelpCenter() }
     case .about: MacAboutSettings()
     case .diagnostics: ActivityLogView(embedded: true)
     case .advanced: MacAdvancedSettings(model: model)

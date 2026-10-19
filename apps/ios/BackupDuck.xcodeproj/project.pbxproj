@@ -42,6 +42,7 @@
 		41AAB44E642F3269F1BE18D5 /* ScopeAlbumGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */; };
 		473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
 		48F9514A642E13552542884B /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B2BBD178F50928C83270C3 /* MediaPreview.swift */; };
+		4A399B931DB6FEC5E0A49513 /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		4ABE6EA6A021BEE3C4FC219D /* SampleImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F7A3A20E9363511E3B6AE3 /* SampleImages.swift */; };
 		4D365D4AAD7ACC05CDBC3FF9 /* GridZoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */; };
 		4DCDDE21481BA90B60D7FD73 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
@@ -65,6 +66,7 @@
 		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
+		701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
 		718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		74EAD3F448C3B740E415FEF2 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */; };
@@ -206,6 +208,7 @@
 		B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRefreshScheduler.swift; sourceTree = "<group>"; };
 		B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLifecycle.swift; sourceTree = "<group>"; };
 		B0E5EF82A056F892D09CF73C /* IOSDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDevice.swift; sourceTree = "<group>"; };
+		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
 		B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
 		B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
@@ -360,6 +363,7 @@
 				728F0586C99805E1F1C10684 /* DuckTokens.swift */,
 				533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */,
 				BC599E760BD43DB668596349 /* GridZoom.swift */,
+				B2541E61CA97AADB0BC21233 /* HelpCenter.swift */,
 				C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */,
 				B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */,
 				9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */,
@@ -611,6 +615,7 @@
 				C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */,
 				AC269BB78501B58AF1A523FB /* FirstPhotoFlight.swift in Sources */,
 				8F1B6E81FDDF6E284B34A4F0 /* GridZoom.swift in Sources */,
+				4A399B931DB6FEC5E0A49513 /* HelpCenter.swift in Sources */,
 				77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */,
 				C7CDA8C605F5293ACB108257 /* IOSConnect.swift in Sources */,
 				185EDD4BA684AC198127D9DD /* IOSDevice.swift in Sources */,
@@ -695,6 +700,7 @@
 				616790E3983F5CDA98C5C397 /* DuckTokens.swift in Sources */,
 				7F543094142AE648AECCF7F9 /* FirstPhotoFlight.swift in Sources */,
 				25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */,
+				701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				54853049A123D203EE45E18C /* IOSConnect.swift in Sources */,
 				554F3CD31D68159F807FD0D6 /* IOSDevice.swift in Sources */,

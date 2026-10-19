@@ -1,0 +1,8 @@
+{
+  "id": "settings.help",
+  "page": "settings",
+  "step": "help",
+  "title": "Settings › Help Center",
+  "extends": "base-paired",
+  "expect": ["Help topics grouped by what the user wants to do and by what went wrong, with search."]
+}
