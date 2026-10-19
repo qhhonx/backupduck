@@ -39,8 +39,8 @@ legacy system fallbacks before adapting the reference into the production app.
   content-offset interpolation, anchored placement and reverse-state poses.
   This is a historical implementation reference, not an imported dependency;
   do not copy its all-items-per-frame iteration into a large photo library.
-- [Telegram GalleryUI](https://github.com/TelegramMessenger/Telegram-iOS/tree/master/submodules/GalleryUI/Sources):
-  stable identities, gesture state and cancellation ownership.
+- An open-source media gallery (notes kept locally): stable identities,
+  gesture state and cancellation ownership.
 
 The system Photos app is also operated directly on a simulator containing only
 synthetic photos. Native state and motion are local evidence; static screenshots

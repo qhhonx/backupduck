@@ -21,6 +21,16 @@ rules={
  'Apple device ID':rb'\b[0-9A-F]{8}-[0-9A-F]{16}\b',
  'personal team setting':rb'DEVELOPMENT_TEAM\s*=\s*[A-Z0-9]{10}',
 }
+# Optional local terms that must not appear in public files. The list lives in
+# ignored local storage, so the public script never names them. Each line is
+# `deny <regex>` or `allow <regex>`; an allowed line is not reported.
+terms=root/'build'/'internal-docs'/'private-terms.txt'
+deny,allow=[],[]
+if terms.is_file():
+ for line in terms.read_text().splitlines():
+  kind,_,pattern=line.strip().partition(' ')
+  if kind=='deny' and pattern: deny.append(re.compile(pattern))
+  if kind=='allow' and pattern: allow.append(re.compile(pattern))
 errors=[]
 for name in sorted(set(names)):
  if not name: continue
@@ -45,6 +55,10 @@ for name in sorted(set(names)):
  if path.suffix in ['.png','.icns','.jar']: continue
  for label,pattern in rules.items():
   if re.search(pattern,content): errors.append((name,label))
+ if deny:
+  for number,line in enumerate(content.decode('utf-8',errors='replace').splitlines(),1):
+   if any(p.search(line) for p in deny) and not any(p.search(line) for p in allow):
+    errors.append((f'{name}:{number}','local private term'))
 for name,label in errors: print(f'{name}: {label}')
 if errors: sys.exit(1)
 scope='Git index' if args.staged else 'working tree'

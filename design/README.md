@@ -14,7 +14,8 @@ request system permissions or prove native feature completion.
 - [Motion](backupduck-v1/motion.md): timing, stable progress geometry and
   accessibility fallbacks.
 - [Iteration checks](iteration-checklist.md): checks required for UI changes.
-- [Tokens](backupduck-v1/tokens.json): source for generated platform colors.
+- [Tokens](backupduck-v1/tokens.json): source for generated platform colors, text
+  styles, spacing, radius and motion; see [foundations](backupduck-v1/README.md).
 
 HTML prototypes are frozen historical references and are no longer maintained.
 Use the current component contracts and native implementation when one differs;

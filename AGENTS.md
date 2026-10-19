@@ -14,20 +14,28 @@ See `docs/architecture.md` and `docs/sender-host-contract.md`.
 
 ## Design changes
 
-Read `design/README.md`, `design/backupduck-v1/specification.md`,
+Read `design/README.md`, `design/visual-language.md`, `design/interaction.md`,
 `design/ui-content-rules.md` and `design/backupduck-v1/motion.md` before UI work.
+The redesign plan and its current step are in `design/redesign-roadmap.md`.
 Existing HTML prototypes are frozen historical references; do not create or
 maintain new ones. Use current component contracts, `motion.md` and the validated
 native implementation when a prototype differs, and never revert the
 implementation to match it.
 
+- Redesign before refinement (`design/constitution.md`). Check a page's status
+  in `design/page-register.md` before touching it. Legacy pages get defect
+  fixes only; anything else starts with a redesign for ordinary users, never by
+  porting or rewording the old page. Name redesigned versus legacy in reviews.
 - Reuse shared components. Components own inner padding and alignment; pages
   own section spacing. Store justified density differences in platform metrics.
-- Apple preference rows use 52 pt on iPhone and 48 pt on Mac, growing for wrapped
-  or accessibility text. Check group edges and complete page compositions.
-- Semantic colors come from `design/backupduck-v1/tokens.json`. Run
-  `python3 scripts/export-design-tokens.py` after edits and `--check` to verify.
-  Do not edit generated platform colors by hand.
+- Apple preference rows use 52 pt on iPhone and 41 pt on Mac (visual standard
+  V7), growing for wrapped or accessibility text. Check group edges and complete page compositions.
+- Colors, semantic text styles, spacing, radius and motion come from
+  `design/backupduck-v1/tokens.json`. Run `python3 scripts/export-design-tokens.py`
+  after edits and `--check` to verify; do not edit generated files by hand. New
+  code uses the role tokens (`DuckRole`, `duck_role_*`), not the legacy palette.
+  `python3 scripts/check-design-literals.py` rejects new literal colors and text
+  sizes; document real exceptions with a `design-exception:` comment.
 - Native grids and lists retain virtualization, cancellation/cache, stable IDs,
   paging, sorting, selection and scrolling. Do not replace them with WebViews.
 - Keep progress geometry stable. Progress overlays do not add layout rows.
@@ -54,6 +62,15 @@ New navigation or workflows are specified in the contract documents and checked
 in the native app; do not add HTML references. Gesture and density behavior must
 reuse the shared native core in `apps/apple/Shared` rather than a per-platform
 rewrite. Component refinements update components and contracts in one change. Inspect similar uses before treating feedback as a single-screen fix.
+
+## Local design notes
+
+Reference research, agent notes and handoff state live in ignored local storage,
+`build/internal-docs/`. When `build/internal-docs/agent-notes.md` exists, read
+it before design or redesign work and keep it current when you stop. Do not
+name reference products in tracked files; state rules and reasons in
+BackupDuck's own terms. `scripts/audit-public.py` also applies the local term
+list when it exists.
 
 ## Verification
 

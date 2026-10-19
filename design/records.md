@@ -1,0 +1,135 @@
+# Records and photo detail
+
+Status: proposed, for review (October 2026). Redesign of the legacy records
+list and item detail on iPhone, Mac and Pixel, following
+`constitution.md` § Redesign before refinement.
+
+## 1. The user's question
+
+An ordinary user opens records to learn one of three things:
+
+1. **Is this photo backed up?** About one photo they have in mind.
+2. **What is not backed up, and what do I do?** Only when something went wrong.
+3. **Is it working?** Seeing recent photos arrive is the reassurance.
+
+They never need: file names as the main label, four status filters, sort
+orders, a status glossary, task counts in the thousands, or words such as
+receipt, original, receiver, processing or task.
+
+## 2. References
+
+| Product | What it does for the same question |
+| --- | --- |
+| Google Photos (Android, iOS) | Backup state is shown on the photos themselves: a crossed-out cloud on items not backed up, "Backed up" in a photo's info. The account menu says "Backup complete" or "Backing up 23 items". No list of transfer jobs. |
+| iOS Photos with iCloud | One status line at the bottom of the library ("Syncing 120 items", "Updated just now"); no per-item job list. |
+
+Further reference notes are kept with the local design notes. The Google Photos
+and iOS Photos behavior is product knowledge and is checked on device before
+the copy ships.
+
+What BackupDuck takes:
+
+- **Photos, not files.** Records are a photo timeline. File names, sizes and
+  formats move to the bottom of the detail.
+- **Problems grouped by cause.** One card per cause with a count and one action,
+  as the hub does, instead of one row per failed file.
+- **Status on the photo.** A tile is unmarked when the photo is in the Pixel's
+  Photos; otherwise a small mark says sending, saving or needs you.
+- **The three facts in the detail** (P3), each with its time when known.
+
+## 3. Structure
+
+**Records page** (opened from the hub; the Mac lists it in the sidebar):
+
+1. **Needs you** (only when something does): one card per cause, in this order:
+   - Live Photos that cannot be saved to Photos as they are. Kept on the Pixel.
+     Action: View.
+   - Photos that did not arrive complete. Action: Try again.
+   - Photos whose original is not available on this device. Action: View.
+   - Photos the Pixel could not save to Photos for another reason. Action: View
+     (the fix is on the Pixel).
+2. **Timeline**: every backed-up or in-progress photo as a thumbnail grid,
+   grouped by the day of its latest change (Today, Yesterday, then dates), newest
+   first, paged as the user scrolls. Tile marks:
+   - none: in the Pixel's Photos
+   - arrow: sending or waiting to send
+   - clock: received by the Pixel, being saved to Photos
+   - exclamation: needs you (the same items as the cards)
+3. No filters, sort menu or status guide. The header line states the scope:
+   "1,284 photos backed up to Pixel 8 Pro".
+
+**Photo detail** (a sheet on iPhone and Pixel, a popover-sized sheet on Mac):
+
+1. The photo, large.
+2. When it was taken.
+3. Two facts, each one line with a mark and, when known, a time:
+   - Sent to Pixel 8 Pro · today 10:42 (or Sending… / Waiting to send / the cause)
+   - In the Pixel's Photos · today 10:43 (or Saving to Photos… / the cause)
+
+   Google Photos backup is never shown per photo: it is always unknown to
+   BackupDuck, so repeating it on every detail is noise (owner review, October
+   18). The history page says it once, as a footer.
+4. At most one action, only when the user can act: Try again, or the
+   explanation of where the fix is.
+5. Quiet footer: file name, size, kind (photo, Live Photo, video).
+
+**Pixel**: the same page as "Received photos", with the sending device on each
+day group when there is more than one, and "Needs you" limited to what the Pixel
+can act on (could not save to Photos, Live Photos that need conversion). The
+detail's first fact reads "Received from Lin's iPhone".
+
+## 4. Copy
+
+English below; the zh-Hans strings (`records_*` keys in
+`Localizable.strings`) follow `copy-glossary.zh.md`, using 存进 for "saved to".
+
+| Place | en |
+| --- | --- |
+| Page title | Backup History |
+| Scope line | %2$@ photos backed up to %1$@ |
+| Needs-you header | Needs You |
+| Live Photo card | %@ Live Photos can't be saved to the Pixel's Photos as they are · kept safely on the Pixel |
+| Incomplete card | %@ photos didn't arrive complete |
+| Original card | %@ photos' originals aren't available right now |
+| Pixel-side card | %@ photos couldn't be saved to the Pixel's Photos · retry on the Pixel |
+| Detail fact 1 | Sent to %@ |
+| Detail fact 2 | In the Pixel's Photos |
+| Detail fact 3 | Google Photos: BackupDuck can't see whether it's backed up |
+
+## 5. Decisions taken in this proposal
+
+- Records are not a second hub. Current progress stays on the hub; the
+  timeline only marks tiles.
+- Problem cards group by cause and are computed from the attention items the
+  core returns (bounded by its page size). A count above the page size reads
+  "200+".
+- Day groups use the time of the latest change, so a photo backed up today
+  appears under Today even if it was taken years ago. The detail shows when it
+  was taken.
+
+## Pixel as built
+
+- **No thumbnails on Pixel problem cards.** Photos that could not be saved, and
+  Live Photos that need conversion, have no copy in the Pixel's Photos, and the
+  core cannot yet return a preview of a received original by ID. Each card
+  keeps the count, the cause, one line and one action. Tiles for such photos
+  show a type icon instead of a picture.
+- **Card actions.** Live Photos: View (a sheet of just those photos). Could not
+  save: Try again for every failed save; Live Photos fail again unless format
+  conversion is on.
+- **Detail action.** Try again for a failed save; Open in Photos only once the
+  copy in Photos is found.
+- **Scope line.** "1,284 photos · 1,277 in the Pixel's Photos"; it names the
+  sending device only when one device sent everything shown.
+- **Ordering.** The core returns received items in arrival order; the page
+  regroups the loaded items by the day of their latest change. Exact order
+  across pages needs the core to page by latest change.
+
+## 6. Open
+
+- Per-photo "Convert and save" for Live Photos needs a receiver capability and
+  is not part of this redesign.
+- A core command that returns a small preview of a received original, so Pixel
+  problem cards can show the photos.
+- The history grid duplicates the library grid on iPhone and Mac. `library.md`
+  proposes one grid with backup marks and views, retiring this page there.

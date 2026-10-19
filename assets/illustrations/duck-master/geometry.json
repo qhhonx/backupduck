@@ -1,0 +1,65 @@
+{
+ "head_circle": {
+  "cx": 608.37,
+  "cy": 346.1,
+  "r": 180.55,
+  "rms": 0.68,
+  "max_edge_radius": 181.62
+ },
+ "eye": {
+  "cx": 673.16,
+  "cy": 325.79,
+  "r": 35.47,
+  "rms": 0.11
+ },
+ "highlight": {
+  "cx": 684.51,
+  "cy": 312.14,
+  "r": 9.9,
+  "rms": 0.06
+ },
+ "face_pivot": [
+  608.37,
+  346.1
+ ],
+ "tilt_pivot": [
+  512.0,
+  855.0
+ ],
+ "hidden_neck_ellipse": [
+  602.3743562966991,
+  473.10121818859267,
+  125,
+  75
+ ],
+ "segments": {
+  "silhouette": 46,
+  "head": 24,
+  "body": 35,
+  "wing": 18,
+  "beak": 18
+ },
+ "colors": {
+  "yellow": "#FEC613",
+  "blue": "#1065E4",
+  "orange": "#FA7212",
+  "ink": "#102346",
+  "highlight": "#FEFBF3"
+ },
+ "hidden_joint_max_turn_deg": {
+  "head_under_beak": 0.0,
+  "body_under_head": 0.0
+ },
+ "wing_root": [
+  203.8,
+  642.5
+ ],
+ "beak_sector_deg": [
+  -11.0,
+  38.0
+ ],
+ "inputs": {
+  "icon_sha256": "9446e876a95e508a58af6b9257a5ef7b301db50e74d2dd05fdcd1849a5c91ffc",
+  "tokens_sha256": "19edf539d3ffbce81b1d454414491836d84af02a10acb34a98e92e421abb6809"
+ }
+}

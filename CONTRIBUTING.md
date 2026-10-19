@@ -12,6 +12,7 @@ platform SDK. See [installation](docs/installation.md) for iOS source setup.
 ```sh
 cargo test --workspace --locked
 python3 scripts/export-design-tokens.py --check
+python3 scripts/check-design-literals.py
 python3 scripts/audit-public.py --documentation
 node --test site/tests/*.test.mjs
 ```

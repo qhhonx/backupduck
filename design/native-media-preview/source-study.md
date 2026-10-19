@@ -1,12 +1,9 @@
 # Media interaction source study
 
-## Telegram iOS
+## Gallery pager mechanics
 
-Primary sources:
-
-- [GalleryControllerNode](https://github.com/TelegramMessenger/Telegram-iOS/blob/master/submodules/GalleryUI/Sources/GalleryControllerNode.swift)
-- [GalleryPagerNode](https://github.com/TelegramMessenger/Telegram-iOS/blob/master/submodules/GalleryUI/Sources/GalleryPagerNode.swift)
-- [GalleryThumbnailContainerNode](https://github.com/TelegramMessenger/Telegram-iOS/blob/master/submodules/GalleryUI/Sources/GalleryThumbnailContainerNode.swift)
+Studied from an open-source media gallery; the notes are kept with the local
+design notes.
 
 The pager keeps a small visible neighbourhood and preserves the central item's
 relative horizontal offset when rearranging its nodes. Scroll progress is
@@ -22,8 +19,8 @@ driven recenter must not fight a user's drag.
 The controller derives background/control opacity from vertical displacement,
 then considers both velocity and distance on release. It resolves the current
 media's destination rather than always returning to the originally opened item.
-Do not import the application's chat actions, dependencies, source or fixed
-thresholds into BackupDuck. These are reference mechanisms, not copied code.
+No source, dependency or fixed threshold is imported into BackupDuck. These are
+reference mechanisms, not copied code.
 
 ## NYTPhotoViewer
 

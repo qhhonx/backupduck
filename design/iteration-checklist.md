@@ -7,6 +7,8 @@ regenerate unrelated screenshot matrices without a reason.
    make primary actions clear.
 2. Reuse semantic tokens and shared components. Run
    `python3 scripts/export-design-tokens.py --check`; regenerate after token changes.
+   Run `python3 scripts/check-design-literals.py`; update its baseline when a
+   change removes literal colors or text sizes.
 3. Keep receipt, gallery publication and cloud upload distinct. Never invent
    dates, progress, temperature or storage readings.
 4. Inspect component combinations: first/last rows, untitled groups, heading

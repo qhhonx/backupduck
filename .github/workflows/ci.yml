@@ -17,6 +17,8 @@ jobs:
       - run: node --test site/tests/*.test.mjs
       - run: node --check site/app.js
       - run: python3 scripts/export-design-tokens.py --check
+      - run: python3 scripts/check-design-literals.py
+      - run: python3 -m unittest discover -s scripts/tests -p 'test_design_tokens.py'
       - run: python3 scripts/check-release.py
       - run: node --check crates/native/src/dashboard/app.js
       - run: python3 scripts/audit-public.py --documentation
