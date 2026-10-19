@@ -1,0 +1,8 @@
+{
+  "id": "settings.advanced",
+  "page": "settings",
+  "step": "advanced",
+  "title": "Settings › advanced",
+  "extends": "base-paired",
+  "expect": ["The advanced page in the redesigned settings, built from the shared components."]
+}

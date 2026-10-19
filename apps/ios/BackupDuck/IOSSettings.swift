@@ -23,7 +23,7 @@ struct IOSSettings: View {
         if model.message != nil && !model.ready { openFailedCard }
         Section {
           // Devices live in Settings (design/navigation.md, D3).
-          NavigationLink { IOSReceiverPage(model: model).navigationTitle("settings_devices").navigationBarTitleDisplayMode(.inline) } label: {
+          NavigationLink { IOSDevicePage(model: model) } label: {
             LabeledContent { Text(model.peerDevice?.name ?? NSLocalizedString("settings_pair_first", comment: "")) } label: {
               DuckSettingsLabel(title: "settings_devices", symbol: "smartphone", color: DuckGlyph.green)
             }
@@ -214,5 +214,20 @@ private struct IOSAboutSettings: View {
     }
     .navigationTitle("about_title")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+/// A settings sub-page by name, so the design catalog can open it directly.
+struct IOSSettingsDetail: View {
+  let name: String
+  @ObservedObject var model: BackupModel
+  var body: some View {
+    switch name {
+    case "devices": IOSDevicePage(model: model)
+    case "autoBackup": IOSAutoBackupSettings(model: model)
+    case "advanced": IOSAdvancedSettings(model: model)
+    case "about": IOSAboutSettings()
+    default: ContentUnavailableView(name, systemImage: "questionmark")
+    }
   }
 }

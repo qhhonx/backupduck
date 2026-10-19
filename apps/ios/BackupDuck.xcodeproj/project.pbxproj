@@ -17,6 +17,7 @@
 		0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
+		185EDD4BA684AC198127D9DD /* IOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E5EF82A056F892D09CF73C /* IOSDevice.swift */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */; };
 		222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
@@ -47,6 +48,7 @@
 		4E6FB956C1C9A3E5FCF20408 /* IOSHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C8DAED4BC83F757CD44368 /* IOSHub.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		54853049A123D203EE45E18C /* IOSConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354FD796EC38268C550E83C1 /* IOSConnect.swift */; };
+		554F3CD31D68159F807FD0D6 /* IOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E5EF82A056F892D09CF73C /* IOSDevice.swift */; };
 		561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		5672B041A1C40468F548D65C /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
 		56D044A7A5D7991F06EEB08C /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
@@ -203,6 +205,7 @@
 		B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPlaceholder.swift; sourceTree = "<group>"; };
 		B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRefreshScheduler.swift; sourceTree = "<group>"; };
 		B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLifecycle.swift; sourceTree = "<group>"; };
+		B0E5EF82A056F892D09CF73C /* IOSDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDevice.swift; sourceTree = "<group>"; };
 		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
 		B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
 		B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
@@ -260,6 +263,7 @@
 				A160B6BAB13F144F368454F2 /* CalendarGridController.swift */,
 				63393D3E70EEF613D5806923 /* CalendarLibrary.swift */,
 				354FD796EC38268C550E83C1 /* IOSConnect.swift */,
+				B0E5EF82A056F892D09CF73C /* IOSDevice.swift */,
 				15C8DAED4BC83F757CD44368 /* IOSHub.swift */,
 				1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */,
 				FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */,
@@ -609,6 +613,7 @@
 				8F1B6E81FDDF6E284B34A4F0 /* GridZoom.swift in Sources */,
 				77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */,
 				C7CDA8C605F5293ACB108257 /* IOSConnect.swift in Sources */,
+				185EDD4BA684AC198127D9DD /* IOSDevice.swift in Sources */,
 				4E6FB956C1C9A3E5FCF20408 /* IOSHub.swift in Sources */,
 				A191EF4D9C43B6FD26D84C39 /* IOSOnboarding.swift in Sources */,
 				222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */,
@@ -692,6 +697,7 @@
 				25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				54853049A123D203EE45E18C /* IOSConnect.swift in Sources */,
+				554F3CD31D68159F807FD0D6 /* IOSDevice.swift in Sources */,
 				6A96F3520E8795522AAE6615 /* IOSHub.swift in Sources */,
 				1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */,
 				4DCDDE21481BA90B60D7FD73 /* IOSSettings.swift in Sources */,

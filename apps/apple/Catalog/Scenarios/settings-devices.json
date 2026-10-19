@@ -1,0 +1,8 @@
+{
+  "id": "settings.devices",
+  "page": "settings",
+  "step": "devices",
+  "title": "Settings › devices",
+  "extends": "base-paired",
+  "expect": ["The devices page in the redesigned settings, built from the shared components."]
+}

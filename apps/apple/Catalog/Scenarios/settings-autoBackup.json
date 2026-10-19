@@ -1,0 +1,8 @@
+{
+  "id": "settings.autoBackup",
+  "page": "settings",
+  "step": "autoBackup",
+  "title": "Settings › autoBackup",
+  "extends": "base-paired",
+  "expect": ["The autoBackup page in the redesigned settings, built from the shared components."]
+}

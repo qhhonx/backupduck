@@ -1,0 +1,8 @@
+{
+  "id": "settings.about",
+  "page": "settings",
+  "step": "about",
+  "title": "Settings › about",
+  "extends": "base-paired",
+  "expect": ["The about page in the redesigned settings, built from the shared components."]
+}

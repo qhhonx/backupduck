@@ -1,0 +1,8 @@
+{
+  "id": "settings.devices-none",
+  "page": "settings",
+  "step": "devices",
+  "title": "Settings › devices, nothing connected",
+  "extends": "base",
+  "expect": ["The empty state with the connecting duck and one Connect a Pixel action."]
+}

@@ -1444,3 +1444,10 @@
 "hub_needs_you_count" = "%@ need you";
 "library_view_pill" = "%1$@ · %2$@";
 "library_view_clear" = "Shows all photos";
+"device_connected_now" = "Connected";
+"device_last_seen" = "Last seen %@";
+"device_unreachable" = "Can't reach it right now";
+"device_received" = "Received by this Pixel";
+"device_saved" = "In its Photos";
+"device_google_note" = "BackupDuck can't see whether Google Photos has backed them up. Open Google Photos on the Pixel to check.";
+"device_switch" = "Connect a Different Pixel";

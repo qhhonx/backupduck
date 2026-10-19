@@ -1444,3 +1444,10 @@
 "hub_needs_you_count" = "%@ 张需要处理";
 "library_view_pill" = "%1$@ · %2$@ 张";
 "library_view_clear" = "显示全部照片";
+"device_connected_now" = "已连接";
+"device_last_seen" = "上次连接：%@";
+"device_unreachable" = "暂时连不上";
+"device_received" = "已送到这台 Pixel";
+"device_saved" = "存进它的相册";
+"device_google_note" = "备份鸭看不到 Google 相册有没有备份，要在 Pixel 上打开 Google 相册确认。";
+"device_switch" = "换一台 Pixel";

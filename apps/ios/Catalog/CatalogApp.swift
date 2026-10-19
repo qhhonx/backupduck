@@ -174,7 +174,10 @@ private struct ScenarioRun: View {
         })
       } else { IOSBackupPage(model: model) }
     case .settings where "\(item)" == scenario.page:
-      if proposed { IOSSettings(model: model) } else { IOSSettingsPage(model: model) }
+      if proposed, let detail = scenario.step {
+        // A settings sub-page opened directly, as if pushed from Settings.
+        NavigationStack { IOSSettingsDetail(name: detail, model: model) }
+      } else if proposed { IOSSettings(model: model) } else { IOSSettingsPage(model: model) }
     default:
       ContentUnavailableView("Not in this scenario", systemImage: item.symbol,
         description: Text(scenario.id))
