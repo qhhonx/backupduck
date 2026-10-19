@@ -108,11 +108,8 @@ struct DuckPreferenceToggleStyle: ToggleStyle {
 }
 #endif
 
-/// Which settings design a host shows. The app keeps the current pages until
-/// migration step 6; the design catalog switches to the proposed ones.
+/// Which design a host shows. The app keeps the current pages until roadmap
+/// step 6; the design catalog switches to the redesigned ones.
 enum DesignPreview {
   nonisolated(unsafe) static var proposedDesign = false
-  /// The proposed visual language (design/visual-language.md), shown next to
-  /// today's look while the owner decides it. Only meaningful with `proposedDesign`.
-  nonisolated(unsafe) static var proposedLook = false
 }

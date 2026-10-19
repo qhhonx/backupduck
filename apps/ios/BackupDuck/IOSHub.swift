@@ -2,10 +2,10 @@ import SwiftUI
 import UIKit
 
 /// The Backup tab as the hub (design/flows.md § Every day, § When something goes
-/// wrong): one line that answers "are my photos safe?", a problem card when the
-/// user is needed, earlier photos as a background task, and records. Preferences
-/// live in Settings. Shown in the design catalog until migration step 6
-/// replaces `IOSBackupPage`.
+/// wrong; interaction.md I2 task center). One state card answers "are my photos
+/// safe?", recently saved photos are the evidence, and summary rows open the
+/// matching library views. No primary action while calm. Shown in the design
+/// catalog until roadmap step 6 replaces `IOSBackupPage`.
 struct IOSHub: View {
   @ObservedObject var model: BackupModel
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
@@ -29,72 +29,85 @@ struct IOSHub: View {
   }
 
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
+  private var status: BackupHubStatus { model.hubStatus }
+  private var connected: Bool { model.pairing != nil && model.ready }
 
   var body: some View {
     NavigationStack {
-      if DesignPreview.proposedLook {
-        IOSHubLook(model: model, status: model.hubStatus, receiverName: receiverName,
-          pair: { pairing = true }, offlineHelp: { offlineHelp = true }, open: open)
-          .navigationTitle("nav_backup")
-          .navigationDestination(item: $records) { _ in
-            BackupHistoryView(model: model).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
+      ScrollView {
+        VStack(alignment: .leading, spacing: DuckSpacing.large) {
+          stateCard
+          if connected, let history = model.historicalImport, history.state != "idle" { earlierCard(history) }
+          if connected, !recentSources.isEmpty {
+            VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+              DuckSectionHeader(title: "hub_recent", link: "hub_see_all") { open(.recent, fallback: "all") }
+              DuckPhotoMosaic(sources: recentSources)
+            }
           }
-      } else {
-        currentLook
+          if connected { summaryRows }
+        }
+        .padding(.horizontal, DuckSpacing.medium).padding(.top, DuckSpacing.xxSmall).padding(.bottom, DuckSpacing.xLarge)
+        .animation(.easeOut(duration: DuckMotion.text), value: status)
+      }
+      .background(DuckRole.background)
+      .navigationTitle("nav_backup")
+      .toolbar { if model.pairing != nil { ToolbarItem(placement: .topBarTrailing) { devicePill } } }
+      .navigationDestination(item: $records) { _ in
+        BackupHistoryView(model: model).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
       }
     }
-    .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: model.hubStatus == .problem(.receiverRejected)) }
+    .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: status == .problem(.receiverRejected)) }
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet.presentationDetents([.medium]) }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
     .tint(DuckRole.accent)
   }
 
-  private var currentLook: some View {
-      List {
-        status
-        if model.pairing != nil, model.ready, let history = model.historicalImport, history.state != "idle" {
-          earlier(history)
-        }
-        if model.pairing != nil, model.ready { recordsSection }
-      }
-      .listStyle(.insetGrouped)
-      .navigationTitle("nav_backup")
-      .navigationDestination(item: $records) { _ in
-        BackupHistoryView(model: model).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
-      }
+  /// The paired Pixel with one dot for the overall state (V1).
+  private var devicePill: some View {
+    HStack(spacing: 6) {
+      Circle().fill(pillTone).frame(width: 8, height: 8)
+      Text(verbatim: receiverName).font(.footnote.weight(.semibold))
+    }
+    .accessibilityElement(children: .combine)
   }
 
-  // MARK: - Status
+  private var pillTone: Color {
+    switch status {
+    case .problem: DuckRole.attention
+    case .backingUp: DuckRole.accent
+    case .caughtUp(_, let saving): saving > 0 ? DuckRole.accent : DuckRole.saved
+    default: Color.secondary
+    }
+  }
 
-  @ViewBuilder private var status: some View {
-    switch model.hubStatus {
+  // MARK: - State (I3: one state at a time)
+
+  @ViewBuilder private var stateCard: some View {
+    switch status {
     case .notPaired:
-      hero(.empty, "hub_not_paired", note: Text("hub_not_paired_note")) {
-        Button { pairing = true } label: { Text("hub_connect").frame(maxWidth: .infinity) }
-          .buttonStyle(.borderedProminent).controlSize(.large)
+      DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
+        Button { pairing = true } label: { Text("hub_connect").frame(maxWidth: .infinity) }.duckPrimaryButton()
       }
     case .opening:
-      Section { LabeledContent("hub_opening") { ProgressView() } }
-    case .problem(let problem):
-      problemCard(problem)
-    case .paused:
-      Section {
-        VStack(alignment: .leading, spacing: 6) {
-          Label("hub_paused", systemImage: "pause.circle.fill").font(.headline)
-          Text("hub_paused_note").font(.subheadline).foregroundStyle(.secondary)
-        }
-        Button("hub_resume") { Task { await model.setPaused(false) } }.disabled(model.changingPause)
-      }
+      DuckStateCard(symbol: "hourglass", tone: .secondary, title: Text("hub_opening"))
+    case .empty:
+      DuckEmptyState(pose: .empty, title: "hub_empty", note: "hub_empty_note")
+    case .caughtUp(let last, let saving):
+      DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
+        title: Text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up"),
+        note: saving > 0
+          ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
+          : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })
     case .backingUp(let remaining, let bytes):
-      Section {
-        VStack(alignment: .leading, spacing: 10) {
-          Text(bytes > 0
+      VStack(spacing: DuckSpacing.small) {
+        DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
+          title: Text(bytes > 0
             ? String(format: NSLocalizedString("hub_backing_up", comment: ""), remaining.formatted(),
               ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))
-            : String(format: NSLocalizedString("hub_backing_up_count", comment: ""), remaining.formatted()))
-            .font(.headline)
-          ProgressView(value: progress).tint(DuckRole.accent)
-        }.padding(.vertical, 4)
+            : String(format: NSLocalizedString("hub_backing_up_count", comment: ""), remaining.formatted())),
+          progress: progress, action: {
+          DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
+        })
         if remaining >= 50 {
           Toggle(isOn: $keepScreenAwake) {
             VStack(alignment: .leading, spacing: 2) {
@@ -102,16 +115,15 @@ struct IOSHub: View {
               Text("hub_keep_awake_note").font(.footnote).foregroundStyle(.secondary)
             }
           }
+          .duckCard()
         }
-        Button("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
       }
-    case .caughtUp(let last, let saving):
-      hero(.waiting, saving > 0 ? "hub_caught_up_saving" : "hub_caught_up", note: saving > 0
-        ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
-        : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) }
-      ) { EmptyView() }
-    case .empty:
-      hero(.empty, "hub_empty", note: Text("hub_empty_note")) { EmptyView() }
+    case .paused:
+      DuckStateCard(symbol: "pause.circle.fill", tone: .secondary, title: Text("hub_paused"), note: Text("hub_paused_note"), action: {
+        DuckTintedButton("hub_resume") { Task { await model.setPaused(false) } }.disabled(model.changingPause)
+      })
+    case .problem(let issue):
+      problemCard(issue)
     }
   }
 
@@ -123,57 +135,36 @@ struct IOSHub: View {
     return total == 0 ? 0 : Double(confirmed) / Double(total)
   }
 
-  private func hero<Action: View>(_ pose: DuckIllustration.Pose, _ title: LocalizedStringKey, note: Text?,
-    @ViewBuilder action: () -> Action) -> some View {
-    Section {
-      VStack(spacing: 10) {
-        DuckIllustration(pose: pose, size: 120)
-        Text(title).font(.title3.weight(.semibold)).multilineTextAlignment(.center)
-        if let note { note.font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
-        action().padding(.top, 6)
-      }.frame(maxWidth: .infinity).padding(.vertical, 12)
-    }
-    .listRowBackground(Color.clear)
-  }
+  // MARK: - Problems (cause, what happens by itself, at most one action)
 
-  // MARK: - Problems
-
-  @ViewBuilder private func problemCard(_ problem: BackupHubStatus.Problem) -> some View {
-    switch problem {
+  @ViewBuilder private func problemCard(_ issue: BackupHubStatus.Problem) -> some View {
+    switch issue {
     case .receiverRejected:
-      card("hub_problem_rejected", note: "hub_problem_rejected_note", symbol: "exclamationmark.octagon.fill", tone: DuckRole.failure) {
-        Button("hub_problem_rejected_action") { pairing = true }
-      }
+      problem("exclamationmark.octagon.fill", DuckRole.failure, Text("hub_problem_rejected"), note: "hub_problem_rejected_note",
+        action: "hub_problem_rejected_action") { pairing = true }
     case .receiverUnreachable:
-      card(LocalizedStringKey(String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)),
-        note: "hub_problem_offline_note", symbol: "wifi.exclamationmark", tone: DuckRole.attention) {
-        Button("hub_problem_offline_action") { offlineHelp = true }
-      }
+      problem("wifi.exclamationmark", DuckRole.attention,
+        Text(String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)), note: "hub_problem_offline_note",
+        action: "hub_problem_offline_action") { offlineHelp = true }
     case .receiverFull:
-      card("hub_problem_receiver_full", note: "hub_problem_receiver_full_note", symbol: "externaldrive.badge.exclamationmark", tone: DuckRole.attention) { EmptyView() }
+      problem("externaldrive.badge.exclamationmark", DuckRole.attention, Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note")
     case .phoneFull:
-      card("hub_problem_phone_full", note: "hub_problem_phone_full_note", symbol: "iphone.gen3.badge.exclamationmark", tone: DuckRole.attention) { EmptyView() }
+      problem("iphone.gen3.badge.exclamationmark", DuckRole.attention, Text("hub_problem_phone_full"), note: "hub_problem_phone_full_note")
     case .photoAccessDenied:
-      card("hub_problem_photos", note: "hub_problem_photos_note", symbol: "photo.badge.exclamationmark", tone: DuckRole.attention) {
-        Button("hub_problem_photos_action") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
-      }
+      problem("photo.badge.exclamationmark", DuckRole.attention, Text("hub_problem_photos"), note: "hub_problem_photos_note",
+        action: "hub_problem_photos_action") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
     case .conversionNeeded(let count):
-      card(LocalizedStringKey(String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())),
-        note: "hub_problem_convert_note", symbol: "livephoto", tone: DuckRole.attention) {
-        Button("hub_problem_convert_action") { open(.needsYou, fallback: "attention") }
-      }
+      problem("livephoto", DuckRole.attention,
+        Text(String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())), note: "hub_problem_convert_note",
+        action: "hub_problem_convert_action") { open(.needsYou, fallback: "attention") }
     }
   }
 
-  private func card<Action: View>(_ title: LocalizedStringKey, note: LocalizedStringKey, symbol: String, tone: Color,
-    @ViewBuilder action: () -> Action) -> some View {
-    Section {
-      VStack(alignment: .leading, spacing: 6) {
-        Label(title, systemImage: symbol).font(.headline).foregroundStyle(tone)
-        Text(note).font(.subheadline).foregroundStyle(.secondary)
-      }.padding(.vertical, 4)
-      action()
-    }
+  private func problem(_ symbol: String, _ tone: Color, _ title: Text, note: LocalizedStringKey,
+    action: LocalizedStringKey? = nil, perform: @escaping () -> Void = {}) -> some View {
+    DuckStateCard(symbol: symbol, tone: tone, title: title, note: Text(note), action: {
+      if let action { DuckTintedButton(action, action: perform) }
+    })
   }
 
   private var offlineHelpSheet: some View {
@@ -193,36 +184,55 @@ struct IOSHub: View {
     }
   }
 
-  // MARK: - Earlier photos and records
+  // MARK: - Earlier photos, evidence and summaries
 
-  private func earlier(_ history: HistoricalImportStatus) -> some View {
-    Section("hub_earlier") {
-      if history.state == "scanned" && history.pending == 0 {
-        Label("hub_earlier_done", systemImage: "checkmark.circle.fill").foregroundStyle(DuckRole.saved)
-      } else {
-        LabeledContent {
-          if history.state == "paused" { Text("hub_earlier_paused") }
-        } label: {
-          Text(String(format: NSLocalizedString("hub_earlier_progress", comment: ""), history.checked.formatted(), history.pending.formatted()))
-        }
-        Button(history.state == "paused" ? "hub_resume" : "hub_pause") {
-          Task { await model.controlHistoricalImport(history.state == "paused" ? "resume" : "pause") }
+  private func earlierCard(_ history: HistoricalImportStatus) -> some View {
+    let done = history.state == "scanned" && history.pending == 0
+    let paused = history.state == "paused"
+    return DuckStateCard(symbol: done ? "checkmark.circle.fill" : "clock.arrow.circlepath", tone: done ? DuckRole.saved : DuckRole.accent,
+      title: Text(done ? "hub_earlier_done" : "hub_earlier"),
+      note: done ? nil : Text(String(format: NSLocalizedString("hub_earlier_progress", comment: ""),
+        history.checked.formatted(), history.pending.formatted())), action: {
+      if !done {
+        DuckTintedButton(paused ? "hub_resume" : "hub_pause") {
+          Task { await model.controlHistoricalImport(paused ? "resume" : "pause") }
         }.disabled(model.changingHistory)
       }
-    }
+    })
   }
 
-  private var recordsSection: some View {
-    Section {
+  /// Photos the Pixel has received, newest change first.
+  private var recentSources: [String] {
+    model.jobs.filter { $0.state == "received" }
+      .sorted { ($0.stateChangedAt ?? 0) > ($1.stateChangedAt ?? 0) }
+      .prefix(5).map(\.asset.source_id)
+  }
+
+  private var summaryRows: some View {
+    VStack(spacing: 0) {
       let attention = model.summary.count(for: "attention")
       if attention > 0 {
-        Button { open(.needsYou, fallback: "attention") } label: {
-          LabeledContent("hub_needs_attention", value: attention.formatted())
-        }.foregroundStyle(.primary)
+        summaryRow(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
+          symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention) { open(.needsYou, fallback: "attention") }
+        Divider().padding(.leading, DuckSpacing.medium)
       }
-      Button { open(.recent, fallback: "all") } label: {
-        LabeledContent("records_title", value: model.summary.total.formatted())
-      }.foregroundStyle(.primary)
+      summaryRow(Text("records_title"), value: model.summary.total.formatted(), symbol: nil, tone: nil) { open(.recent, fallback: "all") }
     }
+    .background(DuckLook.cardSurface, in: RoundedRectangle(cornerRadius: DuckLook.cardRadius, style: .continuous))
+  }
+
+  /// V7: a 52 pt navigation row inside a grouped card.
+  private func summaryRow(_ title: Text, value: String?, symbol: String?, tone: Color?, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      HStack(spacing: DuckSpacing.small) {
+        if let symbol { Image(systemName: symbol).foregroundStyle(tone ?? .secondary).accessibilityHidden(true) }
+        title.foregroundStyle(.primary)
+        Spacer()
+        if let value { Text(verbatim: value).foregroundStyle(.secondary) }
+        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+      }
+      .padding(.horizontal, DuckSpacing.medium).frame(minHeight: 52).contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 }

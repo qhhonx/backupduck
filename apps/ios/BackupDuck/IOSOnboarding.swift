@@ -98,28 +98,16 @@ struct IOSOnboarding: View {
     case .choose:
       VStack(alignment: .leading, spacing: 16) {
         Text("onboarding_choose_title").font(.title.weight(.bold))
-        if DesignPreview.proposedLook {
-          VStack(alignment: .leading, spacing: 6) {
-            Toggle("onboarding_choose_auto", isOn: $autoBackup).font(.headline)
-            Text("onboarding_choose_auto_note").font(.footnote).foregroundStyle(.secondary)
-          }.duckLookCard()
-          // Photos lead (visual-language.md): the question shows the user's own photos.
-          VStack(alignment: .leading, spacing: 10) {
-            OnboardingLibraryStrip()
-            Text(earlierQuestion).font(.headline)
-            Text("onboarding_choose_earlier_note").font(.footnote).foregroundStyle(.secondary)
-          }.duckLookCard()
-        } else {
-          VStack(alignment: .leading, spacing: 6) {
-            Toggle("onboarding_choose_auto", isOn: $autoBackup).font(.headline)
-            Text("onboarding_choose_auto_note").font(.footnote).foregroundStyle(.secondary)
-          }.padding(16).background(DuckRole.groupedSurface, in: RoundedRectangle(cornerRadius: 16))
-          VStack(alignment: .leading, spacing: 6) {
-            Text(earlierQuestion).font(.headline)
-            Text("onboarding_choose_earlier_note").font(.footnote).foregroundStyle(.secondary)
-          }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(DuckRole.groupedSurface, in: RoundedRectangle(cornerRadius: 16))
-        }
+        VStack(alignment: .leading, spacing: 6) {
+          Toggle("onboarding_choose_auto", isOn: $autoBackup).font(.headline)
+          Text("onboarding_choose_auto_note").font(.footnote).foregroundStyle(.secondary)
+        }.duckCard()
+        // Photos lead (visual-language.md): the question shows the user's own photos.
+        VStack(alignment: .leading, spacing: 10) {
+          OnboardingLibraryStrip()
+          Text(earlierQuestion).font(.headline)
+          Text("onboarding_choose_earlier_note").font(.footnote).foregroundStyle(.secondary)
+        }.duckCard()
       }
     case .first:
       VStack(spacing: 24) {

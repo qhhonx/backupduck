@@ -11,7 +11,6 @@ import SwiftUI
     BackupEnvironment.credentials = Self.credentials
     BackupEnvironment.discoversReceivers = false
     BackupEnvironment.usesPhotoLibrary = false
-    DesignPreview.proposedLook = ProcessInfo.processInfo.arguments.contains("-look")
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
     // The catalog never asks for photo access; scenarios behave as if it was granted.
     BackupEnvironment.requestPhotoAccess = { true }

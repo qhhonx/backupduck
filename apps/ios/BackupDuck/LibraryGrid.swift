@@ -750,8 +750,8 @@ private struct IOSCalendarLibraryPage: View {
             clearFilter:{Task { await library.changeFilter(.all) }})
             .navigationTitle("nav_library")
         }
-      } else if DesignPreview.proposedLook && library.backupView != .all {
-        // visual-language.md: the active backup view is a soft pill that clears
+      } else if library.backupView != .all {
+        // interaction.md I2: the active backup view is a soft pill that clears
         // with one tap, as Photos shows an active filter.
         calendar.safeAreaInset(edge: .bottom) {
           Button { Task { await library.changeBackupView(.all) } } label: {

@@ -96,14 +96,10 @@ struct IOSSettings: View {
           .accessibilityHidden(true)
           .padding(.bottom, 6)
         Text(model.deviceSnapshot?.device.name ?? "—").font(.title2.weight(.semibold))
-        if DesignPreview.proposedLook {
-          // visual-language.md: state as a soft pill with one colored dot.
-          DuckLookPill(title: Text(values.pairedSubtitle ?? NSLocalizedString("settings_pair_first", comment: "")),
-            dot: model.pairing == nil ? Color.secondary : model.hubStatus.isProblem ? DuckRole.attention : DuckRole.saved)
-            .padding(.top, 2)
-        } else if let subtitle = values.pairedSubtitle {
-          Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
-        }
+        // V1: state as a soft pill with one colored dot.
+        DuckPill(title: Text(values.pairedSubtitle ?? NSLocalizedString("settings_pair_first", comment: "")),
+          dot: model.pairing == nil ? Color.secondary : model.hubStatus.isProblem ? DuckRole.attention : DuckRole.saved)
+          .padding(.top, 2)
       }
       .frame(maxWidth: .infinity)
       .multilineTextAlignment(.center)
@@ -112,44 +108,19 @@ struct IOSSettings: View {
     .listRowBackground(Color.clear)
   }
 
-  /// The engine failed to open: the cause and one action, said once.
-  @ViewBuilder private var openFailedCard: some View {
-    if DesignPreview.proposedLook {
-      Section {
-        HStack(alignment: .top, spacing: 12) {
-          Image(systemName: "exclamationmark.triangle.fill").font(.title3).foregroundStyle(DuckRole.attention).frame(width: 28)
-          VStack(alignment: .leading, spacing: 6) {
-            Text("settings_open_failed").font(.headline)
-            if let message = model.message, message != NSLocalizedString("pairing_unlock_wait", comment: "") {
-              Text(message).font(.subheadline).foregroundStyle(.secondary)
-            }
-            DuckLookSecondaryButton("retry_task") {
-              guard !retrying else { return }
-              retrying = true
-              Task { await model.open(); retrying = false }
-            }.disabled(retrying).padding(.top, 4)
-          }
-        }.padding(.vertical, 4)
-      }
-    } else {
-      openFailedCardCurrent
-    }
-  }
-  private var openFailedCardCurrent: some View {
+  /// The engine failed to open: the cause and one action, said once (I3).
+  private var openFailedCard: some View {
     Section {
-      VStack(alignment: .leading, spacing: 4) {
-        Label("settings_open_failed", systemImage: "exclamationmark.triangle.fill")
-          .font(.headline).foregroundStyle(DuckRole.attention)
-        if let message = model.message, message != NSLocalizedString("pairing_unlock_wait", comment: "") {
-          Text(message).font(.subheadline).foregroundStyle(.secondary)
-        }
-      }
-      Button("retry_task") {
-        guard !retrying else { return }
-        retrying = true
-        Task { await model.open(); retrying = false }
-      }.disabled(retrying)
+      DuckStateCard(symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention, title: Text("settings_open_failed"),
+        note: model.message.flatMap { $0 == NSLocalizedString("pairing_unlock_wait", comment: "") ? nil : Text($0) }, action: {
+        DuckTintedButton("retry_task") {
+          guard !retrying else { return }
+          retrying = true
+          Task { await model.open(); retrying = false }
+        }.disabled(retrying)
+      })
     }
+    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
   }
 
   private var footer: some View {

@@ -76,6 +76,7 @@
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		61438BC414F9F55949509F5D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B879720B5A1DAB699000E2E /* Assets.xcassets */; };
 		616790E3983F5CDA98C5C397 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
+		61B37FD986562777342B0398 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
 		61C4EF5217307370D283286C /* BackupDuckMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B4243B08406794F3828620 /* BackupDuckMacApp.swift */; };
 		6350BF4EADFAA3A28C8BEDB0 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2240B6B1E76D07784056F214 /* AppUpdater.swift */; };
 		64D267E777E6E4FAD390C020 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
@@ -101,6 +102,7 @@
 		77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = FC24582406B7B42FD52AC817 /* InfoPlist.strings */; };
 		7805F011A86D92FDBD924DDB /* FolderMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604819320A8AF91EACFAD75F /* FolderMedia.swift */; };
+		785D741FE5357F4F5D4CD333 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
 		7A2F288A085221BD17FDFE0F /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		7A70A6663423068994494CF6 /* MacStatusMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCBAA8805437D418DF9BA83A /* MacStatusMenu.swift */; };
 		7CB64490194DB59972D9AB47 /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
@@ -151,6 +153,7 @@
 		BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		C0CF5B725CF9B0AFFBDE0905 /* MacHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96643277A7E41AF1DC12B80A /* MacHub.swift */; };
 		C455EB0A44BA814680BFE06A /* MacPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E46FE58B00C600C0D604FE4 /* MacPreferences.swift */; };
+		C523FE7BCDFCE7BAE44D6008 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
 		C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
@@ -238,6 +241,7 @@
 		354D47FCA5E06447D8ACA477 /* FileThumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileThumbnails.swift; sourceTree = "<group>"; };
 		3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupModel.swift; sourceTree = "<group>"; };
 		413A2C06D6747F37ECC8DD14 /* MacCatalogApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCatalogApp.swift; sourceTree = "<group>"; };
+		41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckLook.swift; sourceTree = "<group>"; };
 		4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Illustrations.xcassets; sourceTree = "<group>"; };
 		49B4243B08406794F3828620 /* BackupDuckMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupDuckMacApp.swift; sourceTree = "<group>"; };
 		533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPhotoFlight.swift; sourceTree = "<group>"; };
@@ -428,6 +432,7 @@
 				6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */,
 				32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */,
 				1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */,
+				41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */,
 				728F0586C99805E1F1C10684 /* DuckTokens.swift */,
 				533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */,
 				BC599E760BD43DB668596349 /* GridZoom.swift */,
@@ -678,6 +683,7 @@
 				9523B09BB2EE875AB0F1314A /* BurstPhotos.swift in Sources */,
 				6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */,
 				0721D25FA612BE42E331F0B5 /* DuckComponents.swift in Sources */,
+				61B37FD986562777342B0398 /* DuckLook.swift in Sources */,
 				C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */,
 				26EEEB11E3F374D99B55C320 /* FileThumbnails.swift in Sources */,
 				AC269BB78501B58AF1A523FB /* FirstPhotoFlight.swift in Sources */,
@@ -745,6 +751,7 @@
 				D63163993905AD545E92741A /* BurstPhotos.swift in Sources */,
 				92730896C675255D0AA5F593 /* DeviceIdentity.swift in Sources */,
 				64F85AB521BF4B782B32B053 /* DuckComponents.swift in Sources */,
+				C523FE7BCDFCE7BAE44D6008 /* DuckLook.swift in Sources */,
 				2B4BB883D2E55509F6366FE9 /* DuckTokens.swift in Sources */,
 				A3BA6C64446ADDB42929DF69 /* FileThumbnails.swift in Sources */,
 				9EA24E3D1DCFD56A8ECE23D6 /* FirstPhotoFlight.swift in Sources */,
@@ -809,6 +816,7 @@
 				600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */,
 				779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */,
 				BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */,
+				785D741FE5357F4F5D4CD333 /* DuckLook.swift in Sources */,
 				616790E3983F5CDA98C5C397 /* DuckTokens.swift in Sources */,
 				68F824F3F15EC1764EC4AE85 /* FileThumbnails.swift in Sources */,
 				7F543094142AE648AECCF7F9 /* FirstPhotoFlight.swift in Sources */,
