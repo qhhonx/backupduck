@@ -111,21 +111,35 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
           state: c.parent.library.filter == filter ? .on : .off
         ) { _ in Task { await c.parent.library.changeFilter(filter) } }
       }
-      return [
+      var menus = [
         UIMenu(
           title: NSLocalizedString("media_type", comment: ""), options: .displayInline,
           children: actions)
       ]
+      // design/library.md: backup views of the same grid (proposed design only).
+      if DesignPreview.proposedDesign {
+        let views = LibraryBackupView.allCases.map { view in
+          UIAction(
+            title: NSLocalizedString(view.title, comment: ""),
+            image: UIImage(systemName: view.symbol),
+            state: c.parent.library.backupView == view ? .on : .off
+          ) { _ in Task { await c.parent.library.changeBackupView(view) } }
+        }
+        menus.insert(UIMenu(title: NSLocalizedString("library_view_section", comment: ""), options: .displayInline, children: views), at: 0)
+      }
+      return menus
     }
     return CalendarNavigationController(rootViewController: grid)
   }
   func updateUIViewController(_ nav: UINavigationController, context: Context) {
     let c = context.coordinator
     c.parent = self
+    library.backupReceiver = model.pairing?.receiverID
     guard let grid = c.controller else { return }
     grid.loadViewIfNeeded()
     grid.canBackup = model.pairing != nil && !model.importing
     grid.displayedTotal = library.total
+    grid.viewTitle = library.backupView == .all ? nil : NSLocalizedString(library.backupView.title, comment: "")
     grid.indexing = library.fetch == nil || library.loading || c.work != nil
     if grid.selected != library.selection {
       grid.selected = library.selection

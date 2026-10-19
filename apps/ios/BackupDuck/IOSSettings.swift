@@ -1,0 +1,247 @@
+import SwiftUI
+import UIKit
+
+/// Settings as defined in `design/settings.md`, in the iPhone dialect:
+/// identity header, a contextual card, category rows with icon tiles and
+/// values, help last and a quiet footer. Shown in the design catalog until
+/// migration step 6 replaces `IOSSettingsPage`.
+struct IOSSettings: View {
+  @ObservedObject var model: BackupModel
+  @ObservedObject private var feedback = TesterFeedback.shared
+  @AppStorage("duckAppearance") private var appearance = "system"
+  @Environment(\.openURL) private var openURL
+  @State private var editingName = false
+  @State private var diagnostics = false
+  @State private var advanced = false
+  @State private var retrying = false
+  private var values: DuckSettingsValues { DuckSettingsValues(model: model) }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        header
+        if model.message != nil && !model.ready { openFailedCard }
+        Section {
+          // Devices live in Settings (design/navigation.md, D3).
+          NavigationLink { IOSReceiverPage(model: model).navigationTitle("settings_devices").navigationBarTitleDisplayMode(.inline) } label: {
+            LabeledContent { Text(model.peerDevice?.name ?? NSLocalizedString("settings_pair_first", comment: "")) } label: {
+              DuckSettingsLabel(title: "settings_devices", symbol: "smartphone", color: DuckGlyph.green)
+            }
+          }.accessibilityIdentifier("settings.devices")
+          NavigationLink { IOSAutoBackupSettings(model: model) } label: {
+            LabeledContent { Text(values.autoBackup) } label: { DuckSettingsLabel(title: "settings_auto_backup", symbol: "arrow.triangle.2.circlepath", color: DuckGlyph.blue) }
+          }.accessibilityIdentifier("settings.auto_backup")
+        }
+        Section {
+          Picker(selection: $appearance) {
+            Text("apple_appearance_system").tag("system")
+            Text("apple_appearance_light").tag("light")
+            Text("apple_appearance_dark").tag("dark")
+          } label: { DuckSettingsLabel(title: "apple_appearance", symbol: "circle.lefthalf.filled", color: DuckGlyph.indigo) }
+            .accessibilityIdentifier("settings.appearance")
+          Button {
+            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+          } label: {
+            LabeledContent { Text(languageName) } label: { DuckSettingsLabel(title: "apple_language", symbol: "globe", color: DuckGlyph.teal) }
+          }
+          .foregroundStyle(.primary)
+          .accessibilityIdentifier("settings.language")
+        }
+        Section {
+          NavigationLink {
+            ScrollView { BackupHelp().padding() }.navigationTitle("settings_help_center").navigationBarTitleDisplayMode(.inline)
+          } label: { DuckSettingsLabel(title: "settings_help_center", symbol: "questionmark", color: DuckGlyph.orange) }
+            .accessibilityIdentifier("settings.help")
+          if feedback.available {
+            Link(destination: TesterFeedback.group) {
+              LabeledContent { Text(verbatim: "Telegram") } label: { DuckSettingsLabel(title: "settings_feedback", symbol: "bubble.left.and.bubble.right.fill", color: DuckGlyph.blue) }
+            }
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("settings.feedback_group")
+          }
+          NavigationLink { IOSAboutSettings() } label: {
+            DuckSettingsLabel(title: "about_title", symbol: "info", color: DuckGlyph.gray)
+          }.accessibilityIdentifier("settings.about")
+        } footer: {
+          footer
+        }
+      }
+      .navigationTitle("nav_settings")
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("settings_edit") { editingName = true }.disabled(model.deviceSnapshot == nil)
+        }
+      }
+      .navigationDestination(isPresented: $diagnostics) {
+        ActivityLogView(embedded: true).navigationTitle("settings_diagnostics").navigationBarTitleDisplayMode(.inline)
+      }
+      .navigationDestination(isPresented: $advanced) { IOSAdvancedSettings(model: model) }
+      .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
+      .task { await feedback.check() }
+    }
+    .sheet(isPresented: $editingName) {
+      if let name = model.deviceSnapshot?.device.name { DeviceNameEditor(model: model, name: name) }
+    }
+  }
+
+  /// This device, and the device it backs up to.
+  private var header: some View {
+    Section {
+      VStack(spacing: 6) {
+        Image(systemName: UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone")
+          .font(.largeTitle)
+          .foregroundStyle(.white)  // design-exception: white glyph on the avatar circle
+          .frame(width: 84, height: 84)
+          .background(DuckGlyph.blue, in: Circle())
+          .accessibilityHidden(true)
+          .padding(.bottom, 6)
+        Text(model.deviceSnapshot?.device.name ?? "—").font(.title2.weight(.semibold))
+        if DesignPreview.proposedLook {
+          // visual-language.md: state as a soft pill with one colored dot.
+          DuckLookPill(title: Text(values.pairedSubtitle ?? NSLocalizedString("settings_pair_first", comment: "")),
+            dot: model.pairing == nil ? Color.secondary : model.hubStatus.isProblem ? DuckRole.attention : DuckRole.saved)
+            .padding(.top, 2)
+        } else if let subtitle = values.pairedSubtitle {
+          Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+        }
+      }
+      .frame(maxWidth: .infinity)
+      .multilineTextAlignment(.center)
+      .accessibilityElement(children: .combine)
+    }
+    .listRowBackground(Color.clear)
+  }
+
+  /// The engine failed to open: the cause and one action, said once.
+  @ViewBuilder private var openFailedCard: some View {
+    if DesignPreview.proposedLook {
+      Section {
+        HStack(alignment: .top, spacing: 12) {
+          Image(systemName: "exclamationmark.triangle.fill").font(.title3).foregroundStyle(DuckRole.attention).frame(width: 28)
+          VStack(alignment: .leading, spacing: 6) {
+            Text("settings_open_failed").font(.headline)
+            if let message = model.message, message != NSLocalizedString("pairing_unlock_wait", comment: "") {
+              Text(message).font(.subheadline).foregroundStyle(.secondary)
+            }
+            DuckLookSecondaryButton("retry_task") {
+              guard !retrying else { return }
+              retrying = true
+              Task { await model.open(); retrying = false }
+            }.disabled(retrying).padding(.top, 4)
+          }
+        }.padding(.vertical, 4)
+      }
+    } else {
+      openFailedCardCurrent
+    }
+  }
+  private var openFailedCardCurrent: some View {
+    Section {
+      VStack(alignment: .leading, spacing: 4) {
+        Label("settings_open_failed", systemImage: "exclamationmark.triangle.fill")
+          .font(.headline).foregroundStyle(DuckRole.attention)
+        if let message = model.message, message != NSLocalizedString("pairing_unlock_wait", comment: "") {
+          Text(message).font(.subheadline).foregroundStyle(.secondary)
+        }
+      }
+      Button("retry_task") {
+        guard !retrying else { return }
+        retrying = true
+        Task { await model.open(); retrying = false }
+      }.disabled(retrying)
+    }
+  }
+
+  private var footer: some View {
+    VStack(spacing: 6) {
+      Text(DuckSettingsValues.version)
+      HStack(spacing: 16) {
+        Button("settings_diagnostics") { diagnostics = true }
+        Button("settings_advanced") { advanced = true }
+      }.font(.footnote)
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.top, 24)
+  }
+
+  private var languageName: String {
+    Locale.current.localizedString(forLanguageCode: Locale.current.language.languageCode?.identifier ?? "en") ?? "—"
+  }
+}
+
+/// Auto Backup: the switch and what it includes.
+private struct IOSAutoBackupSettings: View {
+  @ObservedObject var model: BackupModel
+  @ObservedObject private var scope = BackupScopeStore.shared
+  var body: some View {
+    Form {
+      Section {
+        Toggle("settings_auto_switch", isOn: Binding(get: { model.autoBackup }, set: { value in Task { await model.setAutoBackup(value) } }))
+          .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
+      } footer: {
+        if let error = model.autoBackupError {
+          Text(error).foregroundStyle(DuckRole.failure)
+        } else if model.ready {
+          Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
+            : String(format: NSLocalizedString("settings_auto_footer", comment: ""), DuckSettingsValues(model: model).receiverName))
+        }
+      }
+      Section {
+        NavigationLink { BackupScopeEditor(destination: .types).navigationTitle("settings_media_types").navigationBarTitleDisplayMode(.inline) } label: {
+          LabeledContent("settings_media_types", value: scope.typesSummary)
+        }
+        NavigationLink { BackupScopeEditor(destination: .albums).navigationTitle("settings_albums").navigationBarTitleDisplayMode(.inline) } label: {
+          LabeledContent("settings_specific_albums", value: scope.albumsSummary)
+        }
+      } header: {
+        Text("settings_includes")
+      } footer: {
+        if scope.loadFailed { Text("scope_load_failed").foregroundStyle(DuckRole.failure) } else { Text("settings_includes_footer") }
+      }
+    }
+    .navigationTitle("settings_auto_backup")
+    .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+/// Advanced: clearing caches that otherwise clear themselves.
+private struct IOSAdvancedSettings: View {
+  @ObservedObject var model: BackupModel
+  @State private var thumbnailBytes: Int?
+  @State private var clearingThumbnails = false
+  var body: some View {
+    Form {
+      Section {
+        LabeledContent("settings_temp_files", value: model.storage.map { ByteCountFormatter.string(fromByteCount: Int64($0.used_bytes), countStyle: .file) } ?? "—")
+        Button("settings_clear_now") { Task { await model.reclaimCache(reportResult: true) } }
+          .disabled(!model.ready || model.reclaimingCache)
+      } footer: {
+        Text(model.cacheReclaimResult.map { LocalizedStringKey($0) } ?? "settings_temp_files_note")
+      }
+      Section {
+        LabeledContent("settings_thumbnails", value: thumbnailBytes.map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file) } ?? "—")
+        Button("settings_clear_now") {
+          clearingThumbnails = true
+          Task { _ = await ThumbnailDiskCache.shared.removeAll(); thumbnailBytes = await ThumbnailDiskCache.shared.usage(); clearingThumbnails = false }
+        }.disabled(clearingThumbnails)
+      } footer: {
+        Text("settings_thumbnails_note")
+      }
+    }
+    .navigationTitle("settings_advanced")
+    .navigationBarTitleDisplayMode(.inline)
+    .task { thumbnailBytes = await ThumbnailDiskCache.shared.usage() }
+    .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
+  }
+}
+
+private struct IOSAboutSettings: View {
+  var body: some View {
+    Form {
+      LabeledContent("settings_version", value: DuckSettingsValues.version)
+      Link("official_website", destination: URL(string: "https://backupduck.app")!)
+    }
+    .navigationTitle("about_title")
+    .navigationBarTitleDisplayMode(.inline)
+  }
+}

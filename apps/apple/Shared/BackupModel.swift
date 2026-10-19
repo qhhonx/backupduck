@@ -69,24 +69,15 @@ enum Bridge {
   // The native worker owns no queue logic. Rust schedules and persists tasks.
   static func call(_ command: [String: Any]) async throws -> Data {
     let input = try JSONSerialization.data(withJSONObject: command)
-    let text = String(decoding: input, as: UTF8.self)
-    return try await withCheckedThrowingContinuation { continuation in
-      DispatchQueue.global(qos: .utility).async {
-        do {
-          let pointer = text.withCString { backupduck_call($0) }
-          guard let pointer else { throw Failure(code: "internal") }
-          let output = Data(String(cString: pointer).utf8)
-          backupduck_free(pointer)
-          let envelope = try JSONSerialization.jsonObject(with: output) as! [String: Any]
-          guard envelope["ok"] as? Bool == true else {
-            throw Failure(code: envelope["error"] as? String ?? "internal")
-          }
-          continuation.resume(
-            returning: try JSONSerialization.data(
-              withJSONObject: envelope["value"] ?? NSNull(), options: [.fragmentsAllowed]))
-        } catch { continuation.resume(throwing: error) }
-      }
+    let output = try await BackupEnvironment.core.call(String(decoding: input, as: UTF8.self))
+    guard let envelope = try JSONSerialization.jsonObject(with: output) as? [String: Any] else {
+      throw Failure(code: "internal")
     }
+    guard envelope["ok"] as? Bool == true else {
+      throw Failure(code: envelope["error"] as? String ?? "internal")
+    }
+    return try JSONSerialization.data(
+      withJSONObject: envelope["value"] ?? NSNull(), options: [.fragmentsAllowed])
   }
 }
 private struct ProcessingEventsResult: Decodable {
@@ -286,7 +277,7 @@ private struct ProcessingEventsResult: Decodable {
       if storage?.settings.auto_reclaim == true { await reclaimCache() }
       refreshTask = Task {
         while !Task.isCancelled {
-          receiverDiscovery.update(pairing: pairing, active: Self.canPoll)
+          receiverDiscovery.update(pairing: pairing, active: Self.canPoll && BackupEnvironment.discoversReceivers)
           if Self.canPoll {
             Task { await self.syncDeviceProfile() }
             await refresh()
@@ -467,6 +458,13 @@ private struct ProcessingEventsResult: Decodable {
     await refresh()
   }
   func stopProcessingEvents() { processingEventsTask?.cancel(); processingEventsTask = nil }
+  /// Ends this model's polling. The app keeps one model for its lifetime; the
+  /// design catalog replaces the model whenever a scenario changes.
+  func stop() {
+    refreshTask?.cancel(); refreshTask = nil
+    stopProcessingEvents()
+    receiverDiscovery.update(pairing: nil, active: false)
+  }
   func startProcessingEvents(pollingAllowed: @escaping @MainActor () -> Bool = { BackupModel.canPoll }) {
     processingEventsTask?.cancel()
     processingEventsTask = Task {
@@ -546,8 +544,7 @@ private struct ProcessingEventsResult: Decodable {
     } catch { message = error.localizedDescription; return false }
   }
   func authorizePhotos() async -> Bool {
-    let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-    let allowed = access == .authorized || access == .limited
+    let allowed = await BackupEnvironment.requestPhotoAccess()
     if !allowed { message = NSLocalizedString("photos_permission_needed", comment: "") }
     return allowed
   }
@@ -969,10 +966,6 @@ private struct ProcessingEventsResult: Decodable {
 }
 
 enum Keychain {
-  private static let query: [String: Any] = [
-    kSecClass as String: kSecClassGenericPassword,
-    kSecAttrService as String: "app.backupduck.pairing", kSecAttrAccount as String: "receiver",
-  ]
   // Security framework calls can wait for system authorization after an ad-hoc
   // build changes. Never make that wait block AppKit or SwiftUI's main thread.
   static func readAsync() async throws -> Data? {
@@ -989,8 +982,18 @@ enum Keychain {
       }
     }
   }
-  static func read() throws -> Data? {
-    var q = query
+  static func read() throws -> Data? { try BackupEnvironment.credentials.read() }
+  static func save(_ data: Data) throws { try BackupEnvironment.credentials.save(data) }
+}
+
+/// The pairing record in the system keychain.
+struct SystemKeychain: CredentialStore {
+  private static let query: [String: Any] = [
+    kSecClass as String: kSecClassGenericPassword,
+    kSecAttrService as String: "app.backupduck.pairing", kSecAttrAccount as String: "receiver",
+  ]
+  func read() throws -> Data? {
+    var q = Self.query
     q[kSecReturnData as String] = true
     q[kSecMatchLimit as String] = kSecMatchLimitOne
     var item: CFTypeRef?
@@ -999,11 +1002,11 @@ enum Keychain {
     guard status == errSecSuccess else { throw Bridge.Failure(code: "storage") }
     return item as? Data
   }
-  static func save(_ data: Data) throws {
+  func save(_ data: Data) throws {
     let update: [String: Any] = [kSecValueData as String: data]
-    var status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+    var status = SecItemUpdate(Self.query as CFDictionary, update as CFDictionary)
     if status == errSecItemNotFound {
-      var q = query
+      var q = Self.query
       q[kSecValueData as String] = data
       q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
       status = SecItemAdd(q as CFDictionary, nil)

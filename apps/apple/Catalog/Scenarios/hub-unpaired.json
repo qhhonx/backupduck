@@ -1,0 +1,15 @@
+{
+  "id": "hub.unpaired",
+  "page": "backup",
+  "title": "Not connected",
+  "extends": "base",
+  "expect": [
+    "Empty duck, one sentence and Connect Pixel."
+  ],
+  "actions": [
+    {
+      "action": "Tap Connect Pixel",
+      "result": "The pairing sheet opens."
+    }
+  ]
+}

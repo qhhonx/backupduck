@@ -1,0 +1,120 @@
+{
+  "id": "base",
+  "core": {
+    "open_sender": {
+      "value": null
+    },
+    "sender_status": {
+      "value": {
+        "paused": false,
+        "concurrent_uploads": 4
+      }
+    },
+    "sender_revision": {
+      "value": 1
+    },
+    "jobs": {
+      "value": []
+    },
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1284,
+        "received": 1284,
+        "published": 1280,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 9876543210
+      }
+    },
+    "pending_sources": {
+      "value": {
+        "count": 0
+      }
+    },
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-iphone",
+          "name": "Lin's iPhone"
+        },
+        "peers": []
+      }
+    },
+    "storage_status": {
+      "value": {
+        "settings": {
+          "cache_budget_bytes": 2147483648,
+          "receiver_budget_bytes": 0,
+          "min_free_bytes": 5368709120,
+          "auto_reclaim": false,
+          "log_days": 30,
+          "log_limit": 2000
+        },
+        "used_bytes": 314572800,
+        "free_bytes": 64424509440,
+        "export_allowance": 1832910848,
+        "reason": null
+      }
+    },
+    "history_status": {
+      "value": null
+    },
+    "check_pairing": {
+      "value": null
+    },
+    "exchange_device": {
+      "value": null
+    },
+    "watch_processing": {
+      "value": {
+        "revision": 1,
+        "changed": false,
+        "active": false
+      }
+    },
+    "receiver_readings": {
+      "value": {
+        "temperature_deci_celsius": 312,
+        "temperature_observed_at_ms": null,
+        "free_bytes": 182536110080
+      }
+    },
+    "pause_sender": {
+      "value": null
+    },
+    "set_transfer_concurrency": {
+      "value": null
+    },
+    "save_storage_settings": {
+      "value": null
+    },
+    "recover_connection": {
+      "value": null
+    },
+    "backup_tasks": {
+      "value": {
+        "items": [],
+        "summary": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 1284,
+          "received": 1284,
+          "published": 1280,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 0,
+          "running": 0,
+          "paused": 0,
+          "confirmed_bytes": 9876543210
+        }
+      }
+    }
+  }
+}

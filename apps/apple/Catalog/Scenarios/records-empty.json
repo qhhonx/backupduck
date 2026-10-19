@@ -1,0 +1,55 @@
+{
+  "id": "records.empty",
+  "page": "backup",
+  "records": "all",
+  "title": "Backup history before the first photo",
+  "extends": "records-base",
+  "expect": [
+    "An empty state says backed-up photos will appear here by date."
+  ],
+  "actions": [],
+  "core": {
+    "jobs": {
+      "value": []
+    },
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 0,
+        "received": 0,
+        "published": 0,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 9876543210,
+        "active": 0,
+        "attention": 0
+      }
+    },
+    "backup_tasks": {
+      "value": {
+        "items": [],
+        "summary": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 0,
+          "received": 0,
+          "published": 0,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 0,
+          "running": 0,
+          "paused": 0,
+          "confirmed_bytes": 9876543210,
+          "active": 0,
+          "attention": 0
+        }
+      }
+    }
+  }
+}

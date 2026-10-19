@@ -1315,6 +1315,16 @@ private final class MacMarqueeView: NSView {
       badge.cornerRadius = 12
       view.layer?.addSublayer(badge)
     }
+    if DesignPreview.proposedDesign {
+      // design/library.md § Tile marks: white glyphs with a soft shadow, no circles.
+      for badge in [media, status, cloud] {
+        badge.backgroundColor = nil
+        badge.shadowColor = NSColor.black.cgColor  // design-exception: legibility shadow on photos
+        badge.shadowOpacity = 0.45
+        badge.shadowRadius = 2
+        badge.shadowOffset = CGSize(width: 0, height: -0.5)
+      }
+    }
     burstCount.isHidden = true
     view.layer?.addSublayer(burstCount)
     duration.isHidden = true
@@ -1484,10 +1494,21 @@ private final class MacMarqueeView: NSView {
     statusState = state
     status.symbol = state == nil ? nil : taskSymbol(state)
     status.tint = state == "failed" ? .systemOrange : .white
+    if DesignPreview.proposedDesign {
+      // Proposed marks (design/library.md): none once the Pixel has the photo,
+      // an arrow while it is on its way, an exclamation when it needs the user.
+      switch state {
+      // design-exception: tile marks are white glyphs with a shadow on photos (visual-language.md)
+      case "failed": status.symbol = "exclamationmark.triangle.fill"; status.tint = .white  // design-exception: tile mark on a photo
+      case "preparing", "running", "queued", "waiting", "paused", "scheduled", "partial":
+        status.symbol = "arrow.up"; status.tint = .white  // design-exception: tile mark on a photo
+      default: status.symbol = nil
+      }
+    }
     let detail = groupDescription + NSLocalizedString(
       state == "received" ? "state_received_detail" : state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
     view.setAccessibilityValue(detail)
-    status.isHidden = selectionVisible || state == nil
+    status.isHidden = selectionVisible || state == nil || status.symbol == nil
     statusTip = detail
     updateTips()
   }
@@ -1506,7 +1527,7 @@ private final class MacMarqueeView: NSView {
   func setSelectionVisible(_ value: Bool) {
     selectionVisible = value
     view.layer?.borderWidth = 0
-    status.isHidden = value || statusState == nil
+    status.isHidden = value || statusState == nil || status.symbol == nil
     updateTips()
     updateSelectionMark()
   }

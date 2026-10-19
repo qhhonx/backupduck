@@ -1,0 +1,16 @@
+{
+  "id": "library.needsYou",
+  "page": "library",
+  "title": "Library, needs you",
+  "extends": "base-paired",
+  "library": {
+    "arriving": 8,
+    "gap_every": 9,
+    "needs_you": 4,
+    "recent": 30,
+    "view": "needsYou"
+  },
+  "expect": [
+    "Only the photos that need the user: an incomplete send and unavailable originals."
+  ]
+}

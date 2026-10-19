@@ -1,0 +1,17 @@
+{
+  "id": "connect.mac-failed",
+  "page": "connect",
+  "title": "Mac cannot make its code ready",
+  "extends": "base",
+  "core": {
+    "start_desktop_pairing": {
+      "error": "network"
+    },
+    "stop_desktop_pairing": {
+      "value": null
+    }
+  },
+  "expect": [
+    "The code area says why and Try Again appears; Cancel stays available."
+  ]
+}

@@ -4,52 +4,6 @@ import Darwin
 import Photos
 import SwiftUI
 
-@main struct BackupDuckMacApp: App {
-  @Environment(\.openWindow) private var openWindow
-  @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var delegate
-  @StateObject private var model = BackupModel.shared
-  @StateObject private var library = PhotoLibraryModel()
-  @AppStorage("duckAppearance") private var appearance = "system"
-  private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
-  /// Starts the photo list fetch before the first window, as on iPhone.
-  init() { PhotoLibraryModel.prewarm() }
-  var body: some Scene {
-    Window("brand_name", id: "main") {
-      MacWorkspace(model: model, library: library)
-        .preferredColorScheme(colorScheme)
-        .frame(minWidth: 900, minHeight: 620)
-        .task { await model.open(); await AppUpdater.shared.start() }
-        .task { await library.open() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-          Task { await library.open() }
-        }
-    }.defaultSize(width: 1180, height: 800)
-      .commands {
-        CommandGroup(replacing: .appInfo) {
-          Button("about_title") { MacAboutNavigation.open { openWindow(id: "main") } }
-        }
-      }
-    Settings {
-      MacPreferences(model: model).preferredColorScheme(colorScheme).frame(width: 760, height: 700)
-    }
-    MenuBarExtra {
-      MacStatusMenu(model: model)
-    } label: {
-      Image(nsImage: MacMenuBarIcon.image).renderingMode(.template).accessibilityLabel(Text("brand_name"))
-    }.menuBarExtraStyle(.menu)
-  }
-}
-final class MacAppDelegate: NSObject, NSApplicationDelegate {
-  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
-  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
-  {
-    if !flag {
-      sender.windows.first(where: { $0.identifier?.rawValue == "main" })?.makeKeyAndOrderFront(nil)
-    }
-    return true
-  }
-}
-
 enum MacDestination: String, CaseIterable, Identifiable {
   case library, sources, backup, transfers, receiver, settings
   var id: String { rawValue }
@@ -134,7 +88,11 @@ struct MacWorkspace: View {
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
-    .sheet(isPresented: $pairSheet) { MacPairingSheet(model: model) }
+    .sheet(isPresented: $pairSheet) {
+      if DesignPreview.proposedDesign { MacConnectSheet(model: model) } else { MacPairingSheet(model: model) }
+    }
+    // Backup views of the library ask the core about the paired receiver.
+    .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
     .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
     .sheet(isPresented: Binding(get: { selectedPhotoDetails != nil }, set: { if !$0 { selectedPhotoDetails = nil } })) {
       if let selectedPhotoDetails { DuckPhotoDetail(asset: selectedPhotoDetails) }
@@ -146,6 +104,18 @@ struct MacWorkspace: View {
         .horizontal, 20
       ).padding(.vertical, 28)
       List(selection: $destination) {
+        if DesignPreview.proposedDesign {
+          // design/navigation.md: photos, backup, settings. Devices open from Settings.
+          Section("mac_section_photos") {
+            sidebarRow(.library, title: "mac_nav_photo_library")
+            sidebarRow(.sources)
+          }
+          Section("mac_section_backup") {
+            sidebarRow(.backup, title: "mac_nav_overview")
+            sidebarRow(.transfers, title: "records_title")
+          }
+          Section { sidebarRow(.settings) }
+        } else {
         Section("mac_sidebar_library") {
           ForEach([MacDestination.library, .sources]) { item in
             sidebarRow(item)
@@ -160,6 +130,7 @@ struct MacWorkspace: View {
           ForEach([MacDestination.receiver, .settings]) { item in
             sidebarRow(item)
           }
+        }
         }
       }.listStyle(.sidebar).font(.body.weight(.medium))
       VStack(alignment: .leading, spacing: 8) {
@@ -180,21 +151,31 @@ struct MacWorkspace: View {
         if destination == .sources {
           FolderSourcesPage(folders: folders, backup: model)
         }
-        if destination == .backup {
+        if destination == .backup && DesignPreview.proposedDesign {
+          MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
+        } else if destination == .backup {
           MacBackupPage(model: model, folders: folders, pair: { pairSheet = true },
             library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
         }
-        if destination == .transfers {
+        if destination == .transfers && DesignPreview.proposedDesign {
+          BackupHistoryView(model: model)
+        } else if destination == .transfers {
           MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
         }
         if destination == .settings {
-          MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
+          if DesignPreview.proposedDesign {
+            MacSettings(model: model, folders: folders, showFolders: { destination = .sources }, showDevices: { destination = .receiver })
+          } else {
+            MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
+          }
         }
         if destination == .receiver {
           ScrollView { ReceiverPage(model: model, pair: { pairSheet = true }).padding(28) }
         }
       }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      if destination != .settings && destination != .receiver && destination != .library {
+      // The proposed hub states the backup once; the status footer would repeat it.
+      if destination != .settings && destination != .receiver && destination != .library
+        && !([.backup, .transfers].contains(destination) && DesignPreview.proposedDesign) {
         Divider()
         footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)
           .task(id: "\(model.queueRevision)|\(model.pairing?.receiverID ?? "")") {
@@ -207,6 +188,8 @@ struct MacWorkspace: View {
   }
   private var windowTitle: Text {
     if destination == .library && previewAsset != nil && libraryNavigation.viewerOpen { return Text(verbatim: "") }
+    if destination == .transfers && DesignPreview.proposedDesign { return Text("records_title") }
+    if destination == .library && DesignPreview.proposedDesign { return Text("mac_nav_photo_library") }
     return Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title))
   }
   /// A subtitle replacing the visible range: empty outside the library and in
@@ -282,6 +265,17 @@ struct MacWorkspace: View {
       // One flat menu, as in Photos: everything, then each media type, with
       // a check on the current one. No nested submenu, no menu chevron.
       Menu {
+        // design/library.md: backup views of the same grid (proposed design only).
+        if DesignPreview.proposedDesign {
+          Picker("library_view_section", selection: Binding(get: { library.backupView }, set: { value in
+            Task { await library.changeBackupView(value) }
+          })) {
+            ForEach(LibraryBackupView.allCases) { view in
+              Label(LocalizedStringKey(view.title), systemImage: view.symbol).tag(view)
+            }
+          }.pickerStyle(.inline)
+          Divider()
+        }
         // An inline picker keeps each item's icon next to the check mark.
         Picker("media_type", selection: Binding(get: { library.filter }, set: { value in
           Task { await library.changeFilter(value) }
@@ -291,7 +285,7 @@ struct MacWorkspace: View {
             if filter == .all { Divider() }
           }
         }.pickerStyle(.inline).labelsHidden()
-      } label: { Label("library_filter", systemImage: library.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") }
+      } label: { Label("library_filter", systemImage: library.filter == .all && library.backupView == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") }
         .menuIndicator(.hidden)
         .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
     }
@@ -308,11 +302,11 @@ struct MacWorkspace: View {
     }
   }
   }
-  private func sidebarRow(_ item: MacDestination) -> some View {
+  private func sidebarRow(_ item: MacDestination, title: String? = nil) -> some View {
     let selected = destination == item
     return HStack(spacing: 12) {
       Image(systemName: item.icon).font(.system(size: 16)).frame(width: 20).foregroundStyle(selected ? DuckColors.action : DuckColors.text)
-      Text(LocalizedStringKey(item.title)).font(.system(size: 14, weight: selected ? .semibold : .regular))
+      Text(LocalizedStringKey(title ?? item.title)).font(.system(size: 14, weight: selected ? .semibold : .regular))
     }.frame(minHeight: 36).tag(item)
   }
   private func showTransfers(_ filter: String) {

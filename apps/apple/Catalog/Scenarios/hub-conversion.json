@@ -1,0 +1,188 @@
+{
+  "id": "hub.conversion",
+  "page": "backup",
+  "extends": "base-paired",
+  "title": "Live Photos need conversion",
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 200,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-200",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4200.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792288000000,
+          "processing_error": "conversion_required",
+          "processing": "failed"
+        },
+        {
+          "id": 201,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-201",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4201.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792287940000,
+          "processing_error": "conversion_required",
+          "processing": "failed"
+        },
+        {
+          "id": 202,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-202",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4202.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792287880000,
+          "processing_error": "conversion_required",
+          "processing": "failed"
+        },
+        {
+          "id": 1,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4001.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299940000
+        },
+        {
+          "id": 2,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-2",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4002.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299880000
+        },
+        {
+          "id": 3,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-3",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4003.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299820000
+        },
+        {
+          "id": 4,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-4",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4004.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299760000
+        },
+        {
+          "id": 5,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-5",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4005.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299700000
+        }
+      ]
+    },
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1284,
+        "received": 1284,
+        "published": 1281,
+        "publication_failed": 3,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 9876543210
+      }
+    }
+  },
+  "expect": [
+    "Card says 3 Live Photos are safe on the Pixel but cannot go into its Photos as they are.",
+    "Needs attention shows 3."
+  ],
+  "actions": [
+    {
+      "action": "Tap View",
+      "result": "The record list opens on Needs attention."
+    }
+  ]
+}

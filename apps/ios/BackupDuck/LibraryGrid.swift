@@ -750,6 +750,23 @@ private struct IOSCalendarLibraryPage: View {
             clearFilter:{Task { await library.changeFilter(.all) }})
             .navigationTitle("nav_library")
         }
+      } else if DesignPreview.proposedLook && library.backupView != .all {
+        // visual-language.md: the active backup view is a soft pill that clears
+        // with one tap, as Photos shows an active filter.
+        calendar.safeAreaInset(edge: .bottom) {
+          Button { Task { await library.changeBackupView(.all) } } label: {
+            HStack(spacing: 8) {
+              Text(String(format: NSLocalizedString("library_view_pill", comment: ""),
+                NSLocalizedString(library.backupView.title, comment: ""), library.total.formatted()))
+              Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+            }
+            .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(.regularMaterial, in: Capsule())
+          }
+          .buttonStyle(.plain).padding(.bottom, 8)
+          .accessibilityHint(Text("library_view_clear"))
+        }
       } else {
         calendar
       }

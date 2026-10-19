@@ -17,11 +17,6 @@ targetTemplates:
   MacHost:
     type: application
     platform: macOS
-    sources:
-      - path: BackupDuck
-        excludes: [Info.plist, StoreInfo.plist, Store.entitlements]
-      - path: ../apple/Shared
-      - path: ../apple/Resources
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -47,12 +42,17 @@ targetTemplates:
           export CARGO_PROFILE_RELEASE_STRIP=none
           cd "$SRCROOT/../.."
           export MACOSX_DEPLOYMENT_TARGET=14.0
-          if [ "$TARGET_NAME" != BackupDuckStore ]; then ./scripts/fetch-sparkle.sh; fi
+          case "$TARGET_NAME" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac
           cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
           cp target/aarch64-apple-darwin/release/libbackupduck_native.a "$BUILT_PRODUCTS_DIR/"
 targets:
   BackupDuck:
     templates: [MacHost]
+    sources: &app_sources
+      - path: BackupDuck
+        excludes: [Info.plist, StoreInfo.plist, Store.entitlements]
+      - path: ../apple/Shared
+      - path: ../apple/Resources
     dependencies:
       - framework: ../../build/dependencies/sparkle/Sparkle.framework
         embed: true
@@ -62,6 +62,7 @@ targets:
         CODE_SIGN_IDENTITY: '-'
   BackupDuckStore:
     templates: [MacHost]
+    sources: *app_sources
     settings:
       base:
         PRODUCT_NAME: BackupDuck
@@ -71,6 +72,29 @@ targets:
         CODE_SIGN_ENTITLEMENTS: BackupDuck/Store.entitlements
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE
         ENABLE_HARDENED_RUNTIME: YES
+  BackupDuckCatalog:
+    # Design catalog: the production workspace on scenario data. Never distributed.
+    templates: [MacHost]
+    sources:
+      - path: BackupDuck
+        excludes: [Info.plist, StoreInfo.plist, Store.entitlements, MacAppMain.swift]
+      - path: ../apple/Shared
+      - path: ../apple/Resources
+        excludes: ["*.lproj/InfoPlist.strings"]
+      - path: Catalog
+        excludes: [Info.plist]
+      - path: ../apple/Catalog
+        excludes: [README.md, Scenarios]
+      - path: ../apple/Catalog/Scenarios
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: BackupDuckCatalog
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog
+        INFOPLIST_FILE: Catalog/Info.plist
+        CODE_SIGN_IDENTITY: '-'
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE
 schemes:
   BackupDuck:
     build:
@@ -85,4 +109,10 @@ schemes:
     run:
       config: Debug
     archive:
+      config: Release
+  BackupDuckCatalog:
+    build:
+      targets:
+        BackupDuckCatalog: all
+    run:
       config: Release

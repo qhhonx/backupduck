@@ -33,7 +33,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: Simulator.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: ../../crates/native/include/backupduck.h
         TARGETED_DEVICE_FAMILY: '1,2'
-        OTHER_LDFLAGS:
+        OTHER_LDFLAGS: &native_link
           - $(inherited)
           - '$(BUILT_PRODUCTS_DIR)/libbackupduck_native.a'
           - -framework
@@ -43,7 +43,7 @@ targets:
           - -lsqlite3
           - -lz
           - -liconv
-    preBuildScripts:
+    preBuildScripts: &native_engine
       - name: Build shared Rust engine
         basedOnDependencyAnalysis: false
         script: |
@@ -60,6 +60,33 @@ targets:
           export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
           cargo build --locked --release -p backupduck-native --no-default-features --target "$rust_target"
           cp "target/$rust_target/release/libbackupduck_native.a" "$BUILT_PRODUCTS_DIR/"
+  BackupDuckCatalog:
+    # Design catalog: production pages on scenario data. Never distributed.
+    type: application
+    platform: iOS
+    sources:
+      - path: ../apple/Shared
+      - path: ../apple/Resources
+        excludes: ["*.lproj/InfoPlist.strings"]
+      - path: BackupDuck
+        excludes: [Info.plist, BackupDuckApp.swift]
+      - path: Catalog
+        excludes: [Info.plist]
+      - path: ../apple/Catalog
+        excludes: [README.md, Scenarios]
+      - path: ../apple/Catalog/Scenarios
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog
+        INFOPLIST_FILE: Catalog/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_OBJC_BRIDGING_HEADER: ../../crates/native/include/backupduck.h
+        TARGETED_DEVICE_FAMILY: '1,2'
+        OTHER_LDFLAGS: *native_link
+    preBuildScripts: *native_engine
   BackupDuckTests:
     type: bundle.unit-test
     platform: iOS
@@ -96,3 +123,9 @@ schemes:
         BackupDuckUITests: [test]
     test:
       targets: [BackupDuckUITests]
+  BackupDuckCatalog:
+    build:
+      targets:
+        BackupDuckCatalog: all
+    run:
+      config: Release

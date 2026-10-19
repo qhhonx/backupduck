@@ -1,0 +1,127 @@
+{
+  "id": "hub.paused",
+  "page": "backup",
+  "extends": "base-paired",
+  "title": "Backup paused",
+  "core": {
+    "sender_status": {
+      "value": {
+        "paused": true,
+        "concurrent_uploads": 4
+      }
+    },
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4001.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299940000
+        },
+        {
+          "id": 2,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-2",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4002.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299880000
+        },
+        {
+          "id": 3,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-3",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4003.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299820000
+        },
+        {
+          "id": 4,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-4",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4004.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299760000
+        },
+        {
+          "id": 5,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-5",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4005.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299700000
+        }
+      ]
+    },
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1300,
+        "received": 1284,
+        "published": 1280,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 16,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 9876543210
+      }
+    }
+  },
+  "expect": [
+    "Paused card with Resume backup."
+  ]
+}

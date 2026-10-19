@@ -1,0 +1,17 @@
+{
+  "id": "settings.loading",
+  "page": "settings",
+  "title": "Still starting",
+  "extends": "base-paired",
+  "core": {
+    "open_sender": {
+      "value": null,
+      "delay": 3600
+    }
+  },
+  "expect": [
+    "A loading state at the top while the backup engine opens.",
+    "Device identity can still appear: it does not depend on the engine.",
+    "Groups that depend on the engine do not show invented values."
+  ]
+}

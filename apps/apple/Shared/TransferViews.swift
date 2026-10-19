@@ -4,6 +4,7 @@ import SwiftUI
 struct AssetThumbnail: View {
   let sourceID: String
   var size: CGFloat = 56
+  var cornerRadius: CGFloat = 8
   #if os(macOS)
     @AppStorage("macListThumbnails") private var enabled = true
   #endif
@@ -21,7 +22,9 @@ struct AssetThumbnail: View {
   var body: some View {
     ZStack {
       Rectangle().fill(.quaternary)
-      if let image {
+      if let sample = BackupEnvironment.sampleThumbnail?(sourceID) {
+        sample.resizable().scaledToFill()
+      } else if let image {
         #if os(macOS)
           Image(nsImage: image).resizable().scaledToFill()
         #else
@@ -33,7 +36,7 @@ struct AssetThumbnail: View {
             .font(.system(size: 22)).symbolVariant(.none)
           #endif
       }
-    }.frame(width: size, height: size).clipped().clipShape(RoundedRectangle(cornerRadius: 8))
+    }.frame(width: size, height: size).clipped().clipShape(RoundedRectangle(cornerRadius: cornerRadius))
       .task(id: requestKey) {
         Self.pipeline.cancel(request)
         image = nil
@@ -42,7 +45,7 @@ struct AssetThumbnail: View {
         #if os(macOS)
           guard enabled else { return }
         #endif
-        guard
+        guard BackupEnvironment.usesPhotoLibrary,
           let asset = PHAsset.fetchAssets(withLocalIdentifiers: [sourceID], options: photoLibraryFetchOptions())
             .firstObject
         else { return }
@@ -69,7 +72,7 @@ struct TransferRow: View {
     if job.state == "received" {
       switch job.processing {
       case "complete": return "state_published"
-      case "failed": return "state_publication_failed"
+      case "failed": return job.processingError == "conversion_required" ? "state_conversion_required" : "state_publication_failed"
       case "pending": return "state_publication_pending"
       default: return "apple_gallery_unconfirmed"
       }
@@ -229,6 +232,10 @@ struct DuckTransferDetail: View {
   @State private var retrySubmitted = false
   @State private var retryFailed = false
   private var facts: TransferDetailFacts { TransferDetailFacts(job: job) }
+  /// A Live Photo that needs conversion is kept as is; other failures retry on the Pixel.
+  private var retryNotice: LocalizedStringKey {
+    job.processingError == "conversion_required" ? "design_conversion_kept" : "design_retry_on_pixel"
+  }
   private var targetName: String {
     receiverName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
       ? receiverName! : NSLocalizedString("apple_transfer_receiver_unknown", comment: "")
@@ -242,7 +249,7 @@ struct DuckTransferDetail: View {
   private var galleryDescription: String {
     NSLocalizedString(!facts.receiptConfirmed ? "apple_gallery_after_receipt"
       : facts.galleryConfirmed ? "state_published"
-      : job.processing == "failed" ? "state_publication_failed" : job.processing == "pending" ? "state_publication_pending" : "apple_gallery_unconfirmed", comment: "")
+      : job.processing == "failed" ? job.processingError == "conversion_required" ? "state_conversion_required" : "state_publication_failed" : job.processing == "pending" ? "state_publication_pending" : "apple_gallery_unconfirmed", comment: "")
   }
   #if os(iOS)
   @ScaledMetric(relativeTo: .caption) private var markerSize = 8
@@ -287,10 +294,10 @@ struct DuckTransferDetail: View {
           time: receiptTime, state: facts.originalNode)
         macTimeline("apple_transfer_stage_gallery", detail: galleryDescription,
           time: NSLocalizedString("apple_transfer_gallery_time_unknown", comment: ""), state: facts.galleryNode)
-        macTimeline("Google Photos", detail: NSLocalizedString("apple_transfer_cloud_note", comment: ""),
+        macTimeline("apple_transfer_stage_cloud", detail: NSLocalizedString("apple_transfer_cloud_note", comment: ""),
           time: NSLocalizedString("apple_transfer_cloud_unknown", comment: ""), state: .pending, last: true)
       }
-      if job.processing == "failed" { DuckNotice(title: "design_retry_on_pixel", tone: .attention, symbol: "exclamationmark.circle") }
+      if job.processing == "failed" { DuckNotice(title: retryNotice, tone: .attention, symbol: "exclamationmark.circle") }
       if let error = job.processingError ?? job.errorCode {
         DuckNotice(title: LocalizedStringKey(NSLocalizedString("error_" + error, comment: "")), tone: .failure, symbol: "exclamationmark.circle")
       }
@@ -374,10 +381,10 @@ struct DuckTransferDetail: View {
           time: receiptTime, state: facts.originalNode)
         timeline("apple_transfer_stage_gallery", detail: galleryDescription,
           time: NSLocalizedString("apple_transfer_gallery_time_unknown", comment: ""), state: facts.galleryNode)
-        timeline("Google Photos", detail: NSLocalizedString("apple_transfer_cloud_note", comment: ""),
+        timeline("apple_transfer_stage_cloud", detail: NSLocalizedString("apple_transfer_cloud_note", comment: ""),
           time: NSLocalizedString("apple_transfer_cloud_unknown", comment: ""), state: .pending, last: true)
       }
-      if job.processing == "failed" { DuckNotice(title: "design_retry_on_pixel", tone: .attention) }
+      if job.processing == "failed" { DuckNotice(title: retryNotice, tone: .attention) }
       if let error = job.processingError ?? job.errorCode {
         DuckNotice(title: LocalizedStringKey(NSLocalizedString("error_" + error, comment: "")), tone: .failure)
       }

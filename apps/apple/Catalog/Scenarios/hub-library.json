@@ -1,0 +1,15 @@
+{
+  "id": "hub.library",
+  "page": "backup",
+  "title": "Hub with library views",
+  "extends": "base-paired",
+  "library": {
+    "arriving": 8,
+    "gap_every": 9,
+    "needs_you": 4,
+    "recent": 30
+  },
+  "expect": [
+    "The hub summarizes the library's state. Needs attention opens the library's Needs You view; Backup History opens Recently Backed Up."
+  ]
+}

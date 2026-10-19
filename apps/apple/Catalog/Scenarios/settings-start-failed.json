@@ -1,0 +1,14 @@
+{
+  "id": "settings.start-failed",
+  "page": "settings",
+  "title": "Start failed, then retry succeeds",
+  "extends": "base-paired",
+  "core": {"open_sender": [{"error": "storage"}, {"value": null}]},
+  "expect": [
+    "An attention notice with the storage error and a Retry button.",
+    "Values that need the engine are not shown as if they were loaded."
+  ],
+  "actions": [
+    {"action": "Tap Retry", "result": "The engine opens on the second attempt; the notice disappears and settings load."}
+  ]
+}

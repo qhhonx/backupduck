@@ -1,0 +1,22 @@
+{
+  "id": "records.history",
+  "page": "backup",
+  "records": "all",
+  "title": "Backup history with problems",
+  "extends": "records-base",
+  "expect": [
+    "Scope line names the Pixel and the photo count.",
+    "Needs You groups problems by cause: 3 Live Photos, 1 incomplete, 1 original not available; each with sample thumbnails and at most one action.",
+    "Then photos by day of their latest change (Today, Yesterday, dates). Tiles are unmarked when in the Pixel's Photos; arrow while sending, clock while saving to Photos, exclamation when it needs you."
+  ],
+  "actions": [
+    {
+      "action": "Tap a tile",
+      "result": "Photo detail: the photo, when it was taken, then three facts (sent, in the Pixel's Photos, Google Photos unknown), and an action only when the user can act."
+    },
+    {
+      "action": "Tap Try Again on a cause",
+      "result": "Those photos are sent again and the page reloads."
+    }
+  ]
+}

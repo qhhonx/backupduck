@@ -56,6 +56,24 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   }
 }
 
+/// Backup views of the library (design/library.md): the same grid, narrowed by
+/// what the core knows about each photo. Not backed up is a view, never a mark.
+enum LibraryBackupView: String, CaseIterable, Identifiable {
+  case all, notBackedUp, needsYou, recent
+  var id: String { rawValue }
+  var title: String { "library_view_" + rawValue }
+  var symbol: String {
+    switch self {
+    case .all: "photo.on.rectangle"
+    case .notBackedUp: "icloud.slash"
+    case .needsYou: "exclamationmark.circle"
+    case .recent: "clock.arrow.circlepath"
+    }
+  }
+  /// How far back Recently backed up looks.
+  static let recentWindow: TimeInterval = 7 * 24 * 3600
+}
+
 @MainActor final class PhotoLibraryModel: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
   // Resolve current media in the native viewport at presentation/return time.
   var previewFrame: ((String) -> CGRect?)?
@@ -72,6 +90,16 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   @Published private(set) var authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
   @Published private(set) var requestingPermission = false
   @Published private(set) var filter: LibraryFilter = .all
+  @Published private(set) var backupView: LibraryBackupView = .all
+  private var requestedBackupView: LibraryBackupView = .all
+  /// The receiver backup views ask the core about; set by the page that shows the library.
+  /// A backup view depends on it, so it reloads when the receiver becomes known or changes.
+  var backupReceiver: String? {
+    didSet {
+      guard backupReceiver != oldValue, requestedBackupView != .all, fetch != nil else { return }
+      Task { await reload(resetWindow: true) }
+    }
+  }
   private var requestedFilter: LibraryFilter = .all
   @Published var viewMode: LibraryViewMode = .all
   @Published var phoneColumns = 3
@@ -132,6 +160,66 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
   nonisolated static func allowed(_ access: PHAuthorizationStatus) -> Bool {
     access == .authorized || access == .limited
   }
+  /// The fetch for a backup view: the type-filtered library narrowed by the
+  /// core's answer, in the library's own order. Nil when the core cannot answer.
+  nonisolated static func narrow(_ fetch: PHFetchResult<PHAsset>, to view: LibraryBackupView,
+    filter: LibraryFilter, receiver: String?) async -> PHFetchResult<PHAsset>? {
+    let ids: [String]
+    switch view {
+    case .all:
+      return fetch
+    case .notBackedUp:
+      var received: Set<String> = []
+      if let receiver {
+        guard let data = try? await Bridge.call(["op": "received_sources", "receiver_id": receiver]),
+          let list = try? JSONDecoder().decode([String].self, from: data) else { return nil }
+        received = Set(list)
+      }
+      var remaining: [String] = []
+      remaining.reserveCapacity(fetch.count)
+      fetch.enumerateObjects { asset, _, _ in
+        if !received.contains(asset.localIdentifier) { remaining.append(asset.localIdentifier) }
+      }
+      ids = remaining
+    case .needsYou, .recent:
+      guard let receiver else { return PHFetchResult<PHAsset>() }
+      guard let found = await taskSources(receiver: receiver, view: view) else { return nil }
+      ids = found
+    }
+    // Same membership and order as the library fetch, so the grid's date groups hold.
+    let options = photoLibraryFetchOptions(for: filter)
+    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    return PHAsset.fetchAssets(withLocalIdentifiers: ids, options: options)
+  }
+
+  private struct TaskPage: Decodable { let items: [BackupTaskItem] }
+
+  /// Library sources of the core's attention items, or of items received in
+  /// the recent window, newest change first.
+  nonisolated static func taskSources(receiver: String, view: LibraryBackupView) async -> [String]? {
+    let since = Int64((Date().timeIntervalSince1970 - LibraryBackupView.recentWindow) * 1000)
+    var sources: [String] = []
+    var after: (Int64, Int64)?
+    for _ in 0..<50 {
+      var query: [String: Any] = ["op": "backup_tasks", "receiver_id": receiver, "sort": "activity", "descending": true,
+        "state": view == .needsYou ? "attention" : "all"]
+      if let after { query["after"] = after.0; query["after_value"] = after.1 }
+      guard let data = try? await Bridge.call(query), let page = try? JSONDecoder().decode(TaskPage.self, from: data) else { return nil }
+      for item in page.items {
+        if view == .recent {
+          guard let job = item.job, (item.sort_value ?? 0) >= since else { continue }
+          if job.state == "received" { sources.append(job.asset.source_id) }
+        } else {
+          sources.append(item.job?.asset.source_id ?? item.preparation?.source ?? "")
+        }
+      }
+      guard page.items.count == 200, let last = page.items.last else { break }
+      if view == .recent, (last.sort_value ?? 0) < since { break }
+      after = (last.cursor, last.sort_value ?? 0)
+    }
+    return sources.filter { !$0.isEmpty }
+  }
+
   /// Sorted fetch for a filter; identical for the launch prewarm and reloads.
   nonisolated static func fetchAssets(_ filter: LibraryFilter, collection: String? = nil) -> PHFetchResult<PHAsset> {
     let options = photoLibraryFetchOptions(for: filter)
@@ -190,6 +278,16 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     authorized = allowed
     return allowed
   }
+  func changeBackupView(_ next: LibraryBackupView) async {
+    guard requestedBackupView != next else { return }
+    requestedBackupView = next
+    selection.removeAll()
+    scrollOffset = .zero
+    scrollAnchorID = nil
+    scrollAnchorInset = 0
+    scrollResetGeneration += 1
+    await reload(resetWindow: true)
+  }
   func changeFilter(_ next: LibraryFilter) async {
     guard requestedFilter != next else { return }
     requestedFilter = next
@@ -208,12 +306,14 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
     let expected = requestGeneration
     loading = true
     let selectedFilter = requestedFilter
+    let selectedView = requestedBackupView
+    let receiver = backupReceiver
     let targetRows = resetWindow ? 240 : max(240, loaded)
     let previousCursor = resetWindow ? 0 : presentation.cursor
     let anchor = resetWindow ? nil : scrollAnchorID
     let selected = selection
     let collection = collectionID
-    let early = collection == nil ? Self.takeEarlyFetch(for: selectedFilter) : nil
+    let early = collection == nil && selectedView == .all ? Self.takeEarlyFetch(for: selectedFilter) : nil
     let work = Task.detached(priority: .userInitiated) {
       var fetch: PHFetchResult<PHAsset>
       if let (early, token) = await early?.value {
@@ -225,17 +325,33 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
           fetch = Self.fetchAssets(selectedFilter)
         }
       } else { fetch = Self.fetchAssets(selectedFilter, collection: collection) }
+      if selectedView != .all {
+        guard let narrowed = await Self.narrow(fetch, to: selectedView, filter: selectedFilter, receiver: receiver) else {
+          return (fetch, LibraryPresentationIndex(), Set<String>(), false)
+        }
+        fetch = narrowed
+      }
       let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
       LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
       index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
-      return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys))
+      return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys), true)
     }
     cancelMetadata = { work.cancel() }
     let result = await work.value
     LaunchTrace.mark("library fetch done (\(result.0.count) assets)")
     guard expected == requestGeneration, authorized else { return }
     cancelMetadata = nil
+    guard result.3 else {
+      // The core could not answer: show the whole library rather than a view
+      // that would claim photos are or are not backed up.
+      loading = false
+      requestedBackupView = .all
+      message = NSLocalizedString("library_view_failed", comment: "")
+      await reload(resetWindow: true)
+      return
+    }
+    backupView = selectedView
     fetch = result.0
     presentation = result.1
     total = result.0.count

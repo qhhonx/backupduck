@@ -1,0 +1,25 @@
+{
+  "id": "settings.ready",
+  "page": "settings",
+  "title": "Paired and idle",
+  "extends": "base-paired",
+  "files": {
+    "photo-library-changes.json": {
+      "enabled": true,
+      "receiverID": "catalog-pixel",
+      "pending": [],
+      "historyUnavailable": false
+    }
+  },
+  "expect": [
+    "Device identity shows Lin's iPhone.",
+    "Display and language, local storage, diagnostics, and help groups appear in that order.",
+    "No loading or error notices."
+  ],
+  "actions": [
+    {
+      "action": "Open Cache management",
+      "result": "300 MB used of a 2 GB cache, 60 GB free on the phone, automatic cleanup off."
+    }
+  ]
+}

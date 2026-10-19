@@ -1,0 +1,137 @@
+{
+  "id": "hub.phone-full",
+  "page": "backup",
+  "extends": "base-paired",
+  "title": "iPhone storage low",
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4001.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299940000
+        },
+        {
+          "id": 2,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-2",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4002.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299880000
+        },
+        {
+          "id": 3,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-3",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4003.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299820000
+        },
+        {
+          "id": 4,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-4",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4004.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299760000
+        },
+        {
+          "id": 5,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-5",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4005.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299700000
+        }
+      ]
+    },
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1300,
+        "received": 1284,
+        "published": 1280,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 16,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 9876543210
+      }
+    },
+    "storage_status": {
+      "value": {
+        "settings": {
+          "cache_budget_bytes": 2147483648,
+          "receiver_budget_bytes": 0,
+          "min_free_bytes": 5368709120,
+          "auto_reclaim": false,
+          "log_days": 30,
+          "log_limit": 2000
+        },
+        "used_bytes": 314572800,
+        "free_bytes": 1073741824,
+        "export_allowance": 0,
+        "reason": "local_free_space"
+      }
+    }
+  },
+  "expect": [
+    "Card says the iPhone needs space to prepare photos and resumes by itself."
+  ]
+}

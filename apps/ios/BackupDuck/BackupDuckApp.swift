@@ -32,19 +32,11 @@ import SwiftUI
   var body: some Scene {
     WindowGroup {
       TabView(selection: $selectedTab) {
-        IOSLibraryPage(library: library, model: model).duckTabSurface().tabItem {
-          Label("nav_library", systemImage: "photo.on.rectangle")
-        }.tag(0)
-        IOSBackupPage(model: model).duckTabSurface().tabItem {
-          Label("nav_backup", systemImage: "arrow.triangle.2.circlepath")
-        }.tag(1)
-        IOSReceiverPage(model: model).duckTabSurface().tabItem {
-          Label("nav_receiver", systemImage: "externaldrive.badge.wifi")
-        }.tag(2)
-        IOSSettingsPage(model: model).duckTabSurface().tabItem {
-          Label("nav_settings", systemImage: "gearshape")
-        }.tag(3)
-      }.duckLibraryTabMinimization(selected: selectedTab == 0).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
+        IOSLibraryPage(library: library, model: model).duckTabSurface().tabItem { IOSAppTab.library.label }.tag(IOSAppTab.library.rawValue)
+        IOSBackupPage(model: model).duckTabSurface().tabItem { IOSAppTab.backup.label }.tag(IOSAppTab.backup.rawValue)
+        IOSReceiverPage(model: model).duckTabSurface().tabItem { IOSAppTab.receiver.label }.tag(IOSAppTab.receiver.rawValue)
+        IOSSettingsPage(model: model).duckTabSurface().tabItem { IOSAppTab.settings.label }.tag(IOSAppTab.settings.rawValue)
+      }.duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake
@@ -63,23 +55,5 @@ import SwiftUI
           }
         }
     }
-  }
-}
-
-extension View {
-  @ViewBuilder func duckLibraryTabMinimization(selected: Bool) -> some View {
-    if #available(iOS 26.0, *) { self.tabBarMinimizeBehavior(selected ? .onScrollUp : .never) }
-    else { self }
-  }
-  @ViewBuilder func duckTabSurface() -> some View {
-    if #available(iOS 26.0, *) { self }
-    else {
-      self.toolbarBackground(DuckColors.surface, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
-    }
-  }
-  @ViewBuilder func duckLibraryViewport() -> some View {
-    if #available(iOS 26.0, *) { self.ignoresSafeArea(.container, edges: .bottom) }
-    else { self }
   }
 }

@@ -762,8 +762,8 @@ final class SettingsTests: XCTestCase {
     let picker = app.descendants(matching: .any)["transfers.common_filter"].firstMatch
     XCTAssertEqual(picker.buttons.count, 4, "Ordinary tasks expose exactly four categories")
     for label in ["All", "Active", "Attention", "Saved"] { chooseTransferCategory(app, label) }
-    XCTAssertFalse(app.buttons["Queued"].exists)
-    XCTAssertFalse(app.buttons["Sent to phone"].exists)
+    XCTAssertFalse(app.buttons["Waiting to send"].exists)
+    XCTAssertFalse(app.buttons["Received by Pixel"].exists)
     let guide = app.buttons["transfers.guide"]
     XCTAssertTrue(guide.isHittable); guide.tap()
     XCTAssertTrue(app.staticTexts["Originals are prepared, but sending has not started."].waitForExistence(timeout: 10))

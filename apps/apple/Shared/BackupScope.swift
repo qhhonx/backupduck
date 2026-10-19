@@ -93,22 +93,29 @@ enum BackupScopeDestination: String, Identifiable {
   var title: String { self == .types ? "scope_media_types" : "scope_albums_title" }
 }
 
+extension BackupScopeStore {
+  /// The selected media types, or "no media types selected".
+  var typesSummary: String {
+    let value = rule.types.count == BackupMediaKind.allCases.count ? NSLocalizedString("scope_all_types", comment: "")
+      : BackupMediaKind.allCases.filter { rule.types.contains($0) }.map { NSLocalizedString($0.title, comment: "") }.joined(separator: ", ")
+    return value.isEmpty ? NSLocalizedString("scope_empty", comment: "") : value
+  }
+  var albumsSummary: String {
+    rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), rule.albums.count)
+      : NSLocalizedString("scope_all_albums", comment: "")
+  }
+}
+
 struct BackupScopeSettings: View {
   @ObservedObject private var store = BackupScopeStore.shared
   var navigate: ((BackupScopeDestination) -> Void)? = nil
-  private var typesValue: String {
-    store.rule.types.count == BackupMediaKind.allCases.count ? NSLocalizedString("scope_all_types", comment: "")
-      : BackupMediaKind.allCases.filter { store.rule.types.contains($0) }.map { NSLocalizedString($0.title, comment: "") }.joined(separator: ", ")
-  }
-  private var albumsValue: String {
-    store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count)
-      : NSLocalizedString("scope_all_albums", comment: "")
-  }
+  private var typesValue: String { store.typesSummary }
+  private var albumsValue: String { store.albumsSummary }
   var body: some View {
     #if os(macOS)
     MacPreferenceGroup(title: "scope_title", note: "scope_summary_note") {
       Button { navigate?(.types) } label: {
-        MacPreferenceRow(title: "scope_media_types") { MacPreferenceValue(value: typesValue.isEmpty ? NSLocalizedString("scope_empty", comment: "") : typesValue) }
+        MacPreferenceRow(title: "scope_media_types") { MacPreferenceValue(value: typesValue) }
       }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.types")
       Button { navigate?(.albums) } label: {
         MacPreferenceRow(title: "scope_albums_title", first: false) { MacPreferenceValue(value: albumsValue) }
@@ -119,7 +126,7 @@ struct BackupScopeSettings: View {
     VStack(alignment: .leading, spacing: 8) {
       IOSPreferenceSection(title: "scope_title") {
         NavigationLink { IOSPrototypeDestination(title: "scope_media_types") { BackupScopeEditor(destination: .types) } } label: {
-          IOSPreferenceRow(title: "scope_media_types") { IOSPreferenceValue(value: typesValue.isEmpty ? NSLocalizedString("scope_empty", comment: "") : typesValue) }
+          IOSPreferenceRow(title: "scope_media_types") { IOSPreferenceValue(value: typesValue) }
         }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.types")
         Divider()
         NavigationLink { IOSPrototypeDestination(title: "scope_albums_title") { BackupScopeEditor(destination: .albums) } } label: {
@@ -151,7 +158,9 @@ struct ScopeAlbum: Identifiable, Hashable {
   @Published var loading = false
   @Published var denied = false
   override init() {
-    super.init(); PHPhotoLibrary.shared().register(self)
+    super.init()
+    // Registering asks for photo access when it has not been decided yet.
+    if BackupEnvironment.usesPhotoLibrary { PHPhotoLibrary.shared().register(self) }
   }
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor [weak self] in self?.lastLoad = nil }

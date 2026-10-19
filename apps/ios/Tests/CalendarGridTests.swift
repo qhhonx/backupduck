@@ -335,11 +335,19 @@ final class CalendarGridTests: XCTestCase {
   @MainActor func testLoadingHeaderAdoptsMediaContrastWithoutWaitingForResize() {
     let c = CalendarGridController(); c.loadViewIfNeeded()
     c.view.frame = CGRect(x:0,y:0,width:402,height:874); c.view.layoutIfNeeded()
-    c.replaceAssets([CalendarGridAsset(id:"photo",date:nil,aspect:1)])
+    c.replaceAssets((0..<90).map { CalendarGridAsset(id:"photo-\($0)",date:nil,aspect:1) })
     XCTAssertEqual(c.titleLabel.textColor,UIColor.white)
     XCTAssertEqual(c.subtitleLabel.textColor,UIColor.white.withAlphaComponent(0.92))
     c.view.layoutIfNeeded()
     XCTAssertEqual(c.subtitleLabel.frame.minX,c.titleLabel.convert(c.titleLabel.bounds,to:c.view).minX,accuracy:0.1)
+  }
+  @MainActor func testShortViewKeepsCanvasContrastBehindTheHeader() {
+    // A backup view with a few photos leaves the canvas behind the header (design/library.md).
+    let c = CalendarGridController(); c.loadViewIfNeeded()
+    c.view.frame = CGRect(x:0,y:0,width:402,height:874); c.view.layoutIfNeeded()
+    c.replaceAssets([CalendarGridAsset(id:"photo",date:nil,aspect:1)])
+    XCTAssertNotEqual(c.titleLabel.textColor,UIColor.white)
+    XCTAssertFalse(c.photosBehindHeader)
   }
   func testDensityChangesKeepIdentityAndOriginalAspectDoesNotChangeMembership() {
     let assets = (0..<900).map {

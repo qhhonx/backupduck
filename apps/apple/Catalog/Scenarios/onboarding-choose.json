@@ -1,0 +1,34 @@
+{
+  "id": "onboarding.choose",
+  "page": "onboarding",
+  "step": "choose",
+  "title": "First run: what to back up",
+  "extends": "base-paired",
+  "core": {
+    "history_control": {
+      "value": {
+        "run": 1,
+        "state": "scanning",
+        "checked": 0,
+        "pending": 12384
+      }
+    }
+  },
+  "files": {
+    "photo-library-changes.json": {
+      "enabled": false,
+      "receiverID": "catalog-pixel",
+      "pending": [],
+      "historyUnavailable": false
+    }
+  },
+  "expect": [
+    "Auto Backup on with when it runs; 12,384 earlier photos with 'they all fit'; no Pixel space figure."
+  ],
+  "actions": [
+    {
+      "action": "Back Up Everything",
+      "result": "Turns on Auto Backup, starts earlier photos, then waits for the first photo."
+    }
+  ]
+}

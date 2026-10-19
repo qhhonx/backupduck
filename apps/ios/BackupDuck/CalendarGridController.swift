@@ -455,6 +455,20 @@ final class CalendarTileDecorations: UIView {
     liveMark.clipsToBounds = true
     liveMark.contentMode = .scaleAspectFit
     addSubview(liveMark)
+    if DesignPreview.proposedDesign {
+      // design/library.md § Tile marks: every mark on a photo is a white glyph
+      // or text with a soft shadow, as Photos draws
+      // them; no pills, circles or colored fills.
+      for mark in [duration, stateMark, liveMark] as [UIView] {
+        mark.backgroundColor = .clear
+        mark.clipsToBounds = false
+        mark.layer.shadowColor = UIColor.black.cgColor  // design-exception: legibility shadow on photos
+        mark.layer.shadowOpacity = 0.45
+        mark.layer.shadowRadius = 2
+        mark.layer.shadowOffset = CGSize(width: 0, height: 0.5)
+      }
+      duration.textAlignment = .right
+    }
   }
   required init?(coder: NSCoder) { fatalError() }
   override func layoutSubviews() {
@@ -477,6 +491,7 @@ final class CalendarTileDecorations: UIView {
   }
   private static let opacityProbe = UIImageView()
   func backupState(_ state: String?, visible: Bool) {
+    if DesignPreview.proposedDesign { return proposedBackupMark(state, visible: visible) }
     let symbol: String?
     switch state {
     case "received", "received_previous": symbol = "checkmark.circle.fill"
@@ -491,6 +506,26 @@ final class CalendarTileDecorations: UIView {
       state == "failed"
       ? Style.failure
       : state == "received" || state == "received_previous" ? Style.saved : .white
+    setNeedsLayout()
+  }
+  /// Proposed marks (design/records.md, design/library.md): nothing once the
+  /// Pixel has the photo, an arrow while it is on its way, an exclamation when
+  /// it needs the user. Photos outside the backup carry no mark; the library's
+  /// Not backed up view finds them. The window lookup does not yet say whether
+  /// a received photo is still being saved to the Pixel's Photos, so there is
+  /// no saving mark on tiles.
+  private func proposedBackupMark(_ state: String?, visible: Bool) {
+    let symbol: String?
+    switch state {
+    case "failed": symbol = "exclamationmark.triangle.fill"
+    case "preparing", "running", "queued", "waiting", "paused", "scheduled", "partial": symbol = "arrow.up"
+    default: symbol = nil
+    }
+    stateMark.image = visible ? symbol.flatMap {
+      UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold))
+    } : nil
+    stateMark.tintColor = .white  // design-exception: tile marks are white glyphs with a shadow (library.md)
+    stateMark.contentMode = .center
     setNeedsLayout()
   }
 }
@@ -1588,7 +1623,7 @@ final class CalendarNavigationController: UINavigationController {
   }
   required init?(coder: NSCoder) { super.init(coder: coder) }
   override var preferredStatusBarStyle: UIStatusBarStyle {
-    (topViewController as? CalendarGridController)?.assets.isEmpty == true ? .default : .lightContent
+    (topViewController as? CalendarGridController)?.photosBehindHeader == false ? .default : .lightContent
   }
 }
 
@@ -1639,6 +1674,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var canBackup = false
   var indexing = false
   var displayedTotal: Int?
+  /// The library's backup view, named in the subtitle when it is not All Photos (design/library.md).
+  var viewTitle: String?
+  private var subtitleViewTitle: String?
   var onVisibleChange: () -> Void = {}
   var photoStates: [String: String] = [:]
   var selected = Set<String>()
@@ -2003,8 +2041,31 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       top: view.safeAreaInsets.top + (showsInterval ? subtitleHeight - 4 : 4), left: 0,
       bottom: view.safeAreaInsets.bottom + 6, right: 0)
   }
+  /// Light-on-photo chrome only when photos actually lie behind the header. A
+  /// short view (a backup view with a few photos) leaves the canvas there.
+  var photosBehindHeader: Bool {
+    guard !assets.isEmpty else { return false }
+    // Before the grid has a size, keep the media contrast so launch never flashes.
+    guard grid.bounds.height > 0, grid.bounds.width > 0 else { return true }
+    let content: CGFloat
+    if level == .all {
+      // Estimated from the count, so it is right the moment photos are set,
+      // without waiting for the geometry rebuild.
+      let columnCount = CGFloat(max(columns, 1))
+      content = (CGFloat(assets.count) / columnCount).rounded(.up) * grid.bounds.width / columnCount
+    } else {
+      content = layout.geometry.height
+    }
+    return content + grid.adjustedContentInset.top + grid.adjustedContentInset.bottom > grid.bounds.height
+  }
+  private var headerOverPhotos: Bool?
   func updateMediaHeader() {
-    let hasMedia = !assets.isEmpty
+    let hasMedia = photosBehindHeader
+    // This runs from layout, including while scrolling: refresh the status bar only on a change.
+    if headerOverPhotos != hasMedia {
+      headerOverPhotos = hasMedia
+      navigationController?.setNeedsStatusBarAppearanceUpdate()
+    }
     titleLabel.textColor = hasMedia ? .white : UIColor(DuckColors.text)
     subtitleLabel.textColor = hasMedia ? UIColor.white.withAlphaComponent(0.92) : UIColor(DuckColors.textSecondary)
     headerBackdrop.isHidden = !hasMedia || navigationController?.isNavigationBarHidden == true
@@ -3651,7 +3712,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let total = displayedTotal ?? assets.count
     let needsSubtitle =
       subtitleRange != range || subtitleAtRecentEdge != recent
-      || subtitleIndexing != (indexing && assets.isEmpty) || subtitleTotal != total
+      || subtitleIndexing != (indexing && assets.isEmpty) || subtitleTotal != total || subtitleViewTitle != viewTitle
+    subtitleViewTitle = viewTitle
     subtitleIndexing = indexing && assets.isEmpty
     subtitleTotal = total
     subtitleRange = range
@@ -3661,9 +3723,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       if indexing && assets.isEmpty {
         subtitleLabel.text = NSLocalizedString("library_loading", comment: "")
       } else if recent {
-        subtitleLabel.text = String(
+        let count = String(
           format: NSLocalizedString("library_count_compact", comment: ""),
           (displayedTotal ?? assets.count).formatted())
+        subtitleLabel.text = viewTitle.map { "\($0) · \(count)" } ?? count
       } else if let range, let a = assets[range.lowerBound].date,
         let b = assets[range.upperBound].date
       {

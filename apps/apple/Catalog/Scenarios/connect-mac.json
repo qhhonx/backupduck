@@ -1,0 +1,76 @@
+{
+  "id": "connect.mac",
+  "page": "connect",
+  "title": "Mac shows its code; the Pixel scans it",
+  "extends": "base",
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-iphone",
+          "name": "Lin's iPhone"
+        },
+        "peers": [
+          {
+            "key": "catalog-pixel",
+            "profile": {
+              "id": "catalog-pixel",
+              "name": "Pixel 8 Pro"
+            },
+            "last_seen": 0
+          }
+        ]
+      }
+    },
+    "start_desktop_pairing": {
+      "value": {
+        "v": 1,
+        "connection": {
+          "receiver_id": "catalog-desktop-session",
+          "endpoint": "https://192.0.2.10:8485"
+        }
+      }
+    },
+    "desktop_pairing_status": [
+      {
+        "value": {}
+      },
+      {
+        "value": {}
+      },
+      {
+        "value": {}
+      },
+      {
+        "value": {}
+      },
+      {
+        "value": {}
+      },
+      {
+        "value": {}
+      },
+      {
+        "value": {}
+      },
+      {
+        "value": {
+          "pairing": {
+            "version": 2,
+            "receiver_id": "catalog-pixel",
+            "endpoint": "https://192.0.2.20:8484",
+            "certificate": "synthetic-certificate",
+            "token": "synthetic-token"
+          }
+        }
+      }
+    ],
+    "stop_desktop_pairing": {
+      "value": null
+    }
+  },
+  "expect": [
+    "The code, three steps naming what the Pixel shows (Connect a Device, Connect a Mac Instead, Scan), and one note.",
+    "After about six seconds the Pixel's scan is scripted: Connected to Pixel 8 Pro with the connecting duck and Done."
+  ]
+}

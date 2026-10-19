@@ -1,0 +1,10 @@
+{
+  "id": "base-paired",
+  "extends": "base",
+  "pairing": {"version": 2, "receiver_id": "catalog-pixel", "endpoint": "https://192.0.2.20:8484",
+    "certificate": "synthetic-certificate", "token": "synthetic-token"},
+  "core": {
+    "device_status": {"value": {"device": {"id": "catalog-iphone", "name": "Lin's iPhone"},
+      "peers": [{"key": "catalog-pixel", "profile": {"id": "catalog-pixel", "name": "Pixel 8 Pro"}, "last_seen": 0}]}}
+  }
+}

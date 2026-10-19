@@ -1,0 +1,23 @@
+{
+  "id": "receiver.recovers",
+  "page": "receiver",
+  "title": "Receiver comes back",
+  "extends": "base-paired",
+  "core": {
+    "check_pairing": [
+      {
+        "error": "network"
+      },
+      {
+        "error": "network"
+      },
+      {
+        "value": null
+      }
+    ]
+  },
+  "expect": [
+    "The attention notice for an unreachable receiver shows first, with the status Pending confirmation.",
+    "Within about 30 seconds (connection checks back off), the notice disappears without user action and the status becomes Connected."
+  ]
+}

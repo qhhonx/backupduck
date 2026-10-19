@@ -25,6 +25,7 @@ import CryptoKit
   private(set) var state = State()
   private var scanning = false
   private var revision = 0
+  private var observing = false
   init(root: URL,
     captureToken: @escaping () throws -> Data = {
       try NSKeyedArchiver.archivedData(withRootObject: PHPhotoLibrary.shared().currentChangeToken, requiringSecureCoding: true)
@@ -38,9 +39,11 @@ import CryptoKit
     if FileManager.default.fileExists(atPath: file.path) {
       state = try JSONDecoder().decode(State.self, from: Data(contentsOf: file))
     }
-    PHPhotoLibrary.shared().register(self)
+    // Registering asks for photo access when it has not been decided yet.
+    observing = BackupEnvironment.usesPhotoLibrary
+    if observing { PHPhotoLibrary.shared().register(self) }
   }
-  deinit { PHPhotoLibrary.shared().unregisterChangeObserver(self) }
+  deinit { if observing { PHPhotoLibrary.shared().unregisterChangeObserver(self) } }
   private func persist(_ next: State) throws {
     #if os(iOS)
       let options: Data.WritingOptions = [

@@ -1,0 +1,11 @@
+{
+  "id": "receiver.authentication",
+  "page": "receiver",
+  "title": "Receiver no longer trusts this phone",
+  "extends": "base-paired",
+  "core": {"check_pairing": {"error": "authentication"}},
+  "expect": [
+    "A failure notice says the receiver rejected this phone and pairing is needed again.",
+    "Pair another receiver remains the primary action that fixes it."
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "onboarding.install",
+  "page": "onboarding",
+  "step": "install",
+  "title": "First run: install on the Pixel",
+  "extends": "base",
+  "pairing": null,
+  "expect": [
+    "Mark 1, a scannable QR code for backupduck.app, the address as text.",
+    "It's Installed goes to scanning."
+  ]
+}

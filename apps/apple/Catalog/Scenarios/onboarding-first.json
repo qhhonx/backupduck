@@ -1,0 +1,58 @@
+{
+  "id": "onboarding.first",
+  "page": "onboarding",
+  "step": "first",
+  "title": "First run: first photo lands",
+  "extends": "base-paired",
+  "core": {
+    "sender_revision": [
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 2
+      }
+    ],
+    "backup_summary": [
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 1,
+          "received": 0,
+          "published": 0,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 1,
+          "running": 0,
+          "paused": 0,
+          "confirmed_bytes": 0
+        }
+      },
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 1,
+          "received": 1,
+          "published": 1,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 0,
+          "running": 0,
+          "paused": 0,
+          "confirmed_bytes": 3400000
+        }
+      }
+    ]
+  },
+  "expect": [
+    "'Sending your first photo…' with a spinner, then the done duck and 'Your first photo is in the Pixel's Photos'.",
+    "Notifications are asked only after it lands."
+  ]
+}

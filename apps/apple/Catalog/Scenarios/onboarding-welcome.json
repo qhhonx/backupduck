@@ -1,0 +1,11 @@
+{
+  "id": "onboarding.welcome",
+  "page": "onboarding",
+  "title": "First run: welcome",
+  "extends": "base",
+  "pairing": null,
+  "expect": [
+    "Headline, subline, three marks lined up on one axis, small print.",
+    "Get Started opens the Pixel install step."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "library.notBackedUp",
+  "page": "library",
+  "title": "Library, not backed up",
+  "extends": "base-paired",
+  "library": {
+    "arriving": 8,
+    "gap_every": 9,
+    "needs_you": 4,
+    "recent": 30,
+    "view": "notBackedUp"
+  },
+  "expect": [
+    "Only photos the Pixel has not received: the newest few still on their way, and the gaps."
+  ]
+}

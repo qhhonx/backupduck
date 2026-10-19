@@ -1,0 +1,21 @@
+{
+  "id": "library.all",
+  "page": "library",
+  "title": "Library, all photos",
+  "extends": "base-paired",
+  "library": {
+    "arriving": 8,
+    "gap_every": 9,
+    "needs_you": 4,
+    "recent": 30
+  },
+  "expect": [
+    "The whole synthetic library in the calendar grid. The menu's Backup section offers All Photos, Not Backed Up, Needs You and Recently Backed Up."
+  ],
+  "actions": [
+    {
+      "action": "Choose a view in the menu",
+      "result": "The same grid narrows to that view, keeping its gestures and date groups."
+    }
+  ]
+}

@@ -414,7 +414,7 @@ extension View {
 
 /// Presentation-only adapter: every write uses the shared StorageModel methods
 /// and keeps its scoped sticky failures; no second persistence implementation.
-private struct IOSStoragePreferences: View {
+struct IOSStoragePreferences: View {
   @ObservedObject var model: BackupModel
   let scope: StoragePreferenceScope
   @State private var thumbnailBytes = 0

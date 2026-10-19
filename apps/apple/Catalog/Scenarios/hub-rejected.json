@@ -1,0 +1,114 @@
+{
+  "id": "hub.rejected",
+  "page": "backup",
+  "extends": "base-paired",
+  "title": "Pixel no longer recognizes this iPhone",
+  "core": {
+    "check_pairing": {
+      "error": "authentication"
+    },
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4001.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299940000
+        },
+        {
+          "id": 2,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-2",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4002.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299880000
+        },
+        {
+          "id": 3,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-3",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4003.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299820000
+        },
+        {
+          "id": 4,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-4",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4004.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299760000
+        },
+        {
+          "id": 5,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-5",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4005.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299700000
+        }
+      ]
+    }
+  },
+  "expect": [
+    "Red card explains that earlier backups are safe and offers Reconnect."
+  ],
+  "actions": [
+    {
+      "action": "Tap Reconnect",
+      "result": "The pairing sheet opens."
+    }
+  ]
+}

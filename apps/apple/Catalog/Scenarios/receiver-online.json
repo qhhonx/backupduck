@@ -1,0 +1,14 @@
+{
+  "id": "receiver.online",
+  "page": "receiver",
+  "title": "Paired, receiver reachable",
+  "extends": "base-paired",
+  "expect": [
+    "Receiver name Pixel 8 Pro, its status, and the address https://192.0.2.20:8484.",
+    "Primary action changes to Pair another receiver.",
+    "No connection notice."
+  ],
+  "actions": [
+    {"action": "Tap Pair another receiver", "result": "The scan sheet opens; the saved receiver stays until a new code is confirmed."}
+  ]
+}

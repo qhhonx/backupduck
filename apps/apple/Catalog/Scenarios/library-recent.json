@@ -1,0 +1,16 @@
+{
+  "id": "library.recent",
+  "page": "library",
+  "title": "Library, recently backed up",
+  "extends": "base-paired",
+  "library": {
+    "arriving": 8,
+    "gap_every": 9,
+    "needs_you": 4,
+    "recent": 30,
+    "view": "recent"
+  },
+  "expect": [
+    "Photos received in the last seven days, in the grid's date groups."
+  ]
+}

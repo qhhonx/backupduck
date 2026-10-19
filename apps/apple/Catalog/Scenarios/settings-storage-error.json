@@ -1,0 +1,20 @@
+{
+  "id": "settings.storage-error",
+  "page": "settings",
+  "title": "Storage status unavailable",
+  "extends": "base-paired",
+  "core": {
+    "storage_status": {
+      "error": "storage"
+    }
+  },
+  "expect": [
+    "The settings root loads normally; storage status is not shown at this level."
+  ],
+  "actions": [
+    {
+      "action": "Open Cache management",
+      "result": "The page says storage status could not be loaded and offers a retry; it shows no invented numbers."
+    }
+  ]
+}
