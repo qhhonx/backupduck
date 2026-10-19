@@ -36,7 +36,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   private var previousWidth: CGFloat = 0
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = UIColor(DuckColors.canvas)
+    view.backgroundColor = UIColor(DuckRole.background)
     layout.minimumInteritemSpacing = 12; layout.minimumLineSpacing = 16
     layout.sectionInset = UIEdgeInsets(top: 12,left: 16,bottom: 20,right: 16)
     collection.backgroundColor = .clear; collection.dataSource = self; collection.delegate = self
@@ -46,7 +46,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
     view.addSubview(collection)
     empty.text = NSLocalizedString("scope_albums_empty",comment: "")
     empty.font = .preferredFont(forTextStyle: .body); empty.numberOfLines = 0; empty.textAlignment = .center
-    empty.textColor = UIColor(DuckColors.textSecondary); collection.backgroundView = empty
+    empty.textColor = .secondaryLabel; collection.backgroundView = empty
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in
       guard let self else { return }
       for cell in self.collection.visibleCells { (cell as? ScopeAlbumCell)?.invalidateImage() }
@@ -149,10 +149,10 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   override init(frame: CGRect) {
     super.init(frame: frame)
     photo.contentMode = .scaleAspectFill; photo.clipsToBounds = true; photo.layer.cornerRadius = 7
-    photo.backgroundColor = UIColor(DuckColors.subtle)
-    placeholder.contentMode = .scaleAspectFit; placeholder.tintColor = UIColor(DuckColors.textSecondary)
-    name.numberOfLines = 2; name.textColor = UIColor(DuckColors.text)
-    count.numberOfLines = 1; count.textColor = UIColor(DuckColors.textSecondary)
+    photo.backgroundColor = UIColor(DuckRole.groupedSurface)
+    placeholder.contentMode = .scaleAspectFit; placeholder.tintColor = .secondaryLabel
+    name.numberOfLines = 2; name.textColor = .label
+    count.numberOfLines = 1; count.textColor = .secondaryLabel
     name.adjustsFontForContentSizeCategory = true; count.adjustsFontForContentSizeCategory = true
     [photo,placeholder,name,count,check].forEach { contentView.addSubview($0) }
     DuckMediaSelection.configure(check)
@@ -228,13 +228,13 @@ struct ScopeAlbumBrowser: View {
         Button { store.save(store.rule.toggling(album: album.id, name: album.name)) } label: {
           Image(systemName: chosen ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
             .frame(width: 44, height: 44).contentShape(Rectangle())
-        }.buttonStyle(.plain).foregroundStyle(DuckColors.action)
+        }.buttonStyle(.plain).foregroundStyle(DuckRole.accent)
           .accessibilityLabel(Text(chosen ? "scope_album_deselect" : "scope_album_choose"))
           .accessibilityAddTraits(chosen ? .isSelected : [])
           .accessibilityIdentifier("backup.scope.album_browser.choose")
       }
       content.frame(maxWidth: .infinity, maxHeight: .infinity)
-    }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).tint(DuckColors.action)
+    }.background(DuckRole.background).foregroundStyle(Color.primary).tint(DuckRole.accent)
       .toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
       .background(IOSNativeEdgeBack().frame(width: 0, height: 0).allowsHitTesting(false))
       .background(IOSPreviewPresentation(item: preview, library: library) { preview = nil }.frame(width: 0, height: 0))
@@ -245,7 +245,7 @@ struct ScopeAlbumBrowser: View {
     switch library.placeholder {
     case .loading?: DuckLoadingState("library_loading")
     case .empty?:
-      Text("scope_album_no_photos").font(.body).foregroundStyle(DuckColors.textSecondary)
+      Text("scope_album_no_photos").font(.body).foregroundStyle(Color.secondary)
         .multilineTextAlignment(.center).padding(24).accessibilityIdentifier("backup.scope.album_browser.empty")
     case let placeholder?:
       LibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,

@@ -133,7 +133,7 @@ struct BackupScopeSettings: View {
           IOSPreferenceRow(title: "scope_albums_title") { IOSPreferenceValue(value: albumsValue) }
         }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.albums")
       }
-      Text("scope_summary_note").font(.footnote).foregroundStyle(DuckColors.textSecondary)
+      Text("scope_summary_note").font(.footnote).foregroundStyle(Color.secondary)
       if store.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure) }
     }
     #endif
@@ -221,20 +221,20 @@ struct BackupScopeEditor: View {
     VStack(alignment: .leading, spacing: 12) {
       if destination == .albums {
         HStack(spacing: 8) {
-          Image(systemName: "magnifyingglass").foregroundStyle(DuckColors.textSecondary)
+          Image(systemName: "magnifyingglass").foregroundStyle(Color.secondary)
           TextField("scope_search_albums", text: $search).textFieldStyle(.plain).focused($searchFocused)
             .accessibilityIdentifier("backup.scope.album_search")
           if !search.isEmpty {
-            Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(DuckColors.textSecondary) }
+            Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Color.secondary) }
               .buttonStyle(.plain).accessibilityLabel(Text("close"))
           }
-        }.padding(10).background(DuckColors.subtle,in: RoundedRectangle(cornerRadius: 10))
+        }.padding(10).background(DuckRole.groupedSurface,in: Capsule())
           .padding(.horizontal, 16).padding(.top, 12)
         // Always present so the grid never moves when a choice changes; with All
         // Albums on it states the effect instead of repeating the switch title.
         Text(store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count)
           : NSLocalizedString("scope_all_albums_summary", comment: ""))
-          .font(.callout).foregroundStyle(DuckColors.textSecondary).padding(.horizontal, 16)
+          .font(.callout).foregroundStyle(Color.secondary).padding(.horizontal, 16)
           .accessibilityIdentifier("backup.scope.album_count")
       }
       if model.denied && destination == .albums {
@@ -272,7 +272,7 @@ struct BackupScopeEditor: View {
     .accessibilityHidden(openedAlbum != nil)
     .overlay { if let openedAlbum { MacScopeAlbumBrowser(album: openedAlbum) } }
     #endif
-    .background(DuckColors.canvas).tint(DuckColors.action)
+    .background(DuckRole.background).tint(DuckRole.accent)
       .task { if destination == .albums { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) } }
       #if os(macOS)
       .frame(height: destination == .albums ? 440 : 208, alignment: .top)
@@ -299,7 +299,7 @@ struct BackupScopeEditor: View {
           }
         }
         if visible.isEmpty && !model.loading {
-          Text("scope_albums_empty").foregroundStyle(DuckColors.textSecondary)
+          Text("scope_albums_empty").foregroundStyle(Color.secondary)
             .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 24)
         }
         LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: 12, alignment: .top), count: 3),
@@ -319,12 +319,12 @@ struct BackupScopeEditor: View {
         ReadOnlyMediaThumbnail(asset: album.cover, width: side, height: side)
           .opacity(selected ? 0.72 : 1)
           .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "checkmark.circle.fill").resizable().foregroundStyle(DuckColors.action)
+            Image(systemName: "checkmark.circle.fill").resizable().foregroundStyle(DuckRole.accent)
               .background(Circle().fill(.white)).frame(width: 23, height: 23).padding(6)
               .opacity(selected ? 1 : 0)
           }
-        Text(album.name).font(.callout).foregroundStyle(DuckColors.text).lineLimit(2)
-        Text(albumItemCount(album.count)).font(.caption).foregroundStyle(DuckColors.textSecondary)
+        Text(album.name).font(.callout).foregroundStyle(Color.primary).lineLimit(2)
+        Text(albumItemCount(album.count)).font(.caption).foregroundStyle(Color.secondary)
       }.frame(width: side, alignment: .leading).contentShape(Rectangle())
     }.buttonStyle(.plain).transaction { $0.animation = nil }
       // A click chooses, as on iPhone; the secondary-click menu opens the album.
@@ -385,8 +385,8 @@ struct BackupScopeEditor: View {
   private func choiceRow(title: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       HStack(spacing: 12) {
-        Image(systemName: symbol).font(.system(size: choiceSymbolSize)).frame(width: choiceSymbolSize,height: choiceSymbolSize).foregroundStyle(DuckColors.textSecondary)
-        Text(title).foregroundStyle(DuckColors.text)
+        Image(systemName: symbol).font(.system(size: choiceSymbolSize)).frame(width: choiceSymbolSize,height: choiceSymbolSize).foregroundStyle(Color.secondary)
+        Text(title).foregroundStyle(Color.primary)
         Spacer(minLength: 12)
         selectionMark(selected)
       }.frame(maxWidth: .infinity, minHeight: DuckPreferenceMetrics.rowHeight, alignment: .leading).contentShape(Rectangle())
@@ -394,7 +394,7 @@ struct BackupScopeEditor: View {
       .accessibilityAddTraits(selected ? .isSelected : [])
   }
   private func selectionMark(_ selected: Bool) -> some View {
-    Image(systemName: "checkmark").font(.system(size: choiceSymbolSize,weight: .semibold)).foregroundStyle(DuckColors.action)
+    Image(systemName: "checkmark").font(.system(size: choiceSymbolSize,weight: .semibold)).foregroundStyle(DuckRole.accent)
       .frame(width: choiceSymbolSize+4).opacity(selected ? 1 : 0).accessibilityHidden(true)
   }
 }
@@ -411,14 +411,14 @@ struct ReadOnlyMediaThumbnail: View {
   @State private var requestGeneration = UUID()
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 7).fill(DuckColors.subtle)
+      RoundedRectangle(cornerRadius: 7).fill(DuckRole.groupedSurface)
       if let image {
         #if os(macOS)
         Image(nsImage: image).resizable().scaledToFill()
         #else
         Image(uiImage: image).resizable().scaledToFill()
         #endif
-      } else { Image(systemName: "rectangle.stack").foregroundStyle(DuckColors.textSecondary) }
+      } else { Image(systemName: "rectangle.stack").foregroundStyle(Color.secondary) }
     }.frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: 7)).accessibilityHidden(true)
       .task(id: "\(asset?.localIdentifier ?? "")|\(Int(width*displayScale))|\(Int(height*displayScale))|\(policy.choice)") {
         ScopeThumbnailCache.pipeline.cancel(request)
