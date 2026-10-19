@@ -19,7 +19,7 @@ import SwiftUI
       MacWorkspace(model: model, library: library)
         .preferredColorScheme(colorScheme)
         .frame(minWidth: 900, minHeight: 620)
-        .task { await model.open(); await AppUpdater.shared.start() }
+        .task { await model.open(); BackupNotifier.shared.start(model); await AppUpdater.shared.start() }
         .task { await library.open() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
           Task { await library.open() }
@@ -28,6 +28,11 @@ import SwiftUI
       .commands {
         CommandGroup(replacing: .appInfo) {
           Button("about_title") { MacAboutNavigation.open { openWindow(id: "main") } }
+        }
+        // ⌘, opens Settings in the main window, the same place as the sidebar.
+        CommandGroup(replacing: .appSettings) {
+          Button("menu_settings") { MacSettingsNavigation.open { openWindow(id: "main") } }
+            .keyboardShortcut(",", modifiers: .command)
         }
       }
     Settings {

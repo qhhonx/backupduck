@@ -1473,3 +1473,12 @@
 "help2_live_body" = "有些实况照片的格式 Pixel 相册不能原样保存。它们已经安全地存在 Pixel 上。\n\n你可以把它们转换后存进相册，视频部分的画质会降低一些。";
 "help2_stopped_title" = "备份停了";
 "help2_stopped_body" = "“备份”页会写明原因：暂停了、连不上 Pixel、空间不够，或者没有照片权限。照着那张卡片做就行。\n\n如果你划掉了备份鸭，请重新打开它，它才能在后台继续。";
+"notify_unreachable_title" = "一天没连上 %@";
+"notify_unreachable_body" = "新照片在按顺序排队。看看 Pixel 是否开着、连着 Wi‑Fi，并且打开了备份鸭。";
+"notify_full_title" = "Pixel 空间满了";
+"notify_full_body" = "备份已暂停。在 Pixel 上腾出空间后会自动继续。";
+"notify_convert_title" = "%@ 张实况照片需要你处理";
+"notify_convert_body" = "它们已经安全地存在 Pixel 上。打开备份鸭选择怎么处理。";
+"notify_earlier_title" = "以前的照片都备份好了";
+"notify_earlier_body" = "以后拍的照片会自动送过去。";
+"menu_settings" = "设置…";

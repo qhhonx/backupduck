@@ -65,6 +65,7 @@
 		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
+		6F4B59F85B3C34527DB3962C /* BackupNotifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AE534194C44C2D90FBDB5E /* BackupNotifierTests.swift */; };
 		701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
 		718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
@@ -77,6 +78,7 @@
 		787DAACB0FCA50EFF6F293A8 /* AppTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41EB33EF719860F9DC39522 /* AppTabs.swift */; };
 		7CB64490194DB59972D9AB47 /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		7F543094142AE648AECCF7F9 /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
+		81AB90ED054886AABA0D581C /* BackupNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */; };
 		81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */; };
 		825D95D23A568AABD63DAAE7 /* CatalogApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C348292D39827D604FC42566 /* CatalogApp.swift */; };
 		84768A5285FF40126CA79CF9 /* BrandComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA2148CAC472733E514F516 /* BrandComponents.swift */; };
@@ -99,6 +101,7 @@
 		AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		B0E62F0601171C8A7963164B /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
 		B1F3DDC603A8771561FC6757 /* PhotoLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */; };
+		B2C3DF8C6BBD010AD1349571 /* BackupNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */; };
 		B3D1A9C2D931344FDDB0DAF3 /* TransferDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */; };
 		B5CDC65E8726DC36373D29FD /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
 		B9F56EADDB99697062A99110 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
@@ -185,6 +188,7 @@
 		6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurstPhotos.swift; sourceTree = "<group>"; };
 		697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHubStatus.swift; sourceTree = "<group>"; };
 		6EA2148CAC472733E514F516 /* BrandComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandComponents.swift; sourceTree = "<group>"; };
+		71AE534194C44C2D90FBDB5E /* BackupNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupNotifierTests.swift; sourceTree = "<group>"; };
 		728F0586C99805E1F1C10684 /* DuckTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckTokens.swift; sourceTree = "<group>"; };
 		74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupDuckApp.swift; sourceTree = "<group>"; };
 		78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
@@ -229,6 +233,7 @@
 		E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = DuckMenuBar.pdf; sourceTree = "<group>"; };
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
 		E9DC3066EDAD759AC94A12F8 /* Scenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenario.swift; sourceTree = "<group>"; };
+		EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupNotifier.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F216BA9DB13FA7A6DAE85EC0 /* BackupDuckCatalog.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BackupDuckCatalog.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
@@ -310,6 +315,7 @@
 				33E0025F00086FE962B3096D /* BackgroundTests.swift */,
 				5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */,
 				9B543E17890BB3FBE8FA4C4F /* BackupHubStatusTests.swift */,
+				71AE534194C44C2D90FBDB5E /* BackupNotifierTests.swift */,
 				59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */,
 				B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */,
 				805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */,
@@ -353,6 +359,7 @@
 				BF2952CF6A3A582257A66A4A /* BackupHistory.swift */,
 				697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */,
 				3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */,
+				EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */,
 				5CBA4F7B4794F768E7D3071B /* BackupScope.swift */,
 				6EA2148CAC472733E514F516 /* BrandComponents.swift */,
 				6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */,
@@ -602,6 +609,7 @@
 				CF147A1F2FAA23BC60045B52 /* BackupHistory.swift in Sources */,
 				DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */,
 				B5CDC65E8726DC36373D29FD /* BackupModel.swift in Sources */,
+				B2C3DF8C6BBD010AD1349571 /* BackupNotifier.swift in Sources */,
 				0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */,
 				027D2B658182556850C703AD /* BackupScope.swift in Sources */,
 				0A0F659EA7BD7EB13A287872 /* BrandComponents.swift in Sources */,
@@ -666,6 +674,7 @@
 				3B2C0F7A0931F23825434A1E /* BackgroundTests.swift in Sources */,
 				F10EF15B88883D3D721D247A /* BackupHistoryTests.swift in Sources */,
 				691B0845FB5DEF6C304B95BD /* BackupHubStatusTests.swift in Sources */,
+				6F4B59F85B3C34527DB3962C /* BackupNotifierTests.swift in Sources */,
 				3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */,
 				4D365D4AAD7ACC05CDBC3FF9 /* GridZoomTests.swift in Sources */,
 				F69787C40DFA7D9F1C0FCB75 /* LibraryPresentationTests.swift in Sources */,
@@ -688,6 +697,7 @@
 				93C3AB83EF889D78A5C6E6B9 /* BackupHistory.swift in Sources */,
 				BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */,
 				332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */,
+				81AB90ED054886AABA0D581C /* BackupNotifier.swift in Sources */,
 				C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */,
 				26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */,
 				84768A5285FF40126CA79CF9 /* BrandComponents.swift in Sources */,

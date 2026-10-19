@@ -76,8 +76,12 @@ struct MacWorkspace: View {
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowAbout"))) { _ in
       destination = .settings; settingsTitle = "about_title"
     }
+    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowSettings"))) { _ in
+      UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute")
+      destination = .settings
+    }
     .onAppear {
-      if UserDefaults.standard.string(forKey: "macRequestedSettingsRoute") == "about" { destination = .settings }
+      if ["about", "settings"].contains(UserDefaults.standard.string(forKey: "macRequestedSettingsRoute")) { destination = .settings }
       if UserDefaults.standard.string(forKey: "macRequestedDestination") == "sources" {
         UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
         destination = .sources

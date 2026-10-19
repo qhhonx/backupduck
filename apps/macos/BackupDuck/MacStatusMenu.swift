@@ -11,6 +11,17 @@ enum MacMenuBarIcon {
   }()
 }
 
+/// Opens Settings in the main window (constitution § Information architecture:
+/// no separate settings window).
+enum MacSettingsNavigation {
+  static func open(_ openWindow: () -> Void) {
+    UserDefaults.standard.set("settings", forKey: "macRequestedSettingsRoute")
+    openWindow()
+    NSApp.activate(ignoringOtherApps: true)
+    NotificationCenter.default.post(name: Notification.Name("BackupDuckShowSettings"), object: nil)
+  }
+}
+
 enum MacAboutNavigation {
   static func open(_ openWindow: () -> Void) {
     UserDefaults.standard.set("about", forKey: "macRequestedSettingsRoute")
@@ -67,6 +78,37 @@ struct MacStatusMenu: View {
   @State private var changingPause = false
 
   var body: some View {
+    if DesignPreview.proposedDesign { redesigned } else { current }
+  }
+
+  /// The hub's line, the Pixel, and the actions people reach for from the menu
+  /// bar (interaction.md I1, I3). Settings open in the main window.
+  @ViewBuilder private var redesigned: some View {
+    Text(model.hubStatus.sentence(receiver: model.peerDevice?.name ?? "Pixel"))
+    if let peer = model.peerDevice, model.pairing != nil {
+      Text(String(format: NSLocalizedString("device_sending_to", comment: ""), peer.name))
+    }
+    Divider()
+    Button("menu_open") {
+      openWindow(id: "main")
+      NSApp.activate(ignoringOtherApps: true)
+    }.keyboardShortcut("o", modifiers: .command)
+    Button(LocalizedStringKey(model.paused ? "hub_resume" : "hub_pause")) {
+      guard !changingPause else { return }
+      changingPause = true
+      Task {
+        await model.setPaused(!model.paused)
+        changingPause = false
+      }
+    }.disabled(!model.ready || model.pairing == nil || changingPause || model.changingPause)
+    Divider()
+    Button("menu_settings") { MacSettingsNavigation.open { openWindow(id: "main") } }
+    Button("about_title") { MacAboutNavigation.open { openWindow(id: "main") } }
+    Divider()
+    Button("menu_quit") { NSApp.terminate(nil) }.keyboardShortcut("q")
+  }
+
+  @ViewBuilder private var current: some View {
     Text(LocalizedStringKey(MacMenuStatus(model: model).key))
     if let peer = model.peerDevice, model.pairing != nil {
       Text(String(format: NSLocalizedString("device_sending_to", comment: ""), peer.name))

@@ -1473,3 +1473,12 @@
 "help2_live_body" = "Some Live Photos come in a format the Pixel's Photos can't store as is. They are kept safely on the Pixel.\n\nYou can convert them and save them to Photos; the video part loses some quality.";
 "help2_stopped_title" = "Backup stopped";
 "help2_stopped_body" = "Backup says why: paused, can't reach the Pixel, out of space, or no access to photos. Follow what that card says.\n\nIf you swiped BackupDuck away, open it again so it can continue in the background.";
+"notify_unreachable_title" = "Can't reach %@ for a day";
+"notify_unreachable_body" = "New photos are waiting in order. Check that the Pixel is on, on Wi‑Fi, and BackupDuck is open on it.";
+"notify_full_title" = "The Pixel is out of space";
+"notify_full_body" = "Backup is paused. It continues once space is freed on the Pixel.";
+"notify_convert_title" = "%@ Live Photos need you";
+"notify_convert_body" = "They're kept safely on the Pixel. Open BackupDuck to choose what to do.";
+"notify_earlier_title" = "Earlier photos are all backed up";
+"notify_earlier_body" = "New photos keep going over by themselves.";
+"menu_settings" = "Settings…";

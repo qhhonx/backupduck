@@ -74,3 +74,33 @@ extension BackupModel {
       photoAccess: BackupEnvironment.photoAccess(), jobs: jobs))
   }
 }
+
+extension BackupHubStatus {
+  /// The hub's one-line answer, for surfaces that show only a line (the Mac
+  /// menu bar, notifications). Same words as the hub card (P3).
+  func sentence(receiver: String, remainingBytes: UInt64 = 0) -> String {
+    func text(_ key: String) -> String { NSLocalizedString(key, comment: "") }
+    switch self {
+    case .notPaired: return text("hub_not_paired")
+    case .opening: return text("hub_opening")
+    case .empty: return text("hub_empty")
+    case .paused: return text("hub_paused")
+    case .caughtUp(_, let saving): return text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up")
+    case .backingUp(let remaining, _):
+      return String(format: text("hub_backing_up_count"), remaining.formatted())
+    case .problem(let problem):
+      switch problem {
+      case .receiverRejected: return text("hub_problem_rejected")
+      case .receiverUnreachable: return String(format: text("hub_problem_offline"), receiver)
+      case .receiverFull: return text("hub_problem_receiver_full")
+      #if os(macOS)
+      case .phoneFull: return text("hub_problem_mac_full")
+      #else
+      case .phoneFull: return text("hub_problem_phone_full")
+      #endif
+      case .photoAccessDenied: return text("hub_problem_photos")
+      case .conversionNeeded(let count): return String(format: text("hub_problem_convert"), count.formatted())
+      }
+    }
+  }
+}

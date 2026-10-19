@@ -31,6 +31,8 @@ simulator_id=$(xcrun simctl create "BackupDuck CI" "$device_type" "$runtime")
 cleanup() {
   xcrun simctl shutdown "$simulator_id" >/dev/null 2>&1 || true
   xcrun simctl delete "$simulator_id" >/dev/null 2>&1 || true
+  # Keep Tests.xcresult; the build products are ~270 MB per run.
+  rm -rf "$test_root/DerivedData"
 }
 trap cleanup EXIT
 
