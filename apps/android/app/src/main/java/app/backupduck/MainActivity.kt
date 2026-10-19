@@ -100,6 +100,7 @@ class MainActivity : AppCompatActivity() {
             if(::historyPage.isInitialized) historyPage.render(history.state.value)
             receivedPhotos?.render(history.state.value)
             proposedRefresh?.invoke()
+            maybeStartFirstRun()
         }
         pairingUI=PairingUI(this,::beginReceiving) {
             scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.receiver_scan_prompt)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
@@ -326,6 +327,13 @@ class MainActivity : AppCompatActivity() {
         ReceiverRecovery.RESUME -> beginReceiving()
         ReceiverRecovery.CONNECTION_HELP -> openHelp(ReceiverHelpTopic.CONNECTION)
         ReceiverRecovery.DIAGNOSTICS_HELP -> openHelp(ReceiverHelpTopic.RECOVERY)
+    }
+    /** First run (design/flows.md) once, for a Pixel that has never been connected. */
+    private fun maybeStartFirstRun() {
+        val prefs = getSharedPreferences("first_run", MODE_PRIVATE)
+        if (!ReceiverEnvironment.proposedDesign || prefs.getBoolean("done", false) || devicePanels.hasSenders != false) return
+        prefs.edit().putBoolean("done", true).apply()
+        startActivity(Intent(this, ReceiverOnboardingActivity::class.java))
     }
     private fun choosePairing() {if(ReceiverEnvironment.proposedDesign) openConnect() else pairingUI.choose()}
     private var connectPage:ConnectPage?=null

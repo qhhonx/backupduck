@@ -13,8 +13,8 @@ internal object ReceiverEnvironment {
     @Volatile var startService: (Context) -> Unit = { it.startForegroundService(Intent(it, ReceiverService::class.java)) }
     @Volatile var stopService: (Context) -> Unit = { it.stopService(Intent(it, ReceiverService::class.java)) }
     @Volatile var checksUpdates = true
-    /** The proposed pages (design/settings.md, design/flows.md). The app shows the current ones until migration step 6. */
-    @Volatile var proposedDesign = false
+    /** The redesigned pages (design/redesign-roadmap.md, step 6). The catalog can switch back to the earlier ones. */
+    @Volatile var proposedDesign = true
     /** The device's own storage reading; the catalog fixes it per scenario. */
     @Volatile var deviceStorage: (Context) -> DeviceStorage = { DeviceStorage.read(it) }
     /** BackupDuck's files in the Pixel's Photos, read from the media index; the catalog fixes it per scenario. */
