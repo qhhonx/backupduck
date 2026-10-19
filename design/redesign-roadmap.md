@@ -44,21 +44,21 @@ in parallel sessions because they touch separate folders; shared Apple code
 | Step | Work | Done when | State |
 | --- | --- | --- | --- |
 | 1 | Standards in the repository: `visual-language.md`, `interaction.md`, tokens, AGENTS.md pointers | Export `--check`, literal check and public audit pass | Done |
-| 2 | Shared components. Apple (`DuckLook.swift`): card, status card, problem card, primary and tinted capsule buttons, status pill, identity header, empty state, guided-flow scaffold, media marks; Mac metrics. Pixel (`DuckLook.kt`): the same in Material 3. Fold the `proposedLook` probes (`IOSHubLook`, `ReceiverHubLook`) into the components and remove the `proposedLook` switch | Components exist on both stacks, use only tokens, have catalog scenarios in light, dark and large text | Apple done (`DuckLook.swift`); Pixel in progress |
+| 2 | Shared components. Apple (`DuckLook.swift`): card, status card, problem card, primary and tinted capsule buttons, status pill, identity header, empty state, guided-flow scaffold, media marks; Mac metrics. Pixel (`DuckLook.kt`): the same in Material 3. Fold the `proposedLook` probes (`IOSHubLook`, `ReceiverHubLook`) into the components and remove the `proposedLook` switch | Components exist on both stacks, use only tokens, have catalog scenarios in light, dark and large text | Done on both stacks |
 | 3a | iPhone pages on the components, by flow: hub, photos views and photo info, first run, problems, settings (including the newly designed Devices, album chooser, Help) | Each flow's catalog scenarios pass review criteria in `iteration-checklist.md`; iOS tests pass | Hub, Devices, Help and the viewer's backup facts done; album chooser restyle, Live Activity and notifications remain |
-| 3b | Pixel pages: receive hub, received photos and detail, first run, connect, devices, settings, the newly designed Storage page | Android unit tests, catalog and debug builds pass; Pixel XL screenshots checked | Not started |
-| 3c | Mac pages: overview, library views and marks, history, settings list and detail, connect, viewer window, menu bar | Mac catalog checked in light and dark | Overview and Help done; library, history, connect and viewer remain |
+| 3b | Pixel pages: receive hub, received photos and detail, first run, connect, devices, settings, the newly designed Storage page | Android unit tests, catalog and debug builds pass; Pixel XL screenshots checked | Done (catalog on the Pixel XL in light, dark, large text, Chinese); filter chips on received photos deferred |
+| 3c | Mac pages: overview, library views and marks, history, settings list and detail, connect, viewer window, menu bar | Mac catalog checked in light and dark | Overview, Settings with Devices and Help, connect and the viewer's facts done; history snapshot in the catalog does not render (investigate) |
 | 3d | Core data for new pages: a "saving to Photos" tile state, Pixel storage breakdown, device page counts | `cargo test` and `cargo fmt --check` pass; hosts read the new fields | `source_job` done; saving state on tiles and Pixel storage breakdown remain |
 | 4 | Remaining pages from the standards: Mac first run and Folders, notifications, Live Activity, Pixel experiments, help articles | Catalog scenarios for each | Not started |
 | 5 | Verification pass: light, dark, largest text, long localized copy, failure and recovery on every flow; Release-build motion recordings on iPhone and Pixel XL | Findings fixed or recorded under Known gaps | Not started |
-| 6 | Make the redesign the default: the design switch defaults on, legacy pages and remnants removed, `page-register.md` all redesigned, HTML prototypes retired | All checks pass on all three platforms | Not started |
+| 6 | Make the redesign the default: the design switch defaults on, legacy pages and remnants removed, `page-register.md` all redesigned, HTML prototypes retired | All checks pass on all three platforms | Default on in all three apps (0252a3f, fa9c23f); legacy removal remains |
 
 ## Current step
 
-Step 6 for iPhone: the production app shows the redesigned tabs (Photos,
-Backup, Settings) and first run instead of the legacy pages, with the design
-switch on by default. Then the same for Mac; the Pixel follows when its step 3b
-lands.
+Step 6 is in effect on all three apps (the redesigned pages are the default).
+Remaining: remove the earlier pages and the catalog's comparison switch, then
+steps 4 and 5 (remaining pages from the standards; verification pass with
+Release motion recordings on device). Publishing waits for the owner.
 
 ## Product decisions made
 

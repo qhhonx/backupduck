@@ -16,6 +16,15 @@ change that redesigns a page, removes a remnant or adds a page.
 
 Audit of October 18, 2026, covering every page touched since the redesign began.
 
+## Shipped in the apps (October 19, 2026)
+
+The redesigned pages are the default in the iPhone, Mac and Pixel apps
+(roadmap step 6). The earlier pages remain in the code only for the design
+catalog's comparison switch and are removed in the cleanup that closes step 6.
+New since the canvas review: the device page (iPhone, Mac), help by task and by
+problem (iPhone, Mac), the photo's backup facts in the library viewer (iPhone,
+Mac), and the Pixel's Storage page.
+
 ## Redesigned (structure approved)
 
 | Page | Platforms | Approved | Remnants |

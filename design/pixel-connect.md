@@ -76,11 +76,12 @@ No device yet: "No devices yet" and the Connect button.
 
 The zh-Hans copy lives in the strings files (`connect_*`).
 
+The code screen drops the numbered steps (October 19 canvas review): the title
+already says what to do, and the code is the subject.
+
 | Place | en |
 | --- | --- |
 | Code title | Scan this code with your iPhone |
-| Step 1 | Open BackupDuck on your iPhone |
-| Step 2 | Point it at this code when it asks |
 | Under the code | Connects by itself once scanned |
 | Note | Only let your own devices scan this code. |
 | Mac link | Connect a Mac instead |
