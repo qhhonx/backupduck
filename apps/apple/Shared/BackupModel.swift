@@ -415,6 +415,7 @@ private struct ProcessingEventsResult: Decodable {
   }
   func becameActive() async {
     await open()
+    discovery?.observeIfAllowed()
     await BackgroundTransfer.shared.kick(reconcile: true)
     await discoverPhotos()
     await scanHistoricalImport()

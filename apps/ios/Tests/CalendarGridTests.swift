@@ -724,7 +724,9 @@ final class CalendarGridTests: XCTestCase {
     }
     XCTAssertEqual(tile.photo.opacity, Float(cell.image.alpha))
     c.finishStage(cancelled: true); c.completeStage()
-    c.selecting = false; c.photoStates = Dictionary(uniqueKeysWithValues: c.assets.map { ($0.id, "received") })
+    // Media marks (visual-language.md V5): a photo on its way carries a mark;
+    // one already in the Pixel's Photos carries none.
+    c.selecting = false; c.photoStates = Dictionary(uniqueKeysWithValues: c.assets.map { ($0.id, "running") })
     c.grid.reloadData(); c.grid.layoutIfNeeded()
     c.beginStage(point: CGPoint(x: 201, y: c.grid.contentOffset.y + 400), item: nil, distance: 300)
     let status = try XCTUnwrap(c.stage?.faces[3]?.tiles.values.first?.decorations)

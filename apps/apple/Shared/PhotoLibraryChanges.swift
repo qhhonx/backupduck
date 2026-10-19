@@ -39,9 +39,17 @@ import CryptoKit
     if FileManager.default.fileExists(atPath: file.path) {
       state = try JSONDecoder().decode(State.self, from: Data(contentsOf: file))
     }
-    // Registering asks for photo access when it has not been decided yet.
-    observing = BackupEnvironment.usesPhotoLibrary
-    if observing { PHPhotoLibrary.shared().register(self) }
+    // Registering asks for photo access when it has not been decided yet, so
+    // it waits until the user has answered first run's explained request.
+    observeIfAllowed()
+  }
+  /// Starts observing the library once photo access is granted. Safe to call again.
+  func observeIfAllowed() {
+    guard !observing, BackupEnvironment.usesPhotoLibrary else { return }
+    let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    guard access == .authorized || access == .limited else { return }
+    observing = true
+    PHPhotoLibrary.shared().register(self)
   }
   deinit { if observing { PHPhotoLibrary.shared().unregisterChangeObserver(self) } }
   private func persist(_ next: State) throws {

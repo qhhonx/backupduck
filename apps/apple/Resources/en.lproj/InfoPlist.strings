@@ -1,2 +1,5 @@
 "CFBundleDisplayName" = "BackupDuck";
 "CFBundleName" = "BackupDuck";
+"NSPhotoLibraryUsageDescription" = "BackupDuck reads your photos and sends them straight to your Pixel, never through our servers.";
+"NSLocalNetworkUsageDescription" = "BackupDuck finds your Pixel on your Wi‑Fi and sends photos to it directly.";
+"NSCameraUsageDescription" = "BackupDuck uses the camera only to scan your Pixel's code.";

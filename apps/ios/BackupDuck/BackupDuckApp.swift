@@ -3,6 +3,8 @@ import SwiftUI
 @main struct BackupDuckApp: App {
   init() {
     LaunchTrace.mark("app init")
+    // The redesigned pages are the app (design/redesign-roadmap.md, step 6).
+    DesignPreview.proposedDesign = true
     PhotoLibraryModel.prewarm()
     if #available(iOS 26.0, *) { } else {
       // Legacy scroll-edge appearance must not turn transparent above media.
@@ -20,6 +22,8 @@ import SwiftUI
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
   @AppStorage("duckAppearance") private var appearance = "system"
+  /// First run is shown once, to people who have not connected a Pixel yet.
+  @AppStorage("firstRunDone") private var firstRunDone = false
   private var colorScheme: ColorScheme? {
     appearance == "dark" ? .dark : appearance == "light" ? .light : nil
   }
@@ -29,14 +33,40 @@ import SwiftUI
       && (model.importing || model.summary.running > 0 || model.summary.queued > 0
         || model.pendingImports > 0 || model.discoveryPending > 0)
   }
+  /// Undecided until the engine has opened, so people who already connected a
+  /// Pixel never see first run flash by.
+  private var needsFirstRun: Bool? {
+    if firstRunDone { return false }
+    guard model.ready else { return nil }
+    return model.pairing == nil
+  }
+  private var tabs: some View {
+    TabView(selection: $selectedTab) {
+      // Three positions (design/navigation.md): Photos, Backup, Settings.
+      IOSLibraryPage(library: library, model: model).duckTabSurface()
+        .tabItem { IOSAppTab.library.proposedLabel }.tag(IOSAppTab.library.rawValue)
+      IOSHub(model: model, showLibrary: { view in
+        selectedTab = IOSAppTab.library.rawValue
+        Task { await library.changeBackupView(view) }
+      }).duckTabSurface().tabItem { IOSAppTab.backup.proposedLabel }.tag(IOSAppTab.backup.rawValue)
+      IOSSettings(model: model).duckTabSurface()
+        .tabItem { IOSAppTab.settings.proposedLabel }.tag(IOSAppTab.settings.rawValue)
+    }
+    .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
+  }
   var body: some Scene {
     WindowGroup {
-      TabView(selection: $selectedTab) {
-        IOSLibraryPage(library: library, model: model).duckTabSurface().tabItem { IOSAppTab.library.label }.tag(IOSAppTab.library.rawValue)
-        IOSBackupPage(model: model).duckTabSurface().tabItem { IOSAppTab.backup.label }.tag(IOSAppTab.backup.rawValue)
-        IOSReceiverPage(model: model).duckTabSurface().tabItem { IOSAppTab.receiver.label }.tag(IOSAppTab.receiver.rawValue)
-        IOSSettingsPage(model: model).duckTabSurface().tabItem { IOSAppTab.settings.label }.tag(IOSAppTab.settings.rawValue)
-      }.duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
+      Group {
+        // First run stands alone until it ends; nothing behind it reads the
+        // photo library before the user has heard why (design/flows.md).
+        switch needsFirstRun {
+        case .some(true): IOSOnboarding(model: model) { firstRunDone = true }
+        case .some(false): tabs
+        case .none: DuckRole.background.ignoresSafeArea()
+        }
+      }
+        .onChange(of: model.ready) { _, ready in if ready && model.pairing != nil { firstRunDone = true } }
+        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake

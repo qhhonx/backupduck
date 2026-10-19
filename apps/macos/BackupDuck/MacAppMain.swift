@@ -8,8 +8,12 @@ import SwiftUI
   @StateObject private var library = PhotoLibraryModel()
   @AppStorage("duckAppearance") private var appearance = "system"
   private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
-  /// Starts the photo list fetch before the first window, as on iPhone.
-  init() { PhotoLibraryModel.prewarm() }
+  /// Starts the photo list fetch before the first window, as on iPhone. The
+  /// redesigned pages are the app (design/redesign-roadmap.md, step 6).
+  init() {
+    DesignPreview.proposedDesign = true
+    PhotoLibraryModel.prewarm()
+  }
   var body: some Scene {
     Window("brand_name", id: "main") {
       MacWorkspace(model: model, library: library)

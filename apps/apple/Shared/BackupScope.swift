@@ -160,7 +160,8 @@ struct ScopeAlbum: Identifiable, Hashable {
   override init() {
     super.init()
     // Registering asks for photo access when it has not been decided yet.
-    if BackupEnvironment.usesPhotoLibrary { PHPhotoLibrary.shared().register(self) }
+    let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    if BackupEnvironment.usesPhotoLibrary, access == .authorized || access == .limited { PHPhotoLibrary.shared().register(self) }
   }
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor [weak self] in self?.lastLoad = nil }

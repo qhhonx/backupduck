@@ -40,11 +40,11 @@
 		<string>_backupduck._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Scan the pairing code displayed by your BackupDuck receiver.</string>
+	<string>BackupDuck uses the camera only to scan your Pixel's code.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Transfer your selected photos directly to your BackupDuck receiver over Wi-Fi.</string>
+	<string>BackupDuck finds your Pixel on your Wi‑Fi and sends photos to it directly.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose original photos and their paired videos to back up to your receiver.</string>
+	<string>BackupDuck reads your photos and sends them straight to your Pixel, never through our servers.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>processing</string>

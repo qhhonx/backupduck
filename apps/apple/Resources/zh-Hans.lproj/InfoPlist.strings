@@ -1,2 +1,5 @@
 "CFBundleDisplayName" = "备份鸭";
 "CFBundleName" = "备份鸭";
+"NSPhotoLibraryUsageDescription" = "备份鸭读取你的照片，直接送到你的 Pixel，不经过我们的服务器。";
+"NSLocalNetworkUsageDescription" = "备份鸭在你的 Wi‑Fi 里找到你的 Pixel，把照片直接送过去。";
+"NSCameraUsageDescription" = "备份鸭只用相机扫描 Pixel 上的连接码。";
