@@ -4,9 +4,10 @@ import SwiftUI
 /// interaction.md I2 detail). It answers "which Pixel do my photos go to, and is
 /// it there?": the Pixel, whether it can be reached, and the two facts the
 /// backup knows about it. Google Photos' state is never claimed (P3).
-struct IOSDevicePage: View {
+struct DevicePage: View {
   @ObservedObject var model: BackupModel
-  @State private var connecting = false
+  /// Starts connecting a Pixel with the platform's own connect flow.
+  var connect: () -> Void
 
   var body: some View {
     Form {
@@ -30,20 +31,23 @@ struct IOSDevicePage: View {
           Text("device_google_note")
         }
         Section {
-          Button("device_switch") { connecting = true }
+          Button("device_switch", action: connect)
         }
         .id(pairing.receiverID)
       } else {
         Section {
           DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
-            Button { connecting = true } label: { Text("hub_connect").frame(maxWidth: .infinity) }.duckPrimaryButton()
+            Button(action: connect) { Text("hub_connect").frame(maxWidth: .infinity) }.duckPrimaryButton()
           }
         }
         .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
       }
     }
-    .navigationTitle("settings_devices").navigationBarTitleDisplayMode(.inline)
-    .sheet(isPresented: $connecting) { IOSConnectSheet(model: model, reconnect: false) }
+    .formStyle(.grouped)
+    .navigationTitle("settings_devices")
+    #if os(iOS)
+    .navigationBarTitleDisplayMode(.inline)
+    #endif
     .task { await model.refreshDeviceStatus() }
   }
 

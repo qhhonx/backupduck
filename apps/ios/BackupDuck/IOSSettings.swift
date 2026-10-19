@@ -234,3 +234,13 @@ struct IOSSettingsDetail: View {
     }
   }
 }
+
+/// The shared device page with the iPhone's connect sheet.
+struct IOSDevicePage: View {
+  @ObservedObject var model: BackupModel
+  @State private var connecting = false
+  var body: some View {
+    DevicePage(model: model) { connecting = true }
+      .sheet(isPresented: $connecting) { IOSConnectSheet(model: model, reconnect: false) }
+  }
+}

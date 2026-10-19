@@ -17,7 +17,6 @@
 		0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
-		185EDD4BA684AC198127D9DD /* IOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E5EF82A056F892D09CF73C /* IOSDevice.swift */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */; };
 		222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
@@ -49,12 +48,12 @@
 		4E6FB956C1C9A3E5FCF20408 /* IOSHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C8DAED4BC83F757CD44368 /* IOSHub.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		54853049A123D203EE45E18C /* IOSConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354FD796EC38268C550E83C1 /* IOSConnect.swift */; };
-		554F3CD31D68159F807FD0D6 /* IOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E5EF82A056F892D09CF73C /* IOSDevice.swift */; };
 		561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		5672B041A1C40468F548D65C /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
 		56D044A7A5D7991F06EEB08C /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
 		59C9230E2BCD7A2AA0FE809B /* CalendarGridController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A160B6BAB13F144F368454F2 /* CalendarGridController.swift */; };
 		5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */; };
+		600CE9A8DAAEC3379916531D /* DevicePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F78F39A26D0185F6DC47C69 /* DevicePage.swift */; };
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		616790E3983F5CDA98C5C397 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		61B37FD986562777342B0398 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
@@ -81,6 +80,7 @@
 		81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */; };
 		825D95D23A568AABD63DAAE7 /* CatalogApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C348292D39827D604FC42566 /* CatalogApp.swift */; };
 		84768A5285FF40126CA79CF9 /* BrandComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA2148CAC472733E514F516 /* BrandComponents.swift */; };
+		84E19CAC314F3724C5D1E921 /* DevicePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F78F39A26D0185F6DC47C69 /* DevicePage.swift */; };
 		850B8427BB4BF0DF4AF71B37 /* Scenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9DC3066EDAD759AC94A12F8 /* Scenario.swift */; };
 		85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
 		87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
@@ -166,6 +166,7 @@
 		25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkProgressTests.swift; sourceTree = "<group>"; };
 		28F7A3A20E9363511E3B6AE3 /* SampleImages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleImages.swift; sourceTree = "<group>"; };
 		2DD73467DFE30B87BA715C9D /* StorageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModel.swift; sourceTree = "<group>"; };
+		2F78F39A26D0185F6DC47C69 /* DevicePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePage.swift; sourceTree = "<group>"; };
 		318AEFF6C64EC209A4BCEA65 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
 		33E0025F00086FE962B3096D /* BackgroundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTests.swift; sourceTree = "<group>"; };
@@ -207,7 +208,6 @@
 		B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPlaceholder.swift; sourceTree = "<group>"; };
 		B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRefreshScheduler.swift; sourceTree = "<group>"; };
 		B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLifecycle.swift; sourceTree = "<group>"; };
-		B0E5EF82A056F892D09CF73C /* IOSDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDevice.swift; sourceTree = "<group>"; };
 		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
 		B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
@@ -266,7 +266,6 @@
 				A160B6BAB13F144F368454F2 /* CalendarGridController.swift */,
 				63393D3E70EEF613D5806923 /* CalendarLibrary.swift */,
 				354FD796EC38268C550E83C1 /* IOSConnect.swift */,
-				B0E5EF82A056F892D09CF73C /* IOSDevice.swift */,
 				15C8DAED4BC83F757CD44368 /* IOSHub.swift */,
 				1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */,
 				FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */,
@@ -358,6 +357,7 @@
 				6EA2148CAC472733E514F516 /* BrandComponents.swift */,
 				6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */,
 				32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */,
+				2F78F39A26D0185F6DC47C69 /* DevicePage.swift */,
 				1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */,
 				41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */,
 				728F0586C99805E1F1C10684 /* DuckTokens.swift */,
@@ -610,6 +610,7 @@
 				C48A9F57D6004D4A628EE4C8 /* CalendarLibrary.swift in Sources */,
 				825D95D23A568AABD63DAAE7 /* CatalogApp.swift in Sources */,
 				6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */,
+				600CE9A8DAAEC3379916531D /* DevicePage.swift in Sources */,
 				0721D25FA612BE42E331F0B5 /* DuckComponents.swift in Sources */,
 				61B37FD986562777342B0398 /* DuckLook.swift in Sources */,
 				C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */,
@@ -618,7 +619,6 @@
 				4A399B931DB6FEC5E0A49513 /* HelpCenter.swift in Sources */,
 				77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */,
 				C7CDA8C605F5293ACB108257 /* IOSConnect.swift in Sources */,
-				185EDD4BA684AC198127D9DD /* IOSDevice.swift in Sources */,
 				4E6FB956C1C9A3E5FCF20408 /* IOSHub.swift in Sources */,
 				A191EF4D9C43B6FD26D84C39 /* IOSOnboarding.swift in Sources */,
 				222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */,
@@ -695,6 +695,7 @@
 				59C9230E2BCD7A2AA0FE809B /* CalendarGridController.swift in Sources */,
 				E92C4D383EFFD3F8A09FDAD2 /* CalendarLibrary.swift in Sources */,
 				779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */,
+				84E19CAC314F3724C5D1E921 /* DevicePage.swift in Sources */,
 				BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */,
 				785D741FE5357F4F5D4CD333 /* DuckLook.swift in Sources */,
 				616790E3983F5CDA98C5C397 /* DuckTokens.swift in Sources */,
@@ -703,7 +704,6 @@
 				701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				54853049A123D203EE45E18C /* IOSConnect.swift in Sources */,
-				554F3CD31D68159F807FD0D6 /* IOSDevice.swift in Sources */,
 				6A96F3520E8795522AAE6615 /* IOSHub.swift in Sources */,
 				1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */,
 				4DCDDE21481BA90B60D7FD73 /* IOSSettings.swift in Sources */,

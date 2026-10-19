@@ -164,7 +164,7 @@ struct MacWorkspace: View {
         }
         if destination == .settings {
           if DesignPreview.proposedDesign {
-            MacSettings(model: model, folders: folders, showFolders: { destination = .sources }, showDevices: { destination = .receiver })
+            MacSettings(model: model, folders: folders, showFolders: { destination = .sources })
           } else {
             MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
           }

@@ -6,18 +6,18 @@ import SwiftUI
 /// with values, help last, quiet footer) and a detail pane with a grouped form.
 /// Shown in the design catalog until migration step 6 replaces `MacPreferences`.
 struct MacSettings: View {
-  enum Page: Hashable { case autoBackup, appearance, language, help, about, diagnostics, advanced }
+  enum Page: Hashable { case devices, autoBackup, appearance, language, help, about, diagnostics, advanced }
 
   @ObservedObject var model: BackupModel
   @ObservedObject var folders: FolderSources
   var showFolders: () -> Void
   /// Devices live in the identity header (design/navigation.md, D3).
-  var showDevices: () -> Void = {}
   @ObservedObject private var feedback = TesterFeedback.shared
   @AppStorage("duckAppearance") private var appearance = "system"
   @State private var page: Page? = .autoBackup
   @State private var renaming = false
   @State private var retrying = false
+  @State private var connecting = false
   private var values: DuckSettingsValues { DuckSettingsValues(model: model) }
 
   var body: some View {
@@ -42,12 +42,9 @@ struct MacSettings: View {
       header.selectionDisabled()
       if model.message != nil && !model.ready { openFailedCard.selectionDisabled() }
       Section {
-        // Devices live in Settings (design/navigation.md, D3); the device page opens in the main window.
-        Button(action: showDevices) {
-          LabeledContent { Text(model.peerDevice?.name ?? NSLocalizedString("settings_pair_first", comment: "")) } label: {
-            DuckSettingsLabel(title: "settings_devices", symbol: "smartphone", color: DuckGlyph.green)
-          }
-        }.buttonStyle(.plain).selectionDisabled()
+        // Devices live in Settings (design/navigation.md, D3).
+        row(.devices, "settings_devices", "smartphone", DuckGlyph.green,
+          model.peerDevice?.name ?? NSLocalizedString("settings_pair_first", comment: ""))
         row(.autoBackup, "settings_auto_backup", "arrow.triangle.2.circlepath", DuckGlyph.blue, values.autoBackup)
         // Folders are edited in their own sidebar position; this row goes there.
         Button(action: showFolders) {
@@ -132,6 +129,7 @@ struct MacSettings: View {
 
   private var pageTitle: LocalizedStringKey {
     switch page {
+    case .devices: "settings_devices"
     case .autoBackup: "settings_auto_backup"
     case .appearance: "apple_appearance"
     case .language: "apple_language"
@@ -145,6 +143,9 @@ struct MacSettings: View {
 
   @ViewBuilder private var detailContent: some View {
     switch page {
+    case .devices:
+      DevicePage(model: model) { connecting = true }
+        .sheet(isPresented: $connecting) { MacConnectSheet(model: model) }
     case .autoBackup: MacAutoBackupSettings(model: model)
     case .appearance: MacAppearanceSettings()
     case .language: MacLanguageSettings(languageName: languageName)
