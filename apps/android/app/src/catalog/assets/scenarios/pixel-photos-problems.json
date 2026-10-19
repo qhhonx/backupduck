@@ -41,7 +41,7 @@
               "id": "catalog-peer-0",
               "name": "Lin's iPhone"
             },
-            "last_seen": 1792351740000
+            "last_seen": 1792351740
           },
           {
             "key": "catalog-peer-1",
@@ -49,7 +49,7 @@
               "id": "catalog-peer-1",
               "name": "Lin's MacBook Air"
             },
-            "last_seen": 1792351740000
+            "last_seen": 1792351740
           }
         ]
       }

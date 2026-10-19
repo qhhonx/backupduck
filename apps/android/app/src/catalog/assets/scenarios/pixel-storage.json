@@ -1,10 +1,16 @@
 {
   "id": "pixel.storage",
   "page": "storage",
-  "title": "Storage overview",
+  "title": "Storage",
   "extends": "base",
   "expect": [
-    "Free space 18.3 GB with the device capacity, a 20 GB receiver budget and the safe-keep policy.",
-    "No failures pending."
-  ]
+    "6.2 GB free of 64 GB, a bar and legend: saved to Photos by BackupDuck 40 GB, BackupDuck's own copies 700 MB, other.",
+    "Two switches with their consequences: auto cleanup (off) and free up space after saving to Photos (off).",
+    "Free up space now: one sentence on what Google Photos removes, then the tonal action."
+  ],
+  "storage": {
+    "total_bytes": 68719476736,
+    "free_bytes": 6657199308,
+    "photos_bytes": 42949672960
+  }
 }

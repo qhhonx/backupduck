@@ -106,11 +106,11 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
 
     /** The photos of one cause, as the same tiles. */
     private fun showCause(group: CauseGroup) {
-        val sheet = photoSheet(activity)
+        val sheet = LookSheet(activity)
         val body = sheet.body
-        body.addView(photoText(activity, causeTitle(activity, group), M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true },
+        body.addView(activity.lookText(causeTitle(activity, group), M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true },
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), 0, activity.dp(24), 0) })
-        body.addView(photoText(activity, activity.getString(causeNote(group.cause)), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
+        body.addView(activity.lookText(activity.getString(causeNote(group.cause)), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), activity.dp(4), activity.dp(24), activity.dp(16)) })
         val tiles = PhotoAdapter(activity, images, { _, _ -> }, { sheet.dismiss(); showDetail(it) }, actions)
         body.addView(RecyclerView(activity).apply {
@@ -194,17 +194,17 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder = with(activity) {
         when (viewType) {
-            0 -> Plain(photoText(this, "", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+            0 -> Plain(lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
                 setPadding(dp(16), dp(4), dp(16), dp(8))
             })
-            1 -> Plain(photoText(this, getString(R.string.photos_needs_you), M.style.TextAppearance_Material3_TitleMedium).apply {
+            1 -> Plain(lookText(getString(R.string.photos_needs_you), M.style.TextAppearance_Material3_TitleMedium).apply {
                 isAccessibilityHeading = true; setPadding(dp(16), dp(12), dp(16), dp(4))
             })
             2 -> CauseHolder(this@PhotoAdapter.activity)
             3 -> Plain(View(this).apply { minimumHeight = dp(8) })
             4 -> DayHolder(this@PhotoAdapter.activity)
             5 -> TileHolder(this@PhotoAdapter.activity)
-            7 -> Plain(photoText(this, getString(R.string.photos_cloud_footer), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
+            7 -> Plain(lookText(getString(R.string.photos_cloud_footer), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
                 gravity = Gravity.CENTER; setPadding(dp(32), dp(24), dp(32), dp(8))
             })
             else -> StatusHolder(this@PhotoAdapter.activity)
@@ -229,8 +229,8 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
     private class Plain(view: View) : RecyclerView.ViewHolder(view)
 
     private inner class DayHolder(activity: MainActivity) : RecyclerView.ViewHolder(LinearLayout(activity)) {
-        private val day = photoText(activity, "", M.style.TextAppearance_Material3_TitleSmall).apply { isAccessibilityHeading = true }
-        private val senders = photoText(activity, "", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+        private val day = activity.lookText("", M.style.TextAppearance_Material3_TitleSmall).apply { isAccessibilityHeading = true }
+        private val senders = activity.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
             maxLines = 1; ellipsize = TextUtils.TruncateAt.END
         }
         init {
@@ -259,8 +259,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             (itemView as FrameLayout).apply {
                 setPadding(activity.dp(1), activity.dp(1), activity.dp(1), activity.dp(1))
                 addView(image, FrameLayout.LayoutParams(-1, -1))
-                val mark = if (DuckLook.on) 28 else 22
-                addView(badge, FrameLayout.LayoutParams(activity.dp(mark), activity.dp(mark), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, activity.dp(if (DuckLook.on) 2 else 5), activity.dp(if (DuckLook.on) 2 else 5)) })
+                addView(badge, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, activity.dp(2), activity.dp(2)) })
                 isFocusable = true; isClickable = true
                 val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
                 foreground = activity.getDrawable(out.resourceId)
@@ -293,42 +292,20 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         }
     }
 
+    /** One cause in the shared state card; no thumbnails, since these photos have no copy in Photos and the core offers none of the received file. */
     private inner class CauseHolder(private val activity: MainActivity) : RecyclerView.ViewHolder(FrameLayout(activity)) {
-        // The proposed look: a neutral card and title with one colored glyph and a tonal action (visual-language.md).
-        private val look = DuckLook.on
-        private val title = photoText(activity, "", M.style.TextAppearance_Material3_TitleMedium,
-            color = if (look) activity.themeColor(M.attr.colorOnSurface) else activity.getColor(R.color.duck_state_on_attention_container))
-        private val note = photoText(activity, "", M.style.TextAppearance_Material3_BodyMedium,
-            color = if (look) activity.themeColor(M.attr.colorOnSurfaceVariant) else activity.getColor(R.color.duck_state_on_attention_container))
-        private val button = if (look) activity.lookTonal("") {} else activity.duckButton("", false) {}
+        private val card = StateCard(activity)
         init {
-            val body = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(activity.dp(16), activity.dp(16), activity.dp(16), activity.dp(12)) }
-            val head = LinearLayout(activity)
-            head.addView(ImageView(activity).apply {
-                setImageResource(R.drawable.ic_alert); imageTintList = ColorStateList.valueOf(activity.getColor(R.color.duck_state_attention))
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(activity.dp(24), activity.dp(24)).apply { marginEnd = activity.dp(12) })
-            val words = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-            words.addView(title); words.addView(note, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.dp(4) })
-            head.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-            body.addView(head)
-            body.addView(button, LinearLayout.LayoutParams(-2, -2).apply {
-                topMargin = activity.dp(12); if (look) marginStart = activity.dp(36) else gravity = Gravity.END
-            })
             (itemView as FrameLayout).apply {
-                setPadding(activity.dp(16), activity.dp(4), activity.dp(16), activity.dp(4))
-                addView(MaterialCardView(activity).apply {
-                    radius = activity.dp(if (look) DuckLook.RADIUS_DP else 16).toFloat(); cardElevation = 0f; strokeWidth = 0
-                    setCardBackgroundColor(if (look) activity.themeColor(M.attr.colorSurfaceContainer) else activity.getColor(R.color.duck_state_attention_container)); addView(body)
-                }, FrameLayout.LayoutParams(-1, -2))
+                setPadding(activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_xx_small), activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_xx_small))
+                addView(card.view, FrameLayout.LayoutParams(-1, -2))
             }
         }
-        // No thumbnails: photos that need the user have no copy in Photos, and the core offers none of the received file.
         fun bind(group: CauseGroup) {
-            title.text = causeTitle(activity, group)
-            note.setText(causeNote(group.cause))
-            button.setText(if (group.cause == PhotoCause.LIVE_PHOTO) R.string.photos_view else R.string.photos_try_again)
-            button.setOnClickListener { cardAction(group, button) }
+            card.show(LookState(R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), causeTitle(activity, group), activity.getString(causeNote(group.cause)),
+                action = activity.getString(if (group.cause == PhotoCause.LIVE_PHOTO) R.string.photos_view else R.string.photos_try_again) to {
+                    card.actionButton?.let { cardAction(group, it) }
+                }))
         }
     }
 
@@ -336,26 +313,23 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         private val box = itemView as LinearLayout
         fun bind(kind: StatusKind) = with(activity) {
             box.removeAllViews(); box.orientation = LinearLayout.VERTICAL; box.gravity = Gravity.CENTER_HORIZONTAL
+            val margin = token(R.dimen.duck_space_medium)
             when (kind) {
                 StatusKind.LOADING -> {
-                    box.setPadding(dp(16), dp(24), dp(16), dp(24))
+                    box.setPadding(margin, token(R.dimen.duck_space_large), margin, token(R.dimen.duck_space_large))
                     box.addView(CircularProgressIndicator(this).apply { isIndeterminate = true; contentDescription = getString(R.string.rhub_loading) })
                 }
                 StatusKind.FAILED -> {
-                    box.setPadding(dp(24), dp(32), dp(24), dp(24))
-                    box.addView(photoText(this, getString(R.string.photos_load_failed), M.style.TextAppearance_Material3_TitleMedium).apply { gravity = Gravity.CENTER })
-                    box.addView(duckButton(getString(R.string.photos_try_again), false, actions.reload), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+                    box.setPadding(margin, token(R.dimen.duck_space_x_small), margin, 0)
+                    val card = StateCard(this)
+                    card.show(LookState(R.drawable.ic_alert, getColor(R.color.duck_state_attention), getString(R.string.photos_load_failed),
+                        action = getString(R.string.photos_try_again) to actions.reload))
+                    box.addView(card.view, LinearLayout.LayoutParams(-1, -2))
                 }
                 StatusKind.EMPTY -> {
-                    box.setPadding(dp(24), dp(48), dp(24), dp(24))
-                    box.addView(ImageView(this).apply { setImageResource(R.drawable.duck_empty); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-                        LinearLayout.LayoutParams(dp(120), dp(120)))
-                    box.addView(photoText(this, getString(R.string.photos_empty_title), M.style.TextAppearance_Material3_HeadlineSmall).apply {
-                        gravity = Gravity.CENTER; isAccessibilityHeading = true
-                    }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-                    box.addView(photoText(this, getString(R.string.photos_empty_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply { gravity = Gravity.CENTER },
-                        LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-                    if (!hasSenders) box.addView(duckButton(getString(R.string.rhub_connect), true, actions.connect), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(20) })
+                    box.setPadding(margin, token(R.dimen.duck_space_xx_large), margin, token(R.dimen.duck_space_large))
+                    lookEmpty(box, R.drawable.duck_empty, getString(R.string.photos_empty_title), getString(R.string.photos_empty_note),
+                        if (hasSenders) null else getString(R.string.rhub_connect) to actions.connect, card = false)
                 }
             }
         }
@@ -363,123 +337,126 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
 }
 
 /**
- * One photo's detail: the photo, when it was taken, received and saved to
- * Photos, at most one action, then the file. Google Photos' state is the same
- * for every photo, so the page says it once in its footer instead.
+ * One photo (I1 full-screen viewer, I2 detail; P7): the photo on a dark page in
+ * every theme, then when it was taken, received and saved to Photos with their
+ * times, at most one action, the file, and one line on Google Photos, whose
+ * backup BackupDuck cannot see.
  */
 private class PhotoDetail(private val activity: MainActivity, private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
-    fun show(item: HistoryItem) = with(activity) {
-        val sheet = photoSheet(this)
-        val body = sheet.body
-        val width = (resources.displayMetrics.widthPixels - dp(32)).coerceIn(320, 1440)
-        val height = (width * 3 / 4).coerceAtMost((resources.displayMetrics.heightPixels * .45f).toInt())
-        val preview = ImageView(this).apply {
-            clipToOutline = true; maxHeight = height
-            background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(themeColor(M.attr.colorSurfaceContainerHigh)) }
-            contentDescription = kindLabel(activity, item)
-        }
-        body.addView(preview, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(16), 0, dp(16), 0) })
-        // Only a photo in the Pixel's Photos has a picture; the rest keep a small kind placeholder.
-        placeholder(preview, item); preview.minimumHeight = if (item.processing == "complete") height else dp(120)
+    fun show(item: HistoryItem): Unit = with(activity) {
+        val dark = darkLook()
+        val page = androidx.appcompat.app.AppCompatDialog(this, R.style.DuckFullPage)
+        val canvas = dark.getColor(R.color.duck_role_background)
+        val root = LinearLayout(dark).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
+        root.addView(android.widget.ImageButton(dark).apply {
+            setImageResource(R.drawable.ic_close); contentDescription = getString(R.string.connect_close)
+            imageTintList = ColorStateList.valueOf(dark.getColor(R.color.duck_role_primary_text))
+            val out = android.util.TypedValue(); dark.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, out, true)
+            setBackgroundResource(out.resourceId); setOnClickListener { page.dismiss() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { setMargins(token(R.dimen.duck_space_xx_small), token(R.dimen.duck_space_xx_small), 0, 0) })
+        val width = resources.displayMetrics.widthPixels.coerceIn(320, 1440)
+        val height = (resources.displayMetrics.heightPixels * .6f).toInt()
+        val preview = ImageView(dark).apply { contentDescription = kindLabel(activity, item) }
+        root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
+        // Only a photo in the Pixel's Photos has a picture; the rest keep their kind's icon.
+        placeholder(preview, item)
         val signal = CancellationSignal()
         val work = images.load(item, width, height, signal) { bitmap ->
-            if (bitmap != null && sheet.isShowing) { preview.minimumHeight = 0; preview.adjustViewBounds = true; preview.setPadding(0, 0, 0, 0); preview.imageTintList = null; preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap) }
+            if (bitmap != null && page.isShowing) { preview.background = null; preview.imageTintList = null; preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap) }
         }
-        val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(16), dp(24), 0) }
-        body.addView(words)
-        words.addView(photoText(this, item.capturedAtMs?.let { getString(R.string.photos_taken, fullDate(this, it)) } ?: getString(R.string.photos_taken_unknown),
-            M.style.TextAppearance_Material3_TitleMedium).apply { isAccessibilityHeading = true })
-        val facts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        words.addView(facts, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        val panel = LinearLayout(dark).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_large), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_medium))
+        }
+        root.addView(BoundedScroll(dark, .6f).apply {
+            addView(panel)
+            background = GradientDrawable().apply {
+                val r = dp(28).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(dark.getColor(R.color.duck_m3_surface_container_low))
+            }
+        }, LinearLayout.LayoutParams(-1, -2))
+        panel.addView(dark.lookText(item.capturedAtMs?.let { getString(R.string.photos_taken, fullDate(this, it)) } ?: getString(R.string.photos_taken_unknown),
+            M.style.TextAppearance_Material3_TitleMedium).apply { isAccessibilityHeading = true; setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0) })
+        val facts = dark.lookGroup(panel)
+        (facts.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_small) }
         val sender = item.senders.joinToString(getString(R.string.photos_list_separator)).ifEmpty { null }
-        if (item.receipt == "received") fact(facts, R.drawable.ic_receiver, getColor(R.color.duck_state_received),
+        if (item.receipt == "received") fact(dark, facts, R.drawable.ic_receiver, dark.getColor(R.color.duck_state_received),
             sender?.let { getString(R.string.photos_received_from, it) } ?: getString(R.string.photos_received), item.receivedAtMs?.let { shortTime(this, it) })
-        else fact(facts, R.drawable.ic_clock, themeColor(M.attr.colorPrimary),
+        else fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_role_accent),
             sender?.let { getString(R.string.photos_receiving_from, it) } ?: getString(R.string.photos_receiving),
             java.text.NumberFormat.getPercentInstance().format(item.confirmedBytes.toDouble() / item.totalBytes.coerceAtLeast(1)))
+        val attention = dark.getColor(R.color.duck_state_attention)
         when {
-            item.processing == "complete" -> fact(facts, R.drawable.ic_check, getColor(R.color.duck_state_saved), getString(R.string.photos_in_photos), item.publishedAtMs?.let { shortTime(this, it) })
-            item.cause == PhotoCause.LIVE_PHOTO -> fact(facts, R.drawable.ic_alert, getColor(R.color.duck_state_attention), getString(R.string.photos_live_cause), null)
-            item.cause == PhotoCause.NOT_SAVED -> fact(facts, R.drawable.ic_alert, getColor(R.color.duck_state_attention), getString(R.string.photos_not_saved), null)
-            item.receipt == "received" -> fact(facts, R.drawable.ic_clock, themeColor(M.attr.colorPrimary), getString(R.string.photos_saving), null)
-            else -> fact(facts, R.drawable.ic_photo, themeColor(M.attr.colorOnSurfaceVariant), getString(R.string.photos_after_arrival), null)
+            item.processing == "complete" -> fact(dark, facts, R.drawable.ic_check, dark.getColor(R.color.duck_state_saved), getString(R.string.photos_in_photos), item.publishedAtMs?.let { shortTime(this, it) })
+            item.cause == PhotoCause.LIVE_PHOTO -> fact(dark, facts, R.drawable.ic_alert, attention, getString(R.string.photos_live_cause), null)
+            item.cause == PhotoCause.NOT_SAVED -> fact(dark, facts, R.drawable.ic_alert, attention, getString(R.string.photos_not_saved), null)
+            item.receipt == "received" -> fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_role_accent), getString(R.string.photos_saving), null)
+            else -> fact(dark, facts, R.drawable.ic_photo, dark.getColor(R.color.duck_role_secondary_text), getString(R.string.photos_after_arrival), null)
         }
-        val failure = photoText(this, getString(R.string.photos_retry_failed), M.style.TextAppearance_Material3_BodyMedium, color = getColor(R.color.duck_state_failure)).apply {
+        val failure = dark.lookText(getString(R.string.photos_retry_failed), M.style.TextAppearance_Material3_BodyMedium, color = dark.getColor(R.color.duck_state_failure)).apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        words.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-        val action = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        words.addView(action, LinearLayout.LayoutParams(-1, -2))
+        panel.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
+        val action = LinearLayout(dark).apply { orientation = LinearLayout.VERTICAL }
+        panel.addView(action, LinearLayout.LayoutParams(-1, -2))
         if (item.cause == PhotoCause.NOT_SAVED) {
             lateinit var retry: View
-            retry = duckButton(getString(R.string.photos_try_again), true) {
+            retry = dark.lookButton(getString(R.string.photos_try_again), LookButton.TONAL) {
                 retry.isEnabled = false; failure.visibility = View.GONE
                 actions.retry(item) { ok ->
                     retry.isEnabled = true
-                    if (ok) { sheet.dismiss(); duckAcknowledge(getString(R.string.photos_trying_again)) } else failure.visibility = View.VISIBLE
+                    if (ok) { page.dismiss(); duckAcknowledge(getString(R.string.photos_trying_again)) } else failure.visibility = View.VISIBLE
                 }
             }
-            action.addView(retry, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+            action.addView(retry, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         }
         // Open the photo only once its copy in Photos is found; never offer a dead button.
         val lookup = if (item.processing == "complete") lifecycleScope.launch {
             val copy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() } ?: return@launch
-            if (!sheet.isShowing) return@launch
-            action.addView(duckButton(getString(R.string.photos_open), false) {
+            if (!page.isShowing) return@launch
+            action.addView(dark.lookButton(getString(R.string.photos_open), LookButton.TONAL) {
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(copy.uri, copy.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
                     .onFailure { failure.setText(R.string.photos_open_failed); failure.visibility = View.VISIBLE }
-            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         } else null
-        words.addView(photoText(this, listOf(item.filename, Formatter.formatFileSize(this, item.totalBytes), kindLabel(activity, item))
-            .joinToString(" · "), M.style.TextAppearance_Material3_BodySmall, secondary = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(24); bottomMargin = dp(8) })
-        sheet.setOnDismissListener { signal.cancel(); work.cancel(); lookup?.cancel() }
-        sheet.show()
-    }
-
-    private fun fact(parent: LinearLayout, icon: Int, tint: Int, text: String, time: String?) = with(activity) {
-        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(48) }
-        row.addView(ImageView(this).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-            LinearLayout.LayoutParams(dp(20), dp(20)).apply { marginEnd = dp(16) })
-        row.addView(photoText(this, text, M.style.TextAppearance_Material3_BodyLarge), LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6); bottomMargin = dp(6) })
-        time?.let { row.addView(photoText(this, it, M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) }) }
-        parent.addView(row, LinearLayout.LayoutParams(-1, -2))
-    }
-}
-
-/** A Material 3 modal sheet with a drag handle and a scrolling body. */
-internal class PhotoSheet(context: android.content.Context) : BottomSheetDialog(context, R.style.DuckBottomSheetDialog) {
-    val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, context.dp(16)) }
-    init {
-        val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(BottomSheetDragHandleView(context), LinearLayout.LayoutParams(-1, -2))
-        content.addView(NestedScrollView(context).apply { addView(body) }, LinearLayout.LayoutParams(-1, -2))
-        setContentView(content)
-    }
-    override fun onStart() {
-        super.onStart()
-        findViewById<FrameLayout>(M.id.design_bottom_sheet)?.let { sheet ->
-            sheet.backgroundTintList = null
-            sheet.background = GradientDrawable().apply {
-                val r = context.dp(28).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
-                setColor(context.themeColor(M.attr.colorSurfaceContainerLow))
-            }
+        val quiet = LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) }
+        panel.addView(dark.lookText(listOf(item.filename, Formatter.formatFileSize(this, item.totalBytes), kindLabel(activity, item)).joinToString(" · "),
+            M.style.TextAppearance_Material3_BodySmall, secondary = true).apply { setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0) }, quiet)
+        panel.addView(dark.lookText(getString(R.string.photos_detail_cloud), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
+            setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0)
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
+        page.setContentView(root)
+        page.setOnDismissListener { signal.cancel(); work.cancel(); lookup?.cancel() }
+        page.show()
+        page.window?.let { window ->
+            window.setLayout(-1, -1); window.statusBarColor = canvas; window.navigationBarColor = dark.getColor(R.color.duck_m3_surface_container_low)
+            androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply { isAppearanceLightStatusBars = false; isAppearanceLightNavigationBars = false }
         }
-        behavior.state = BottomSheetBehavior.STATE_EXPANDED; behavior.skipCollapsed = true
+    }
+
+    /** One fact: its glyph in the state color, the sentence, and its time below when known. */
+    private fun fact(dark: android.content.Context, group: LinearLayout, icon: Int, tint: Int, text: String, time: String?) {
+        val support = dark.lookRow(group, icon, text, time)
+        val row = support.parent.parent as LinearLayout
+        (row.getChildAt(0) as ImageView).imageTintList = ColorStateList.valueOf(tint)
     }
 }
-private fun photoSheet(activity: MainActivity) = PhotoSheet(activity)
 
-internal fun photoText(context: android.content.Context, value: String, appearance: Int, secondary: Boolean = false, color: Int? = null) = TextView(context).apply {
-    text = value; setTextAppearance(appearance)
-    setTextColor(color ?: context.themeColor(if (secondary) M.attr.colorOnSurfaceVariant else M.attr.colorOnSurface))
+/** A scroll view no taller than [fraction] of the screen, so the photo above keeps its room at any text size. */
+private class BoundedScroll(context: android.content.Context, private val fraction: Float) : NestedScrollView(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val limit = (resources.displayMetrics.heightPixels * fraction).toInt()
+        val size = MeasureSpec.getSize(heightMeasureSpec)
+        super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) limit else minOf(size, limit), MeasureSpec.AT_MOST))
+    }
 }
 
 /** The kind's icon on a neutral tile while there is no picture (still arriving, or no copy in Photos). */
 private fun placeholder(view: ImageView, item: HistoryItem) = with(view.context) {
     view.setImageResource(when (item.kind) { "video" -> R.drawable.ic_video; "motion" -> R.drawable.ic_motion; else -> R.drawable.ic_photo })
-    view.imageTintList = ColorStateList.valueOf(themeColor(M.attr.colorOnSurfaceVariant))
+    view.imageTintList = ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
     view.scaleType = ImageView.ScaleType.CENTER
-    view.background = view.background ?: GradientDrawable().apply { setColor(themeColor(M.attr.colorSurfaceContainerHigh)) }
+    view.background = view.background ?: GradientDrawable().apply { setColor(getColor(R.color.duck_role_elevated_surface)) }
     view.setPadding(0, 0, 0, 0)
 }
 
@@ -488,27 +465,16 @@ private fun photoMark(context: android.content.Context, badge: ImageView, mark: 
     if (mark == PhotoMark.NONE) { badge.visibility = View.GONE; return@with }
     badge.visibility = View.VISIBLE
     val pending = mark == PhotoMark.PENDING
-    if (DuckLook.on) {
-        // The proposed look (visual-language.md § Marks): over a photo, a white glyph with a soft shadow and no badge.
-        // A tile still arriving or not saved has no picture yet, so its glyph takes the text color, or attention when it needs the user.
-        badge.background = null; badge.setPadding(0, 0, 0, 0); badge.scaleType = ImageView.ScaleType.CENTER
-        val icon = if (pending) R.drawable.ic_clock else R.drawable.ic_alert
-        if (onPhoto) { badge.imageTintList = null; badge.setImageDrawable(PhotoGlyphs.drawable(this, icon, 18)) }
-        else {
-            badge.setImageResource(icon)
-            badge.imageTintList = ColorStateList.valueOf(if (pending) themeColor(M.attr.colorOnSurfaceVariant) else getColor(R.color.duck_state_attention))
-            badge.scaleType = ImageView.ScaleType.FIT_CENTER; val pad = dp(5); badge.setPadding(pad, pad, pad, pad)
-        }
-        return@with
+    // V5: over a photo, a white glyph with a soft shadow and no badge. A tile still arriving or not saved has
+    // no picture yet, so its glyph takes the secondary text color, or attention when it needs the user.
+    badge.background = null; badge.setPadding(0, 0, 0, 0); badge.scaleType = ImageView.ScaleType.CENTER
+    val icon = if (pending) R.drawable.ic_clock else R.drawable.ic_alert
+    if (onPhoto) { badge.imageTintList = null; badge.setImageDrawable(PhotoGlyphs.drawable(this, icon, 18)) }
+    else {
+        badge.setImageResource(icon)
+        badge.imageTintList = ColorStateList.valueOf(getColor(if (pending) R.color.duck_role_secondary_text else R.color.duck_state_attention))
+        badge.scaleType = ImageView.ScaleType.FIT_CENTER; val pad = dp(5); badge.setPadding(pad, pad, pad, pad)
     }
-    badge.setImageResource(if (pending) R.drawable.ic_clock else R.drawable.ic_alert)
-    badge.imageTintList = ColorStateList.valueOf(if (pending) themeColor(M.attr.colorOnPrimaryContainer) else getColor(R.color.duck_state_on_attention_container))
-    badge.background = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(if (pending) themeColor(M.attr.colorPrimaryContainer) else getColor(R.color.duck_state_attention_container))
-        setStroke(dp(2), themeColor(M.attr.colorSurface))
-    }
-    val pad = dp(4); badge.setPadding(pad, pad, pad, pad)
 }
 
 private fun count(group: CauseGroup) = String.format(java.util.Locale.getDefault(), "%,d", group.items.size) + if (group.more) "+" else ""
@@ -524,6 +490,9 @@ private fun scopeLine(context: android.content.Context, scope: PhotoScope): Stri
         else getString(R.string.photos_scope_saved, String.format(java.util.Locale.getDefault(), "%,d", scope.saved))
     "$photos · $saved"
 }
+
+/** What a tile says to a screen reader: its kind and where it is. */
+internal fun tileDescription(context: android.content.Context, item: HistoryItem) = context.getString(R.string.photos_tile_description, kindLabel(context, item), stateLabel(context, item))
 
 private fun kindLabel(context: android.content.Context, item: HistoryItem) = context.getString(when {
     item.kind == "motion" -> R.string.photos_kind_live

@@ -1,5 +1,6 @@
 package app.backupduck
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -9,87 +10,444 @@ import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.os.CancellationSignal
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.DimenRes
 import androidx.annotation.DrawableRes
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDialog
+import androidx.core.widget.NestedScrollView
 import com.google.android.material.R as M
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.bottomsheet.BottomSheetDragHandleView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.progressindicator.LinearProgressIndicator
+import kotlinx.coroutines.Job
 
 /**
- * The proposed visual language (design/visual-language.md) in Material 3, shown
- * behind the catalog's look switch ([ReceiverEnvironment.proposedLook]) next to
- * today's look. Material roles from the generated scheme
- * (ThemeOverlay.BackupDuck.Scheme), one type scale, one card style, a filled
- * button for the screen's one primary action, tonal buttons inside cards and
- * soft status pills.
+ * The shared components of the Pixel receiver in Material 3 Views
+ * (design/visual-language.md V1–V7, design/interaction.md I2–I4). Pages build
+ * from these and never define a color, size or radius of their own: surfaces
+ * are solid (V4), colors come from the generated scheme and `duck_*` tokens,
+ * spacing and radius from the generated `duck_space_*` and `duck_radius_*`
+ * dimensions, and text from the Material type scale (V2).
  */
 internal object DuckLook {
-    val on: Boolean get() = ReceiverEnvironment.proposedLook
-
-    /** One card radius for cards and photo groups. */
-    const val RADIUS_DP = 20
-
     /** Applies the generated Material 3 scheme to an activity or dialog theme before its views are built. */
     fun applyScheme(context: Context) { context.theme.applyStyle(R.style.ThemeOverlay_BackupDuck_Scheme, true) }
 }
 
-/** The one card: a filled Material card on the surface, no border, 16dp padding. */
-internal fun Context.lookCard(parent: LinearLayout, padding: Int = 16, top: Int = 0): LinearLayout {
-    val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(padding), dp(padding), dp(padding), dp(padding)) }
+/**
+ * The same scheme in its dark variant, for surfaces that are dark in every
+ * theme: the photo viewer, as photo viewers are.
+ */
+internal fun Context.darkLook(): Context {
+    val night = android.content.res.Configuration(resources.configuration).apply {
+        uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+    return androidx.appcompat.view.ContextThemeWrapper(this, R.style.AppTheme).apply {
+        applyOverrideConfiguration(night); DuckLook.applyScheme(this)
+    }
+}
+
+/** A spacing or radius token in pixels. */
+internal fun Context.token(@DimenRes id: Int) = resources.getDimensionPixelSize(id)
+
+// ---- Text ----
+
+/** Text in one role of the type scale: on-surface, or on-surface-variant when [secondary]. */
+internal fun Context.lookText(value: CharSequence, appearance: Int, secondary: Boolean = false, color: Int? = null) = TextView(this).apply {
+    text = value; setTextAppearance(appearance)
+    setTextColor(color ?: getColor(if (secondary) R.color.duck_role_secondary_text else R.color.duck_role_primary_text))
+}
+
+/** A section header: Label large in the accent, aligned with the row content of the group below (V2). */
+internal fun Context.lookSection(parent: LinearLayout, title: String): TextView = lookText(title, M.style.TextAppearance_Material3_LabelLarge,
+    color = getColor(R.color.duck_role_accent)).apply {
+    isAccessibilityHeading = true
+    setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_large), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_x_small))
+}.also { parent.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+
+// ---- Cards ----
+
+/**
+ * The one card (V3, V4): a solid grouped surface with the card radius, no
+ * border and no shadow. Returns the card's body, padded by default.
+ */
+internal fun Context.lookCard(parent: ViewGroup, padded: Boolean = true, params: ViewGroup.LayoutParams = LinearLayout.LayoutParams(-1, -2)): LinearLayout {
+    val body = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        if (padded) token(R.dimen.duck_space_medium).let { setPadding(it, it, it, it) }
+    }
     parent.addView(MaterialCardView(this).apply {
-        radius = dp(DuckLook.RADIUS_DP).toFloat(); cardElevation = 0f; strokeWidth = 0
-        setCardBackgroundColor(themeColor(M.attr.colorSurfaceContainer)); addView(body)
-    }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top) })
+        radius = token(R.dimen.duck_radius_card).toFloat(); cardElevation = 0f; strokeWidth = 0
+        setCardBackgroundColor(getColor(R.color.duck_role_grouped_surface)); addView(body)
+    }, params)
     return body
 }
 
-/** The screen's one primary action: a filled Material button. */
-internal fun Context.lookFilled(text: String, action: () -> Unit) = MaterialButton(this).apply {
-    this.text = text; minimumHeight = dp(48); setOnClickListener { action() }
-}
-
-/** An action inside a card: a tonal Material button, never link text. */
-internal fun Context.lookTonal(text: String, action: () -> Unit) = MaterialButton(this).apply {
-    this.text = text; minimumHeight = dp(40); insetTop = 0; insetBottom = 0
-    backgroundTintList = ColorStateList.valueOf(themeColor(M.attr.colorSecondaryContainer))
-    setTextColor(themeColor(M.attr.colorOnSecondaryContainer)); elevation = 0f; stateListAnimator = null
-    setOnClickListener { action() }
-}
-
-/** A soft status pill: a colored dot and neutral text on a container, optionally tappable. */
-internal fun Context.lookPill(text: String, dot: Int?, action: (() -> Unit)? = null): TextView = TextView(this).apply {
-    this.text = text; setTextAppearance(M.style.TextAppearance_Material3_LabelLarge)
-    setTextColor(themeColor(M.attr.colorOnSurface)); gravity = Gravity.CENTER_VERTICAL
-    setPadding(dp(if (dot == null) 14 else 12), dp(8), dp(14), dp(8)); minHeight = dp(36)
-    background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(themeColor(M.attr.colorSurfaceContainerHigh)) }
-    dot?.let { color ->
-        setCompoundDrawablesRelativeWithIntrinsicBounds(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color); setSize(dp(8), dp(8)) }, null, null, null)
-        compoundDrawablePadding = dp(8)
-    }
-    action?.let { run -> isClickable = true; isFocusable = true; setOnClickListener { run() } }
-}
-
-/** Text in a type role of the one scale, neutral unless secondary. */
-internal fun Context.lookText(value: String, appearance: Int, secondary: Boolean = false) = TextView(this).apply {
-    text = value; setTextAppearance(appearance)
-    setTextColor(themeColor(if (secondary) M.attr.colorOnSurfaceVariant else M.attr.colorOnSurface))
-}
-
-/** A neutral title beside one colored glyph: how a problem or a state says its tone. */
-internal fun Context.lookGlyphTitle(@DrawableRes icon: Int, tint: Int, title: String): LinearLayout = LinearLayout(this).apply {
-    gravity = Gravity.CENTER_VERTICAL
-    addView(ImageView(context).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-        LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = dp(12) })
-    addView(lookText(title, M.style.TextAppearance_Material3_TitleMedium).apply { isAccessibilityHeading = true }, LinearLayout.LayoutParams(0, -2, 1f))
+/** What a state card says (I3): one glyph in a state color, a neutral title, a note and at most one tonal action. */
+internal class LookState(
+    @DrawableRes val glyph: Int, val tint: Int, val title: String, val note: String? = null,
+    /** A device reading shown as a neutral pill, only when it matters (flows.md § Pixel hub states). */
+    val reading: String? = null,
+    /** Real progress as done of total; the bar sits inside the card and never adds a row (I3 Working). */
+    val progress: Pair<Int, Int>? = null,
+    val action: Pair<String, () -> Unit>? = null,
+    /** A quieter alternative beside the action, as a text button. */
+    val secondary: Pair<String, () -> Unit>? = null,
+) {
+    /** What decides whether the card changed; progress alone updates the bar in place. */
+    val key get() = listOf(glyph, tint, title, note, reading, progress != null, action?.first, secondary?.first)
 }
 
 /**
- * A mark on a photo: a white glyph with a soft shadow, no badge, as the system
- * Photos apps mark video and favorites. Cached per glyph and size.
+ * The state card used for every hub state and problem (V1, I3): the glyph
+ * carries the state color, the title stays neutral. A new state replaces the
+ * content in place with a short fade; progress moves the bar without
+ * rebuilding. Problems never show the duck (V6).
+ */
+internal class StateCard(private val context: Context) {
+    private val body: LinearLayout
+    val view: MaterialCardView
+    private val glyph = ImageView(context).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
+    private val title = context.lookText("", M.style.TextAppearance_Material3_TitleMedium).apply {
+        isAccessibilityHeading = true; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+    }
+    private val note = context.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true)
+    private val reading = context.lookPill("", null)
+    private val bar = LinearProgressIndicator(context).apply {
+        trackThickness = context.dp(3); trackCornerRadius = context.dp(2); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+    private val actions = FlowRow(context, context.token(R.dimen.duck_space_x_small))
+    /** The card's tonal action, for disabling it while the action runs. */
+    var actionButton: MaterialButton? = null
+        private set
+    private val words = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private var shown: List<Any?>? = null
+    private var identity: List<Any?>? = null
+
+    init {
+        val padding = context.token(R.dimen.duck_space_medium)
+        body = LinearLayout(context).apply { setPadding(padding, padding, padding, padding) }
+        view = MaterialCardView(context).apply {
+            radius = context.token(R.dimen.duck_radius_card).toFloat(); cardElevation = 0f; strokeWidth = 0
+            setCardBackgroundColor(context.getColor(R.color.duck_role_grouped_surface)); addView(body)
+        }
+        body.addView(glyph, LinearLayout.LayoutParams(context.dp(24), context.dp(24)).apply { marginEnd = context.token(R.dimen.duck_space_medium) })
+        body.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
+        words.addView(title)
+        words.addView(note, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_xx_small) })
+        words.addView(reading, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.token(R.dimen.duck_space_x_small) })
+        words.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
+        words.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
+    }
+
+    fun show(state: LookState) {
+        state.progress?.let { (done, total) -> bar.max = total.coerceAtLeast(1); bar.setProgressCompat(done.coerceIn(0, bar.max), shown == state.key) }
+        if (shown == state.key) return
+        // Counts change the note in place; only a different state fades.
+        val replacing = shown != null && identity != listOf(state.glyph, state.title)
+        shown = state.key; identity = listOf(state.glyph, state.title)
+        glyph.setImageResource(state.glyph); glyph.imageTintList = ColorStateList.valueOf(state.tint)
+        title.text = state.title
+        note.text = state.note; note.visibility = if (state.note.isNullOrEmpty()) View.GONE else View.VISIBLE
+        reading.text = state.reading; reading.visibility = if (state.reading == null) View.GONE else View.VISIBLE
+        bar.visibility = if (state.progress == null) View.GONE else View.VISIBLE
+        actions.removeAllViews()
+        actionButton = state.action?.let { (label, run) -> context.lookButton(label, LookButton.TONAL, action = run).also { actions.addView(it) } }
+        state.secondary?.let { (label, run) -> actions.addView(context.lookButton(label, LookButton.TEXT, action = run)) }
+        actions.visibility = if (actions.childCount == 0) View.GONE else View.VISIBLE
+        // I7: a state change fades in place over the text duration; Reduce Motion adopts it at once.
+        if (replacing && ValueAnimator.areAnimatorsEnabled()) {
+            words.alpha = 0f
+            words.animate().alpha(1f).setDuration(context.resources.getInteger(R.integer.duck_motion_text_ms).toLong()).start()
+        }
+    }
+}
+
+/** An empty state (I3): the duck, a neutral title, one sentence and at most one action. Never used for problems (V6). */
+internal fun Context.lookEmpty(parent: ViewGroup, @DrawableRes duck: Int, title: String, note: String?,
+    action: Pair<String, () -> Unit>? = null, card: Boolean = true): LinearLayout {
+    val box = if (card) lookCard(parent) else LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }.also { parent.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+    box.gravity = Gravity.CENTER_HORIZONTAL
+    token(R.dimen.duck_space_large).let { box.setPadding(box.paddingLeft, it, box.paddingRight, it) }
+    box.addView(ImageView(this).apply { setImageResource(duck); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
+        LinearLayout.LayoutParams(dp(112), dp(112)))
+    box.addView(lookText(title, M.style.TextAppearance_Material3_TitleMedium).apply { gravity = Gravity.CENTER; isAccessibilityHeading = true },
+        LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
+    note?.let { box.addView(lookText(it, M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply { gravity = Gravity.CENTER },
+        LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) }) }
+    action?.let { (label, run) -> box.addView(lookButton(label, LookButton.FILLED, action = run),
+        LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_medium) }) }
+    return box
+}
+
+// ---- Buttons and pills ----
+
+internal enum class LookButton { FILLED, TONAL, OUTLINED, TEXT }
+
+/**
+ * A capsule button (V3, I4). FILLED is the one primary action of a screen,
+ * TONAL an action inside a card, OUTLINED and TEXT quieter alternatives.
+ * [large] is the fixed bottom action of a guided flow.
+ */
+internal fun Context.lookButton(text: String, kind: LookButton, large: Boolean = false, @DrawableRes icon: Int? = null, action: () -> Unit): MaterialButton {
+    val button = when (kind) {
+        LookButton.FILLED, LookButton.TONAL -> MaterialButton(this)
+        LookButton.OUTLINED -> MaterialButton(this, null, M.attr.materialButtonOutlinedStyle)
+        LookButton.TEXT -> MaterialButton(this, null, M.attr.borderlessButtonStyle)
+    }
+    return button.apply {
+        this.text = text; isAllCaps = false; setOnClickListener { action() }
+        val height = dp(if (large) 56 else 40)
+        cornerRadius = height / 2
+        if (large) { insetTop = 0; insetBottom = 0; minHeight = height; minimumHeight = height }
+        if (kind == LookButton.TONAL) {
+            backgroundTintList = ColorStateList.valueOf(themeColor(M.attr.colorSecondaryContainer))
+            setTextColor(themeColor(M.attr.colorOnSecondaryContainer)); iconTint = ColorStateList.valueOf(themeColor(M.attr.colorOnSecondaryContainer))
+            elevation = 0f; stateListAnimator = null
+        }
+        icon?.let { setIconResource(it); iconPadding = token(R.dimen.duck_space_x_small) }
+    }
+}
+
+/** A soft status pill: an optional colored dot and neutral text on a container, optionally tappable. */
+internal fun Context.lookPill(text: String, dot: Int?, action: (() -> Unit)? = null): TextView = lookText(text, M.style.TextAppearance_Material3_LabelLarge).apply {
+    gravity = Gravity.CENTER_VERTICAL; minHeight = dp(32)
+    setPadding(token(R.dimen.duck_space_small), token(R.dimen.duck_space_xx_small),
+        token(R.dimen.duck_space_small), token(R.dimen.duck_space_xx_small))
+    background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(getColor(R.color.duck_role_elevated_surface)) }
+    dot?.let { color ->
+        setCompoundDrawablesRelativeWithIntrinsicBounds(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color); setSize(dp(8), dp(8)) }, null, null, null)
+        compoundDrawablePadding = token(R.dimen.duck_space_x_small)
+    }
+    action?.let { run ->
+        isClickable = true; isFocusable = true; setOnClickListener { run() }
+        foreground = selectableBackground(); minHeight = dp(40)
+    }
+}
+
+/** Children in a row that wraps to the next line instead of clipping, for actions and pills at large text sizes. */
+internal class FlowRow(context: Context, private val gap: Int) : ViewGroup(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        var x = 0; var y = 0; var line = 0
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == GONE) continue
+            child.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            if (x > 0 && x + child.measuredWidth > width) { x = 0; y += line + gap; line = 0 }
+            x += child.measuredWidth + gap; line = maxOf(line, child.measuredHeight)
+        }
+        setMeasuredDimension(width, y + line)
+    }
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val width = r - l; val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
+        var x = 0; var y = 0; var line = 0
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == GONE) continue
+            if (x > 0 && x + child.measuredWidth > width) { x = 0; y += line + gap; line = 0 }
+            val left = if (rtl) width - x - child.measuredWidth else x
+            child.layout(left, y, left + child.measuredWidth, y + child.measuredHeight)
+            x += child.measuredWidth + gap; line = maxOf(line, child.measuredHeight)
+        }
+    }
+}
+
+// ---- Lists ----
+
+/** A group of list rows in one card; rows are added with [lookRow] or [lookSwitchRow]. */
+internal fun Context.lookGroup(parent: LinearLayout): LinearLayout = lookCard(parent, padded = false)
+
+/**
+ * A Material list row (V5, V7): a monochrome leading icon, a headline and
+ * optional supporting text, an optional trailing control and no chevron. 56dp
+ * with one line and 72dp with two, growing with the text. Returns the
+ * supporting text so callers can refresh the value with [setSupporting].
+ */
+internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title: String, supporting: String? = null,
+    trailing: View? = null, action: (() -> Unit)? = null): TextView {
+    val support = lookText(supporting.orEmpty(), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+        visibility = if (supporting.isNullOrEmpty()) View.GONE else View.VISIBLE
+    }
+    val row = LinearLayout(this).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = dp(if (supporting.isNullOrEmpty()) 56 else 72)
+        setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_x_small), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_x_small))
+        if (action != null) { isClickable = true; isFocusable = true; background = selectableBackground(); setOnClickListener { action() } }
+    }
+    icon?.let {
+        row.addView(ImageView(this).apply {
+            setImageResource(it); imageTintList = ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = token(R.dimen.duck_space_medium) })
+    }
+    val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    words.addView(lookText(title, M.style.TextAppearance_Material3_BodyLarge))
+    words.addView(support)
+    row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
+    trailing?.let { row.addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginStart = token(R.dimen.duck_space_medium) }) }
+    if (group.childCount > 0) group.addView(View(this).apply { setBackgroundColor(getColor(R.color.duck_role_separator)) }, LinearLayout.LayoutParams(-1, dp(1)))
+    group.addView(row, LinearLayout.LayoutParams(-1, -2))
+    return support
+}
+
+internal class LookSwitch(val toggle: MaterialSwitch, val supporting: TextView)
+
+/** A row whose switch applies at once (I4); tapping anywhere on the row flips it. */
+internal fun Context.lookSwitchRow(group: LinearLayout, @DrawableRes icon: Int?, title: String, supporting: String?,
+    checked: Boolean, changed: (Boolean) -> Unit): LookSwitch {
+    val toggle = MaterialSwitch(this).apply { isChecked = checked; contentDescription = title }
+    val support = lookRow(group, icon, title, supporting, toggle) { if (toggle.isEnabled) toggle.toggle() }
+    toggle.setOnCheckedChangeListener { view, value -> if (view.tag != "restoring") changed(value) }
+    return LookSwitch(toggle, support)
+}
+
+/** Sets a switch without reporting a change, for showing a stored value. */
+internal fun MaterialSwitch.restore(value: Boolean) { tag = "restoring"; isChecked = value; tag = null }
+
+internal fun TextView.setSupporting(value: String?) {
+    text = value
+    visibility = if (value.isNullOrEmpty()) View.GONE else View.VISIBLE
+}
+
+internal fun Context.selectableBackground(): Drawable? = TypedValue().let { value ->
+    theme.resolveAttribute(android.R.attr.selectableItemBackground, value, true)
+    getDrawable(value.resourceId)
+}
+
+// ---- Pages and sheets ----
+
+/**
+ * A page one level down (I1 push): a top app bar with Back and the title,
+ * then a scrolling body with the page margin, on the page background.
+ */
+internal class LookPage(activity: AppCompatActivity, title: String) : AppCompatDialog(activity, R.style.DuckFullPage) {
+    val body = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_x_small),
+            activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_large))
+    }
+    private val canvas = activity.getColor(R.color.duck_role_background)
+    /** Called when the page is in front again, for example after a system screen it opened. */
+    var resumed: (() -> Unit)? = null
+
+    init {
+        val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
+        root.addView(MaterialToolbar(activity).apply {
+            this.title = title; setTitleTextAppearance(activity, M.style.TextAppearance_Material3_TitleLarge)
+            setTitleTextColor(activity.getColor(R.color.duck_role_primary_text))
+            setNavigationIcon(R.drawable.ic_back); setNavigationIconTint(activity.getColor(R.color.duck_role_primary_text))
+            setNavigationContentDescription(R.string.nav_back); setNavigationOnClickListener { dismiss() }
+        }, LinearLayout.LayoutParams(-1, -2))
+        root.addView(NestedScrollView(activity).apply { addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(root)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) resumed?.invoke() }
+
+    override fun show() {
+        super.show()
+        window?.let { it.setLayout(-1, -1); it.statusBarColor = canvas; it.navigationBarColor = canvas; it.decorView.setBackgroundColor(canvas) }
+    }
+}
+
+/** A Material 3 modal bottom sheet (I1 detail and chooser) with a drag handle, the sheet radius and a scrolling body. */
+internal class LookSheet(context: Context) : BottomSheetDialog(context, R.style.DuckBottomSheetDialog) {
+    val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, context.token(R.dimen.duck_space_medium)) }
+    init {
+        val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(BottomSheetDragHandleView(context), LinearLayout.LayoutParams(-1, -2))
+        content.addView(NestedScrollView(context).apply { addView(body) }, LinearLayout.LayoutParams(-1, -2))
+        setContentView(content)
+    }
+    override fun onStart() {
+        super.onStart()
+        findViewById<FrameLayout>(M.id.design_bottom_sheet)?.let { sheet ->
+            sheet.backgroundTintList = null
+            sheet.background = GradientDrawable().apply {
+                val r = context.dp(28).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(context.themeColor(M.attr.colorSurfaceContainerLow))
+            }
+        }
+        behavior.state = BottomSheetBehavior.STATE_EXPANDED; behavior.skipCollapsed = true
+    }
+}
+
+// ---- Photos ----
+
+/**
+ * Recently received photos in one rounded group (V3: 2dp gaps, the card
+ * radius outside): four columns, two rows when there are eight, one row
+ * otherwise, never an empty cell.
+ */
+internal class PhotoMosaic(context: Context) : ViewGroup(context) {
+    private val gap = context.dp(2)
+    private var jobs = emptyList<Pair<Job, CancellationSignal>>()
+
+    init {
+        background = GradientDrawable().apply { cornerRadius = context.token(R.dimen.duck_radius_card).toFloat(); setColor(context.getColor(R.color.duck_role_grouped_surface)) }
+        clipToOutline = true
+    }
+
+    fun bind(items: List<HistoryItem>, images: PhotoImages, describe: (HistoryItem) -> String, open: (HistoryItem) -> Unit) {
+        val shown = items.take(if (items.size >= 8) 8 else if (items.size >= 4) 4 else items.size)
+        val ids = shown.map { it.id }
+        if (ids == tag) return
+        tag = ids
+        jobs.forEach { (job, signal) -> signal.cancel(); job.cancel() }
+        removeAllViews()
+        val size = (resources.displayMetrics.widthPixels / 3).coerceIn(160, 480)
+        jobs = shown.map { item ->
+            val image = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP; contentDescription = describe(item)
+                setBackgroundColor(context.getColor(R.color.duck_role_elevated_surface)); foreground = context.selectableBackground()
+                setOnClickListener { open(item) }
+            }
+            addView(image)
+            val signal = CancellationSignal()
+            images.load(item, size, size, signal) { bitmap -> if (bitmap != null) image.setImageBitmap(bitmap) } to signal
+        }
+        requestLayout()
+    }
+
+    private val columns get() = if (childCount >= 4) 4 else childCount.coerceAtLeast(1)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val cell = (width - gap * (columns - 1)) / columns
+        val side = if (childCount >= 4) cell else (width - gap * 3) / 4
+        val rows = (childCount + columns - 1) / columns
+        for (i in 0 until childCount) getChildAt(i).measure(MeasureSpec.makeMeasureSpec(cell, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(side, MeasureSpec.EXACTLY))
+        setMeasuredDimension(width, if (rows == 0) 0 else rows * side + (rows - 1) * gap)
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            val x = (i % columns) * (child.measuredWidth + gap); val y = (i / columns) * (child.measuredHeight + gap)
+            val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) (r - l) - x - child.measuredWidth else x
+            child.layout(left, y, left + child.measuredWidth, y + child.measuredHeight)
+        }
+    }
+}
+
+/**
+ * A media mark (V5): a white glyph with a soft shadow, no badge, in a fixed
+ * corner of a photo. Cached per glyph and size.
  */
 internal object PhotoGlyphs {
     private val cache = HashMap<String, Bitmap>()
@@ -99,7 +457,7 @@ internal object PhotoGlyphs {
             val size = context.dp(sizeDp); val pad = context.dp(4)
             val glyph = Bitmap.createBitmap(size + pad * 2, size + pad * 2, Bitmap.Config.ARGB_8888)
             context.getDrawable(icon)!!.mutate().apply {
-                // design-exception: media marks are white over photos in every theme (visual-language.md § Marks).
+                // design-exception: media marks are white over photos in every theme (visual-language.md V5).
                 setTint(android.graphics.Color.WHITE); setBounds(pad, pad, pad + size, pad + size); draw(Canvas(glyph))
             }
             val shadowPaint = Paint().apply { maskFilter = BlurMaskFilter(context.dp(3).toFloat(), BlurMaskFilter.Blur.NORMAL) }

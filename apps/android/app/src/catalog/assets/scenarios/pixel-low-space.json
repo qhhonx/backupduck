@@ -4,10 +4,15 @@
   "title": "Storage almost full",
   "extends": "base",
   "expect": [
-    "A problem notice says space is low, with an action that opens Storage."
+    "State card: almost full, receiving paused; 0.9 GB free as a reading; Turn on auto cleanup (tonal) and Free up space in Google Photos (text). No duck."
   ],
   "snapshot": {
     "phase": "waiting",
     "error": "low_space"
+  },
+  "storage": {
+    "total_bytes": 34359738368,
+    "free_bytes": 966367641,
+    "photos_bytes": 25769803776
   }
 }

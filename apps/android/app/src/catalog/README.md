@@ -26,13 +26,15 @@ therefore never opens a receiver port, never restarts on boot and does not
 affect a production receiver on the same device.
 
 `CatalogActivity` lists the scenarios. `--ez proposed true`, or "Design" in
-the ⓘ options, shows the proposed redesign: `ReceiverHub` on the receive page,
-Received photos (`ReceivedPhotosPage`, design/records.md) on the transfers
-page and the proposed settings page. The `pixel.photos-*` scenarios cover
-Received photos with problems from two senders, with nothing to fix, and
-empty. Every `pixel.*` receive scenario also covers a
-hub state (receiving, all saved, waiting, no device, stopped, paused, space
-full, too hot, no Wi‑Fi, other problem). Opening one resets the catalog app's own
+the ⓘ options, shows the redesign, built from the shared components in
+`DuckLook.kt`: `ReceiverHub` on the receive page, Received photos
+(`ReceivedPhotosPage`, design/records.md) on the transfers page, the redesigned
+settings page, and Storage (`StorageScreen`) for the `storage` page. The
+`pixel.photos-*` scenarios cover Received photos with problems from two
+senders, with nothing to fix, and empty. Every `pixel.*` receive scenario also
+covers a hub state (receiving, all saved, all received with some not saved,
+space running low, waiting, no device, stopped, paused, space full, too hot, no
+Wi‑Fi, other problem), and `pixel.storage*` covers Storage. Opening one resets the catalog app's own
 preferences, seeds the scenario's preferences and snapshot, and starts the
 production `MainActivity` at the scenario's page. The ⓘ button over the page
 shows the scenario details and the unscripted core commands. It also restarts
@@ -64,13 +66,16 @@ to the receiver:
   screen), `connect-mac` or `devices`.
 - `scan` is what the camera reads when a page scans a code (for example a
   synthetic Mac code), after a short pause. Without it the real camera opens.
+- `storage` fixes the device readings the hub and Storage show:
+  `total_bytes`, `free_bytes` and `photos_bytes` (BackupDuck's files in the
+  Pixel's Photos). Without it they come from the device.
 - `now_ms` fixes the clock that decides Today and Yesterday on Received
   photos. Its times are written for the test Pixel's time zone
   (America/New_York).
 
 Device readings on the receive page (battery temperature, storage and battery
-level) and the storage capacity come from the device itself, not from the
-scenario.
+level) and the storage capacity come from the device itself unless the scenario
+sets `storage`.
 
 ## Running
 
@@ -86,7 +91,8 @@ adb install -r app/build/outputs/apk/catalog/app-catalog.apk
 adb shell am start -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario pixel.receiving --es appearance dark
 ```
 
-Re-identify the device before installing. The catalog installs beside the
+Add `--ez proposed true` for the redesigned pages and `--es language zh-CN` for
+Chinese. Re-identify the device before installing. The catalog installs beside the
 production receiver and never touches its data. The pairing code sheet sets
 `FLAG_SECURE`, so screenshots of it are blank. Use `uiautomator dump` to check
 its content.

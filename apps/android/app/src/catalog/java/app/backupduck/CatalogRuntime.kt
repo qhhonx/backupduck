@@ -33,6 +33,12 @@ internal class CatalogScenario(json: JSONObject) {
     val surface: String? = json.optString("surface").ifEmpty { null }
     /** What the camera reads when the page scans a code, after a short pause. Unset, the real camera opens. */
     val scan: String? = json.optString("scan").ifEmpty { null }
+    /**
+     * Fixed storage readings (`total_bytes`, `free_bytes`, `photos_bytes`), so the
+     * hub's space hint and the Storage page show a designed state. Unset, the
+     * pages read the device's own space and the catalog's own files in Photos.
+     */
+    val storage: JSONObject? = json.optJSONObject("storage")
     val core: Map<String, List<Answer>> = (json.optJSONObject("core") ?: JSONObject()).let { core ->
         core.keys().asSequence().associateWith { op ->
             val entry = core.get(op)
@@ -113,6 +119,11 @@ internal object CatalogRuntime {
         }
         ReceiverProgress.mutable.value = emptyMap()
         ReceiverEnvironment.now = scenario.nowMs?.let { fixed -> { fixed } } ?: System::currentTimeMillis
+        val storage = scenario.storage
+        ReceiverEnvironment.deviceStorage = if (storage == null) { context -> DeviceStorage.read(context) }
+            else { _ -> DeviceStorage(storage.getLong("total_bytes"), storage.getLong("free_bytes")) }
+        ReceiverEnvironment.galleryUsage = if (storage == null) { context -> GalleryInventory.read(context) }
+            else { _ -> GalleryUsage(storage.optLong("photos_bytes"), storage.optLong("photos_count"), 0, 0, 0) }
         ReceiverEnvironment.scanOverride = scenario.scan?.let { payload -> { done -> main.postDelayed({ if (current === scenario) done(payload) }, 900) } }
         publish(scenario.snapshot, ReceiverSnapshot())
     }

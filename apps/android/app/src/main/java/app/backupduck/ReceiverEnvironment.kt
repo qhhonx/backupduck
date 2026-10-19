@@ -15,12 +15,23 @@ internal object ReceiverEnvironment {
     @Volatile var checksUpdates = true
     /** The proposed pages (design/settings.md, design/flows.md). The app shows the current ones until migration step 6. */
     @Volatile var proposedDesign = false
-    /** The proposed visual language (design/visual-language.md) on the proposed pages; today's look otherwise. */
-    @Volatile var proposedLook = false
+    /** The device's own storage reading; the catalog fixes it per scenario. */
+    @Volatile var deviceStorage: (Context) -> DeviceStorage = { DeviceStorage.read(it) }
+    /** BackupDuck's files in the Pixel's Photos, read from the media index; the catalog fixes it per scenario. */
+    @Volatile var galleryUsage: suspend (Context) -> GalleryUsage = { GalleryInventory.read(it) }
     /** The clock that decides Today and Yesterday; the catalog fixes it per scenario. */
     @Volatile var now: () -> Long = System::currentTimeMillis
     /** Synthetic pictures for the catalog, which has no files. Unset, pages read the copy in the Pixel's Photos. */
     @Volatile var previewImage: ((HistoryItem, Int, Int) -> android.graphics.Bitmap?)? = null
     /** A scripted camera for the catalog's Mac scenarios. Unset, scanning opens the camera. */
     @Volatile var scanOverride: (((String?) -> Unit) -> Unit)? = null
+}
+
+/** Space on the volume that holds the receiver's files, as the device reports it. */
+internal data class DeviceStorage(val totalBytes: Long, val freeBytes: Long) {
+    /** Less than 15% free: the hub hints at space while auto cleanup is off (flows.md § Hub rules). */
+    val low: Boolean get() = totalBytes > 0 && freeBytes * 100 / totalBytes < 15
+    companion object {
+        fun read(context: Context): DeviceStorage = android.os.StatFs(context.filesDir.path).let { DeviceStorage(it.totalBytes, it.availableBytes) }
+    }
 }

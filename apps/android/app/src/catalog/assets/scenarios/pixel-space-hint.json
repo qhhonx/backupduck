@@ -1,0 +1,15 @@
+{
+  "id": "pixel.space-hint",
+  "page": "receive",
+  "title": "Everything saved, space running low",
+  "extends": "pixel.calm-photos",
+  "expect": [
+    "The saved state card, then a second card: 2.6 GB free, with Turn on auto cleanup.",
+    "Recent photos and sending devices follow."
+  ],
+  "storage": {
+    "total_bytes": 34359738368,
+    "free_bytes": 2791728742,
+    "photos_bytes": 19327352832
+  }
+}

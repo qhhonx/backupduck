@@ -1,0 +1,10 @@
+{
+  "id": "onboarding.connected",
+  "page": "onboarding",
+  "step": "connected",
+  "title": "First run: connected",
+  "extends": "base",
+  "expect": [
+    "Second step mark; the connecting duck; a device is connected; Next at the bottom."
+  ]
+}

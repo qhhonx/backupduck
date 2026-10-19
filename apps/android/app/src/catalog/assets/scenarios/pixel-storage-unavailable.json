@@ -4,7 +4,7 @@
   "title": "Storage status unavailable",
   "extends": "base",
   "expect": [
-    "Free space says storage status is unavailable; budget and failures show a dash, not invented values."
+    "Free space and the bar come from the device; the free-up-after-saving switch is disabled and says storage status is unavailable. Nothing is invented."
   ],
   "core": {
     "receiver_settings": {

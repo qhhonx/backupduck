@@ -1,0 +1,10 @@
+{
+  "id": "onboarding.running",
+  "page": "onboarding",
+  "step": "running",
+  "title": "First run: keep it running",
+  "extends": "base",
+  "expect": [
+    "First step mark; Keep it running; notifications, battery and Wi‑Fi rows with a check on what is already allowed; Allow at the bottom."
+  ]
+}

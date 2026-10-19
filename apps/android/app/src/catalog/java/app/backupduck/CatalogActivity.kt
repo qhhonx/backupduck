@@ -29,7 +29,8 @@ class CatalogApplication : Application() {
 /**
  * Lists scenarios and opens the production [MainActivity] on one of them.
  * `adb shell am start -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario <id>`
- * opens a scenario directly; `--es appearance dark|light` sets the appearance.
+ * opens a scenario directly; `--es appearance dark|light` sets the appearance and
+ * `--es language zh-CN` the language.
  */
 class CatalogActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,8 +53,8 @@ class CatalogActivity : AppCompatActivity() {
         setContentView(ScrollView(this).apply { addView(list) })
         // `--ez proposed true` shows the proposed redesign instead of the current page.
         ReceiverEnvironment.proposedDesign = intent.getBooleanExtra("proposed", ReceiverEnvironment.proposedDesign)
-        // `--ez look true` shows the proposed visual language on the proposed pages.
-        ReceiverEnvironment.proposedLook = intent.getBooleanExtra("look", ReceiverEnvironment.proposedLook)
+        // `--es language zh-CN` shows the pages in that language for this process.
+        intent.getStringExtra("language")?.let { AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it)) }
         intent.getStringExtra("scenario")?.let { id -> all.firstOrNull { it.id == id }?.let { open(it, intent.getStringExtra("appearance")) } }
         intent.removeExtra("scenario")
     }
@@ -113,12 +114,9 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
 
     private fun options(activity: MainActivity, scenario: CatalogScenario) {
         val design = if (ReceiverEnvironment.proposedDesign) "Design: show current" else "Design: show proposed"
-        val look = if (ReceiverEnvironment.proposedLook) "Look: show current" else "Look: show proposed"
-        AlertDialog.Builder(activity).setTitle("Review").setItems(arrayOf(design, look, "Dark / light")) { _, which ->
+        AlertDialog.Builder(activity).setTitle("Review").setItems(arrayOf(design, "Dark / light")) { _, which ->
             if (which == 0) {
                 ReceiverEnvironment.proposedDesign = !ReceiverEnvironment.proposedDesign
-            } else if (which == 1) {
-                ReceiverEnvironment.proposedLook = !ReceiverEnvironment.proposedLook
             } else {
                 val prefs = activity.getSharedPreferences("appearance", Activity.MODE_PRIVATE)
                 val dark = prefs.getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) == AppCompatDelegate.MODE_NIGHT_YES

@@ -1,0 +1,15 @@
+{
+  "id": "pixel.received-some",
+  "page": "receive",
+  "title": "All received, some not saved to Photos",
+  "extends": "pixel.photos-problems",
+  "expect": [
+    "The state card says all were received and 5 couldn't be saved to Photos, with View; never 'all in Photos'."
+  ],
+  "snapshot": {
+    "published": 1279,
+    "received": 1284,
+    "total": 1284,
+    "failed": 5
+  }
+}

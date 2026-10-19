@@ -370,7 +370,7 @@
     <string name="pref_off">关闭</string>
     <string name="pref_conversion">格式转换</string>
     <string name="pref_browser">网页管理</string>
-    <string name="pref_devices">已连接设备</string>
+    <string name="pref_devices">已连接的设备</string>
     <string name="pref_devices_value">%1$d 台 · %2$s</string>
     <string name="pref_devices_none">还没有设备</string>
     <string name="pref_appearance">外观</string>
@@ -393,11 +393,11 @@
     <string name="onb_step_backup_note">免费、不限量</string>
     <string name="onb_fine_print">一代 Pixel 原画质无限，二到五代“节省空间”画质无限，权益由 Google 提供。</string>
     <string name="onb_start">开始</string>
-    <string name="onb_running_title">让 Pixel 一直接收</string>
-    <string name="onb_running_wifi">连着家里的 Wi‑Fi</string>
-    <string name="onb_running_notify">允许通知，显示接收进度</string>
-    <string name="onb_running_battery">不限制备份鸭的后台耗电</string>
-    <string name="onb_running_power">插上电源会更稳（可选）。</string>
+    <string name="onb_running_title">让它一直开着</string>
+    <string name="onb_running_wifi">连着 Wi‑Fi，最好插着电</string>
+    <string name="onb_running_notify">通知</string>
+    <string name="onb_running_battery">不受电池优化限制</string>
+    <string name="onb_running_power">插电不是必须的</string>
     <string name="onb_allow">允许</string>
     <string name="onb_code_title">用 iPhone 上的备份鸭扫描</string>
     <string name="onb_code_note">这个码只给你自己的设备扫。</string>
@@ -409,7 +409,7 @@
     <string name="onb_gphotos_body">照片会存进这台 Pixel 的相册。打开 Google 相册的备份，它们才会上传到云端。</string>
     <string name="onb_gphotos_open">打开 Google 相册</string>
     <string name="onb_gphotos_done">已经开启了</string>
-    <string name="onb_space_title">让 Pixel 的空间自动腾出来</string>
+    <string name="onb_space_title">自动腾出空间</string>
     <string name="onb_space_smart">系统智能存储</string>
     <string name="onb_space_smart_on">已开启 · 自动删除 Google 相册已备份的照片</string>
     <string name="onb_space_smart_off">未开启 · 点按去设置里打开</string>
@@ -435,7 +435,7 @@
     <string name="rhub_receiving">正在接收照片</string>
     <string name="rhub_receiving_from">正在接收 %1$s 的照片</string>
     <string name="rhub_caught_up">照片都已存进相册</string>
-    <string name="rhub_caught_up_note">共 %1$s 张。新照片会自动收进来。</string>
+    <string name="rhub_caught_up_note">共 %1$s 张。Google 相册打开备份后，会从这台 Pixel 上传它们。</string>
     <string name="rhub_space_full">空间快满了，已暂停接收</string>
     <string name="rhub_space_full_note">Google 相册备份过的照片可以从这台 Pixel 上移除，它们仍在 Google 相册云端。有空间后会自动继续。</string>
     <string name="rhub_free_reading">剩余 %1$s</string>
@@ -509,10 +509,10 @@
     <string name="nav_photos">照片</string>
     <string name="pref_storage">存储空间</string>
     <!-- Connect a device and Connected devices (design/pixel-connect.md), proposed design. -->
-    <string name="connect_code_title">用 iPhone 扫这个连接码</string>
+    <string name="connect_code_title">用 iPhone 上的备份鸭扫这个码</string>
     <string name="connect_step_open">在 iPhone 上打开备份鸭</string>
     <string name="connect_step_scan">按提示对准这个码</string>
-    <string name="connect_code_auto">扫码后会自动连上</string>
+    <string name="connect_code_auto">扫到后会自动连接</string>
     <string name="connect_code_note">这个码只给你自己的设备扫。</string>
     <string name="connect_code_description">这台 Pixel 的连接码</string>
     <string name="connect_getting_ready">正在准备连接码…</string>
@@ -533,7 +533,7 @@
     <string name="connect_connected">已连接 %1$s</string>
     <string name="connect_connected_device">设备已连接</string>
     <string name="connect_connected_mac">Mac 已连接</string>
-    <string name="connect_connected_body">它的照片会自动送到这里。</string>
+    <string name="connect_connected_body">它的照片会送到这台 Pixel，存进相册。</string>
     <string name="connect_done">完成</string>
     <string name="connect_close">关闭</string>
     <string name="devices_intro">另一台 iPhone 或 Mac 扫这台 Pixel 的连接码就能连上。</string>
@@ -550,9 +550,45 @@
     <string name="devices_stopped_ack">已停止接收 %1$s 的照片</string>
     <string name="devices_resumed_ack">已恢复接收 %1$s 的照片</string>
     <string name="devices_save_failed">没能保存，请再试一次。</string>
-    <!-- Proposed visual language (design/visual-language.md). -->
+    <!-- Shared components and the redesigned hub, settings, storage and first run (design/visual-language.md). -->
     <string name="look_see_all">查看全部</string>
-    <plurals name="look_needs_you">
-        <item quantity="other">%1$s 张需要你处理</item>
+    <string name="rhub_senders">发送设备</string>
+    <string name="rhub_waiting_first">等第一张照片</string>
+    <string name="rhub_waiting_first_from">在 %1$s 上打开备份鸭，照片会自动送过来。</string>
+    <string name="rhub_received_some_note">其余的都已存进 Pixel 相册。</string>
+    <string name="pref_section_receive">接收</string>
+    <string name="pref_storage_free">还剩 %1$s</string>
+    <string name="pref_storage_cleanup_on">自动回收已开启</string>
+    <string name="pref_storage_cleanup_off">自动回收未开启</string>
+    <string name="storage_automatic">自动腾出空间</string>
+    <string name="storage_cleanup">自动回收（实验）</string>
+    <string name="storage_cleanup_note">空间紧张时，备份鸭替你在 Google 相册里点“释放空间”。</string>
+    <string name="storage_relay">存进相册后释放空间</string>
+    <string name="storage_relay_note">照片存进相册后，备份鸭删掉自己的副本。照片仍在 Pixel 相册里。</string>
+    <string name="storage_now">现在释放空间</string>
+    <string name="storage_free_up_note">Google 相册的“释放空间”会把已备份的照片从这台 Pixel 上移除，它们仍在 Google 相册云端。</string>
+    <string name="storage_free_of">可用 · 共 %1$s</string>
+    <string name="storage_part_photos">备份鸭存进相册的照片 %1$s</string>
+    <string name="storage_part_copies">备份鸭自己的副本 %1$s</string>
+    <string name="storage_part_other">其他 %1$s</string>
+    <string name="storage_save_failed">没能保存，请再试一次。</string>
+    <string name="devices_connect">连接新设备</string>
+    <string name="photos_detail_cloud">上传到 Google 相册由 Google 相册负责，请在那里确认。</string>
+    <string name="onb_running_lead">备份鸭要在后台接收照片。下面两项各会弹出一次系统确认。</string>
+    <string name="onb_running_notify_note">接收时显示一条常驻通知</string>
+    <string name="onb_running_battery_note">不然系统会让它睡着</string>
+    <string name="onb_allowed">已允许</string>
+    <string name="onb_gphotos_unknown">备份鸭看不到 Google 相册有没有打开备份，所以不会替你说“已开启”。</string>
+    <string name="onb_space_smart_lead_on">系统的“智能存储”已开启：Google 相册备份过的照片会自动从这台 Pixel 移除。</string>
+    <string name="onb_space_smart_lead_off">系统的“智能存储”没开启。打开后，Google 相册备份过的照片会自动从这台 Pixel 移除。</string>
+    <string name="onb_space_auto_title">自动回收</string>
+    <string name="onb_space_experiment">实验</string>
+    <string name="onb_step_of">第 %1$d 步，共 3 步</string>
+    <plurals name="rhub_received_some">
+        <item quantity="other">都已收到，%1$s 张没能存进相册</item>
     </plurals>
+    <plurals name="pref_status_devices">
+        <item quantity="other">连着 %1$d 台设备</item>
+    </plurals>
+    <string name="storage_relay_unavailable">没能读取这项设置，请稍后再打开存储空间。</string>
 </resources>

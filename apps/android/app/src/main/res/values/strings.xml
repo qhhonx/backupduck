@@ -393,11 +393,11 @@
     <string name="onb_step_backup_note">Free and unlimited</string>
     <string name="onb_fine_print">Original Pixel: unlimited Original quality. Pixel 2 to 5: unlimited Storage saver. The offer is Google\'s.</string>
     <string name="onb_start">Get started</string>
-    <string name="onb_running_title">Keep this Pixel receiving</string>
-    <string name="onb_running_wifi">Stay on your home Wi‑Fi</string>
-    <string name="onb_running_notify">Allow notifications to show progress</string>
-    <string name="onb_running_battery">Don\'t restrict BackupDuck in the background</string>
-    <string name="onb_running_power">Plugging in makes it steadier (optional).</string>
+    <string name="onb_running_title">Keep it running</string>
+    <string name="onb_running_wifi">On Wi‑Fi, ideally plugged in</string>
+    <string name="onb_running_notify">Notifications</string>
+    <string name="onb_running_battery">No battery restrictions</string>
+    <string name="onb_running_power">Plugging in isn\'t required</string>
     <string name="onb_allow">Allow</string>
     <string name="onb_code_title">Scan with BackupDuck on your iPhone</string>
     <string name="onb_code_note">Only let your own devices scan this code.</string>
@@ -409,7 +409,7 @@
     <string name="onb_gphotos_body">Photos are saved to this Pixel\'s Photos. They upload once backup is on in Google Photos.</string>
     <string name="onb_gphotos_open">Open Google Photos</string>
     <string name="onb_gphotos_done">It\'s already on</string>
-    <string name="onb_space_title">Let the Pixel free up space by itself</string>
+    <string name="onb_space_title">Free up space automatically</string>
     <string name="onb_space_smart">System Smart Storage</string>
     <string name="onb_space_smart_on">On · removes photos Google Photos has backed up</string>
     <string name="onb_space_smart_off">Off · tap to turn it on in Settings</string>
@@ -435,7 +435,7 @@
     <string name="rhub_receiving">Receiving photos</string>
     <string name="rhub_receiving_from">Receiving photos from %1$s</string>
     <string name="rhub_caught_up">All photos are in Photos</string>
-    <string name="rhub_caught_up_note">%1$s photos. New ones arrive by themselves.</string>
+    <string name="rhub_caught_up_note">%1$s photos. Google Photos uploads them from this Pixel once its backup is on.</string>
     <string name="rhub_space_full">Almost full, so receiving is paused</string>
     <string name="rhub_space_full_note">Photos Google Photos has backed up can be removed from this Pixel; they stay in Google Photos in the cloud. Receiving continues once there is space.</string>
     <string name="rhub_free_reading">%1$s free</string>
@@ -513,7 +513,7 @@
     <string name="nav_photos">Photos</string>
     <string name="pref_storage">Storage</string>
     <!-- Connect a device and Connected devices (design/pixel-connect.md), proposed design. -->
-    <string name="connect_code_title">Scan this code with your iPhone</string>
+    <string name="connect_code_title">Scan this code with BackupDuck on your iPhone</string>
     <string name="connect_step_open">Open BackupDuck on your iPhone</string>
     <string name="connect_step_scan">Point it at this code when it asks</string>
     <string name="connect_code_auto">Connects by itself once scanned</string>
@@ -537,7 +537,7 @@
     <string name="connect_connected">Connected to %1$s</string>
     <string name="connect_connected_device">A device is connected</string>
     <string name="connect_connected_mac">Your Mac is connected</string>
-    <string name="connect_connected_body">Photos from it arrive here by themselves.</string>
+    <string name="connect_connected_body">Its photos come to this Pixel and are saved to Photos.</string>
     <string name="connect_done">Done</string>
     <string name="connect_close">Close</string>
     <string name="devices_intro">Another iPhone or Mac connects by scanning this Pixel\'s code.</string>
@@ -554,10 +554,47 @@
     <string name="devices_stopped_ack">Stopped receiving from %1$s</string>
     <string name="devices_resumed_ack">Receiving from %1$s again</string>
     <string name="devices_save_failed">Couldn\'t save. Try again.</string>
-    <!-- Proposed visual language (design/visual-language.md). -->
+    <!-- Shared components and the redesigned hub, settings, storage and first run (design/visual-language.md). -->
     <string name="look_see_all">See all</string>
-    <plurals name="look_needs_you">
-        <item quantity="one">%1$s needs you</item>
-        <item quantity="other">%1$s need you</item>
+    <string name="rhub_senders">Sending devices</string>
+    <string name="rhub_waiting_first">Waiting for the first photo</string>
+    <string name="rhub_waiting_first_from">Open BackupDuck on %1$s and photos come here by themselves.</string>
+    <string name="rhub_received_some_note">The rest are in the Pixel\'s Photos.</string>
+    <string name="pref_section_receive">Receiving</string>
+    <string name="pref_storage_free">%1$s free</string>
+    <string name="pref_storage_cleanup_on">Auto cleanup on</string>
+    <string name="pref_storage_cleanup_off">Auto cleanup off</string>
+    <string name="storage_automatic">Keep space free automatically</string>
+    <string name="storage_cleanup">Auto cleanup (experiment)</string>
+    <string name="storage_cleanup_note">When space runs low, BackupDuck taps Free up space in Google Photos for you.</string>
+    <string name="storage_relay">Free up space after saving to Photos</string>
+    <string name="storage_relay_note">Once a photo is saved, BackupDuck removes its own copy. Your photos stay in the Pixel\'s Photos.</string>
+    <string name="storage_now">Free up space now</string>
+    <string name="storage_free_up_note">Free up space in Google Photos removes the photos it has backed up from this Pixel. They stay in Google Photos in the cloud.</string>
+    <string name="storage_free_of">free · %1$s in all</string>
+    <string name="storage_part_photos">Saved to Photos by BackupDuck %1$s</string>
+    <string name="storage_part_copies">BackupDuck\'s own copies %1$s</string>
+    <string name="storage_part_other">Other %1$s</string>
+    <string name="storage_save_failed">Couldn\'t save. Try again.</string>
+    <string name="devices_connect">Connect a new device</string>
+    <string name="photos_detail_cloud">Uploading to Google Photos is up to Google Photos; check there.</string>
+    <string name="onb_running_lead">BackupDuck receives photos in the background. Each item below asks the system once.</string>
+    <string name="onb_running_notify_note">Shows one ongoing notification while receiving</string>
+    <string name="onb_running_battery_note">Otherwise the system puts it to sleep</string>
+    <string name="onb_allowed">Allowed</string>
+    <string name="onb_gphotos_unknown">BackupDuck can\'t see whether backup is on in Google Photos, so it never says it is.</string>
+    <string name="onb_space_smart_lead_on">System Smart Storage is on: photos Google Photos has backed up are removed from this Pixel by themselves.</string>
+    <string name="onb_space_smart_lead_off">System Smart Storage is off. Once it\'s on, photos Google Photos has backed up are removed from this Pixel by themselves.</string>
+    <string name="onb_space_auto_title">Auto cleanup</string>
+    <string name="onb_space_experiment">Experiment</string>
+    <string name="onb_step_of">Step %1$d of 3</string>
+    <plurals name="rhub_received_some">
+        <item quantity="one">All received; %1$s photo couldn\'t be saved to Photos</item>
+        <item quantity="other">All received; %1$s photos couldn\'t be saved to Photos</item>
     </plurals>
+    <plurals name="pref_status_devices">
+        <item quantity="one">%1$d device connected</item>
+        <item quantity="other">%1$d devices connected</item>
+    </plurals>
+    <string name="storage_relay_unavailable">Couldn\'t read this setting. Open Storage again later.</string>
 </resources>

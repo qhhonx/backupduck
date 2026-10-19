@@ -88,11 +88,11 @@ class MainActivity : AppCompatActivity() {
             AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it))
         }
         super.onCreate(savedInstanceState)
-        // The proposed visual language (design/visual-language.md) uses the generated Material 3 scheme.
+        // The redesigned pages (design/visual-language.md) use the generated Material 3 scheme.
         if (look) {
             DuckLook.applyScheme(this)
-            window.statusBarColor = themeColor(com.google.android.material.R.attr.colorSurface)
-            window.navigationBarColor = themeColor(com.google.android.material.R.attr.colorSurfaceContainer)
+            window.statusBarColor = getColor(R.color.duck_role_background)
+            window.navigationBarColor = getColor(R.color.duck_m3_surface_container)
         }
         RelayMaintenance.schedule(this)
         devicePanels = DevicePanels(this) {
@@ -105,11 +105,12 @@ class MainActivity : AppCompatActivity() {
             scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.receiver_scan_prompt)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
         }
         selectedPage = savedInstanceState?.getInt("page", 1) ?: 1
-        val canvas = if (look) themeColor(com.google.android.material.R.attr.colorSurface) else getColor(R.color.duck_surface)
+        val canvas = getColor(if (look) R.color.duck_role_background else R.color.duck_surface)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         val toolbar = MaterialToolbar(this).apply {
             title = getString(R.string.nav_receive)
-            if (look) { setTitleTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_HeadlineSmall); setTitleTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface)) }
+            // V2: the page title is Headline medium.
+            if (look) { setTitleTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_HeadlineMedium); setTitleTextColor(getColor(R.color.duck_role_primary_text)) }
             else setTitleTextAppearance(this@MainActivity,R.style.DuckToolbarTitle)
             setBackgroundColor(canvas); contentInsetStartWithNavigation=dp(16)
             menu.add(0,100,0,R.string.receiver_help_title).apply {
@@ -121,7 +122,7 @@ class MainActivity : AppCompatActivity() {
             setOnMenuItemClickListener {if(selectedPage==2&&receivedPhotos==null)historyPage.showFilters();true}
         }
         titleBar = toolbar
-        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
+        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(if (look) 64 else 56)))
         if (!look) root.addView(duckRule())
         val host = FrameLayout(this)
         root.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -138,16 +139,16 @@ class MainActivity : AppCompatActivity() {
         val titles = listOf(R.string.nav_receive, R.string.nav_transfers, R.string.nav_storage, R.string.nav_settings)
         // design/navigation.md: Receive, Photos, Settings. Storage opens from Settings and the hub.
         val proposed = ReceiverEnvironment.proposedDesign
-        val pageTitles = if (receivedPhotos != null) titles.toMutableList().apply { set(1, R.string.photos_title) } else titles
+        val pageTitles = if (receivedPhotos != null) titles.toMutableList().apply { set(1, R.string.nav_photos) } else titles
         val navTitles = if (proposed) titles.toMutableList().apply { set(1, R.string.nav_photos) } else titles
         val icons = listOf(R.drawable.ic_receiver, R.drawable.ic_transfers, R.drawable.ic_storage, R.drawable.ic_settings)
         navigation = BottomNavigationView(this).apply {
             id = R.id.main_navigation
             labelVisibilityMode = NavigationBarView.LABEL_VISIBILITY_LABELED
             isItemHorizontalTranslationEnabled = false
-            setBackgroundColor(if (look) themeColor(com.google.android.material.R.attr.colorSurfaceContainer) else getColor(R.color.duck_subtle)); elevation=0f
+            setBackgroundColor(getColor(if (look) R.color.duck_m3_surface_container else R.color.duck_subtle)); elevation=0f
             itemIconSize=dp(22)
-            itemActiveIndicatorColor=android.content.res.ColorStateList.valueOf(if (look) themeColor(com.google.android.material.R.attr.colorSecondaryContainer) else getColor(R.color.duck_action_background))
+            itemActiveIndicatorColor=android.content.res.ColorStateList.valueOf(getColor(if (look) R.color.duck_m3_secondary_container else R.color.duck_action_background))
             itemActiveIndicatorWidth=dp(56);itemActiveIndicatorHeight=dp(32)
             duckNavigation(this)
             navTitles.forEachIndexed { index, title -> if (!(proposed && index == 2)) menu.add(0, index + 1, index, title).setIcon(if (proposed && index == 1) R.drawable.ic_photo else icons[index]) }
@@ -167,12 +168,11 @@ class MainActivity : AppCompatActivity() {
         refreshDiscovery()
         handleDestination(intent)
         // A theme change or rotation recreates the activity; the connect screen or device page stays open.
-        when (savedInstanceState?.getString("connect.surface")) { "devices" -> openDevices(); "pairing" -> openConnect(); "connect-mac" -> openConnect(mac = true) }
+        when (savedInstanceState?.getString("connect.surface")) { "devices" -> openDevices(); "pairing" -> openConnect(); "connect-mac" -> openConnect(mac = true); "storage" -> openStorage() }
         storagePage.refresh(force = true, includeDetails = selectedPage == 3)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (ReceiverEnvironment.proposedDesign && selectedPage == 3) navigation.selectedItemId = 4
-                else if (selectedPage != 1) navigation.selectedItemId = 1 else finish()
+                if (selectedPage != 1) navigation.selectedItemId = 1 else finish()
             }
         })
         lifecycleScope.launch {
@@ -227,7 +227,7 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         // Recreated for a theme change or rotation: onCreate reopens what was showing.
-        if (isChangingConfigurations) { connectPage?.dismiss(); devicesPage?.dismiss() }
+        if (isChangingConfigurations) { connectPage?.dismiss(); devicesPage?.dismiss(); storageScreen?.dismiss() }
         super.onDestroy()
     }
     override fun onNewIntent(next:Intent) {super.onNewIntent(next);setIntent(next);handleDestination(next)}
@@ -267,7 +267,7 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("page", selectedPage)
-        outState.putString("connect.surface", when { connectPage?.isShowing == true -> connectPage?.flow?.surface; devicesPage?.isShowing == true -> "devices"; else -> null })
+        outState.putString("connect.surface", when { connectPage?.isShowing == true -> connectPage?.flow?.surface; devicesPage?.isShowing == true -> "devices"; storageScreen?.isShowing == true -> "storage"; else -> null })
         super.onSaveInstanceState(outState)
     }
     override fun onStart() {
@@ -289,11 +289,11 @@ class MainActivity : AppCompatActivity() {
     private fun receiverPage(): View {
         if (ReceiverEnvironment.proposedDesign) {
             val hubActions = ReceiverHub.Actions(start = ::beginReceiving, connect = ::choosePairing, toggleReceive = ::pauseReceiving,
-                records = ::openTransfers, retryRecent = { lifecycleScope.launch { recentHistory.refreshVisible(receiverRoot, 0) } },
+                records = ::openTransfers,
                 openWifi = { runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }.onFailure { openHelp(ReceiverHelpTopic.CONNECTION) } },
-                openPhotos = ::openPhotos, openCleanup = { startActivity(Intent(this, ExperimentsActivity::class.java)) },
+                openPhotos = ::openPhotos, openCleanup = ::openCleanup, devices = ::openDevices,
                 recovery = { receiverProblem(ReceiverState.snapshot.value)?.let { recover(it.recovery) } })
-            receiverHome = if (look) ReceiverHubLook(this, hubActions) else ReceiverHub(this, hubActions)
+            receiverHome = ReceiverHub(this, hubActions)
             return receiverHome.view
         }
         receiverHome=ReceiverHome(this,::choosePairing,{pairingUI.iphone()},{pairingUI.mac()},
@@ -302,8 +302,8 @@ class MainActivity : AppCompatActivity() {
         }
         return receiverHome.view
     }
-    /** The proposed visual language applies to the proposed pages only. */
-    private val look get() = ReceiverEnvironment.proposedDesign && DuckLook.on
+    /** The redesigned pages and their components (DuckLook.kt); the current pages keep today's look. */
+    private val look get() = ReceiverEnvironment.proposedDesign
     private fun recordsFirstVisible() = receivedPhotos?.firstVisible() ?: historyPage.firstVisible()
     /** The proposed records page (design/records.md); [history] stays on the "all" filter there. */
     private fun receivedPhotosPage() = ReceivedPhotosPage(this, ReceivedPhotosPage.Actions(
@@ -417,59 +417,55 @@ class MainActivity : AppCompatActivity() {
             sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply();AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
         } };sheet.show()
     }
-    /** Settings per design/settings.md in Material 3; shown by the design catalog until migration step 6. */
+    /** Settings per design/settings.md in Material 3, built from the shared components; shown by the design catalog until migration step 6. */
     private fun proposedDesignPage(): View = scrollPage { panel ->
-        panel.setPadding(0,dp(8),0,dp(24))
-        val header=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL;setPadding(dp(16),dp(12),dp(8),dp(12))}
+        panel.setPadding(token(R.dimen.duck_space_medium),token(R.dimen.duck_space_x_small),token(R.dimen.duck_space_medium),token(R.dimen.duck_space_large))
+        // Identity header: this Pixel, what it is doing, and Edit to rename it.
+        val header=lookCard(panel).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
         header.addView(android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_receiver);setPadding(dp(14),dp(14),dp(14),dp(14))
-            imageTintList=android.content.res.ColorStateList.valueOf(themeColor(com.google.android.material.R.attr.colorOnPrimaryContainer))
-            background=android.graphics.drawable.GradientDrawable().apply {shape=android.graphics.drawable.GradientDrawable.OVAL;setColor(themeColor(com.google.android.material.R.attr.colorPrimaryContainer))}
+            setImageResource(R.drawable.ic_receiver);token(R.dimen.duck_space_small).let {setPadding(it,it,it,it)}
+            imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_m3_on_primary_container))
+            background=android.graphics.drawable.GradientDrawable().apply {shape=android.graphics.drawable.GradientDrawable.OVAL;setColor(getColor(R.color.duck_m3_primary_container))}
             importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        },LinearLayout.LayoutParams(dp(56),dp(56)).apply {marginEnd=dp(16)})
+        },LinearLayout.LayoutParams(dp(52),dp(52)).apply {marginEnd=token(R.dimen.duck_space_medium)})
         val words=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        val deviceName=TextView(this).apply {setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge);setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface))}
-        val status=TextView(this).apply {setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))}
+        val deviceName=lookText("",com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
+        val status=lookText("",com.google.android.material.R.style.TextAppearance_Material3_BodyMedium,secondary=true)
         words.addView(deviceName);words.addView(status)
         header.addView(words,LinearLayout.LayoutParams(0,-2,1f))
-        if (look) header.addView(lookTonal(getString(R.string.pref_edit)) {devicePanels.rename()})
-        else header.addView(com.google.android.material.button.MaterialButton(this,null,com.google.android.material.R.attr.borderlessButtonStyle).apply {
-            text=getString(R.string.pref_edit);setOnClickListener {devicePanels.rename()}
-        })
-        if (look) {
-            // The proposed look: the identity header is a card like every other group.
-            header.setPadding(dp(16),dp(16),dp(16),dp(16))
-            header.background=android.graphics.drawable.GradientDrawable().apply {cornerRadius=dp(DuckLook.RADIUS_DP).toFloat();setColor(themeColor(com.google.android.material.R.attr.colorSurfaceContainer))}
-            panel.addView(header,LinearLayout.LayoutParams(-1,-2).apply {setMargins(dp(16),dp(4),dp(16),0)})
-        } else panel.addView(header)
-        val general=settingsSection(panel,getString(R.string.pref_section_general))
-        // Tile colors apply in the proposed look only; each row keeps one stable color so it is easy to find.
-        val devices=settingsItem(general,R.drawable.ic_receiver,getString(R.string.pref_devices),"",tile=getColor(R.color.duck_m3_primary)) {openDevices()}
-        settingsItem(general,R.drawable.ic_storage,getString(R.string.pref_storage),tile=getColor(R.color.duck_state_saved)) {openStorage()}
-        val appearance=settingsItem(general,R.drawable.ic_contrast,getString(R.string.pref_appearance),appearanceLabel(),tile=getColor(R.color.duck_m3_tertiary)) {chooseAppearance()}
-        settingsItem(general,R.drawable.ic_globe,getString(R.string.pref_language),languageLabel(),tile=getColor(R.color.duck_state_received)) {chooseLanguage()}
-        val help=settingsSection(panel,getString(R.string.pref_section_help))
-        settingsItem(help,R.drawable.ic_help,getString(R.string.pref_help),tile=getColor(R.color.duck_state_attention)) {openHelp()}
-        settingsItem(help,R.drawable.ic_flask,getString(R.string.pref_experiments),tile=getColor(R.color.duck_m3_secondary)) {startActivity(Intent(this,ExperimentsActivity::class.java))}
-        val footer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;gravity=android.view.Gravity.CENTER_HORIZONTAL;setPadding(dp(16),dp(24),dp(16),dp(8))}
-        footer.addView(TextView(this).apply {
-            text=getString(R.string.pref_version,receiverDisplayVersion())
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall);setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))
-        })
-        val links=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_HORIZONTAL}
-        fun link(text:Int,action:()->Unit)=links.addView(com.google.android.material.button.MaterialButton(this,null,com.google.android.material.R.attr.borderlessButtonStyle).apply {
-            this.text=getString(text);setOnClickListener {action()}
-        })
+        header.addView(lookButton(getString(R.string.pref_edit),LookButton.TEXT) {devicePanels.rename()})
+        lookSection(panel,getString(R.string.pref_section_receive))
+        val receive=lookGroup(panel)
+        val devices=lookRow(receive,R.drawable.ic_receiver,getString(R.string.pref_devices),"") {openDevices()}
+        val storage=lookRow(receive,R.drawable.ic_storage,getString(R.string.pref_storage),"") {openStorage()}
+        lookSection(panel,getString(R.string.pref_section_general))
+        val general=lookGroup(panel)
+        val appearance=lookRow(general,R.drawable.ic_contrast,getString(R.string.pref_appearance),appearanceLabel()) {chooseAppearance()}
+        lookRow(general,R.drawable.ic_globe,getString(R.string.pref_language),languageLabel()) {chooseLanguage()}
+        lookSection(panel,getString(R.string.pref_section_help))
+        val help=lookGroup(panel)
+        lookRow(help,R.drawable.ic_help,getString(R.string.pref_help)) {openHelp()}
+        // V1: the discovery dot is one of duck yellow's brand moments.
+        val dot=View(this).apply {background=android.graphics.drawable.GradientDrawable().apply {shape=android.graphics.drawable.GradientDrawable.OVAL;setColor(getColor(R.color.duck_brand_duck_yellow))}}
+        val experiments=lookRow(help,R.drawable.ic_flask,getString(R.string.pref_experiments),trailing=FrameLayout(this).apply {addView(dot,FrameLayout.LayoutParams(dp(8),dp(8),android.view.Gravity.CENTER))}) {startActivity(Intent(this,ExperimentsActivity::class.java))}
+        experimentsDiscoveryDot=dot;experimentsDiscoveryTitle=(experiments.parent as LinearLayout).getChildAt(0) as TextView
+        val footer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;gravity=android.view.Gravity.CENTER_HORIZONTAL;setPadding(0,token(R.dimen.duck_space_large),0,0)}
+        footer.addView(lookText(getString(R.string.pref_version,receiverDisplayVersion()),com.google.android.material.R.style.TextAppearance_Material3_BodySmall,secondary=true))
+        val links=FlowRow(this,0)
+        fun link(text:Int,action:()->Unit)=links.addView(lookButton(getString(text),LookButton.TEXT,action=action))
         link(R.string.pref_check_updates) {startActivity(Intent(this@MainActivity,UpdatesActivity::class.java))}
         link(R.string.pref_diagnostics) {showReportExport(false)}
         link(R.string.pref_advanced) {proposedAdvancedPage()}
-        footer.addView(links)
+        footer.addView(links,LinearLayout.LayoutParams(-2,-2))
         panel.addView(footer)
         fun refresh() {
             deviceName.text=devicePanels.name ?: Build.MODEL
-            status.text=getString(when { !ReceiverPreferences.enabled(this) -> R.string.pref_status_off; ReceiverPreferences.paused(this) -> R.string.pref_status_paused; else -> R.string.pref_status_receiving })
             val senders=devicePanels.senderNames
-            devices.setSupporting(if(senders.isEmpty()) getString(R.string.pref_devices_none) else getString(R.string.pref_devices_value,senders.size,senders.joinToString("、")))
+            val state=getString(when { !ReceiverPreferences.enabled(this) -> R.string.pref_status_off; ReceiverPreferences.paused(this) -> R.string.pref_status_paused; else -> R.string.pref_status_receiving })
+            status.text=if(senders.isEmpty()) state else state+" · "+resources.getQuantityString(R.plurals.pref_status_devices,senders.size,senders.size)
+            devices.setSupporting(if(senders.isEmpty()) getString(R.string.pref_devices_none) else getString(R.string.pref_devices_value,senders.size,senders.joinToString(getString(R.string.photos_list_separator))))
+            val free=getString(R.string.pref_storage_free,android.text.format.Formatter.formatShortFileSize(this,ReceiverEnvironment.deviceStorage(this).freeBytes))
+            storage.setSupporting(free+" · "+getString(if(PhotosCleanup(this).enabled) R.string.pref_storage_cleanup_on else R.string.pref_storage_cleanup_off))
             appearance.setSupporting(appearanceLabel())
         }
         refresh();proposedRefresh=::refresh
@@ -477,19 +473,18 @@ class MainActivity : AppCompatActivity() {
     }
     /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
     private fun proposedAdvancedPage() {
-        val page=DuckPage(this,getString(R.string.pref_advanced))
-        val body=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        page.body.addView(body)
+        val page=LookPage(this,getString(R.string.pref_advanced))
+        val body=lookGroup(page.body)
         fun onOff(on:Boolean)=getString(if(on) R.string.pref_on else R.string.pref_off)
         lateinit var conversion:TextView
         lateinit var browser:TextView
-        conversion=settingsItem(body,R.drawable.ic_motion,getString(R.string.pref_conversion),onOff(MotionConversionSettings.enabled(this))) {
+        conversion=lookRow(body,R.drawable.ic_motion,getString(R.string.pref_conversion),onOff(MotionConversionSettings.enabled(this))) {
             showConversionSettings {conversion.setSupporting(onOff(MotionConversionSettings.enabled(this)))}
         }
-        browser=settingsItem(body,R.drawable.ic_computer,getString(R.string.pref_browser),onOff(ReceiverDashboardSettings.enabled(this))) {
+        browser=lookRow(body,R.drawable.ic_computer,getString(R.string.pref_browser),onOff(ReceiverDashboardSettings.enabled(this))) {
             startActivity(Intent(this,BrowserManagementActivity::class.java))
         }
-        settingsItem(body,R.drawable.ic_receiver,getString(R.string.receiver_stop)) {page.dismiss();confirmStopReceiving()}
+        lookRow(body,R.drawable.ic_receiver,getString(R.string.receiver_stop)) {page.dismiss();confirmStopReceiving()}
         page.setOnShowListener {browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this)))}
         page.show()
     }
@@ -551,16 +546,13 @@ class MainActivity : AppCompatActivity() {
         if(failed) lifecycleScope.launch {history.select(receiverRoot,filter="failed")}
     }
     internal fun openSettings() { navigation.selectedItemId = 4 }
-    /** Storage is a tab in the current design and a page opened from Settings in the proposed one. */
+    /** Storage is a tab in the current design and a page opened from Settings and the hub in the redesign. */
     internal fun openStorage() {
         if (!ReceiverEnvironment.proposedDesign) { navigation.selectedItemId = 3; return }
-        selectedPage = 3
-        titleBar.setTitle(R.string.nav_storage)
-        titleBar.menu.findItem(100)?.isVisible = false
-        val host = storagePage.view.parent as android.view.ViewGroup
-        for (index in 0 until host.childCount) host.getChildAt(index).visibility = if (host.getChildAt(index) === storagePage.view) View.VISIBLE else View.GONE
-        storagePage.refresh(force = true)
+        storageScreen = StorageScreen(this, receiverRoot, ::openPhotos, ::openCleanup) { proposedRefresh?.invoke() }.also { it.show() }
     }
+    private var storageScreen: StorageScreen? = null
+    internal fun openCleanup() { startActivity(Intent(this, ExperimentsActivity::class.java)) }
     private fun showDashboardAccess() {DashboardAccessUI(this).access()}
     private fun openHelp(topic: ReceiverHelpTopic? = null) {
         startActivity(Intent(this, ReceiverHelpActivity::class.java).apply { topic?.let { putExtra("topic", it.key) } })

@@ -35,13 +35,25 @@ import org.json.JSONObject
 
 /** Reads the devices the core knows. `last_seen` is in seconds. */
 internal suspend fun readDevicePeers(activity: AppCompatActivity): List<DevicePeer> = withContext(Dispatchers.IO) {
-    val peers = DeviceProfiles.read(activity).optJSONArray("peers")
+    devicePeers(DeviceProfiles.read(activity).optJSONArray("peers"))
+}
+
+internal fun devicePeers(peers: org.json.JSONArray?): List<DevicePeer> =
     if (peers == null) emptyList() else (0 until peers.length()).mapNotNull { index ->
         val peer = peers.optJSONObject(index) ?: return@mapNotNull null
         val profile = peer.optJSONObject("profile") ?: return@mapNotNull null
         DevicePeer(profile.optString("id"), profile.optString("name"),
             peer.optString("device_type").takeUnless { it.isBlank() || it == "null" }, peer.optLong("last_seen"), peer.optBoolean("enabled", true))
     }
+
+/** "Last connected today 10:42", or nothing when the device has not connected yet. */
+internal fun lastConnected(context: android.content.Context, peer: DevicePeer): String? {
+    if (peer.lastSeenSec <= 0) return null
+    val time = shortTime(context, peer.lastSeenSec * 1000)
+    // "Today" heads a day group; inside a sentence it reads "last connected today".
+    val relative = listOf(R.string.photos_today, R.string.photos_yesterday).map { context.getString(it) }.any { time.startsWith(it) }
+    val sentence = if (relative && context.resources.configuration.locales[0].language == "en") time.replaceFirstChar { it.lowercase() } else time
+    return context.getString(R.string.devices_last, sentence)
 }
 
 /**
@@ -52,7 +64,9 @@ internal suspend fun readDevicePeers(activity: AppCompatActivity): List<DevicePe
 internal class ConnectFlow(private val activity: AppCompatActivity, private val content: LinearLayout,
     private val primary: MaterialButton, private val secondary: MaterialButton, private val secureWindow: Window,
     private val scan: ((String?) -> Unit) -> Unit, private val startReceiving: () -> Unit,
-    private val doneLabel: Int, private val done: () -> Unit) {
+    private val doneLabel: Int, private val done: () -> Unit,
+    /** What the host shows above every screen of the flow, such as first run's step marks. */
+    private val decorate: (LinearLayout) -> Unit = {}) {
     private var work: Job? = null
     /** Which direction is showing, so a recreated screen can reopen it. */
     var surface = "pairing"
@@ -63,22 +77,24 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     private fun reset() {
         stop(); content.removeAllViews()
         primary.visibility = View.GONE; secondary.visibility = View.GONE
+        decorate(content)
     }
 
     fun showCode(): Unit = with(activity) {
         reset(); surface = "pairing"
         heading(getString(R.string.connect_code_title))
-        step(1, R.string.connect_step_open); step(2, R.string.connect_step_scan)
-        val boxShape = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(themeColor(M.attr.colorSurfaceContainerHigh)) }
-        val box = FrameLayout(this).apply { background = boxShape; setPadding(dp(8), dp(8), dp(8), dp(8)) }
-        content.addView(box, LinearLayout.LayoutParams(dp(248), dp(248)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(20) })
+        // The code is the subject of the screen (P6 step 3): one line under the title, then the code itself.
+        val status = line(getString(R.string.connect_getting_ready), M.style.TextAppearance_Material3_BodyMedium, center = true).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            (layoutParams as LinearLayout.LayoutParams).topMargin = 0
+        }
+        val boxShape = GradientDrawable().apply { cornerRadius = token(R.dimen.duck_radius_card).toFloat(); setColor(getColor(R.color.duck_role_grouped_surface)) }
+        val box = FrameLayout(this).apply { background = boxShape; token(R.dimen.duck_space_small).let { setPadding(it, it, it, it) } }
+        content.addView(box, LinearLayout.LayoutParams(dp(264), dp(264)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = token(R.dimen.duck_space_large) })
         val code = ImageView(this).apply { contentDescription = getString(R.string.connect_code_description); visibility = View.GONE }
         box.addView(code, FrameLayout.LayoutParams(-1, -1))
         val spinner = CircularProgressIndicator(this).apply { isIndeterminate = true; contentDescription = getString(R.string.connect_getting_ready) }
         box.addView(spinner, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        val status = line(getString(R.string.connect_getting_ready), M.style.TextAppearance_Material3_BodyMedium, center = true).apply {
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
         line(getString(R.string.connect_code_note), M.style.TextAppearance_Material3_BodySmall, center = true)
         secondary(R.string.connect_mac_instead) { showMac(null) }
         val state = ReceiverState.snapshot.value
@@ -138,8 +154,8 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
             setImageResource(R.drawable.ic_scan); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             imageTintList = ColorStateList.valueOf(themeColor(M.attr.colorOnSecondaryContainer))
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(themeColor(M.attr.colorSecondaryContainer)) }
-            setPadding(dp(24), dp(24), dp(24), dp(24))
-        }, LinearLayout.LayoutParams(dp(96), dp(96)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(20) })
+            token(R.dimen.duck_space_large).let { setPadding(it, it, it, it) }
+        }, LinearLayout.LayoutParams(dp(96), dp(96)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = token(R.dimen.duck_space_large); bottomMargin = token(R.dimen.duck_space_large) })
         heading(getString(R.string.connect_mac_title))
         line(getString(R.string.connect_mac_body), M.style.TextAppearance_Material3_BodyLarge, center = true)
         line(getString(R.string.connect_mac_camera), M.style.TextAppearance_Material3_BodySmall, center = true)
@@ -188,7 +204,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     fun showConnected(name: String?, mac: Boolean): Unit = with(activity) {
         reset()
         content.addView(ImageView(this).apply { setImageResource(R.drawable.duck_pairing); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-            LinearLayout.LayoutParams(dp(150), dp(150)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(24); bottomMargin = dp(8) })
+            LinearLayout.LayoutParams(dp(150), dp(150)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = token(R.dimen.duck_space_xx_large); bottomMargin = token(R.dimen.duck_space_medium) })
         heading(if (mac || name.isNullOrBlank()) getString(if (mac) R.string.connect_connected_mac else R.string.connect_connected_device) else getString(R.string.connect_connected, name))
         line(getString(R.string.connect_connected_body), M.style.TextAppearance_Material3_BodyLarge, center = true)
         primary(doneLabel) { done() }
@@ -196,37 +212,20 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 
     // ---- Building blocks ----
 
-    private fun heading(text: String) = content.addView(photoText(activity, text, M.style.TextAppearance_Material3_HeadlineSmall).apply {
+    private fun heading(text: String) = content.addView(activity.lookText(text, M.style.TextAppearance_Material3_HeadlineSmall).apply {
         gravity = Gravity.CENTER_HORIZONTAL; isAccessibilityHeading = true
-    }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = activity.dp(16) })
+    }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_medium); bottomMargin = activity.token(R.dimen.duck_space_x_small) })
 
     private fun line(text: String, appearance: Int, center: Boolean = false): TextView =
-        photoText(activity, text, appearance, secondary = true).apply { if (center) gravity = Gravity.CENTER_HORIZONTAL }
-            .also { content.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.dp(12) }) }
+        activity.lookText(text, appearance, secondary = true).apply { if (center) gravity = Gravity.CENTER_HORIZONTAL }
+            .also { content.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_small) }) }
 
-    private fun problem(text: String) = if (DuckLook.on) {
-        // The proposed look: one colored glyph beside neutral text (visual-language.md).
-        content.addView(LinearLayout(activity).apply {
-            gravity = Gravity.CENTER_VERTICAL; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-            setPadding(activity.dp(16), activity.dp(14), activity.dp(16), activity.dp(14))
-            background = GradientDrawable().apply { cornerRadius = activity.dp(DuckLook.RADIUS_DP).toFloat(); setColor(activity.themeColor(M.attr.colorSurfaceContainer)) }
-            addView(ImageView(activity).apply { setImageResource(R.drawable.ic_alert); imageTintList = ColorStateList.valueOf(activity.getColor(R.color.duck_state_attention)); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-                LinearLayout.LayoutParams(activity.dp(24), activity.dp(24)).apply { marginEnd = activity.dp(12) })
-            addView(photoText(activity, text, M.style.TextAppearance_Material3_BodyLarge), LinearLayout.LayoutParams(0, -2, 1f))
-        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.dp(20) })
-    } else content.addView(photoText(activity, text, M.style.TextAppearance_Material3_BodyLarge,
-        color = activity.getColor(R.color.duck_state_attention)).apply { gravity = Gravity.CENTER_HORIZONTAL; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE },
-        LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.dp(20) })
-
-    /** A numbered instruction: the numeral in a tonal circle. */
-    private fun step(number: Int, text: Int): Unit = with(activity) {
-        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(photoText(this, number.toString(), M.style.TextAppearance_Material3_LabelLarge, color = themeColor(M.attr.colorOnSecondaryContainer)).apply {
-            gravity = Gravity.CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(themeColor(M.attr.colorSecondaryContainer)) }
-        }, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(12) })
-        row.addView(photoText(this, getString(text), M.style.TextAppearance_Material3_BodyLarge), LinearLayout.LayoutParams(0, -2, 1f))
-        content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+    /** What went wrong, in the shared state card: one glyph, a neutral sentence (V1, I3 Problem). */
+    private fun problem(text: String) {
+        val card = StateCard(activity)
+        card.show(LookState(R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), text))
+        card.view.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        content.addView(card.view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_large) })
     }
 
     private fun primary(label: Int, action: () -> Unit) { primary.visibility = View.VISIBLE; primary.setText(label); primary.setOnClickListener { action() } }
@@ -244,43 +243,49 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 /** The connect flow as a full screen over the app, closed with its close button or Back. */
 internal class ConnectPage(private val activity: MainActivity, scan: ((String?) -> Unit) -> Unit, startReceiving: () -> Unit,
     private val closed: () -> Unit) : AppCompatDialog(activity, R.style.DuckFullPage) {
-    private val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(activity.dp(24), activity.dp(8), activity.dp(24), activity.dp(16)) }
-    private val primary = MaterialButton(activity).apply { minimumHeight = activity.dp(52) }
-    private val secondary = MaterialButton(activity, null, M.attr.borderlessButtonStyle)
+    private val content = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(activity.token(R.dimen.duck_space_large), 0, activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))
+    }
+    private val primary = activity.lookButton("", LookButton.FILLED, large = true) {}
+    private val secondary = activity.lookButton("", LookButton.TEXT, large = true) {}
     val flow: ConnectFlow
 
     init {
-        val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(activity.themeColor(M.attr.colorSurface)) }
+        val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(activity.getColor(R.color.duck_role_background)) }
         root.addView(ImageButton(activity).apply {
             setImageResource(R.drawable.ic_close); contentDescription = activity.getString(R.string.connect_close)
-            imageTintList = ColorStateList.valueOf(activity.themeColor(M.attr.colorOnSurfaceVariant))
+            imageTintList = ColorStateList.valueOf(activity.getColor(R.color.duck_role_secondary_text))
             val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, out, true)
             setBackgroundResource(out.resourceId); setOnClickListener { dismiss() }
         }, LinearLayout.LayoutParams(activity.dp(48), activity.dp(48)).apply { setMargins(activity.dp(4), activity.dp(4), 0, 0) })
         root.addView(ScrollView(activity).apply { addView(content) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        val actions = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(activity.dp(24), activity.dp(8), activity.dp(24), activity.dp(16)) }
+        val actions = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_x_small), activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))
+        }
         actions.addView(primary, LinearLayout.LayoutParams(-1, -2)); actions.addView(secondary, LinearLayout.LayoutParams(-1, -2))
         root.addView(actions)
         setContentView(root)
-        flow = ConnectFlow(activity, content, primary, secondary, window!!, scan, startReceiving, R.string.connect_done) { dismiss() }
+        flow = ConnectFlow(activity, content, primary, secondary, window!!, scan, startReceiving, R.string.connect_done, { dismiss() })
         setOnDismissListener { flow.stop(); closed() }
     }
 
     override fun show() {
         super.show(); window?.setLayout(-1, -1)
-        if (DuckLook.on) window?.let { it.statusBarColor = activity.themeColor(M.attr.colorSurface); it.navigationBarColor = activity.themeColor(M.attr.colorSurface) }
+        window?.let { val background = activity.getColor(R.color.duck_role_background); it.statusBarColor = background; it.navigationBarColor = background }
     }
 }
 
 /**
- * Connected devices (design/pixel-connect.md § 3): a sentence, one Connect
- * button, then the devices that send here and the ones the user stopped.
+ * Connected devices (design/pixel-connect.md § 3, P7): a sentence, one Connect
+ * button, then the devices that send here and, apart, the ones the user stopped.
  */
 internal class DevicesPage(private val activity: MainActivity, private val connect: () -> Unit, private val changed: () -> Unit) {
-    private val page = DuckPage(activity, activity.getString(R.string.pref_devices))
+    private val page = LookPage(activity, activity.getString(R.string.pref_devices))
     private var load: Job? = null
 
-    fun show() { page.body.setPadding(0, activity.dp(8), 0, activity.dp(24)); page.setOnDismissListener { load?.cancel() }; page.show(); reload() }
+    fun show() { page.setOnDismissListener { load?.cancel() }; page.show(); reload() }
     val isShowing: Boolean get() = page.isShowing
     fun dismiss() = page.dismiss()
 
@@ -291,9 +296,11 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
             if (!page.isShowing) return@launch
             val body = page.body; body.removeAllViews()
             result.onFailure {
-                body.addView(photoText(activity, getString(R.string.devices_load_failed), M.style.TextAppearance_Material3_TitleMedium).apply { gravity = Gravity.CENTER },
-                    LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(24), dp(32), dp(24), 0) })
-                body.addView(duckButton(getString(R.string.connect_try_again), false) { reload() }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(24), dp(16), dp(24), 0) })
+                StateCard(activity).also { card ->
+                    card.show(LookState(R.drawable.ic_alert, getColor(R.color.duck_state_attention), getString(R.string.devices_load_failed),
+                        action = getString(R.string.connect_try_again) to { reload() }))
+                    body.addView(card.view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
+                }
             }.onSuccess { peers -> render(deviceGroups(peers)) }
         }
     }
@@ -301,54 +308,47 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
     private fun render(groups: DeviceGroups): Unit = with(activity) {
         val body = page.body
         if (groups.sending.isEmpty() && groups.stopped.isEmpty()) {
-            body.addView(ImageView(this).apply { setImageResource(R.drawable.duck_empty); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-                LinearLayout.LayoutParams(dp(120), dp(120)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(32) })
-            body.addView(photoText(this, getString(R.string.devices_empty_title), M.style.TextAppearance_Material3_HeadlineSmall).apply { gravity = Gravity.CENTER; isAccessibilityHeading = true },
-                LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(24), dp(12), dp(24), 0) })
+            lookEmpty(body, R.drawable.duck_empty, getString(R.string.devices_empty_title), getString(R.string.devices_intro),
+                getString(R.string.devices_connect) to connect)
+            return@with
         }
-        body.addView(photoText(this, getString(R.string.devices_intro), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
-            if (groups.sending.isEmpty() && groups.stopped.isEmpty()) gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(16), dp(8), dp(16), 0) })
-        body.addView(duckButton(getString(R.string.rhub_connect), true) { connect() }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(16), dp(16), dp(16), dp(8)) })
+        body.addView(lookText(getString(R.string.devices_intro), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+            setPadding(token(R.dimen.duck_space_xx_small), 0, token(R.dimen.duck_space_xx_small), 0)
+        }, LinearLayout.LayoutParams(-1, -2))
+        body.addView(lookButton(getString(R.string.devices_connect), LookButton.FILLED, icon = R.drawable.ic_plus) { connect() },
+            LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small); bottomMargin = token(R.dimen.duck_space_small) })
         if (groups.sending.isNotEmpty()) {
-            val section = settingsSection(body, getString(R.string.devices_sending))
-            groups.sending.forEach { peer ->
-                settingsItem(section, if (peer.computer) R.drawable.ic_computer else R.drawable.ic_receiver, peer.name, lastConnected(peer)) { device(peer) }
-            }
+            val group = lookGroup(body)
+            groups.sending.forEach { peer -> lookRow(group, icon(peer), peer.name, lastConnected(this, peer)) { device(peer) } }
         }
         if (groups.stopped.isNotEmpty()) {
-            val section = settingsSection(body, getString(R.string.devices_stopped))
+            val group = lookGroup(body)
+            (group.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_small) }
             groups.stopped.forEach { peer ->
-                settingsItem(section, if (peer.computer) R.drawable.ic_computer else R.drawable.ic_receiver, peer.name, getString(R.string.devices_stopped_row)) { device(peer) }
+                lookRow(group, icon(peer), peer.name, listOfNotNull(getString(R.string.devices_stopped_row), lastConnected(this, peer)).joinToString(" · ")) { device(peer) }
             }
         }
     }
 
-    private fun lastConnected(peer: DevicePeer): String? {
-        if (peer.lastSeenSec <= 0) return null
-        val time = shortTime(activity, peer.lastSeenSec * 1000)
-        // "Today" heads a day group; inside a sentence it reads "last connected today".
-        val sentence = if (activity.resources.configuration.locales[0].language == "en") time.replaceFirstChar { it.lowercase() } else time
-        return activity.getString(R.string.devices_last, sentence)
-    }
+    private fun icon(peer: DevicePeer) = if (peer.computer) R.drawable.ic_computer else R.drawable.ic_receiver
 
     /** One device: what it is, when it last connected, and the one thing the user can change. */
     private fun device(peer: DevicePeer): Unit = with(activity) {
-        val sheet = PhotoSheet(this)
-        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), 0, dp(24), dp(8)) }
+        val sheet = LookSheet(this)
+        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(token(R.dimen.duck_space_large), 0, token(R.dimen.duck_space_large), token(R.dimen.duck_space_x_small)) }
         sheet.body.addView(body)
-        body.addView(photoText(this, peer.name, M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true })
-        listOfNotNull(peer.kind, lastConnected(peer)).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
-            body.addView(photoText(this, it, M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        body.addView(lookText(peer.name, M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true })
+        listOfNotNull(peer.kind, lastConnected(this, peer)).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
+            body.addView(lookText(it, M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
         }
-        body.addView(photoText(this, getString(if (peer.enabled) R.string.devices_stop_note else R.string.devices_stopped_note), M.style.TextAppearance_Material3_BodyMedium),
-            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
-        val failure = photoText(this, getString(R.string.devices_save_failed), M.style.TextAppearance_Material3_BodyMedium, color = getColor(R.color.duck_state_failure)).apply {
+        body.addView(lookText(getString(if (peer.enabled) R.string.devices_stop_note else R.string.devices_stopped_note), M.style.TextAppearance_Material3_BodyMedium),
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
+        val failure = lookText(getString(R.string.devices_save_failed), M.style.TextAppearance_Material3_BodyMedium, color = getColor(R.color.duck_state_failure)).apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        body.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        body.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         lateinit var button: View
-        button = duckButton(getString(if (peer.enabled) R.string.devices_stop else R.string.devices_resume), !peer.enabled) {
+        button = lookButton(getString(if (peer.enabled) R.string.devices_stop else R.string.devices_resume), LookButton.TONAL) {
             button.isEnabled = false; failure.visibility = View.GONE
             lifecycleScope.launch {
                 val result = withContext(Dispatchers.IO) { runCatching {
@@ -361,7 +361,7 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
                 }.onFailure { failure.visibility = View.VISIBLE }
             }
         }
-        body.addView(button, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        body.addView(button, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
         sheet.show()
     }
 }

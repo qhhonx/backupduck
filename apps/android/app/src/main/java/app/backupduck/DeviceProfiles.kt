@@ -24,6 +24,8 @@ internal class DevicePanels(private val activity:MainActivity,private val change
     private var work:Job?=null
     val hasSenders:Boolean? get()=state?.optJSONArray("peers")?.let {it.length()>0}
     val name:String? get()=state?.optJSONObject("device")?.optString("name")
+    /** The devices that send here, with their kind and last connection. */
+    val peers:List<DevicePeer> get()=devicePeers(state?.optJSONArray("peers"))
     val senderNames:List<String> get()=state?.optJSONArray("peers")?.let {peers -> (0 until peers.length()).mapNotNull {peers.optJSONObject(it)?.optJSONObject("profile")?.optString("name")}} ?: emptyList()
     fun compactSettings(parent:LinearLayout) {
         val value=activity.duckText(name ?: android.os.Build.MODEL,13,true);nameLabels+=value

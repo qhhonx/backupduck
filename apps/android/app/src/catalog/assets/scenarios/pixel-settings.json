@@ -4,7 +4,13 @@
   "title": "Settings",
   "extends": "base",
   "expect": [
-    "Device name Pixel XL and known senders in the device group.",
-    "Receiving, display, records and help groups follow."
-  ]
+    "Identity card: Pixel XL, receiving · 1 device connected, Edit.",
+    "Receiving: Connected devices (1 · Lin's iPhone), Storage (6.2 GB free · auto cleanup off). General: Appearance, Language. Help: Help Center, Experiments.",
+    "Footer: version, Check for updates, Diagnostics, Advanced."
+  ],
+  "storage": {
+    "total_bytes": 68719476736,
+    "free_bytes": 6657199308,
+    "photos_bytes": 42949672960
+  }
 }
