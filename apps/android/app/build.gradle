@@ -47,6 +47,16 @@ android {
     buildTypes {
         release { signingConfig signingConfigs.release }
         debug { versionNameSuffix '-dev' }
+        // Design catalog: production pages on scenario data, in release configuration
+        // so motion and old-device performance can be judged. Never distributed.
+        catalog {
+            initWith release
+            applicationIdSuffix '.catalog'
+            versionNameSuffix '-catalog'
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+            manifestPlaceholders = [appLabel: 'Duck Catalog', photosProbeLabel: 'Duck Catalog']
+        }
     }
     kotlinOptions { jvmTarget = "17" }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }

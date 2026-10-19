@@ -1,0 +1,17 @@
+{
+  "id": "onboarding.welcome",
+  "page": "onboarding",
+  "title": "First run: welcome",
+  "extends": "base",
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": false
+    }
+  },
+  "snapshot": {
+    "phase": "idle"
+  },
+  "expect": [
+    "The shared headline, three marks on one axis, small print."
+  ]
+}

@@ -66,6 +66,7 @@ internal class PairingUI(private val activity:MainActivity,private val start:()-
             val result=runCatching {
                 check(ReceiverState.snapshot.value.phase=="ready"&&payload!=null)
                 val size=512;val matrix=MultiFormatWriter().encode(payload,BarcodeFormat.QR_CODE,size,size)
+                // design-exception: QR modules stay pure black on white in every theme so scanners can read them.
                 val pixels=IntArray(size*size) {index->if(matrix[index%size,index/size]) Color.BLACK else Color.WHITE}
                 image.setImageBitmap(Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888))
             }

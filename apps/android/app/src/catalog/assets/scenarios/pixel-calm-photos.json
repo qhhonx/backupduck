@@ -1,0 +1,10 @@
+{
+  "id": "pixel.calm-photos",
+  "page": "receive",
+  "title": "Everything saved, with recent photos",
+  "extends": "pixel.photos-clean",
+  "expect": [
+    "All photos are in Photos, with the saved count.",
+    "Recently received photos below (the proposed look shows them as a mosaic)."
+  ]
+}

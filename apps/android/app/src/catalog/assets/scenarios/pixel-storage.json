@@ -1,0 +1,10 @@
+{
+  "id": "pixel.storage",
+  "page": "storage",
+  "title": "Storage overview",
+  "extends": "base",
+  "expect": [
+    "Free space 18.3 GB with the device capacity, a 20 GB receiver budget and the safe-keep policy.",
+    "No failures pending."
+  ]
+}

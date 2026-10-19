@@ -1,0 +1,43 @@
+{
+  "id": "pixel.no-device",
+  "page": "receive",
+  "title": "Receiving on, no device connected",
+  "extends": "base",
+  "expect": [
+    "Pairing duck, one sentence and Connect a device. Recent items are hidden."
+  ],
+  "actions": [
+    {
+      "action": "Tap Connect a device",
+      "result": "The pairing choice opens."
+    }
+  ],
+  "snapshot": {
+    "published": 0,
+    "received": 0,
+    "total": 0
+  },
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": []
+      }
+    },
+    "receiver_history": {
+      "value": {
+        "items": [],
+        "total": 0,
+        "next_cursor": null,
+        "counts": {
+          "total": 0,
+          "published": 0,
+          "failed": 0
+        }
+      }
+    }
+  }
+}

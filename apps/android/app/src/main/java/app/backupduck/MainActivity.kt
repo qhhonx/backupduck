@@ -38,19 +38,26 @@ class MainActivity : AppCompatActivity() {
 
     private val history: HistoryModel by viewModels()
     private val recentHistory = HistoryModel()
+    /** Attention items for the proposed Received photos page; [history] holds its timeline. */
+    private val attentionHistory = HistoryModel()
     private val receiverRoot get() = "$filesDir/receiver"
     private var selectedPage = 1
     private lateinit var navigation: BottomNavigationView
     private var experimentsDiscoveryDot: View? = null
     private var experimentsDiscoveryTitle: TextView? = null
-    internal lateinit var receiverHome: ReceiverHome
+    internal lateinit var receiverHome: ReceiverHomeSurface
         private set
     private lateinit var storagePage: StoragePage
     private lateinit var historyPage: HistoryPage
-    private lateinit var devicePanels: DevicePanels
+    private var receivedPhotos: ReceivedPhotosPage? = null
+    private lateinit var titleBar: MaterialToolbar
+    internal lateinit var devicePanels: DevicePanels
+    private var proposedRefresh: (() -> Unit)? = null
 
+    /** Set while the proposed connect flow waits for the camera; the legacy pairing sheet gets the result otherwise. */
+    private var connectScan: ((String?) -> Unit)? = null
     private val scanner = registerForActivityResult(ScanContract()) { result ->
-        pairingUI.scanned(result.contents)
+        connectScan?.let { connectScan = null; it(result.contents) } ?: pairingUI.scanned(result.contents)
     }
     private val originalArchive = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) exportOriginals(uri)
@@ -81,29 +88,41 @@ class MainActivity : AppCompatActivity() {
             AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it))
         }
         super.onCreate(savedInstanceState)
+        // The proposed visual language (design/visual-language.md) uses the generated Material 3 scheme.
+        if (look) {
+            DuckLook.applyScheme(this)
+            window.statusBarColor = themeColor(com.google.android.material.R.attr.colorSurface)
+            window.navigationBarColor = themeColor(com.google.android.material.R.attr.colorSurfaceContainer)
+        }
         RelayMaintenance.schedule(this)
         devicePanels = DevicePanels(this) {
             if(::receiverHome.isInitialized) receiverHome.render(ReceiverState.snapshot.value,devicePanels.name,false)
             if(::historyPage.isInitialized) historyPage.render(history.state.value)
+            receivedPhotos?.render(history.state.value)
+            proposedRefresh?.invoke()
         }
         pairingUI=PairingUI(this,::beginReceiving) {
             scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.receiver_scan_prompt)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
         }
         selectedPage = savedInstanceState?.getInt("page", 1) ?: 1
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(getColor(R.color.duck_surface)) }
+        val canvas = if (look) themeColor(com.google.android.material.R.attr.colorSurface) else getColor(R.color.duck_surface)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         val toolbar = MaterialToolbar(this).apply {
-            title = getString(R.string.nav_receive); setTitleTextAppearance(this@MainActivity,R.style.DuckToolbarTitle)
-            setBackgroundColor(getColor(R.color.duck_surface)); contentInsetStartWithNavigation=dp(16)
+            title = getString(R.string.nav_receive)
+            if (look) { setTitleTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_HeadlineSmall); setTitleTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface)) }
+            else setTitleTextAppearance(this@MainActivity,R.style.DuckToolbarTitle)
+            setBackgroundColor(canvas); contentInsetStartWithNavigation=dp(16)
             menu.add(0,100,0,R.string.receiver_help_title).apply {
                 isVisible=false
                 setIcon(R.drawable.ic_info)
                 iconTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_text_secondary))
                 setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
-            setOnMenuItemClickListener {if(selectedPage==2)historyPage.showFilters();true}
+            setOnMenuItemClickListener {if(selectedPage==2&&receivedPhotos==null)historyPage.showFilters();true}
         }
+        titleBar = toolbar
         root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
-        root.addView(duckRule())
+        if (!look) root.addView(duckRule())
         val host = FrameLayout(this)
         root.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
         historyPage = HistoryPage(this, history, receiverRoot)
@@ -113,52 +132,64 @@ class MainActivity : AppCompatActivity() {
             receiverHome.totals(counts.getInt("published"),counts.getInt("total"),counts.optInt("failed"))
             historyPage.totals(counts.getInt("total"),counts.getInt("published"))
         })
-        val pages = listOf(receiverPage(), historyPage, storagePage.view, settingsPage())
+        if (ReceiverEnvironment.proposedDesign) receivedPhotos = receivedPhotosPage()
+        val pages = listOf(receiverPage(), receivedPhotos?.view ?: historyPage, storagePage.view, if (ReceiverEnvironment.proposedDesign) proposedDesignPage() else settingsPage())
         pages.forEach { host.addView(it, FrameLayout.LayoutParams(-1, -1)) }
         val titles = listOf(R.string.nav_receive, R.string.nav_transfers, R.string.nav_storage, R.string.nav_settings)
+        // design/navigation.md: Receive, Photos, Settings. Storage opens from Settings and the hub.
+        val proposed = ReceiverEnvironment.proposedDesign
+        val pageTitles = if (receivedPhotos != null) titles.toMutableList().apply { set(1, R.string.photos_title) } else titles
+        val navTitles = if (proposed) titles.toMutableList().apply { set(1, R.string.nav_photos) } else titles
         val icons = listOf(R.drawable.ic_receiver, R.drawable.ic_transfers, R.drawable.ic_storage, R.drawable.ic_settings)
         navigation = BottomNavigationView(this).apply {
             id = R.id.main_navigation
             labelVisibilityMode = NavigationBarView.LABEL_VISIBILITY_LABELED
             isItemHorizontalTranslationEnabled = false
-            setBackgroundColor(getColor(R.color.duck_subtle)); elevation=0f
+            setBackgroundColor(if (look) themeColor(com.google.android.material.R.attr.colorSurfaceContainer) else getColor(R.color.duck_subtle)); elevation=0f
             itemIconSize=dp(22)
-            itemActiveIndicatorColor=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_action_background))
+            itemActiveIndicatorColor=android.content.res.ColorStateList.valueOf(if (look) themeColor(com.google.android.material.R.attr.colorSecondaryContainer) else getColor(R.color.duck_action_background))
             itemActiveIndicatorWidth=dp(56);itemActiveIndicatorHeight=dp(32)
             duckNavigation(this)
-            titles.forEachIndexed { index, title -> menu.add(0, index + 1, index, title).setIcon(icons[index]) }
+            navTitles.forEachIndexed { index, title -> if (!(proposed && index == 2)) menu.add(0, index + 1, index, title).setIcon(if (proposed && index == 1) R.drawable.ic_photo else icons[index]) }
             setOnItemSelectedListener { item ->
                 selectedPage = item.itemId
-                toolbar.setTitle(titles[selectedPage - 1])
-                toolbar.menu.findItem(100).apply {isVisible=selectedPage==2;setIcon(R.drawable.ic_more);setTitle(R.string.duck_advanced_filters)}
+                toolbar.setTitle(pageTitles[selectedPage - 1])
+                toolbar.menu.findItem(100).apply {isVisible=selectedPage==2&&receivedPhotos==null;setIcon(R.drawable.ic_more);setTitle(R.string.duck_advanced_filters)}
                 pages.forEachIndexed { index, page -> page.visibility = if (index + 1 == selectedPage) View.VISIBLE else View.GONE }
                 if (selectedPage == 3) storagePage.refresh(force = true)
                 true
             }
         }
-        root.addView(duckRule())
+        if (!look) root.addView(duckRule())
         root.addView(navigation, LinearLayout.LayoutParams(-1, if(resources.configuration.fontScale>1.3f) -2 else dp(80)))
         setContentView(root)
         navigation.selectedItemId = selectedPage
         refreshDiscovery()
         handleDestination(intent)
+        // A theme change or rotation recreates the activity; the connect screen or device page stays open.
+        when (savedInstanceState?.getString("connect.surface")) { "devices" -> openDevices(); "pairing" -> openConnect(); "connect-mac" -> openConnect(mac = true) }
         storagePage.refresh(force = true, includeDetails = selectedPage == 3)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (selectedPage != 1) navigation.selectedItemId = 1 else finish()
+                if (ReceiverEnvironment.proposedDesign && selectedPage == 3) navigation.selectedItemId = 4
+                else if (selectedPage != 1) navigation.selectedItemId = 1 else finish()
             }
         })
         lifecycleScope.launch {
-            if (history.state.value.items.isEmpty()) history.select(receiverRoot)
+            val filtered = history.state.value.let { it.filter != "all" || it.kind != "all" || it.sender != null }
+            if (history.state.value.items.isEmpty() || (receivedPhotos != null && filtered)) history.select(receiverRoot, filter = "all", kind = "all", sender = null)
             recentHistory.select(receiverRoot)
+            if (receivedPhotos != null) attentionHistory.select(receiverRoot, filter = "failed")
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { history.state.collect { historyPage.render(it) } }
+                launch { history.state.collect { historyPage.render(it); receivedPhotos?.render(it) } }
+                receivedPhotos?.let { page -> launch { attentionHistory.state.collect(page::attention) } }
                 launch { ReceiverState.snapshot.collect(::renderReceiver) }
                 launch {
                   var knownProgressIDs=emptySet<String>()
                   var knownStates=emptyMap<String,String?>()
                   ReceiverProgress.snapshot.collect {progress ->
                     historyPage.progress(progress)
+                    receivedPhotos?.progress(progress)
                     receiverHome.progress(progress)
                     val added=progress.keys-knownProgressIDs
                     val states=progress.mapValues {it.value.processing}
@@ -168,7 +199,8 @@ class MainActivity : AppCompatActivity() {
                     if(added.isNotEmpty()||statusChanged) {
                         // Both pages must reconcile the same result even while one tab is hidden.
                         recentHistory.refreshVisible(receiverRoot,0)
-                        history.refreshVisible(receiverRoot,historyPage.firstVisible())
+                        history.refreshVisible(receiverRoot,recordsFirstVisible())
+                        if(receivedPhotos!=null) attentionHistory.refreshVisible(receiverRoot,0)
                     }
                   }
                 }
@@ -182,13 +214,21 @@ class MainActivity : AppCompatActivity() {
                         if (selectedPage == 1) {
                             recentHistory.refreshVisible(receiverRoot, 0)
                         }
-                        if (selectedPage == 2) history.refreshVisible(receiverRoot, historyPage.firstVisible())
+                        if (selectedPage == 2) {
+                            history.refreshVisible(receiverRoot, recordsFirstVisible())
+                            if (receivedPhotos != null) attentionHistory.refreshVisible(receiverRoot, 0)
+                        }
                         if (selectedPage == 3) storagePage.refresh()
                         delay(2_000)
                     }
                 }
             }
         }
+    }
+    override fun onDestroy() {
+        // Recreated for a theme change or rotation: onCreate reopens what was showing.
+        if (isChangingConfigurations) { connectPage?.dismiss(); devicesPage?.dismiss() }
+        super.onDestroy()
     }
     override fun onNewIntent(next:Intent) {super.onNewIntent(next);setIntent(next);handleDestination(next)}
     override fun onResume() {
@@ -211,11 +251,13 @@ class MainActivity : AppCompatActivity() {
         when(next.getStringExtra("destination")) {
             "receive"->navigation.selectedItemId=1
             "transfers"->navigation.selectedItemId=2
-            "storage"->navigation.selectedItemId=3
+            "storage"->openStorage()
             "settings"->navigation.selectedItemId=4
         }
         when(next.getStringExtra("surface")) {
             "pairing"->choosePairing()
+            "connect-mac"->openConnect(mac=true)
+            "devices"->openDevices()
             "storage-limits"->showStorageControls(StorageSection.LIMITS) {storagePage.refresh(force=true)}
             "retention"->storagePage.showRetention()
             "archive"->showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
@@ -225,6 +267,7 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("page", selectedPage)
+        outState.putString("connect.surface", when { connectPage?.isShowing == true -> connectPage?.flow?.surface; devicesPage?.isShowing == true -> "devices"; else -> null })
         super.onSaveInstanceState(outState)
     }
     override fun onStart() {
@@ -233,7 +276,7 @@ class MainActivity : AppCompatActivity() {
         if (ReceiverPreferences.enabled(this)) startReceiverService()
         val updates = AppUpdates.preferences(this)
         val now = System.currentTimeMillis()
-        if (!packageName.endsWith(".validation") && updates.getBoolean("automatic", true) && now - updates.getLong("checked", 0) > 86_400_000L) {
+        if (ReceiverEnvironment.checksUpdates && !packageName.endsWith(".validation") && updates.getBoolean("automatic", true) && now - updates.getLong("checked", 0) > 86_400_000L) {
             updates.edit().putLong("checked", now).apply()
             lifecycleScope.launch {
                 val next = withContext(Dispatchers.IO) { runCatching { AppUpdates.latest(this@MainActivity) }.getOrNull() }
@@ -244,19 +287,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private fun receiverPage(): View {
+        if (ReceiverEnvironment.proposedDesign) {
+            val hubActions = ReceiverHub.Actions(start = ::beginReceiving, connect = ::choosePairing, toggleReceive = ::pauseReceiving,
+                records = ::openTransfers, retryRecent = { lifecycleScope.launch { recentHistory.refreshVisible(receiverRoot, 0) } },
+                openWifi = { runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }.onFailure { openHelp(ReceiverHelpTopic.CONNECTION) } },
+                openPhotos = ::openPhotos, openCleanup = { startActivity(Intent(this, ExperimentsActivity::class.java)) },
+                recovery = { receiverProblem(ReceiverState.snapshot.value)?.let { recover(it.recovery) } })
+            receiverHome = if (look) ReceiverHubLook(this, hubActions) else ReceiverHub(this, hubActions)
+            return receiverHome.view
+        }
         receiverHome=ReceiverHome(this,::choosePairing,{pairingUI.iphone()},{pairingUI.mac()},
             {navigation.selectedItemId=2},{lifecycleScope.launch {recentHistory.refreshVisible(receiverRoot,0)}},::pauseReceiving) {
-            receiverProblem(ReceiverState.snapshot.value)?.let { problem -> when(problem.recovery) {
-                ReceiverRecovery.NETWORK -> runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }.onFailure { openHelp(ReceiverHelpTopic.CONNECTION) }
-                ReceiverRecovery.STORAGE -> navigation.selectedItemId=3
-                ReceiverRecovery.RESUME -> beginReceiving()
-                ReceiverRecovery.CONNECTION_HELP -> openHelp(ReceiverHelpTopic.CONNECTION)
-                ReceiverRecovery.DIAGNOSTICS_HELP -> openHelp(ReceiverHelpTopic.RECOVERY)
-            } } ?: openSettings()
+            receiverProblem(ReceiverState.snapshot.value)?.let { recover(it.recovery) } ?: openSettings()
         }
         return receiverHome.view
     }
-    private fun choosePairing() {pairingUI.choose()}
+    /** The proposed visual language applies to the proposed pages only. */
+    private val look get() = ReceiverEnvironment.proposedDesign && DuckLook.on
+    private fun recordsFirstVisible() = receivedPhotos?.firstVisible() ?: historyPage.firstVisible()
+    /** The proposed records page (design/records.md); [history] stays on the "all" filter there. */
+    private fun receivedPhotosPage() = ReceivedPhotosPage(this, ReceivedPhotosPage.Actions(
+        more = { lifecycleScope.launch { history.more(receiverRoot) } },
+        reload = { lifecycleScope.launch { history.select(receiverRoot, filter = "all", kind = "all", sender = null); attentionHistory.select(receiverRoot, filter = "failed") } },
+        retryAll = { done -> retryProcessing(null, done) },
+        retry = { item, done -> retryProcessing(item.id, done) },
+        connect = ::openConnection))
+    private fun retryProcessing(id: String?, done: (Boolean) -> Unit) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { NativeBridge.request(JSONObject().put("op", "retry_processing").apply { id?.let { put("id", it) } }) } }
+            done(result.isSuccess)
+            if (result.isSuccess) { attentionHistory.refreshVisible(receiverRoot, 0); history.refreshVisible(receiverRoot, recordsFirstVisible()); recentHistory.refreshVisible(receiverRoot, 0) }
+        }
+    }
+    internal fun showPhoto(item: HistoryItem) { receivedPhotos?.showDetail(item) }
+    private fun recover(recovery: ReceiverRecovery) = when(recovery) {
+        ReceiverRecovery.NETWORK -> runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }.onFailure { openHelp(ReceiverHelpTopic.CONNECTION) }.let {}
+        ReceiverRecovery.STORAGE -> openStorage()
+        ReceiverRecovery.RESUME -> beginReceiving()
+        ReceiverRecovery.CONNECTION_HELP -> openHelp(ReceiverHelpTopic.CONNECTION)
+        ReceiverRecovery.DIAGNOSTICS_HELP -> openHelp(ReceiverHelpTopic.RECOVERY)
+    }
+    private fun choosePairing() {if(ReceiverEnvironment.proposedDesign) openConnect() else pairingUI.choose()}
+    private var connectPage:ConnectPage?=null
+    /** The one connect flow (design/pixel-connect.md) for the hub, the device page and the Received photos empty state. */
+    private fun openConnect(mac:Boolean=false) {
+        connectPage?.dismiss()
+        connectPage=ConnectPage(this,::scanCode,::beginReceiving) {connectPage=null;devicePanels.refresh();devicesPage?.reload()}.also {
+            it.show();if(mac) it.flow.showMac(null) else it.flow.showCode()
+        }
+    }
+    private var devicesPage:DevicesPage?=null
+    private fun openDevices() {devicesPage=DevicesPage(this,{openConnect()}) {devicePanels.refresh()}.also {it.show()}}
+    private fun scanCode(done:(String?)->Unit) {
+        ReceiverEnvironment.scanOverride?.let {it(done);return}
+        connectScan=done
+        runCatching {scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.connect_mac_title)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))}
+            .onFailure {connectScan=null;done(null)}
+    }
     private fun pauseReceiving() {
         lifecycleScope.launch {
             val paused=ReceiverPreferences.paused(this@MainActivity)
@@ -288,23 +375,8 @@ class MainActivity : AppCompatActivity() {
         val device=duckGroup(panel,getString(R.string.duck_device_appearance))
         devicePanels.compactSettings(device)
         val appearanceValue=duckText(getString(when(delegate.localNightMode) { AppCompatDelegate.MODE_NIGHT_YES -> R.string.appearance_dark;AppCompatDelegate.MODE_NIGHT_NO -> R.string.appearance_light;else -> R.string.appearance_system }),13,true)
-        receiverSetting(device,getString(R.string.settings_appearance),control=appearanceValue) {
-            val modes=listOf(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,AppCompatDelegate.MODE_NIGHT_NO,AppCompatDelegate.MODE_NIGHT_YES)
-            val labels=listOf(R.string.appearance_system,R.string.appearance_light,R.string.appearance_dark)
-            val sheet=DuckSheet(this,getString(R.string.settings_appearance))
-            val choices=duckGroup(sheet.body)
-            labels.forEachIndexed { i,label -> receiverSetting(choices,getString(label),control=if(delegate.localNightMode==modes[i]) duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
-                sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putInt("mode",modes[i]).apply();delegate.localNightMode=modes[i]
-            } };sheet.show()
-        }
-        val language=if(Build.VERSION.SDK_INT>=33) getSystemService(android.app.LocaleManager::class.java).applicationLocales.toLanguageTags() else AppCompatDelegate.getApplicationLocales().toLanguageTags()
-        receiverSetting(device,getString(R.string.duck_language),control=duckText(if(language.startsWith("zh")) "简体中文" else if(language.startsWith("en")) "English" else getString(R.string.appearance_system),13,true)) {
-            val sheet=DuckSheet(this,getString(R.string.duck_language))
-            val choices=duckGroup(sheet.body)
-            listOf("" to getString(R.string.appearance_system),"zh-CN" to "简体中文","en" to "English").forEach { (tag,label) -> receiverSetting(choices,label,control=if(language.equals(tag,true))duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
-                sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply();AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
-            } };sheet.show()
-        }
+        receiverSetting(device,getString(R.string.settings_appearance),control=appearanceValue) {chooseAppearance()}
+        receiverSetting(device,getString(R.string.duck_language),control=duckText(languageLabel(),13,true)) {chooseLanguage()}  // design-exception: legacy settings row, replaced by proposedDesignPage
         recordsAndExports(panel)
         val experiments=duckGroup(panel,getString(R.string.experiments_title))
         val experimentTitle=receiverSetting(experiments,getString(R.string.experiments_title)) {startActivity(Intent(this,ExperimentsActivity::class.java))}
@@ -325,6 +397,102 @@ class MainActivity : AppCompatActivity() {
         },action={startActivity(Intent(this,UpdatesActivity::class.java))})
         receiverSetting(help,getString(R.string.receiver_help_title),action={openHelp()})
     }
+    private fun appearanceLabel() = getString(when(delegate.localNightMode) { AppCompatDelegate.MODE_NIGHT_YES -> R.string.appearance_dark;AppCompatDelegate.MODE_NIGHT_NO -> R.string.appearance_light;else -> R.string.appearance_system })
+    private fun currentLanguageTag() = if(Build.VERSION.SDK_INT>=33) getSystemService(android.app.LocaleManager::class.java).applicationLocales.toLanguageTags() else AppCompatDelegate.getApplicationLocales().toLanguageTags()
+    private fun languageLabel() = currentLanguageTag().let { if(it.startsWith("zh")) "简体中文" else if(it.startsWith("en")) "English" else getString(R.string.appearance_system) }
+    private fun chooseAppearance() {
+        val modes=listOf(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,AppCompatDelegate.MODE_NIGHT_NO,AppCompatDelegate.MODE_NIGHT_YES)
+        val labels=listOf(R.string.appearance_system,R.string.appearance_light,R.string.appearance_dark)
+        val sheet=DuckSheet(this,getString(R.string.settings_appearance))
+        val choices=duckGroup(sheet.body)
+        labels.forEachIndexed { i,label -> receiverSetting(choices,getString(label),control=if(delegate.localNightMode==modes[i]) duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
+            sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putInt("mode",modes[i]).apply();delegate.localNightMode=modes[i]
+        } };sheet.show()
+    }
+    private fun chooseLanguage() {
+        val language=currentLanguageTag()
+        val sheet=DuckSheet(this,getString(R.string.duck_language))
+        val choices=duckGroup(sheet.body)
+        listOf("" to getString(R.string.appearance_system),"zh-CN" to "简体中文","en" to "English").forEach { (tag,label) -> receiverSetting(choices,label,control=if(language.equals(tag,true))duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
+            sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply();AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
+        } };sheet.show()
+    }
+    /** Settings per design/settings.md in Material 3; shown by the design catalog until migration step 6. */
+    private fun proposedDesignPage(): View = scrollPage { panel ->
+        panel.setPadding(0,dp(8),0,dp(24))
+        val header=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL;setPadding(dp(16),dp(12),dp(8),dp(12))}
+        header.addView(android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_receiver);setPadding(dp(14),dp(14),dp(14),dp(14))
+            imageTintList=android.content.res.ColorStateList.valueOf(themeColor(com.google.android.material.R.attr.colorOnPrimaryContainer))
+            background=android.graphics.drawable.GradientDrawable().apply {shape=android.graphics.drawable.GradientDrawable.OVAL;setColor(themeColor(com.google.android.material.R.attr.colorPrimaryContainer))}
+            importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        },LinearLayout.LayoutParams(dp(56),dp(56)).apply {marginEnd=dp(16)})
+        val words=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
+        val deviceName=TextView(this).apply {setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge);setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface))}
+        val status=TextView(this).apply {setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))}
+        words.addView(deviceName);words.addView(status)
+        header.addView(words,LinearLayout.LayoutParams(0,-2,1f))
+        if (look) header.addView(lookTonal(getString(R.string.pref_edit)) {devicePanels.rename()})
+        else header.addView(com.google.android.material.button.MaterialButton(this,null,com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            text=getString(R.string.pref_edit);setOnClickListener {devicePanels.rename()}
+        })
+        if (look) {
+            // The proposed look: the identity header is a card like every other group.
+            header.setPadding(dp(16),dp(16),dp(16),dp(16))
+            header.background=android.graphics.drawable.GradientDrawable().apply {cornerRadius=dp(DuckLook.RADIUS_DP).toFloat();setColor(themeColor(com.google.android.material.R.attr.colorSurfaceContainer))}
+            panel.addView(header,LinearLayout.LayoutParams(-1,-2).apply {setMargins(dp(16),dp(4),dp(16),0)})
+        } else panel.addView(header)
+        val general=settingsSection(panel,getString(R.string.pref_section_general))
+        // Tile colors apply in the proposed look only; each row keeps one stable color so it is easy to find.
+        val devices=settingsItem(general,R.drawable.ic_receiver,getString(R.string.pref_devices),"",tile=getColor(R.color.duck_m3_primary)) {openDevices()}
+        settingsItem(general,R.drawable.ic_storage,getString(R.string.pref_storage),tile=getColor(R.color.duck_state_saved)) {openStorage()}
+        val appearance=settingsItem(general,R.drawable.ic_contrast,getString(R.string.pref_appearance),appearanceLabel(),tile=getColor(R.color.duck_m3_tertiary)) {chooseAppearance()}
+        settingsItem(general,R.drawable.ic_globe,getString(R.string.pref_language),languageLabel(),tile=getColor(R.color.duck_state_received)) {chooseLanguage()}
+        val help=settingsSection(panel,getString(R.string.pref_section_help))
+        settingsItem(help,R.drawable.ic_help,getString(R.string.pref_help),tile=getColor(R.color.duck_state_attention)) {openHelp()}
+        settingsItem(help,R.drawable.ic_flask,getString(R.string.pref_experiments),tile=getColor(R.color.duck_m3_secondary)) {startActivity(Intent(this,ExperimentsActivity::class.java))}
+        val footer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;gravity=android.view.Gravity.CENTER_HORIZONTAL;setPadding(dp(16),dp(24),dp(16),dp(8))}
+        footer.addView(TextView(this).apply {
+            text=getString(R.string.pref_version,receiverDisplayVersion())
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall);setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant))
+        })
+        val links=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_HORIZONTAL}
+        fun link(text:Int,action:()->Unit)=links.addView(com.google.android.material.button.MaterialButton(this,null,com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            this.text=getString(text);setOnClickListener {action()}
+        })
+        link(R.string.pref_check_updates) {startActivity(Intent(this@MainActivity,UpdatesActivity::class.java))}
+        link(R.string.pref_diagnostics) {showReportExport(false)}
+        link(R.string.pref_advanced) {proposedAdvancedPage()}
+        footer.addView(links)
+        panel.addView(footer)
+        fun refresh() {
+            deviceName.text=devicePanels.name ?: Build.MODEL
+            status.text=getString(when { !ReceiverPreferences.enabled(this) -> R.string.pref_status_off; ReceiverPreferences.paused(this) -> R.string.pref_status_paused; else -> R.string.pref_status_receiving })
+            val senders=devicePanels.senderNames
+            devices.setSupporting(if(senders.isEmpty()) getString(R.string.pref_devices_none) else getString(R.string.pref_devices_value,senders.size,senders.joinToString("、")))
+            appearance.setSupporting(appearanceLabel())
+        }
+        refresh();proposedRefresh=::refresh
+        currentSettingValues+=status to {refresh();status.text.toString()}
+    }
+    /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
+    private fun proposedAdvancedPage() {
+        val page=DuckPage(this,getString(R.string.pref_advanced))
+        val body=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
+        page.body.addView(body)
+        fun onOff(on:Boolean)=getString(if(on) R.string.pref_on else R.string.pref_off)
+        lateinit var conversion:TextView
+        lateinit var browser:TextView
+        conversion=settingsItem(body,R.drawable.ic_motion,getString(R.string.pref_conversion),onOff(MotionConversionSettings.enabled(this))) {
+            showConversionSettings {conversion.setSupporting(onOff(MotionConversionSettings.enabled(this)))}
+        }
+        browser=settingsItem(body,R.drawable.ic_computer,getString(R.string.pref_browser),onOff(ReceiverDashboardSettings.enabled(this))) {
+            startActivity(Intent(this,BrowserManagementActivity::class.java))
+        }
+        settingsItem(body,R.drawable.ic_receiver,getString(R.string.receiver_stop)) {page.dismiss();confirmStopReceiving()}
+        page.setOnShowListener {browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this)))}
+        page.show()
+    }
     private fun recordsAndExports(parent:LinearLayout, heading:Boolean=true) {
         val group=duckGroup(parent,if(heading)getString(R.string.receiver_records_exports) else null)
         receiverSetting(group,getString(R.string.logs_retention_settings)) {showStorageControls(StorageSection.LOGS) {}}
@@ -341,7 +509,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun confirmStopReceiving() {
         duckConfirm(R.string.receiver_stop,R.string.duck_stop_service_intro,R.string.receiver_stop,true,notice=R.string.duck_reset_unchanged) {dialog ->
-            ReceiverPreferences.setEnabled(this,false);stopService(Intent(this,ReceiverService::class.java));dialog.dismiss();renderReceiver(ReceiverState.snapshot.value)
+            ReceiverPreferences.setEnabled(this,false);ReceiverEnvironment.stopService(this);dialog.dismiss();renderReceiver(ReceiverState.snapshot.value)
         }
     }
     internal fun exportGalleryRecords() {showReportExport(true)}
@@ -378,9 +546,21 @@ class MainActivity : AppCompatActivity() {
     internal fun openConnection() {navigation.selectedItemId=1;choosePairing()}
     internal fun openTransfers(failed:Boolean=false) {
         navigation.selectedItemId=2
+        // Received photos has no filters: what needs the user is its first section.
+        receivedPhotos?.let { it.scrollToTop(); return }
         if(failed) lifecycleScope.launch {history.select(receiverRoot,filter="failed")}
     }
     internal fun openSettings() { navigation.selectedItemId = 4 }
+    /** Storage is a tab in the current design and a page opened from Settings in the proposed one. */
+    internal fun openStorage() {
+        if (!ReceiverEnvironment.proposedDesign) { navigation.selectedItemId = 3; return }
+        selectedPage = 3
+        titleBar.setTitle(R.string.nav_storage)
+        titleBar.menu.findItem(100)?.isVisible = false
+        val host = storagePage.view.parent as android.view.ViewGroup
+        for (index in 0 until host.childCount) host.getChildAt(index).visibility = if (host.getChildAt(index) === storagePage.view) View.VISIBLE else View.GONE
+        storagePage.refresh(force = true)
+    }
     private fun showDashboardAccess() {DashboardAccessUI(this).access()}
     private fun openHelp(topic: ReceiverHelpTopic? = null) {
         startActivity(Intent(this, ReceiverHelpActivity::class.java).apply { topic?.let { putExtra("topic", it.key) } })
@@ -395,7 +575,7 @@ class MainActivity : AppCompatActivity() {
         startReceiverService()
     }
     private fun startReceiverService() {
-        runCatching { startForegroundService(Intent(this, ReceiverService::class.java)) }.onFailure {
+        runCatching { ReceiverEnvironment.startService(this) }.onFailure {
             ReceiverState.mutable.value = ReceiverState.snapshot.value.copy(phase = "waiting", error = "foreground_start_blocked")
         }
     }

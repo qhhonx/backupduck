@@ -1,0 +1,10 @@
+{
+  "id": "onboarding.gphotos",
+  "page": "onboarding",
+  "step": "gphotos",
+  "title": "First run: Google Photos backup",
+  "extends": "base",
+  "expect": [
+    "Mark 3, why Google Photos backup matters, Open Google Photos and It's already on."
+  ]
+}

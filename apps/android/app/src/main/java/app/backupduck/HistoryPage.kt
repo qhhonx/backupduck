@@ -168,7 +168,7 @@ internal class HistoryPage(private val activity: MainActivity, private val model
 }
 
 private data class Thumbnail(val bitmap: Bitmap, val uri: Uri?,val durationMs:Long?=null)
-internal class TransferAdapter(private val activity: MainActivity) : ListAdapter<HistoryItem, TransferAdapter.Holder>(object : DiffUtil.ItemCallback<HistoryItem>() {
+internal class TransferAdapter(private val activity: MainActivity, private val open: ((HistoryItem) -> Unit)? = null) : ListAdapter<HistoryItem, TransferAdapter.Holder>(object : DiffUtil.ItemCallback<HistoryItem>() {
     override fun areItemsTheSame(old: HistoryItem, new: HistoryItem) = old.id == new.id
     override fun areContentsTheSame(old: HistoryItem, new: HistoryItem) = old == new
     override fun getChangePayload(old:HistoryItem,new:HistoryItem):Any? =
@@ -278,10 +278,10 @@ internal class TransferAdapter(private val activity: MainActivity) : ListAdapter
         holder.image.setPadding(activity.dp(14), activity.dp(14), activity.dp(14), activity.dp(14))
         holder.image.background=activity.duckBackground(R.color.duck_subtle,6,false)
         holder.image.setImageResource(if (item.kind == "video") R.drawable.ic_video else if (item.kind == "motion") R.drawable.ic_motion else R.drawable.ic_photo)
-        holder.row.setOnClickListener { showDetails(liveItem(item), null) }
+        holder.row.setOnClickListener { open?.invoke(liveItem(item)) ?: showDetails(liveItem(item), null) }
         cache.get(item.id)?.let {thumbnail ->
             holder.image.setPadding(0,0,0,0);holder.image.setImageBitmap(thumbnail.bitmap)
-            holder.row.setOnClickListener {showDetails(liveItem(item),thumbnail.uri)}
+            holder.row.setOnClickListener {open?.invoke(liveItem(item)) ?: showDetails(liveItem(item),thumbnail.uri)}
             thumbnail.durationMs?.let {holder.sender.text=holder.sender.text.toString()+" · "+android.text.format.DateUtils.formatElapsedTime(it/1000)}
             return
         }
@@ -302,7 +302,7 @@ internal class TransferAdapter(private val activity: MainActivity) : ListAdapter
             if (holder.itemID == item.id && thumbnail != null) {
                 holder.image.setPadding(0, 0, 0, 0)
                 holder.image.setImageBitmap(thumbnail.bitmap)
-                holder.row.setOnClickListener { showDetails(item, thumbnail.uri) }
+                holder.row.setOnClickListener { open?.invoke(liveItem(item)) ?: showDetails(item, thumbnail.uri) }
                 thumbnail.durationMs?.let {holder.sender.text=holder.sender.text.toString()+" · "+android.text.format.DateUtils.formatElapsedTime(it/1000)}
             }
         }

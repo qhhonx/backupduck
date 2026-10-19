@@ -1,0 +1,15 @@
+{
+  "id": "pixel.receiving",
+  "page": "receive",
+  "title": "Receiving a batch",
+  "extends": "base",
+  "expect": [
+    "Title says receiving; counts show saved, pending and failed for the current totals.",
+    "Recent transfers list the latest items."
+  ],
+  "snapshot": {
+    "published": 1250,
+    "received": 1270,
+    "total": 1284
+  }
+}

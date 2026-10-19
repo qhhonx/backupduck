@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- Design catalog: production pages on scenario data. It never runs a receiver,
+         restarts on boot or offers the accessibility service. -->
+    <application android:name=".CatalogApplication">
+        <activity android:name=".CatalogActivity" android:exported="true" android:label="${appLabel}">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity>
+        <activity android:name=".MainActivity" tools:node="merge">
+            <intent-filter tools:node="removeAll" />
+        </activity>
+        <receiver android:name=".ReceiverRestarter" tools:node="remove" />
+        <service android:name=".ReceiverService" tools:node="remove" />
+        <service android:name=".PhotosProbeService" tools:node="remove" />
+    </application>
+</manifest>

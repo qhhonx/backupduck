@@ -1,0 +1,14 @@
+{
+  "id": "pixel.wifi-required",
+  "page": "receive",
+  "title": "Needs Wi-Fi",
+  "extends": "base",
+  "expect": [
+    "A problem notice says Wi-Fi is required, with one network action.",
+    "Counts keep their last known values."
+  ],
+  "snapshot": {
+    "phase": "waiting",
+    "error": "wifi_required"
+  }
+}

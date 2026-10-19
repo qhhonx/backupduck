@@ -1,0 +1,18 @@
+{
+  "id": "pixel.settings-stopped",
+  "page": "settings",
+  "title": "Settings while receiving is off",
+  "extends": "base",
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": false
+    }
+  },
+  "snapshot": {
+    "phase": "idle"
+  },
+  "expect": [
+    "The header says receiving is off.",
+    "All preferences stay editable."
+  ]
+}

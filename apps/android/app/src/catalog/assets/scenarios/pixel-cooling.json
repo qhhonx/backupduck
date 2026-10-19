@@ -1,0 +1,14 @@
+{
+  "id": "pixel.cooling",
+  "page": "receive",
+  "title": "Paused to cool down",
+  "extends": "base",
+  "expect": [
+    "Title says cooling; the temperature 45.2 °C is shown once.",
+    "Reception resumes on its own; no user action is required."
+  ],
+  "snapshot": {
+    "thermal_held": true,
+    "temperature_deci_celsius": 452
+  }
+}

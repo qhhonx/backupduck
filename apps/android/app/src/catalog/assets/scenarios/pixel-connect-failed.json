@@ -1,0 +1,49 @@
+{
+  "id": "pixel.connect-failed",
+  "page": "receive",
+  "surface": "pairing",
+  "title": "Connect: no Wi‑Fi",
+  "extends": "base",
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": false
+    }
+  },
+  "snapshot": {
+    "phase": "idle"
+  },
+  "service": [
+    {
+      "delay_ms": 1500,
+      "snapshot": {
+        "phase": "waiting",
+        "error": "wifi_required"
+      }
+    }
+  ],
+  "expect": [
+    "After a moment the screen says why the code is not ready and offers Try again."
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          }
+        ]
+      }
+    }
+  }
+}

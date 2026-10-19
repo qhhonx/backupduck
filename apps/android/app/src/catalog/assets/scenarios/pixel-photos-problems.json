@@ -1,0 +1,1065 @@
+{
+  "id": "pixel.photos-problems",
+  "page": "transfers",
+  "title": "Received photos with problems",
+  "extends": "base",
+  "now_ms": 1792351800000,
+  "expect": [
+    "Scope line: 1,284 photos · 1,277 in the Pixel's Photos (no single sender named: two devices).",
+    "Needs you: Live Photos card (2, View) above the could-not-save card (3, Try again), each with its thumbnails.",
+    "Days Today, Yesterday, Fri Oct 16, Wed Oct 14, Sun Oct 11, newest first; each day names its senders.",
+    "Tiles: a clock on the photo still arriving and the one being saved; an alert on the five that need you; no mark otherwise.",
+    "A tile opens the photo's detail: when it was taken, the three facts, Try again only on a photo that could not be saved."
+  ],
+  "actions": [
+    {
+      "action": "Try again on the could-not-save card",
+      "result": "retry_processing answers; a snackbar says Trying again"
+    },
+    {
+      "action": "View on the Live Photos card",
+      "result": "A sheet lists the two Live Photos as tiles"
+    }
+  ],
+  "snapshot": {
+    "published": 1277,
+    "received": 1283,
+    "total": 1284,
+    "failed": 5
+  },
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-0",
+            "profile": {
+              "id": "catalog-peer-0",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792351740000
+          },
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's MacBook Air"
+            },
+            "last_seen": 1792351740000
+          }
+        ]
+      }
+    },
+    "receiver_history": {
+      "value": {
+        "items": [
+          {
+            "cursor": 2000,
+            "id": "catalog-2000",
+            "filename": "IMG_5200.HEIC",
+            "kind": "photo",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 1604400,
+            "receipt": "receiving",
+            "processing": "not_requested",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792346340000,
+            "burst_primary": null,
+            "received_at_ms": 0,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1999,
+            "id": "catalog-1999",
+            "filename": "IMG_5199.HEIC",
+            "kind": "photo",
+            "total_bytes": 3610000,
+            "confirmed_bytes": 3610000,
+            "receipt": "received",
+            "processing": "pending",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1761242160000,
+            "burst_primary": null,
+            "received_at_ms": 1792349760000,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1998,
+            "id": "catalog-1998",
+            "filename": "IMG_5198.HEIC",
+            "kind": "motion",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771609980000,
+            "burst_primary": null,
+            "received_at_ms": 1792349580000,
+            "published_at_ms": 1792349584000
+          },
+          {
+            "cursor": 1997,
+            "id": "catalog-1997",
+            "filename": "IMG_5197.HEIC",
+            "kind": "photo",
+            "total_bytes": 5080000,
+            "confirmed_bytes": 5080000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781977800000,
+            "burst_primary": null,
+            "received_at_ms": 1792349400000,
+            "published_at_ms": 1792349404000
+          },
+          {
+            "cursor": 1996,
+            "id": "catalog-1996",
+            "filename": "IMG_5196.HEIC",
+            "kind": "photo",
+            "total_bytes": 4870000,
+            "confirmed_bytes": 4870000,
+            "receipt": "received",
+            "processing": "failed",
+            "processing_error": "gallery_write_failed",
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792345620000,
+            "burst_primary": null,
+            "received_at_ms": 1792349220000,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1995,
+            "id": "catalog-1995",
+            "filename": "IMG_5195.MOV",
+            "kind": "video",
+            "total_bytes": 48000000,
+            "confirmed_bytes": 48000000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1761241440000,
+            "burst_primary": null,
+            "received_at_ms": 1792349040000,
+            "published_at_ms": 1792349044000
+          },
+          {
+            "cursor": 1994,
+            "id": "catalog-1994",
+            "filename": "IMG_5194.HEIC",
+            "kind": "photo",
+            "total_bytes": 4450000,
+            "confirmed_bytes": 4450000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771609260000,
+            "burst_primary": null,
+            "received_at_ms": 1792348860000,
+            "published_at_ms": 1792348864000
+          },
+          {
+            "cursor": 1993,
+            "id": "catalog-1993",
+            "filename": "IMG_5193.HEIC",
+            "kind": "motion",
+            "total_bytes": 4240000,
+            "confirmed_bytes": 4240000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781977080000,
+            "burst_primary": null,
+            "received_at_ms": 1792348680000,
+            "published_at_ms": 1792348684000
+          },
+          {
+            "cursor": 1992,
+            "id": "catalog-1992",
+            "filename": "IMG_5192.HEIC",
+            "kind": "photo",
+            "total_bytes": 4030000,
+            "confirmed_bytes": 4030000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792344900000,
+            "burst_primary": null,
+            "received_at_ms": 1792348500000,
+            "published_at_ms": 1792348504000
+          },
+          {
+            "cursor": 1991,
+            "id": "catalog-1991",
+            "filename": "IMG_5191.HEIC",
+            "kind": "photo",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 3820000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1761231540000,
+            "burst_primary": null,
+            "received_at_ms": 1792339140000,
+            "published_at_ms": 1792339144000
+          },
+          {
+            "cursor": 1990,
+            "id": "catalog-1990",
+            "filename": "IMG_5190.HEIC",
+            "kind": "photo",
+            "total_bytes": 3610000,
+            "confirmed_bytes": 3610000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1771599360000,
+            "burst_primary": null,
+            "received_at_ms": 1792338960000,
+            "published_at_ms": 1792338964000
+          },
+          {
+            "cursor": 1989,
+            "id": "catalog-1989",
+            "filename": "IMG_5189.HEIC",
+            "kind": "motion",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "failed",
+            "processing_error": "conversion_required",
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1781967180000,
+            "burst_primary": null,
+            "received_at_ms": 1792338780000,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1988,
+            "id": "catalog-1988",
+            "filename": "IMG_5188.HEIC",
+            "kind": "photo",
+            "total_bytes": 5080000,
+            "confirmed_bytes": 5080000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1792335000000,
+            "burst_primary": null,
+            "received_at_ms": 1792338600000,
+            "published_at_ms": 1792338604000
+          },
+          {
+            "cursor": 1987,
+            "id": "catalog-1987",
+            "filename": "IMG_5187.HEIC",
+            "kind": "photo",
+            "total_bytes": 4870000,
+            "confirmed_bytes": 4870000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1761177540000,
+            "burst_primary": null,
+            "received_at_ms": 1792285140000,
+            "published_at_ms": 1792285144000
+          },
+          {
+            "cursor": 1986,
+            "id": "catalog-1986",
+            "filename": "IMG_5186.HEIC",
+            "kind": "photo",
+            "total_bytes": 4660000,
+            "confirmed_bytes": 4660000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771545360000,
+            "burst_primary": null,
+            "received_at_ms": 1792284960000,
+            "published_at_ms": 1792284964000
+          },
+          {
+            "cursor": 1985,
+            "id": "catalog-1985",
+            "filename": "IMG_5185.HEIC",
+            "kind": "motion",
+            "total_bytes": 4450000,
+            "confirmed_bytes": 4450000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781913180000,
+            "burst_primary": null,
+            "received_at_ms": 1792284780000,
+            "published_at_ms": 1792284784000
+          },
+          {
+            "cursor": 1984,
+            "id": "catalog-1984",
+            "filename": "IMG_5184.HEIC",
+            "kind": "photo",
+            "total_bytes": 4240000,
+            "confirmed_bytes": 4240000,
+            "receipt": "received",
+            "processing": "failed",
+            "processing_error": "storage",
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792281000000,
+            "burst_primary": null,
+            "received_at_ms": 1792284600000,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1983,
+            "id": "catalog-1983",
+            "filename": "IMG_5183.HEIC",
+            "kind": "photo",
+            "total_bytes": 4030000,
+            "confirmed_bytes": 4030000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1761176820000,
+            "burst_primary": null,
+            "received_at_ms": 1792284420000,
+            "published_at_ms": 1792284424000
+          },
+          {
+            "cursor": 1982,
+            "id": "catalog-1982",
+            "filename": "IMG_5182.MOV",
+            "kind": "video",
+            "total_bytes": 48000000,
+            "confirmed_bytes": 48000000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771544640000,
+            "burst_primary": null,
+            "received_at_ms": 1792284240000,
+            "published_at_ms": 1792284244000
+          },
+          {
+            "cursor": 1981,
+            "id": "catalog-1981",
+            "filename": "IMG_5181.HEIC",
+            "kind": "motion",
+            "total_bytes": 3610000,
+            "confirmed_bytes": 3610000,
+            "receipt": "received",
+            "processing": "failed",
+            "processing_error": "conversion_required",
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781912460000,
+            "burst_primary": null,
+            "received_at_ms": 1792284060000,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1980,
+            "id": "catalog-1980",
+            "filename": "IMG_5180.HEIC",
+            "kind": "motion",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792280280000,
+            "burst_primary": null,
+            "received_at_ms": 1792283880000,
+            "published_at_ms": 1792283884000
+          },
+          {
+            "cursor": 1979,
+            "id": "catalog-1979",
+            "filename": "IMG_5179.HEIC",
+            "kind": "photo",
+            "total_bytes": 5080000,
+            "confirmed_bytes": 5080000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1761176100000,
+            "burst_primary": null,
+            "received_at_ms": 1792283700000,
+            "published_at_ms": 1792283704000
+          },
+          {
+            "cursor": 1978,
+            "id": "catalog-1978",
+            "filename": "IMG_5178.HEIC",
+            "kind": "photo",
+            "total_bytes": 4870000,
+            "confirmed_bytes": 4870000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771543920000,
+            "burst_primary": null,
+            "received_at_ms": 1792283520000,
+            "published_at_ms": 1792283524000
+          },
+          {
+            "cursor": 1977,
+            "id": "catalog-1977",
+            "filename": "IMG_5177.HEIC",
+            "kind": "photo",
+            "total_bytes": 4660000,
+            "confirmed_bytes": 4660000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781911740000,
+            "burst_primary": null,
+            "received_at_ms": 1792283340000,
+            "published_at_ms": 1792283344000
+          },
+          {
+            "cursor": 1976,
+            "id": "catalog-1976",
+            "filename": "IMG_5176.HEIC",
+            "kind": "photo",
+            "total_bytes": 4450000,
+            "confirmed_bytes": 4450000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1792155540000,
+            "burst_primary": null,
+            "received_at_ms": 1792159140000,
+            "published_at_ms": 1792159144000
+          },
+          {
+            "cursor": 1975,
+            "id": "catalog-1975",
+            "filename": "IMG_5175.HEIC",
+            "kind": "photo",
+            "total_bytes": 4240000,
+            "confirmed_bytes": 4240000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1761051360000,
+            "burst_primary": null,
+            "received_at_ms": 1792158960000,
+            "published_at_ms": 1792158964000
+          },
+          {
+            "cursor": 1974,
+            "id": "catalog-1974",
+            "filename": "IMG_5174.HEIC",
+            "kind": "motion",
+            "total_bytes": 4030000,
+            "confirmed_bytes": 4030000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1771419180000,
+            "burst_primary": null,
+            "received_at_ms": 1792158780000,
+            "published_at_ms": 1792158784000
+          },
+          {
+            "cursor": 1973,
+            "id": "catalog-1973",
+            "filename": "IMG_5173.HEIC",
+            "kind": "photo",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 3820000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1781787000000,
+            "burst_primary": null,
+            "received_at_ms": 1792158600000,
+            "published_at_ms": 1792158604000
+          },
+          {
+            "cursor": 1972,
+            "id": "catalog-1972",
+            "filename": "IMG_5172.HEIC",
+            "kind": "photo",
+            "total_bytes": 3610000,
+            "confirmed_bytes": 3610000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1792154820000,
+            "burst_primary": null,
+            "received_at_ms": 1792158420000,
+            "published_at_ms": 1792158424000
+          },
+          {
+            "cursor": 1971,
+            "id": "catalog-1971",
+            "filename": "IMG_5171.MOV",
+            "kind": "video",
+            "total_bytes": 48000000,
+            "confirmed_bytes": 48000000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's MacBook Air"
+                }
+              }
+            ],
+            "captured_at_ms": 1761050640000,
+            "burst_primary": null,
+            "received_at_ms": 1792158240000,
+            "published_at_ms": 1792158244000
+          },
+          {
+            "cursor": 1970,
+            "id": "catalog-1970",
+            "filename": "IMG_5170.HEIC",
+            "kind": "photo",
+            "total_bytes": 5080000,
+            "confirmed_bytes": 5080000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771279140000,
+            "burst_primary": null,
+            "received_at_ms": 1792018740000,
+            "published_at_ms": 1792018744000
+          },
+          {
+            "cursor": 1969,
+            "id": "catalog-1969",
+            "filename": "IMG_5169.HEIC",
+            "kind": "photo",
+            "total_bytes": 4870000,
+            "confirmed_bytes": 4870000,
+            "receipt": "received",
+            "processing": "failed",
+            "processing_error": "gallery_write_failed",
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781646960000,
+            "burst_primary": null,
+            "received_at_ms": 1792018560000,
+            "published_at_ms": 0
+          },
+          {
+            "cursor": 1968,
+            "id": "catalog-1968",
+            "filename": "IMG_5168.HEIC",
+            "kind": "motion",
+            "total_bytes": 4660000,
+            "confirmed_bytes": 4660000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792014780000,
+            "burst_primary": null,
+            "received_at_ms": 1792018380000,
+            "published_at_ms": 1792018384000
+          },
+          {
+            "cursor": 1967,
+            "id": "catalog-1967",
+            "filename": "IMG_5167.HEIC",
+            "kind": "photo",
+            "total_bytes": 4450000,
+            "confirmed_bytes": 4450000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1760910600000,
+            "burst_primary": null,
+            "received_at_ms": 1792018200000,
+            "published_at_ms": 1792018204000
+          },
+          {
+            "cursor": 1966,
+            "id": "catalog-1966",
+            "filename": "IMG_5166.HEIC",
+            "kind": "photo",
+            "total_bytes": 4240000,
+            "confirmed_bytes": 4240000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1771278420000,
+            "burst_primary": null,
+            "received_at_ms": 1792018020000,
+            "published_at_ms": 1792018024000
+          },
+          {
+            "cursor": 1965,
+            "id": "catalog-1965",
+            "filename": "IMG_5165.MOV",
+            "kind": "video",
+            "total_bytes": 48000000,
+            "confirmed_bytes": 48000000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781646240000,
+            "burst_primary": null,
+            "received_at_ms": 1792017840000,
+            "published_at_ms": 1792017844000
+          },
+          {
+            "cursor": 1964,
+            "id": "catalog-1964",
+            "filename": "IMG_5164.HEIC",
+            "kind": "photo",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 3820000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792014060000,
+            "burst_primary": null,
+            "received_at_ms": 1792017660000,
+            "published_at_ms": 1792017664000
+          },
+          {
+            "cursor": 1963,
+            "id": "catalog-1963",
+            "filename": "IMG_5163.HEIC",
+            "kind": "motion",
+            "total_bytes": 3610000,
+            "confirmed_bytes": 3610000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1760909880000,
+            "burst_primary": null,
+            "received_at_ms": 1792017480000,
+            "published_at_ms": 1792017484000
+          },
+          {
+            "cursor": 1962,
+            "id": "catalog-1962",
+            "filename": "IMG_5162.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1770998340000,
+            "burst_primary": null,
+            "received_at_ms": 1791737940000,
+            "published_at_ms": 1791737944000
+          },
+          {
+            "cursor": 1961,
+            "id": "catalog-1961",
+            "filename": "IMG_5161.HEIC",
+            "kind": "photo",
+            "total_bytes": 5080000,
+            "confirmed_bytes": 5080000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1781366160000,
+            "burst_primary": null,
+            "received_at_ms": 1791737760000,
+            "published_at_ms": 1791737764000
+          },
+          {
+            "cursor": 1960,
+            "id": "catalog-1960",
+            "filename": "IMG_5160.HEIC",
+            "kind": "motion",
+            "total_bytes": 4870000,
+            "confirmed_bytes": 4870000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1791733980000,
+            "burst_primary": null,
+            "received_at_ms": 1791737580000,
+            "published_at_ms": 1791737584000
+          },
+          {
+            "cursor": 1959,
+            "id": "catalog-1959",
+            "filename": "IMG_5159.HEIC",
+            "kind": "photo",
+            "total_bytes": 4660000,
+            "confirmed_bytes": 4660000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1760629800000,
+            "burst_primary": null,
+            "received_at_ms": 1791737400000,
+            "published_at_ms": 1791737404000
+          },
+          {
+            "cursor": 1958,
+            "id": "catalog-1958",
+            "filename": "IMG_5158.HEIC",
+            "kind": "photo",
+            "total_bytes": 4450000,
+            "confirmed_bytes": 4450000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1770997620000,
+            "burst_primary": null,
+            "received_at_ms": 1791737220000,
+            "published_at_ms": 1791737224000
+          }
+        ],
+        "total": 1284,
+        "next_cursor": null,
+        "counts": {
+          "total": 1284,
+          "published": 1277,
+          "failed": 5
+        }
+      }
+    },
+    "retry_processing": {
+      "value": {
+        "count": 3
+      }
+    }
+  }
+}

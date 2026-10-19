@@ -1,0 +1,68 @@
+{
+  "id": "onboarding.code",
+  "page": "onboarding",
+  "step": "code",
+  "title": "First run: pairing code",
+  "extends": "base",
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": true
+    }
+  },
+  "snapshot": {
+    "phase": "ready"
+  },
+  "core": {
+    "device_status": [
+      {
+        "value": {
+          "device": {
+            "id": "catalog-pixel",
+            "name": "Pixel XL"
+          },
+          "peers": []
+        }
+      },
+      {
+        "value": {
+          "device": {
+            "id": "catalog-pixel",
+            "name": "Pixel XL"
+          },
+          "peers": []
+        }
+      },
+      {
+        "value": {
+          "device": {
+            "id": "catalog-pixel",
+            "name": "Pixel XL"
+          },
+          "peers": []
+        }
+      },
+      {
+        "value": {
+          "device": {
+            "id": "catalog-pixel",
+            "name": "Pixel XL"
+          },
+          "peers": [
+            {
+              "key": "catalog-iphone",
+              "profile": {
+                "id": "catalog-iphone",
+                "name": "Lin's iPhone"
+              },
+              "last_seen": 0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": [
+    "A secure full-screen code; screenshots are blocked.",
+    "When the iPhone connects, the page moves on to 'Connected to Lin's iPhone'."
+  ]
+}

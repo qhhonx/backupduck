@@ -1,0 +1,21 @@
+{
+  "id": "pixel.devices-none",
+  "page": "settings",
+  "surface": "devices",
+  "title": "Connected devices: none yet",
+  "extends": "base",
+  "expect": [
+    "The empty duck, No devices yet, the sentence and Connect a device."
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": []
+      }
+    }
+  }
+}

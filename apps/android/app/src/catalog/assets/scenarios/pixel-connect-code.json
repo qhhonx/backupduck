@@ -1,0 +1,34 @@
+{
+  "id": "pixel.connect-code",
+  "page": "receive",
+  "surface": "pairing",
+  "title": "Connect: the code",
+  "extends": "base",
+  "expect": [
+    "Full-screen code with two steps; screenshots are blocked (check with uiautomator dump).",
+    "'Connects by itself once scanned' under the code; 'Connect a Mac instead' below.",
+    "Nothing new connects, so the screen keeps waiting."
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          }
+        ]
+      }
+    }
+  }
+}

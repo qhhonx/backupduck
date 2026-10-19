@@ -1,0 +1,10 @@
+{
+  "id": "pixel.settings",
+  "page": "settings",
+  "title": "Settings",
+  "extends": "base",
+  "expect": [
+    "Device name Pixel XL and known senders in the device group.",
+    "Receiving, display, records and help groups follow."
+  ]
+}

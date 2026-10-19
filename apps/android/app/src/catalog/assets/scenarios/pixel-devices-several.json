@@ -1,0 +1,64 @@
+{
+  "id": "pixel.devices-several",
+  "page": "settings",
+  "surface": "devices",
+  "title": "Connected devices: several, one stopped",
+  "extends": "base",
+  "now_ms": 1792351800000,
+  "expect": [
+    "Sentence and Connect a device; Sending to this Pixel lists Lin's iPhone (today) then Lin's MacBook Air (yesterday) with phone and computer marks.",
+    "Stopped lists Lin's old iPad.",
+    "A device opens a sheet with one action; no network address."
+  ],
+  "actions": [
+    {
+      "action": "Stop receiving from this device",
+      "result": "set_sender_enabled answers; snackbar confirms"
+    }
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          },
+          {
+            "key": "catalog-peer-2",
+            "profile": {
+              "id": "catalog-peer-2",
+              "name": "Lin's MacBook Air"
+            },
+            "last_seen": 1792285500,
+            "device_type": "Mac",
+            "enabled": true
+          },
+          {
+            "key": "catalog-peer-3",
+            "profile": {
+              "id": "catalog-peer-3",
+              "name": "Lin's old iPad"
+            },
+            "last_seen": 1790946900,
+            "device_type": "iPad",
+            "enabled": false
+          }
+        ]
+      }
+    },
+    "set_sender_enabled": {
+      "value": {}
+    }
+  }
+}

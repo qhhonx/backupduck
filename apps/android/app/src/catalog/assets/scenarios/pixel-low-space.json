@@ -1,0 +1,13 @@
+{
+  "id": "pixel.low-space",
+  "page": "receive",
+  "title": "Storage almost full",
+  "extends": "base",
+  "expect": [
+    "A problem notice says space is low, with an action that opens Storage."
+  ],
+  "snapshot": {
+    "phase": "waiting",
+    "error": "low_space"
+  }
+}

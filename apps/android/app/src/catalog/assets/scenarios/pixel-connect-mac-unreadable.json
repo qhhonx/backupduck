@@ -1,0 +1,33 @@
+{
+  "id": "pixel.connect-mac-unreadable",
+  "page": "receive",
+  "surface": "connect-mac",
+  "title": "Connect a Mac: wrong code",
+  "extends": "base",
+  "scan": "https://example.com/not-a-backupduck-code",
+  "expect": [
+    "Scan reads a code that is not a BackupDuck Mac code; the screen says so and offers Scan again."
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          }
+        ]
+      }
+    }
+  }
+}

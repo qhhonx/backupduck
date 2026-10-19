@@ -1,0 +1,10 @@
+{
+  "id": "pixel.transfers",
+  "page": "transfers",
+  "title": "Transfer history",
+  "extends": "base",
+  "expect": [
+    "The list shows recent items with sender and state.",
+    "Filters are available from the toolbar."
+  ]
+}

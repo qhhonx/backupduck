@@ -1,0 +1,10 @@
+{
+  "id": "onboarding.space",
+  "page": "onboarding",
+  "step": "space",
+  "title": "First run: free up space automatically",
+  "extends": "base",
+  "expect": [
+    "Smart Storage state read from the system; auto cleanup recommended with its one-line consent."
+  ]
+}

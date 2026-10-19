@@ -7,7 +7,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 internal class ReceiverHome(private val activity: MainActivity, connect: () -> Unit, iphone: () -> Unit, mac: () -> Unit,
-    private val records: () -> Unit, private val retryRecent: () -> Unit, private val toggleReceive: () -> Unit, recovery: () -> Unit) {
+    private val records: () -> Unit, private val retryRecent: () -> Unit, private val toggleReceive: () -> Unit, recovery: () -> Unit) : ReceiverHomeSurface {
     private val title = activity.duckText("", 20, bold = true)
     private val subtitle = activity.duckText("", 13, true).apply {maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END}
     private val badge = activity.duckPill("")
@@ -30,7 +30,7 @@ internal class ReceiverHome(private val activity: MainActivity, connect: () -> U
     private val adapter = TransferAdapter(activity)
     private var saved = 0; private var total = 0; private var failed = 0
     private var renderedPresentation: List<Any?>? = null
-    val view = activity.scrollPage { panel ->
+    override val view = activity.scrollPage { panel ->
         panel.setPadding(activity.dp(16), activity.dp(16), activity.dp(16), activity.dp(24))
         val hero = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL; background = activity.duckBackground(R.color.duck_subtle,16)
@@ -87,7 +87,7 @@ internal class ReceiverHome(private val activity: MainActivity, connect: () -> U
         option(R.string.duck_pair_mac,R.string.duck_pair_mac_note,R.drawable.ic_scan,mac)
         pairExplanation=LinearLayout(activity).apply { orientation=LinearLayout.VERTICAL }.also { panel.addView(it); activity.duckNotice(it,activity.getString(R.string.duck_pair_auto)) }
     }
-    fun history(state: HistoryState) {
+    override fun history(state: HistoryState) {
         state.counts?.let {totals(it.published,it.total,it.failed)}
         adapter.submitList(state.items.take(3))
         recentStatus.visibility=if(state.items.isEmpty()||state.failed) View.VISIBLE else View.GONE
@@ -95,9 +95,9 @@ internal class ReceiverHome(private val activity: MainActivity, connect: () -> U
         recentStatus.setTextColor(activity.getColor(if(state.failed) R.color.duck_failure else R.color.duck_text_secondary))
         recentRetry.visibility=if(state.failed&&!state.loading) View.VISIBLE else View.GONE
     }
-    fun progress(values:Map<String,ReceiverByteProgress>) {adapter.progress(recentList,values)}
-    fun totals(saved: Int,total: Int,failed: Int) { this.saved=saved;this.total=total;this.failed=failed;counts.render("$saved","${(total-saved-failed).coerceAtLeast(0)}","$failed") }
-    fun render(state: ReceiverSnapshot,name: String?,pending: Boolean) = with(activity) {
+    override fun progress(values:Map<String,ReceiverByteProgress>) {adapter.progress(recentList,values)}
+    override fun totals(saved: Int,total: Int,failed: Int) { this.saved=saved;this.total=total;this.failed=failed;counts.render("$saved","${(total-saved-failed).coerceAtLeast(0)}","$failed") }
+    override fun render(state: ReceiverSnapshot,name: String?,pending: Boolean) = with(activity) {
         val enabled=ReceiverPreferences.enabled(this); val idle=!enabled; val paused=ReceiverPreferences.paused(this)
         val presentation = listOf(enabled, paused, pending, name, state.phase, state.published,
             state.total, state.failed, state.error, state.thermalHeld,

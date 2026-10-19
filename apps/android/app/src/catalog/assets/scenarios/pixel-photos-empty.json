@@ -1,0 +1,45 @@
+{
+  "id": "pixel.photos-empty",
+  "page": "transfers",
+  "title": "Received photos, none yet",
+  "extends": "base",
+  "now_ms": 1792351800000,
+  "expect": [
+    "The empty duck, No photos yet and where photos will appear. No action: a device is connected."
+  ],
+  "snapshot": {
+    "published": 0,
+    "received": 0,
+    "total": 0,
+    "failed": 0
+  },
+  "core": {
+    "receiver_history": {
+      "value": {
+        "items": [],
+        "total": 0,
+        "next_cursor": null,
+        "counts": {
+          "total": 0,
+          "published": 0,
+          "failed": 0
+        }
+      }
+    },
+    "receiver_settings": {
+      "value": {
+        "settings": {
+          "receiver_budget_bytes": 21474836480,
+          "min_free_bytes": 2147483648,
+          "receiver_relay": false
+        },
+        "counts": {
+          "total": 0,
+          "published": 0,
+          "failed": 0
+        },
+        "free_bytes": 18253611008
+      }
+    }
+  }
+}

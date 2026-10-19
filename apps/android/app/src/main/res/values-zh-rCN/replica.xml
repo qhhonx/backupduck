@@ -1,5 +1,5 @@
 <resources>
-    <string name="duck_saved">已保存到相册</string>
+    <string name="duck_saved">已存进相册</string>
     <string name="duck_active">进行中</string>
     <string name="duck_failed">处理失败</string>
     <string name="duck_battery_temp">电池温度</string>
@@ -81,13 +81,13 @@
     <string name="duck_queue_note">%1$d 个进行中 · 原件已接收后保留</string>
     <string name="duck_pause_confirm">暂停新的接收？</string>
     <string name="duck_pause_confirm_note">接收服务将停止，已有原件和相册副本保留。可通过“连接新设备”恢复。</string>
-    <string name="duck_waiting_short">已接收 · 待处理</string>
+    <string name="duck_waiting_short">已收到 · 正在存进相册</string>
     <string name="duck_received_short">已接收原件</string>
     <string name="duck_language">语言</string>
 <string name="duck_relay_keep">自动回收</string>
 <string name="duck_reception_paused">新接收已暂停</string>
 <string name="duck_pause_note">点继续恢复接收，已接收原件保留。</string>
-<string name="duck_gallery_failed">相册处理失败</string>
+<string name="duck_gallery_failed">没能存进相册</string>
 <string name="duck_view_tasks">查看任务</string>
 <string name="duck_time_unknown">时间未记录</string>
 <string name="duck_battery_charging">电量 · 充电中</string>

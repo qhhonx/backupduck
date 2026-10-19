@@ -1,0 +1,14 @@
+{
+  "id": "pixel.storage-unavailable",
+  "page": "storage",
+  "title": "Storage status unavailable",
+  "extends": "base",
+  "expect": [
+    "Free space says storage status is unavailable; budget and failures show a dash, not invented values."
+  ],
+  "core": {
+    "receiver_settings": {
+      "error": "storage"
+    }
+  }
+}

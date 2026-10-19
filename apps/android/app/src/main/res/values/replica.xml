@@ -1,5 +1,5 @@
 <resources>
-    <string name="duck_saved">Saved to gallery</string>
+    <string name="duck_saved">In Photos</string>
     <string name="duck_active">In progress</string>
     <string name="duck_failed">Processing failed</string>
     <string name="duck_battery_temp">Battery temperature</string>
@@ -81,13 +81,13 @@
     <string name="duck_queue_note">%1$d items in progress · Originals retained</string>
     <string name="duck_pause_confirm">Pause new reception?</string>
     <string name="duck_pause_confirm_note">Reception will stop. Saved originals and gallery copies remain. Resume from Connect new device.</string>
-    <string name="duck_waiting_short">Received · Pending</string>
+    <string name="duck_waiting_short">Received · saving to Photos</string>
     <string name="duck_received_short">Originals received</string>
     <string name="duck_language">Language</string>
 <string name="duck_relay_keep">Automatic reclaim</string>
 <string name="duck_reception_paused">New transfers paused</string>
 <string name="duck_pause_note">Resume to receive new files. Received originals remain.</string>
-<string name="duck_gallery_failed">Gallery processing failed</string>
+<string name="duck_gallery_failed">Couldn\'t save to Photos</string>
 <string name="duck_view_tasks">View tasks</string>
 <string name="duck_time_unknown">Time not recorded</string>
 <string name="duck_battery_charging">Battery · Charging</string>

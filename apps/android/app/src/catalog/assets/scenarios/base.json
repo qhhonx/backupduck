@@ -1,0 +1,196 @@
+{
+  "id": "base",
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": true,
+      "manual_pause": false
+    }
+  },
+  "snapshot": {
+    "phase": "ready",
+    "published": 1280,
+    "received": 1284,
+    "total": 1284,
+    "failed": 0,
+    "error": null
+  },
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-iphone",
+            "profile": {
+              "id": "catalog-iphone",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792300000
+          }
+        ]
+      }
+    },
+    "receiver_history": {
+      "value": {
+        "items": [
+          {
+            "cursor": 999,
+            "id": "catalog-1",
+            "filename": "IMG_4821.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792213600000,
+            "burst_primary": null,
+            "received_at_ms": 1792299940000,
+            "published_at_ms": 1792299945000
+          },
+          {
+            "cursor": 998,
+            "id": "catalog-2",
+            "filename": "IMG_4820.HEIC",
+            "kind": "motion",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792127200000,
+            "burst_primary": null,
+            "received_at_ms": 1792299880000,
+            "published_at_ms": 1792299885000
+          },
+          {
+            "cursor": 997,
+            "id": "catalog-3",
+            "filename": "IMG_4819.MOV",
+            "kind": "video",
+            "total_bytes": 48000000,
+            "confirmed_bytes": 48000000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792040800000,
+            "burst_primary": null,
+            "received_at_ms": 1792299820000,
+            "published_at_ms": 1792299825000
+          },
+          {
+            "cursor": 996,
+            "id": "catalog-4",
+            "filename": "IMG_4818.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1791954400000,
+            "burst_primary": null,
+            "received_at_ms": 1792299760000,
+            "published_at_ms": 1792299765000
+          },
+          {
+            "cursor": 995,
+            "id": "catalog-5",
+            "filename": "IMG_4817.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1791868000000,
+            "burst_primary": null,
+            "received_at_ms": 1792299700000,
+            "published_at_ms": 1792299705000
+          }
+        ],
+        "total": 1284,
+        "next_cursor": null,
+        "counts": {
+          "total": 1284,
+          "published": 1280,
+          "failed": 0
+        }
+      }
+    },
+    "receiver_settings": {
+      "value": {
+        "settings": {
+          "receiver_budget_bytes": 21474836480,
+          "min_free_bytes": 2147483648,
+          "receiver_relay": false
+        },
+        "counts": {
+          "total": 1284,
+          "published": 1280,
+          "failed": 0
+        },
+        "free_bytes": 18253611008
+      }
+    },
+    "receiver_storage_usage": {
+      "value": {
+        "ready_bytes": 734003200,
+        "partial_bytes": 0
+      }
+    },
+    "gallery_evidence": {
+      "value": {}
+    }
+  },
+  "pairing": {
+    "version": 2,
+    "receiver_id": "catalog-pixel",
+    "endpoint": "https://192.0.2.20:8484",
+    "certificate": "synthetic-certificate",
+    "token": "synthetic-token"
+  }
+}

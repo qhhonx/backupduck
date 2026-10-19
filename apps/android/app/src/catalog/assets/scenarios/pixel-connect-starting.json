@@ -1,0 +1,49 @@
+{
+  "id": "pixel.connect-starting",
+  "page": "receive",
+  "surface": "pairing",
+  "title": "Connect: receiving was off",
+  "extends": "base",
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": false
+    }
+  },
+  "snapshot": {
+    "phase": "idle"
+  },
+  "service": [
+    {
+      "delay_ms": 3000,
+      "snapshot": {
+        "phase": "ready",
+        "error": null
+      }
+    }
+  ],
+  "expect": [
+    "Opening the screen turns receiving on; 'Getting the code ready…' with a spinner, then the code after about three seconds."
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          }
+        ]
+      }
+    }
+  }
+}

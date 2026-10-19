@@ -1,6 +1,5 @@
 package app.backupduck
 
-import android.content.Intent
 import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
@@ -20,7 +19,7 @@ internal class BrowserStartupUI(
     private val states:StateFlow<ReceiverSnapshot> = ReceiverState.snapshot,
     private val startReceiver:()->Unit = {
         ReceiverPreferences.setEnabled(activity,true)
-        activity.startForegroundService(Intent(activity,ReceiverService::class.java))
+        ReceiverEnvironment.startService(activity)
     },
     private val request:suspend ()->Unit = {
         withContext(Dispatchers.IO) {NativeBridge.request(JSONObject().put("op","start_dashboard"))};Unit

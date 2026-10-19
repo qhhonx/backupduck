@@ -1,0 +1,13 @@
+{
+  "id": "pixel.trouble",
+  "page": "receive",
+  "title": "Port in use",
+  "extends": "base",
+  "expect": [
+    "Attention card says receiving ran into a problem, with the fixed category message and its help action. Never exception text."
+  ],
+  "snapshot": {
+    "phase": "waiting",
+    "error": "receiver_port_in_use"
+  }
+}

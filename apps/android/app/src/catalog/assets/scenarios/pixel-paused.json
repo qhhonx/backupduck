@@ -1,0 +1,19 @@
+{
+  "id": "pixel.paused",
+  "page": "receive",
+  "title": "Paused by the user",
+  "extends": "base",
+  "expect": [
+    "Badge paused; title says reception is paused.",
+    "The action resumes reception."
+  ],
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": true,
+      "manual_pause": true
+    }
+  },
+  "snapshot": {
+    "manual_paused": true
+  }
+}

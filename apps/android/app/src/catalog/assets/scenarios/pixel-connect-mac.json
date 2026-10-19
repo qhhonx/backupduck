@@ -1,0 +1,43 @@
+{
+  "id": "pixel.connect-mac",
+  "page": "receive",
+  "surface": "connect-mac",
+  "title": "Connect a Mac",
+  "extends": "base",
+  "scan": "{\"kind\": \"backupduck_desktop_pairing\", \"connection\": {\"version\": 2, \"receiver_id\": \"catalog-mac\", \"endpoint\": \"https://192.0.2.30:8485\", \"certificate\": \"synthetic-certificate\", \"token\": \"synthetic-token\"}}",
+  "expect": [
+    "Explains where the Mac shows its code and why the camera is used; Scan.",
+    "Scan reads a synthetic Mac code, shows 'Connecting to your Mac…', then 'Your Mac is connected'."
+  ],
+  "actions": [
+    {
+      "action": "Scan",
+      "result": "submit_desktop_pairing succeeds"
+    }
+  ],
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          }
+        ]
+      }
+    },
+    "submit_desktop_pairing": {
+      "value": {}
+    }
+  }
+}

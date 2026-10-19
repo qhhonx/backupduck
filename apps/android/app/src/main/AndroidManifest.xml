@@ -23,6 +23,7 @@
         </provider>
         <activity android:name=".ReceiverHelpActivity" android:exported="false" />
         <activity android:name=".ExperimentsActivity" android:exported="false" />
+        <activity android:name=".ReceiverOnboardingActivity" android:exported="false" />
         <activity android:name=".PhotosProbeActivity" android:exported="false" />
         <service android:name=".PhotosProbeService" android:exported="true"
             android:label="${photosProbeLabel}"

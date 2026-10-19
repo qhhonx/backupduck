@@ -1,0 +1,29 @@
+{
+  "id": "pixel.waiting",
+  "page": "receive",
+  "title": "Online, nothing received yet",
+  "extends": "base",
+  "expect": [
+    "Badge online; title says waiting to receive.",
+    "Counts show 0 saved, 0 pending, 0 failed."
+  ],
+  "snapshot": {
+    "published": 0,
+    "received": 0,
+    "total": 0
+  },
+  "core": {
+    "receiver_history": {
+      "value": {
+        "items": [],
+        "total": 0,
+        "next_cursor": null,
+        "counts": {
+          "total": 0,
+          "published": 0,
+          "failed": 0
+        }
+      }
+    }
+  }
+}
