@@ -373,10 +373,7 @@ struct PhotoBackupDetail: View {
             Text(String(format: NSLocalizedString("records_taken", comment: ""), taken.formatted(date: .long, time: .shortened)))
               .font(.subheadline).foregroundStyle(.secondary)
           }
-          VStack(alignment: .leading, spacing: 14) {
-            sentFact
-            photosFact
-          }
+          PhotoBackupFacts(job: photo.job, receiverName: receiverName, needsYou: photo.mark == .needsYou)
           if let cause = photo.cause {
             VStack(alignment: .leading, spacing: 10) {
               Text(cause.detailNote).font(.subheadline)
@@ -411,12 +408,28 @@ struct PhotoBackupDetail: View {
       .frame(width: 420, height: 640)
     #endif
   }
+}
+
+/// The two facts about one photo (design/records.md § Photo detail): sent to the
+/// Pixel, and in the Pixel's Photos, each with its time when known. Google
+/// Photos' state is never shown per photo (P3).
+struct PhotoBackupFacts: View {
+  let job: BackupJob?
+  let receiverName: String
+  var needsYou = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      sentFact
+      photosFact
+    }
+  }
 
   private enum FactState { case done, active, problem, unknown }
 
   @ViewBuilder private var sentFact: some View {
     let name = receiverName
-    if let job = photo.job {
+    if let job {
       switch job.state {
       case "received": fact(.done, format("records_fact_sent", name), time: job.stateChangedAt)
       case "failed": fact(.problem, format("records_fact_not_sent", name), status: errorText(job.errorCode))
@@ -424,7 +437,7 @@ struct PhotoBackupDetail: View {
       case "waiting": fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("state_waiting", comment: ""))
       default: fact(.active, format("records_fact_waiting", name))
       }
-    } else if photo.mark == .needsYou {
+    } else if needsYou {
       fact(.problem, format("records_fact_not_sent", name), status: NSLocalizedString("error_source_unavailable", comment: ""))
     } else {
       fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("records_preparing", comment: ""))
@@ -432,7 +445,6 @@ struct PhotoBackupDetail: View {
   }
 
   @ViewBuilder private var photosFact: some View {
-    let job = photo.job
     switch (job?.state, job?.processing) {
     case ("received", "complete"): fact(.done, NSLocalizedString("records_fact_saved", comment: ""))
     case ("received", "failed"):
@@ -470,6 +482,39 @@ struct PhotoBackupDetail: View {
             .font(.subheadline).foregroundStyle(.secondary)
         }
       }
+    }
+  }
+}
+
+/// A photo's backup facts in the library viewer (design/library.md: the
+/// photo's detail answers "is this one backed up?"). Reads the latest job for
+/// the photo from the core; a photo without one is "not backed up yet".
+struct PhotoBackupInfo: View {
+  let sourceID: String
+  @State private var job: BackupJob?
+  @State private var loaded = false
+
+  var body: some View {
+    let model = BackupEnvironment.activeModel()
+    VStack(alignment: .leading, spacing: 12) {
+      Text("records_detail_title").font(.headline)
+      if model.pairing == nil {
+        Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary)
+      } else if !loaded {
+        ProgressView().controlSize(.small)
+      } else if job == nil {
+        Label("library_info_not_backed_up", systemImage: "circle.dashed").foregroundStyle(.secondary)
+      } else {
+        PhotoBackupFacts(job: job, receiverName: job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel")
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .task(id: sourceID) {
+      loaded = false
+      guard let receiver = model.pairing?.receiverID,
+        let data = try? await Bridge.call(["op": "source_job", "receiver_id": receiver, "source_id": sourceID]) else { loaded = true; return }
+      job = try? JSONDecoder().decode(BackupJob?.self, from: data)
+      loaded = true
     }
   }
 }

@@ -745,6 +745,10 @@ enum Command {
     ReceivedSources {
         receiver_id: String,
     },
+    SourceJob {
+        receiver_id: String,
+        source_id: String,
+    },
     SourceStates {
         #[serde(default)]
         include_pending: bool,
@@ -1478,6 +1482,16 @@ fn dispatch(command: Command) -> Result<Value> {
             let maintenance = host.maintenance.lock().map_err(lock)?;
             Ok(json!(sender.revision()? + maintenance.revision()))
         }
+        Command::SourceJob {
+            receiver_id,
+            source_id,
+        } => Ok(serde_json::to_value(
+            sender()?
+                .sender
+                .lock()
+                .map_err(lock)?
+                .latest_source_job(&receiver_id, &source_id)?,
+        )?),
         Command::ReceivedSources { receiver_id } => Ok(serde_json::to_value(
             sender()?
                 .sender

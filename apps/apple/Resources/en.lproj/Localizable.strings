@@ -1451,3 +1451,4 @@
 "device_saved" = "In its Photos";
 "device_google_note" = "BackupDuck can't see whether Google Photos has backed them up. Open Google Photos on the Pixel to check.";
 "device_switch" = "Connect a Different Pixel";
+"library_info_not_backed_up" = "Not backed up yet";

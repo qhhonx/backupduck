@@ -356,6 +356,9 @@ struct PhotoMetadataPanel: View {
           .font(.title3.weight(.semibold))
         if let date = preview.asset.creationDate { Text(date.formatted(date: .omitted, time: .shortened)).font(.subheadline).foregroundStyle(DuckColors.textSecondary) }
       }
+      if DesignPreview.proposedDesign {
+        PhotoBackupInfo(sourceID: preview.asset.localIdentifier).duckCard()
+      }
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 10) {
           Image(systemName: LibraryFilter(rawValue: preview.kind)?.symbol ?? "photo").foregroundStyle(DuckColors.textSecondary)

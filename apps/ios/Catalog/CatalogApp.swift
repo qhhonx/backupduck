@@ -119,7 +119,9 @@ private struct ScenarioRun: View {
     self.proposed = proposed
     // Shared code (library menu, tile marks) reads the same switch as the Mac catalog.
     DesignPreview.proposedDesign = proposed
-    _model = StateObject(wrappedValue: scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials))
+    let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
+    BackupEnvironment.activeModel = { made }
+    _model = StateObject(wrappedValue: made)
     let start = IOSAppTab.allCases.first { "\($0)" == scenario.page } ?? .settings
     // The proposed skeleton has no Receiver tab; its page opens from Settings.
     _tab = State(initialValue: proposed && !IOSAppTab.proposedCases.contains(start) ? .settings : start)

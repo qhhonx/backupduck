@@ -32,6 +32,8 @@ import SwiftUI
   let folders: FolderSources
   init(_ scenario: Scenario) {
     model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
+    let made = model
+    BackupEnvironment.activeModel = { made }
     folders = FolderSources(backup: model)
   }
 }

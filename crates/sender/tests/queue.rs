@@ -408,6 +408,15 @@ fn visible_source_status_is_scoped_to_receiver_and_revision() {
         vec![first.asset.source_id.clone()]
     );
     assert!(s.received_sources("receiver-2").unwrap().is_empty());
+    let latest = s
+        .latest_source_job("receiver-1", &first.asset.source_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(latest.asset.source_id, first.asset.source_id);
+    assert!(s
+        .latest_source_job("receiver-2", &first.asset.source_id)
+        .unwrap()
+        .is_none());
     let edited = vec![(first.asset.source_id.clone(), "edited".into())];
     assert!(s.source_states("receiver-1", &edited).unwrap().is_empty());
     assert_eq!(

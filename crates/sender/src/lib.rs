@@ -421,6 +421,20 @@ impl Sender {
         }
         Ok(sources)
     }
+    /// The latest job for a source in any revision, so a photo's detail can say
+    /// what happened to it. Receipt and Photos publication only; never cloud.
+    pub fn latest_source_job(&self, receiver: &str, source: &str) -> Result<Option<Job>> {
+        let id: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT id FROM jobs WHERE receiver_id=?1 AND json_extract(manifest,'$.source_id')=?2 ORDER BY id DESC LIMIT 1",
+                params![receiver, source],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(db)?;
+        id.map(|id| self.job(id)).transpose()
+    }
     /// Gallery-only receipt hint for a source whose current revision has no job.
     /// Preparation and deduplication must continue to use exact source revisions.
     pub fn previous_receipts(

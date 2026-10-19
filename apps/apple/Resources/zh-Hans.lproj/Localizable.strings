@@ -1451,3 +1451,4 @@
 "device_saved" = "存进它的相册";
 "device_google_note" = "备份鸭看不到 Google 相册有没有备份，要在 Pixel 上打开 Google 相册确认。";
 "device_switch" = "换一台 Pixel";
+"library_info_not_backed_up" = "还没有备份";
