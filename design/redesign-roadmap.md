@@ -56,9 +56,16 @@ in parallel sessions because they touch separate folders; shared Apple code
 ## Current step
 
 Step 6 is in effect on all three apps (the redesigned pages are the default).
-Remaining: remove the earlier pages and the catalog's comparison switch, then
-steps 4 and 5 (remaining pages from the standards; verification pass with
-Release motion recordings on device). Publishing waits for the owner.
+Next, in order:
+
+1. iPhone notifications and the Live Activity (`flows.md` § Every day): none
+   exist yet. The Live Activity needs a widget extension target.
+2. Step 4: Mac Folders, the Pixel's experiments page, Mac menu bar status.
+3. Step 5: verification pass with Release motion recordings on device.
+4. Remove the earlier pages and the catalog comparison switch once the owner
+   has looked at the shipped redesign.
+
+Publishing waits for the owner.
 
 ## Product decisions made
 
