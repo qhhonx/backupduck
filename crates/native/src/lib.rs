@@ -742,6 +742,9 @@ enum Command {
         pairing: Pairing,
     },
     SenderRevision,
+    ReceivedSources {
+        receiver_id: String,
+    },
     SourceStates {
         #[serde(default)]
         include_pending: bool,
@@ -1475,6 +1478,13 @@ fn dispatch(command: Command) -> Result<Value> {
             let maintenance = host.maintenance.lock().map_err(lock)?;
             Ok(json!(sender.revision()? + maintenance.revision()))
         }
+        Command::ReceivedSources { receiver_id } => Ok(serde_json::to_value(
+            sender()?
+                .sender
+                .lock()
+                .map_err(lock)?
+                .received_sources(&receiver_id)?,
+        )?),
         Command::SourceStates {
             receiver_id,
             sources,

@@ -401,6 +401,26 @@ impl Sender {
         }
         Ok(states)
     }
+    /// Every source this receiver has received, in any revision. The library's
+    /// "Not backed up" view subtracts these from a whole library, which the
+    /// bounded window lookup above cannot answer. Receipt only: it says nothing
+    /// about the Pixel's Photos or cloud backup.
+    pub fn received_sources(&self, receiver: &str) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT json_extract(manifest,'$.source_id') FROM jobs WHERE receiver_id=?1 AND state='received'")
+            .map_err(db)?;
+        let rows = stmt
+            .query_map(params![receiver], |r| r.get::<_, Option<String>>(0))
+            .map_err(db)?;
+        let mut sources = Vec::new();
+        for row in rows {
+            if let Some(source) = row.map_err(db)? {
+                sources.push(source);
+            }
+        }
+        Ok(sources)
+    }
     /// Gallery-only receipt hint for a source whose current revision has no job.
     /// Preparation and deduplication must continue to use exact source revisions.
     pub fn previous_receipts(
