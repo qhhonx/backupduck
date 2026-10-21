@@ -1,0 +1,44 @@
+{
+  "id": "pixel.browser-failed",
+  "extends": "base",
+  "page": "settings",
+  "surface": "browser",
+  "title": "Browser management, address read failed",
+  "expect": [
+    "The page keeps its controls and shows an actionable address error in place.",
+    "Retry replaces the error with the synthetic address and code, without duplicate messages."
+  ],
+  "prefs": {
+    "receiver_dashboard": {
+      "enabled": true
+    }
+  },
+  "core": {
+    "start_dashboard": {
+      "value": {
+        "started": true
+      }
+    },
+    "stop_dashboard": {
+      "value": {
+        "stopped": true
+      }
+    },
+    "dashboard_info": [
+      {
+        "error": "catalog_network_unavailable"
+      },
+      {
+        "value": {
+          "url": "http://192.0.2.10:8788",
+          "code": "0123456789"
+        }
+      }
+    ],
+    "dashboard_access": {
+      "value": {
+        "code": "9876543210"
+      }
+    }
+  }
+}

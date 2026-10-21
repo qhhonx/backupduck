@@ -283,6 +283,12 @@ class MainActivity : BackupDuckActivity() {
             "report"->showReportExport(false)
             "gallery-report"->showReportExport(true)
             "advanced"->proposedAdvancedPage()
+            "conversion"->{proposedAdvancedPage();showConversionSettings()}
+            "help"->openHelp()
+            "help-connection","help-background","help-results","help-storage","help-recovery"->
+                openHelp(ReceiverHelpTopic.entries.first {it.key==next.getStringExtra("surface")!!.removePrefix("help-")})
+            "browser"->startActivity(Intent(this,BrowserManagementActivity::class.java))
+            "updates"->startActivity(Intent(this,UpdatesActivity::class.java))
             "diagnostics"->showDiagnostics()
         }
         next.removeExtra("surface");next.removeExtra("destination")
@@ -405,6 +411,7 @@ class MainActivity : BackupDuckActivity() {
         val conversion=duckText("",13,true)
         fun conversionValue() {conversion.text=getString(if(MotionConversionSettings.enabled(this)) R.string.duck_on else R.string.duck_off)}
         conversionValue()
+        currentSettingValues+=conversion to {getString(if(MotionConversionSettings.enabled(this)) R.string.duck_on else R.string.duck_off)}
         receiverSetting(receive,getString(R.string.duck_conversion),null,conversion) {showConversionSettings {conversionValue()}}
         receiverSetting(receive,getString(R.string.receiver_stop),action=::confirmStopReceiving)
         val browser=duckGroup(panel)
@@ -530,7 +537,10 @@ class MainActivity : BackupDuckActivity() {
             startActivity(Intent(this,BrowserManagementActivity::class.java))
         }
         lookRow(body,R.drawable.ic_receiver,getString(R.string.receiver_stop)) {page.dismiss();confirmStopReceiving()}
-        page.resumed = { browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this))) }
+        page.resumed = {
+            browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this)))
+            conversion.setSupporting(onOff(MotionConversionSettings.enabled(this)))
+        }
         return page
     }
     private fun recordsAndExports(parent:LinearLayout, heading:Boolean=true) {
@@ -612,6 +622,7 @@ class MainActivity : BackupDuckActivity() {
         "devices" -> createDevicesPage().page
         "storage" -> createStoragePage().page
         "advanced" -> createAdvancedPage()
+        "conversion" -> conversionSettingsPage()
         "diagnostics" -> createDiagnosticsPage()
         "logs-report" -> createReportPage(false, state)
         "gallery-report" -> createReportPage(true, state)

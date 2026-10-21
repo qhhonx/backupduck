@@ -13,6 +13,8 @@ internal object ReceiverEnvironment {
     @Volatile var startService: (Context) -> Unit = { it.startForegroundService(Intent(it, ReceiverService::class.java)) }
     @Volatile var stopService: (Context) -> Unit = { it.stopService(Intent(it, ReceiverService::class.java)) }
     @Volatile var checksUpdates = true
+    /** Explicit update checks; the catalog supplies a result without network or downloads. */
+    @Volatile var latestUpdate: suspend (Context) -> AppRelease? = { AppUpdates.latest(it) }
     /** The redesigned pages (design/redesign-roadmap.md, step 6). The catalog can switch back to the earlier ones. */
     @Volatile var proposedDesign = true
     /** The device's own storage reading; the catalog fixes it per scenario. */

@@ -40,7 +40,7 @@
     <string name="duck_temp_limit">Pause temperature</string>
     <string name="duck_temp_note">Battery sensor reading; resumes after cooling.</string>
     <string name="duck_conversion">Compatibility conversion</string>
-    <string name="duck_conversion_note">Only for unsupported original containers. May re-encode.</string>
+    <string name="duck_conversion_note">If a motion photo cannot be saved as it is, allow BackupDuck to convert it. Picture or sound quality may change.</string>
     <string name="duck_browser">Browser management</string>
     <string name="duck_browser_allow">Allow browser management</string>
     <string name="duck_browser_note">Enable only on a trusted local network.</string>

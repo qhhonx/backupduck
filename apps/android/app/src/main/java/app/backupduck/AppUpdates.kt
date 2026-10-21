@@ -131,29 +131,37 @@ internal object AppUpdates {
 class UpdatesActivity:BackupDuckActivity() {
     private var release:AppRelease?=null
     private var downloaded:File?=null
-    private lateinit var feedback:LinearLayout
+    private lateinit var feedback:TextView
     private lateinit var button:com.google.android.material.button.MaterialButton
     private val installedVersion get()=packageManager.getPackageInfo(packageName,0).versionName ?: ""
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
         nativeDetailPage(R.string.updates_title) {panel ->
-            val group=duckGroup(panel)
-            duckSetting(group,getString(R.string.settings_version,receiverVersionLabel()),control=duckText("",13))
-            duckSetting(group,getString(R.string.updates_automatic),getString(R.string.updates_note),duckSwitch(AppUpdates.preferences(this).getBoolean("automatic",true)) {
+            val group=lookGroup(panel)
+            lookRow(group,null,getString(R.string.updates_installed),receiverVersionLabel())
+            lookSwitchRow(group,null,getString(R.string.updates_automatic),getString(R.string.updates_automatic_note),AppUpdates.preferences(this).getBoolean("automatic",true)) {
                 AppUpdates.preferences(this).edit().putBoolean("automatic",it).apply()
+            }
+            feedback=duckParagraph("").apply {accessibilityLiveRegion=android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE}
+            panel.addView(feedback,LinearLayout.LayoutParams(-1,-2).apply {
+                topMargin=token(R.dimen.duck_space_large);bottomMargin=token(R.dimen.duck_space_small)
             })
-            feedback=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL};panel.addView(feedback)
-            button=duckButton(getString(R.string.updates_check),true) {perform()};panel.addView(button,LinearLayout.LayoutParams(-1,-2))
-            panel.addView(duckButton(getString(R.string.official_website)) {
+            button=lookButton(getString(R.string.updates_check),LookButton.TEXT) {perform()}
+            panel.addView(button,LinearLayout.LayoutParams(-1,-2))
+            panel.addView(lookButton(getString(R.string.official_website),LookButton.TEXT) {
                 runCatching {startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://backupduck.app")))}.onFailure {showMessage(getString(R.string.updates_check_failed),true)}
-            },LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
+            },LinearLayout.LayoutParams(-1,-2).apply {topMargin=token(R.dimen.duck_space_small)})
+            panel.addView(duckParagraph(getString(R.string.updates_note)),LinearLayout.LayoutParams(-1,-2).apply {
+                topMargin=token(R.dimen.duck_space_small)
+            })
         }
         check()
     }
     private fun showMessage(message:String,failed:Boolean=false) {
-        feedback.removeAllViews()
-        if(failed)duckProblem(feedback,message) else duckNotice(feedback,message)
+        feedback.text=message
+        feedback.setCompoundDrawablesRelativeWithIntrinsicBounds(if(failed) R.drawable.ic_alert else 0,0,0,0)
+        feedback.compoundDrawablePadding=token(R.dimen.duck_space_x_small)
     }
     private fun check() {
         if(packageName.endsWith(".validation")||installedVersion.endsWith("-dev")) {
@@ -161,14 +169,16 @@ class UpdatesActivity:BackupDuckActivity() {
         }
         button.isEnabled=false;release=null;showMessage(getString(R.string.updates_checking))
         lifecycleScope.launch {
-            runCatching {withContext(Dispatchers.IO) {AppUpdates.latest(this@UpdatesActivity)}}
+            runCatching {withContext(Dispatchers.IO) {ReceiverEnvironment.latestUpdate(this@UpdatesActivity)}}
                 .onSuccess {release=it;showMessage(if(it==null)getString(R.string.updates_current) else getString(R.string.updates_available,it.version));button.setText(if(it==null)R.string.updates_check else R.string.updates_download)}
                 .onFailure {showMessage(getString(R.string.updates_check_failed),true);button.setText(R.string.duck_retry)}
-            button.isEnabled=true
+            button.isEnabled=ReceiverEnvironment.checksUpdates||release==null
         }
     }
     private fun perform() {
+        // Catalog checks are synthetic and never hand a package to the installer.
         val target=release?:return check()
+        if(!ReceiverEnvironment.checksUpdates)return
         button.isEnabled=false;showMessage(getString(R.string.updates_downloading))
         lifecycleScope.launch {
             runCatching {

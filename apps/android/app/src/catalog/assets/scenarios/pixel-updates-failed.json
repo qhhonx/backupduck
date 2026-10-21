@@ -1,0 +1,16 @@
+{
+  "id": "pixel.updates-failed",
+  "extends": "base",
+  "page": "settings",
+  "surface": "updates",
+  "title": "Check for updates, failed",
+  "expect": [
+    "Small Material app bar; installed version, automatic-check switch, result and Material text actions.",
+    "The automatic-check switch persists immediately. Current, available and failed results replace one status in place.",
+    "Catalog checks are synthetic. An available version cannot download or open Android installation."
+  ],
+  "updates": {
+    "state": "failed",
+    "delay_ms": 300
+  }
+}

@@ -126,8 +126,8 @@ internal class DashboardAccessUI(private val activity:AppCompatActivity,
         }
         dialog
     }
-    fun reset(onSuccess:()->Unit={}) = with(activity) {duckConfirm(R.string.dashboard_reset_code,R.string.dashboard_reset_note,R.string.dashboard_reset_code,notice=R.string.duck_reset_unchanged,busyNotice=R.string.duck_resetting) {dialog->change(dialog,reset=true,onSuccess=onSuccess)}}
-    fun revoke() = with(activity) {duckConfirm(R.string.dashboard_revoke,R.string.dashboard_revoke_note,R.string.dashboard_revoke,true,notice=R.string.duck_revoke_sign_in,busyNotice=R.string.duck_revoking) {dialog->change(dialog,revoke=true)}}
+    fun reset(onSuccess:()->Unit={}) = with(activity) {duckConfirm(R.string.dashboard_reset_question,R.string.dashboard_reset_note,R.string.dashboard_reset_code,notice=R.string.duck_reset_unchanged,busyNotice=R.string.duck_resetting) {dialog->change(dialog,reset=true,onSuccess=onSuccess)}}
+    fun revoke() = with(activity) {duckConfirm(R.string.dashboard_revoke_question,R.string.dashboard_revoke_note,R.string.dashboard_revoke,true,notice=R.string.duck_revoke_sign_in,busyNotice=R.string.duck_revoking) {dialog->change(dialog,revoke=true)}}
     private fun change(dialog:DuckConfirmation,reset:Boolean=false,revoke:Boolean=false,onSuccess:()->Unit={}) = with(activity) {
         dialog.busy(true)
         lifecycleScope.launch {

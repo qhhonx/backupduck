@@ -1,0 +1,11 @@
+<resources>
+    <string name="help_tasks">By task</string>
+    <string name="help_problems">When something is wrong</string>
+    <string name="help_search">Search help</string>
+    <string name="help_no_results">No matching topics. Try another word.</string>
+    <string name="duck_browser_network_note">Use only on Wi‑Fi you trust. The browser connection is not encrypted. Keep your access code private.</string>
+    <string name="updates_installed">Installed version</string>
+    <string name="updates_automatic_note">Look for a new version each day. Downloads and installation need your approval.</string>
+    <string name="dashboard_reset_question">Reset the access code?</string>
+    <string name="dashboard_revoke_question">Sign out all browsers?</string>
+</resources>

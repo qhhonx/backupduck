@@ -1,0 +1,39 @@
+{
+  "id": "pixel.browser-off",
+  "extends": "base",
+  "page": "settings",
+  "surface": "browser",
+  "title": "Browser management, off",
+  "expect": [
+    "The switch is off. Address and code remain unavailable until browser management is enabled.",
+    "Enabling retains device pairing and uses the shared startup and address flow."
+  ],
+  "prefs": {
+    "receiver_dashboard": {
+      "enabled": false
+    }
+  },
+  "core": {
+    "start_dashboard": {
+      "value": {
+        "started": true
+      }
+    },
+    "stop_dashboard": {
+      "value": {
+        "stopped": true
+      }
+    },
+    "dashboard_info": {
+      "value": {
+        "url": "http://192.0.2.10:8788",
+        "code": "0123456789"
+      }
+    },
+    "dashboard_access": {
+      "value": {
+        "code": "9876543210"
+      }
+    }
+  }
+}

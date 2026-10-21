@@ -68,6 +68,20 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
     try {
         runOnMainSync { root.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         waitForIdleSync(); shot("topics")
+        onMain {
+            val search=views(root.window.decorView).filterIsInstance<androidx.appcompat.widget.SearchView>().single()
+            fun titles()=views(root.window.decorView).filterIsInstance<TextView>().map {it.text.toString()}
+            check(root.getString(R.string.help_tasks) in titles()&&root.getString(R.string.help_problems) in titles())
+            // Search includes article bodies, not just their titles.
+            search.setQuery(root.getString(R.string.duck_help_cloud_note),false)
+            check(root.getString(ReceiverHelpTopic.RESULTS.title) in titles())
+            check(root.getString(ReceiverHelpTopic.CONNECTION.title) !in titles())
+            search.setQuery("unmatched-help-query-903817",false)
+            check(root.getString(R.string.help_no_results) in titles())
+            search.setQuery("",false)
+            check(ReceiverHelpTopic.entries.all {root.getString(it.title) in titles()})
+            search.clearFocus()
+        }
         for (topic in ReceiverHelpTopic.entries) {
             run {
                 root = currentPage(null)
@@ -85,15 +99,15 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
                     check(detail!!.intent.getStringExtra("topic") == topic.key) { "wrong_help_topic" }
                     val content = views(detail!!.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }
                     topic.sections.forEach { (_, body) -> check(detail!!.getString(body) in content) { "missing_help_body:${topic.key}" } }
-                    val reading = views(detail!!.window.decorView).filterIsInstance<ScrollView>().single()
+                    val reading = views(detail!!.window.decorView).filterIsInstance<androidx.core.widget.NestedScrollView>().single()
                     check(views(reading).none { it is Button || it is android.widget.EditText || it is android.widget.Spinner }) { "Help contains a business control:${topic.key}" }
-                    check(views(reading).none { it.isClickable }) { "Help contains a workflow shortcut:${topic.key}" }
+                    check(views(reading).none { it.hasOnClickListeners() }) { "Help contains a workflow shortcut:${topic.key}" }
                 }
                 waitForIdleSync()
                 var bottomVisible = false
                 for (attempt in 0 until 30) {
                     onMain {
-                        val scroll = views(detail!!.window.decorView).filterIsInstance<ScrollView>().single()
+                        val scroll = views(detail!!.window.decorView).filterIsInstance<androidx.core.widget.NestedScrollView>().single()
                         if (scroll.isLaidOut && scroll.hasWindowFocus()) scroll.fullScroll(View.FOCUS_DOWN)
                         val last = views(detail!!.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == detail!!.getString(topic.sections.last().second) }
                         val rect = Rect()

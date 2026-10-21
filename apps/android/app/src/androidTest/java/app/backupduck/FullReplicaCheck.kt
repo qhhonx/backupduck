@@ -45,6 +45,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
     val oldConfig=config();val oldName=DeviceProfiles.read(targetContext).getJSONObject("device").getString("name")
     val oldThermal=ReceiverThermalSettings.enabled(targetContext);val oldThreshold=ReceiverThermalSettings.threshold(targetContext);val oldConversion=MotionConversionSettings.enabled(targetContext)
     var current:android.content.DialogInterface?=null
+    var conversion:LookPage?=null
     try {
         settle()
         var starts=0
@@ -59,10 +60,16 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
             val choice=views(root()).filterIsInstance<TextView>().single {it.text.toString()=="43 °C"}
             (choice.parent.parent as View).performClick()
         };check(ReceiverThermalSettings.threshold(targetContext)==43);back()
-        main {current=activity.showConversionSettings()};settle()
-        check(textExists(R.string.duck_conversion_off_note)&&textExists(R.string.duck_conversion_cloud_note));shot("conversion")
-        main {views(root()).filterIsInstance<MaterialSwitch>().single().performClick()}
+        main {conversion=activity.showConversionSettings()};settle()
+        check(textExists(R.string.duck_conversion_off_note))
+        main {
+            check(activity.supportFragmentManager.backStackEntryCount==1)
+            check(views(conversion!!.root).filterIsInstance<com.google.android.material.appbar.MaterialToolbar>().single().title==activity.getString(R.string.pref_conversion))
+        }
+        shot("conversion")
+        main {views(conversion!!.root).filterIsInstance<MaterialSwitch>().single().performClick()}
         check(MotionConversionSettings.enabled(targetContext)!=oldConversion);back()
+        main {check(activity.supportFragmentManager.backStackEntryCount==0)}
         val devices=DevicePanels(activity)
         main {devices.refresh()};Thread.sleep(700)
         main {current=devices.rename()};settle()

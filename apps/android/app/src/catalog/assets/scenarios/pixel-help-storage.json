@@ -1,0 +1,11 @@
+{
+  "id": "pixel.help-storage",
+  "extends": "base",
+  "page": "settings",
+  "surface": "help-storage",
+  "title": "Make room for more photos",
+  "expect": [
+    "Read-only article with a small Material app bar. Paragraphs wrap and the final paragraph remains reachable at large text sizes.",
+    "No business actions or custom article chrome. Existing help deep links keep their topic."
+  ]
+}

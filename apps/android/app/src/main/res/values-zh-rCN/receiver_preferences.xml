@@ -1,0 +1,11 @@
+<resources>
+    <string name="help_tasks">按任务查找</string>
+    <string name="help_problems">遇到问题时</string>
+    <string name="help_search">搜索帮助</string>
+    <string name="help_no_results">没有找到相关内容，请换个词试试。</string>
+    <string name="duck_browser_network_note">仅在可信任的 Wi‑Fi 上使用。浏览器连接未加密，请保管好访问码。</string>
+    <string name="updates_installed">已安装版本</string>
+    <string name="updates_automatic_note">每天检查是否有新版本，下载和安装前会征求你的同意。</string>
+    <string name="dashboard_reset_question">重置访问码？</string>
+    <string name="dashboard_revoke_question">退出所有浏览器？</string>
+</resources>

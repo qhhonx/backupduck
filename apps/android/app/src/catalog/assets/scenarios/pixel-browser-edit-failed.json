@@ -1,0 +1,24 @@
+{
+  "id": "pixel.browser-edit-failed",
+  "extends": "pixel.browser",
+  "page": "settings",
+  "surface": "browser",
+  "title": "Browser code edit, failed save and recovery",
+  "core": {
+    "dashboard_access": [
+      {
+        "error": "catalog_save_failed"
+      },
+      {
+        "value": {
+          "code": "9876543210"
+        }
+      }
+    ]
+  },
+  "expect": [
+    "Tap Access code, enter 10 digits and Save. The first save fails; the draft remains in the basic dialog.",
+    "Retry Save succeeds, closes the dialog and refreshes the code on the page.",
+    "Invalid input never reaches the core. Cancel preserves the previous access code."
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "id": "pixel.browser",
+  "extends": "base",
+  "page": "settings",
+  "surface": "browser",
+  "title": "Browser management, ready",
+  "expect": [
+    "Pushed Material preference page with an enabled switch, synthetic address and access code.",
+    "Copy reports in place. Tap Access code for a one-field Cancel/Save dialog; invalid input and failures preserve the draft.",
+    "Reset and Sign out all browsers use basic confirmation dialogs; Cancel leaves preferences unchanged."
+  ],
+  "prefs": {
+    "receiver_dashboard": {
+      "enabled": true
+    }
+  },
+  "core": {
+    "start_dashboard": {
+      "value": {
+        "started": true
+      }
+    },
+    "stop_dashboard": {
+      "value": {
+        "stopped": true
+      }
+    },
+    "dashboard_info": [
+      {
+        "value": {
+          "url": "http://192.0.2.10:8788",
+          "code": "0123456789"
+        }
+      },
+      {
+        "value": {
+          "url": "http://192.0.2.10:8788",
+          "code": "9876543210"
+        }
+      }
+    ],
+    "dashboard_access": {
+      "value": {
+        "code": "9876543210"
+      }
+    }
+  }
+}

@@ -40,7 +40,7 @@
     <string name="duck_temp_limit">暂停温度</string>
     <string name="duck_temp_note">电池传感器读数；降温后自动恢复。</string>
     <string name="duck_conversion">兼容转换</string>
-    <string name="duck_conversion_note">仅在原样封装不支持时转换。可能重新编码。</string>
+    <string name="duck_conversion_note">动态照片无法直接存入相册时，允许备份鸭转换格式。画面或声音的质量可能改变。</string>
     <string name="duck_browser">浏览器管理</string>
     <string name="duck_browser_allow">允许浏览器管理</string>
     <string name="duck_browser_note">仅在可信任的局域网开启。</string>

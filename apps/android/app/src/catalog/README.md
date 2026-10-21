@@ -164,3 +164,26 @@ explicit about this capability.
 The stock images are CC0; local license records are in `build/promo-040/licenses`.
 Keep images, manifests and license records local and ignored. Never add them to
 tracked resources or package them in the APK.
+
+## Receiver preference and help pages
+
+These scenarios use production Material pages and dialogs (A2/A4/A5, I8):
+
+- `pixel.help`: searchable task/problem index; `pixel.help-connection`,
+  `pixel.help-results`, `pixel.help-storage`, `pixel.help-background` and
+  `pixel.help-recovery`: the existing read-only receiver articles.
+- `pixel.conversion` and `pixel.conversion-on`: the persisted format-conversion
+  switch, off and on, on a pushed page.
+- `pixel.browser`, `pixel.browser-off`, `pixel.browser-failed` and
+  `pixel.browser-edit-failed`: address,
+  access code, switch, edit/reset/sign-out dialogs and read failure/recovery.
+  All addresses and codes are synthetic. The failed scenario succeeds on retry.
+- `pixel.updates`, `pixel.updates-available` and `pixel.updates-failed`: current,
+  available and failed explicit update checks. The catalog supplies these
+  results without network access and disables update downloads/installation.
+
+All use `page: settings` and `surface` to open the production destination.
+The optional `updates` object accepts `state: current|available|failed` and
+`delay_ms` for an explicit update check. Review each in light/dark, English/Chinese,
+normal/large text, and with both toolbar and system Back. A compiled scenario is
+not native visual or physical-device acceptance.

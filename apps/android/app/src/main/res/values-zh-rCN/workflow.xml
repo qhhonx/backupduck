@@ -5,7 +5,7 @@
     <string name="duck_saving">正在保存…</string>
     <string name="duck_code_save_failed">保存未完成，原访问码仍有效。请在此重试。</string>
     <string name="duck_access_change_failed">操作未完成，原访问设置保持不变。请重试。</string>
-    <string name="duck_browser_disable_note">关闭后浏览器无法访问，不影响设备配对。</string>
+    <string name="duck_browser_disable_note">在电脑上查看进度和重试照片。关闭不影响已经连接的设备。</string>
     <string name="duck_code_persistence">重启和升级后保持不变。</string>
     <string name="duck_browser_revoke_summary">保留访问码，让浏览器重新登录。</string>
     <string name="duck_browser_http">当前管理服务使用 HTTP。</string>
@@ -15,7 +15,7 @@
     <string name="duck_browser_access_note">查看地址和访问码</string>
     <string name="duck_browser_access_intro">在电脑浏览器输入地址，再使用访问码登录。</string>
     <string name="duck_browser_trusted">仅在可信任的局域网使用</string>
-    <string name="duck_management_address">管理地址</string>
+    <string name="duck_management_address">浏览器地址</string>
     <string name="duck_access_code">访问码</string>
     <string name="duck_code_private">不要向不信任的人分享访问码</string>
     <string name="duck_code_pairing_independent">访问码和浏览器登录，与发送设备配对独立。</string>
@@ -33,8 +33,8 @@
     <string name="duck_reset_unchanged">不会改变设备配对和备份任务。</string>
     <string name="duck_revoke_sign_in">下次访问需要重新输入访问码。</string>
     <string name="duck_resetting">正在重置…</string>
-    <string name="duck_revoking">正在撤销登录…</string>
-    <string name="duck_copy_management_address">复制管理地址</string>
+    <string name="duck_revoking">正在退出浏览器…</string>
+    <string name="duck_copy_management_address">复制地址</string>
     <string name="duck_reveal_code">显示</string>
     <string name="duck_mask_code">隐藏</string>
 </resources>

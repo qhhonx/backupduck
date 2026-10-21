@@ -39,6 +39,8 @@ internal class CatalogScenario(json: JSONObject) {
      * pages read the device's own space and the catalog's own files in Photos.
      */
     val storage: JSONObject? = json.optJSONObject("storage")
+    /** Explicit update-check result, never a network request or downloadable package. */
+    val updates: JSONObject = json.optJSONObject("updates") ?: JSONObject().put("state","current")
     val core: Map<String, List<Answer>> = (json.optJSONObject("core") ?: JSONObject()).let { core ->
         core.keys().asSequence().associateWith { op ->
             val entry = core.get(op)
@@ -70,6 +72,15 @@ internal object CatalogRuntime {
         ReceiverEnvironment.startService = { play() }
         ReceiverEnvironment.stopService = { publish(current?.stopped ?: JSONObject()) }
         ReceiverEnvironment.checksUpdates = false
+        ReceiverEnvironment.latestUpdate = {
+            val result=current?.updates ?: JSONObject()
+            kotlinx.coroutines.delay(result.optLong("delay_ms",300))
+            when(result.optString("state","current")) {
+                "failed" -> error("catalog_update_unavailable")
+                "available" -> AppRelease("99.0.0",Long.MAX_VALUE,"", "",0)
+                else -> null
+            }
+        }
         ReceiverEnvironment.previewImage = CatalogMedia::draw
     }
 

@@ -1,0 +1,11 @@
+{
+  "id": "pixel.help-recovery",
+  "extends": "base",
+  "page": "settings",
+  "surface": "help-recovery",
+  "title": "Photos have not saved",
+  "expect": [
+    "Read-only article with a small Material app bar. Paragraphs wrap and the final paragraph remains reachable at large text sizes.",
+    "No business actions or custom article chrome. Existing help deep links keep their topic."
+  ]
+}

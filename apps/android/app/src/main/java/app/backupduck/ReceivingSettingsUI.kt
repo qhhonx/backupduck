@@ -24,12 +24,17 @@ internal fun AppCompatActivity.showThermalSettings(changed:()->Unit={}):DuckShee
     }
     sheet.show();return sheet
 }
-internal fun AppCompatActivity.showConversionSettings(changed:()->Unit={}):DuckSheet {
-    val sheet=DuckSheet(this,getString(R.string.duck_conversion))
-    val group=duckGroup(sheet.body)
-    receiverSetting(group,getString(R.string.duck_allow_conversion),getString(R.string.duck_conversion_note),duckSwitch(MotionConversionSettings.enabled(this)) {
+/** A2/I4: a persistent preference belongs on a pushed page, not a sheet. */
+internal fun BackupDuckActivity.conversionSettingsPage(changed:()->Unit={}):LookPage {
+    val page=LookPage(this,getString(R.string.pref_conversion),"conversion")
+    val group=lookGroup(page.body)
+    lookSwitchRow(group,null,getString(R.string.duck_allow_conversion),getString(R.string.duck_conversion_note),MotionConversionSettings.enabled(this)) {
         MotionConversionSettings.setEnabled(this,it);changed()
+    }
+    page.body.addView(duckParagraph(getString(R.string.duck_conversion_off_note)),LinearLayout.LayoutParams(-1,-2).apply {
+        topMargin=token(R.dimen.duck_space_small)
     })
-    sheet.body.addView(duckParagraph(getString(R.string.duck_conversion_off_note)),LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(12)})
-    sheet.show();return sheet
+    return page
 }
+internal fun BackupDuckActivity.showConversionSettings(changed:()->Unit={}):LookPage =
+    conversionSettingsPage(changed).also {it.show()}

@@ -5,7 +5,7 @@
     <string name="duck_saving">Saving…</string>
     <string name="duck_code_save_failed">Could not save. Your previous access code remains valid. Retry here.</string>
     <string name="duck_access_change_failed">Could not complete this change. Your previous access settings remain in effect.</string>
-    <string name="duck_browser_disable_note">Disabling blocks browser access without changing device pairing.</string>
+    <string name="duck_browser_disable_note">View progress and retry photos from a computer. Turning this off leaves device connections unchanged.</string>
     <string name="duck_code_persistence">Kept across restarts and updates.</string>
     <string name="duck_browser_revoke_summary">Keep the access code; require browsers to sign in again.</string>
     <string name="duck_browser_http">The management service uses HTTP.</string>
@@ -15,7 +15,7 @@
     <string name="duck_browser_access_note">View address and access code</string>
     <string name="duck_browser_access_intro">Enter the address in your computer browser, then sign in with the access code.</string>
     <string name="duck_browser_trusted">Use only on a trusted local network</string>
-    <string name="duck_management_address">Management address</string>
+    <string name="duck_management_address">Browser address</string>
     <string name="duck_access_code">Access code</string>
     <string name="duck_code_private">Do not share your code with people you do not trust</string>
     <string name="duck_code_pairing_independent">Browser access codes and sign-ins are separate from sender pairing.</string>
@@ -33,8 +33,8 @@
     <string name="duck_reset_unchanged">Device pairing and backup tasks remain unchanged.</string>
     <string name="duck_revoke_sign_in">Enter the access code again on your next visit.</string>
     <string name="duck_resetting">Resetting…</string>
-    <string name="duck_revoking">Revoking logins…</string>
-    <string name="duck_copy_management_address">Copy management address</string>
+    <string name="duck_revoking">Signing out browsers…</string>
+    <string name="duck_copy_management_address">Copy address</string>
     <string name="duck_reveal_code">Show</string>
     <string name="duck_mask_code">Hide</string>
 </resources>

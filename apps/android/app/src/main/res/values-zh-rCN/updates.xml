@@ -1,7 +1,7 @@
 <resources>
-    <string name="updates_title">应用更新</string>
+    <string name="updates_title">检查更新</string>
     <string name="updates_automatic">自动检查更新</string>
-    <string name="updates_note">下载后会校验当前应用的签名，安装时需要系统确认。</string>
+    <string name="updates_note">备份鸭会检查更新与现有应用的来源是否一致，安装时由 Android 请求确认。</string>
     <string name="updates_check">检查更新</string>
     <string name="updates_checking">正在检查更新…</string>
     <string name="updates_current">当前已是最新可用版本。</string>
