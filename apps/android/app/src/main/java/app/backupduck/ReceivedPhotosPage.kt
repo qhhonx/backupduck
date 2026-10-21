@@ -325,9 +325,13 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             cancel(); bound = key
             pictured = false
             images.cached(item, size, size)?.let { show(it); return }
-            placeholder(image, item); mark(item)
+            placeholder(image, loading = true); mark(item)
             val next = CancellationSignal(); signal = next
-            work = images.load(item, size, size, next) { bitmap -> if (bound == key && bitmap != null) show(bitmap) }
+            work = images.load(item, size, size, next) { bitmap ->
+                if (bound == key) {
+                    if (bitmap != null) show(bitmap) else placeholder(image)
+                }
+            }
         }
         private var pictured = false
         private fun show(bitmap: Bitmap) {
@@ -389,11 +393,12 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                 val item = items.getOrNull(index)
                 image.visibility = if (item == null) View.GONE else View.VISIBLE
                 if (item != null) {
-                    image.setImageResource(R.drawable.ic_photo)
-                    image.imageTintList = ColorStateList.valueOf(activity.getColor(R.color.duck_role_secondary_text))
-                    image.scaleType = ImageView.ScaleType.CENTER
-                    image.contentDescription = activity.getString(R.string.photos_preview_unavailable)
-                    image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                    fun placeholder(loading: Boolean) {
+                        placeholder(image, loading)
+                        image.contentDescription = if (loading) null else activity.getString(R.string.photos_preview_unavailable)
+                        image.importantForAccessibility = if (loading) View.IMPORTANT_FOR_ACCESSIBILITY_NO else View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                    }
+                    placeholder(loading = true)
                     fun show(bitmap: Bitmap) {
                         image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
                         image.contentDescription = null
@@ -403,7 +408,9 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                     if (cached != null) show(cached) else {
                         val signal = CancellationSignal(); signals += signal
                         work += images.load(item, size, size, signal) { bitmap ->
-                            if (bound == items && bitmap != null) show(bitmap)
+                            if (bound == items) {
+                                if (bitmap != null) show(bitmap) else placeholder(loading = false)
+                            }
                         }
                     }
                 }
@@ -460,10 +467,11 @@ private class PhotoDetail(private val activity: MainActivity, private val images
         val preview = ImageView(dark).apply { contentDescription = kindLabel(activity, item) }
         root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
         // Keep the same space when neither the published copy nor a received preview is available.
-        placeholder(preview, item)
+        placeholder(preview, loading = true)
         val signal = CancellationSignal()
         val work = images.load(item, width, height, signal) { bitmap ->
             if (bitmap != null && page.isShowing) { preview.background = null; preview.imageTintList = null; preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap) }
+            else if (page.isShowing) placeholder(preview)
         }
         val panel = LinearLayout(dark).apply {
             orientation = LinearLayout.VERTICAL
@@ -551,12 +559,14 @@ private class BoundedScroll(context: android.content.Context, private val fracti
     }
 }
 
-/** The kind's icon on a neutral tile while no picture is available. */
-private fun placeholder(view: ImageView, item: HistoryItem) = with(view.context) {
-    view.setImageResource(when (item.kind) { "video" -> R.drawable.ic_video; "motion" -> R.drawable.ic_motion; else -> R.drawable.ic_photo })
-    view.imageTintList = ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
+/** Loading is a quiet neutral tile; only an unavailable preview shows the photo glyph. */
+private fun placeholder(view: ImageView, loading: Boolean = false) = with(view.context) {
+    if (loading) view.setImageDrawable(null) else view.setImageResource(R.drawable.ic_photo)
+    view.imageTintList = if (loading) null else ColorStateList.valueOf(getColor(R.color.duck_m3_on_surface_variant))
     view.scaleType = ImageView.ScaleType.CENTER
-    view.background = view.background ?: GradientDrawable().apply { setColor(getColor(R.color.duck_role_elevated_surface)) }
+    val background = view.background as? GradientDrawable ?: GradientDrawable()
+    background.setColor(getColor(R.color.duck_m3_surface_container_highest))
+    view.background = background
     view.setPadding(0, 0, 0, 0)
 }
 

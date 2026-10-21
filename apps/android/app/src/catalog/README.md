@@ -149,6 +149,10 @@ action. A nonempty group reserves a 48 dp row immediately; an empty group reserv
 no row. Loading replaces pixels inside those slots without resizing the card.
 Offscreen/recycled cells and dismissed viewers cancel image work.
 
+Loading and unavailable previews use the surface-container-highest role in both
+appearances. Loading tiles show neither a glyph nor a spinner; unavailable tiles
+show a centered photo glyph in on-surface-variant.
+
 The problem scenarios script `receiver_preview` with `status: available`.
 `CatalogMedia` materializes a disposable JPEG with a maximum edge of 512 pixels
 under the catalog's cache directory, using the same ID-to-pool mapping (or
