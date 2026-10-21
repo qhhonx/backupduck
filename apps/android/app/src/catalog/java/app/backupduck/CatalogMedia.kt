@@ -7,6 +7,7 @@ import android.util.Log
 import android.util.LruCache
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -79,14 +80,16 @@ internal object CatalogMedia {
     }
 
     /** PhotoImages calls this on its bounded IO workers and retains view cancellation/identity. */
-    fun draw(item: HistoryItem, width: Int, height: Int): Bitmap {
+    fun draw(item: HistoryItem, width: Int, height: Int): Bitmap = draw(item.id, width, height)
+
+    private fun draw(id: String, width: Int, height: Int): Bitmap {
         // Bucket nearby cell sizes; cap viewer decode size and memory on older devices.
         fun target(size: Int) = ((size.coerceIn(1, 2048) + 63) / 64) * 64
         val w = target(width)
         val h = target(height)
         val active = pool
         if (active != null) {
-            val photo = active.photo(item.id)
+            val photo = active.photo(id)
             val key = "${photo.file.path}:${w}x$h"
             active.images.get(key)?.let { return it }
             val image = runCatching {
@@ -104,7 +107,32 @@ internal object CatalogMedia {
                 return image
             }
         }
-        val key = "${item.id}:${w}x$h"
-        return synthetic.get(key) ?: SyntheticPhotos.draw(item, w, h).also { synthetic.put(key, it) }
+        val key = "${id}:${w}x$h"
+        return synthetic.get(key) ?: SyntheticPhotos.draw(id, w, h).also { synthetic.put(key, it) }
+    }
+
+    /** Materialize scripted availability through the same ID mapping as published photos. */
+    @Synchronized fun preview(request: JSONObject, value: Any?): Any? {
+        val source = value as? JSONObject ?: return value
+        if (source.optString("status") != "available") return value
+        val id = request.getString("id")
+        val directory = File(request.getString("cache_dir"), "catalog-receiver-previews").apply { mkdirs() }
+        val name = MessageDigest.getInstance("SHA-256").digest(id.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        val file = File(directory, "$name.jpg")
+        val original = draw(id, 512, 512)
+        val scale = minOf(1.0, 512.0 / maxOf(original.width, original.height))
+        val preview = if (scale == 1.0) original else Bitmap.createScaledBitmap(original,
+            (original.width * scale).toInt().coerceAtLeast(1), (original.height * scale).toInt().coerceAtLeast(1), true)
+        val temporary = File(directory, "$name.tmp")
+        try {
+            temporary.outputStream().use { check(preview.compress(Bitmap.CompressFormat.JPEG, 80, it)) }
+            check(temporary.renameTo(file))
+        } finally {
+            temporary.delete()
+            if (preview !== original) preview.recycle()
+        }
+        return JSONObject().put("status", "available").put("path", file.absolutePath)
+            .put("cache_hit", false).put("max_edge", 512)
     }
 }

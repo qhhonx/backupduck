@@ -511,6 +511,7 @@
     <string name="photos_kind_video">Video</string>
     <string name="photos_kind_burst">Burst photo</string>
     <string name="nav_photos">Photos</string>
+    <string name="photos_preview_unavailable">Photo preview unavailable</string>
     <string name="pref_storage">Storage</string>
     <!-- Connect a device and Connected devices (design/pixel-connect.md), proposed design. -->
     <string name="connect_code_title">Scan this code with BackupDuck on your iPhone</string>

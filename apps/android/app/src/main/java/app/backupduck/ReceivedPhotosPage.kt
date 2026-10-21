@@ -3,6 +3,7 @@ package app.backupduck
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.os.CancellationSignal
 import android.text.TextUtils
@@ -30,6 +31,7 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import java.time.LocalDate
 import java.time.ZoneId
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -145,10 +147,8 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
 }
 
 /**
- * Thumbnails and previews come from the photo's copy in the Pixel's Photos
- * (synthetic in the catalog). A photo still arriving or not saved has no copy
- * yet, so it shows its kind instead; the core offers no thumbnail of the
- * received file.
+ * Prefer the published copy, falling back to the core's disposable preview of
+ * the received original. Neither a picture nor its absence is publication evidence.
  */
 internal class PhotoImages(private val activity: MainActivity) {
     private val permits = Semaphore(2)
@@ -156,7 +156,7 @@ internal class PhotoImages(private val activity: MainActivity) {
         override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
     }
     fun cached(item: HistoryItem, width: Int, height: Int): Bitmap? = cache.get(key(item, width, height))
-    private fun key(item: HistoryItem, width: Int, height: Int) = "${item.id}:${width}x$height"
+    private fun key(item: HistoryItem, width: Int, height: Int) = "${item.id}:${item.receipt}:${item.processing}:${width}x$height"
 
     /** Loads off the main thread; the caller checks the result still belongs to its view. */
     fun load(item: HistoryItem, width: Int, height: Int, signal: CancellationSignal, done: (Bitmap?) -> Unit): Job =
@@ -165,16 +165,34 @@ internal class PhotoImages(private val activity: MainActivity) {
             val image = cache.get(key) ?: withContext(Dispatchers.IO) {
                 permits.withPermit {
                     currentCoroutineContext().ensureActive()
-                    if (item.processing != "complete") return@withPermit null
-                    runCatching {
-                        ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
-                        val copy = GalleryPreview.resolve(activity, item, null, signal) ?: return@runCatching null
-                        GalleryPreview.decode(activity, copy, Size(width, height), signal)
-                    }.getOrNull()?.also { cache.put(key, it) }
+                    signal.throwIfCanceled()
+                    val image = runCatching {
+                        val published = if (item.processing == "complete") runCatching {
+                            ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
+                            GalleryPreview.resolve(activity, item, null, signal)?.let {
+                                GalleryPreview.decode(activity, it, Size(width, height), signal)
+                            }
+                        }.getOrNull() else null
+                        signal.throwIfCanceled()
+                        published ?: receivedPreview(item, signal)
+                    }.getOrNull()
+                    currentCoroutineContext().ensureActive()
+                    signal.throwIfCanceled()
+                    image?.also { cache.put(key, it) }
                 }
             }
-            if (isActive) done(image)
+            if (isActive && !signal.isCanceled) done(image)
         }
+
+    private fun receivedPreview(item: HistoryItem, signal: CancellationSignal): Bitmap? {
+        if (item.receipt != "received") return null
+        return loadReceiverPreviewFile(request = {
+            val reply = NativeBridge.request(JSONObject().put("op", "receiver_preview")
+                .put("root", "${activity.filesDir}/receiver").put("cache_dir", activity.cacheDir.absolutePath)
+                .put("id", item.id)) as JSONObject
+            reply.optString("path").takeIf { reply.optString("status") == "available" && it.isNotBlank() && !reply.isNull("path") }?.let(::File)
+        }, decode = { BitmapFactory.decodeFile(it.absolutePath) }, checkCancelled = signal::throwIfCanceled)
+    }
 }
 
 private class SquareFrame(context: android.content.Context) : FrameLayout(context) {
@@ -245,6 +263,18 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
 
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         (holder as? TileHolder)?.cancel()
+        (holder as? CauseHolder)?.cancel()
+    }
+
+    override fun onViewDetachedFromWindow(holder: RecyclerView.ViewHolder) {
+        (holder as? TileHolder)?.cancel()
+        (holder as? CauseHolder)?.cancel()
+    }
+
+    override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
+        val row = currentList.getOrNull(holder.bindingAdapterPosition)
+        if (holder is TileHolder && row is PhotoRow.Tile) holder.bind(live(row.item))
+        if (holder is CauseHolder && row is PhotoRow.Cause) holder.bind(row.group)
     }
 
     private class Plain(view: View) : RecyclerView.ViewHolder(view)
@@ -290,7 +320,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             this.item = item
             mark(item)
             val size = (activity.resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)
-            val key = "${item.id}:${item.processing}"
+            val key = "${item.id}:${item.receipt}:${item.processing}"
             if (bound == key) return
             cancel(); bound = key
             pictured = false
@@ -311,20 +341,73 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         }
     }
 
-    /** One cause in the shared state card; no thumbnails, since these photos have no copy in Photos and the core offers none of the received file. */
+    /** The shared problem card reserves photo slots before any asynchronous loading. */
     private inner class CauseHolder(private val activity: MainActivity) : RecyclerView.ViewHolder(FrameLayout(activity)) {
         private val card = StateCard(activity)
+        private val row = LinearLayout(activity)
+        private val slots = List(3) { ImageView(activity) }
+        private val tileSize = activity.token(R.dimen.duck_space_xx_large) + activity.token(R.dimen.duck_space_x_small)
+        private val work = mutableListOf<Job>()
+        private val signals = mutableListOf<CancellationSignal>()
+        private var bound: List<HistoryItem>? = null
+        private var currentGroup: CauseGroup? = null
         init {
+            val size = tileSize
+            row.layoutParams = FrameLayout.LayoutParams(-1, size)
+            slots.forEachIndexed { index, image ->
+                image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                image.background = GradientDrawable().apply {
+                    setColor(activity.getColor(R.color.duck_m3_surface_container_highest))
+                    cornerRadius = activity.token(R.dimen.duck_radius_control).toFloat()
+                }
+                image.clipToOutline = true
+                row.addView(image, LinearLayout.LayoutParams(size, size).apply {
+                    if (index > 0) marginStart = activity.token(R.dimen.duck_space_xx_small)
+                })
+            }
             (itemView as FrameLayout).apply {
                 setPadding(activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_xx_small), activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_xx_small))
                 addView(card.view, FrameLayout.LayoutParams(-1, -2))
             }
         }
+        fun cancel() {
+            signals.forEach { it.cancel() }; work.forEach { it.cancel() }
+            signals.clear(); work.clear(); bound = null
+        }
         fun bind(group: CauseGroup) {
+            currentGroup = group
             card.show(LookState(R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), causeTitle(activity, group), activity.getString(causeNote(group.cause)),
                 action = activity.getString(if (group.cause == PhotoCause.LIVE_PHOTO) R.string.photos_view else R.string.photos_try_again) to {
-                    card.actionButton?.let { cardAction(group, it) }
+                    currentGroup?.let { current -> card.actionButton?.let { cardAction(current, it) } }
                 }))
+            val items = group.items.take(slots.size)
+            card.media(row.takeIf { items.isNotEmpty() })
+            if (bound == items) return
+            cancel(); bound = items
+            val size = tileSize
+            slots.forEachIndexed { index, image ->
+                val item = items.getOrNull(index)
+                image.visibility = if (item == null) View.GONE else View.VISIBLE
+                if (item != null) {
+                    image.setImageResource(R.drawable.ic_photo)
+                    image.imageTintList = ColorStateList.valueOf(activity.getColor(R.color.duck_role_secondary_text))
+                    image.scaleType = ImageView.ScaleType.CENTER
+                    image.contentDescription = activity.getString(R.string.photos_preview_unavailable)
+                    image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                    fun show(bitmap: Bitmap) {
+                        image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
+                        image.contentDescription = null
+                        image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }
+                    val cached = images.cached(item, size, size)
+                    if (cached != null) show(cached) else {
+                        val signal = CancellationSignal(); signals += signal
+                        work += images.load(item, size, size, signal) { bitmap ->
+                            if (bound == items && bitmap != null) show(bitmap)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -376,7 +459,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
         val height = (resources.displayMetrics.heightPixels * .6f).toInt()
         val preview = ImageView(dark).apply { contentDescription = kindLabel(activity, item) }
         root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
-        // Only a photo in the Pixel's Photos has a picture; the rest keep their kind's icon.
+        // Keep the same space when neither the published copy nor a received preview is available.
         placeholder(preview, item)
         val signal = CancellationSignal()
         val work = images.load(item, width, height, signal) { bitmap ->
@@ -468,7 +551,7 @@ private class BoundedScroll(context: android.content.Context, private val fracti
     }
 }
 
-/** The kind's icon on a neutral tile while there is no picture (still arriving, or no copy in Photos). */
+/** The kind's icon on a neutral tile while no picture is available. */
 private fun placeholder(view: ImageView, item: HistoryItem) = with(view.context) {
     view.setImageResource(when (item.kind) { "video" -> R.drawable.ic_video; "motion" -> R.drawable.ic_motion; else -> R.drawable.ic_photo })
     view.imageTintList = ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
@@ -482,8 +565,8 @@ private fun photoMark(context: android.content.Context, badge: ImageView, mark: 
     if (mark == PhotoMark.NONE) { badge.visibility = View.GONE; return@with }
     badge.visibility = View.VISIBLE
     val pending = mark == PhotoMark.PENDING
-    // V5: over a photo, a white glyph with a soft shadow and no badge. A tile still arriving or not saved has
-    // no picture yet, so its glyph takes the secondary text color, or attention when it needs the user.
+    // V5: over a photo, a white glyph with a soft shadow and no badge. On a placeholder,
+    // use secondary text color, or attention when the photo needs the user.
     badge.background = null; badge.setPadding(0, 0, 0, 0); badge.scaleType = ImageView.ScaleType.CENTER
     val icon = if (pending) R.drawable.ic_clock else R.drawable.ic_alert
     if (onPhoto) { badge.imageTintList = null; badge.setImageDrawable(PhotoGlyphs.drawable(this, icon, 18)) }

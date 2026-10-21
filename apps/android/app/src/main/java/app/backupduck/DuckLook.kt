@@ -130,6 +130,7 @@ internal class StateCard(private val context: Context) {
         trackThickness = context.dp(3); trackCornerRadius = context.dp(2); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
     private val actions = FlowRow(context, context.token(R.dimen.duck_space_x_small))
+    private val media = FrameLayout(context).apply { visibility = View.GONE }
     /** The card's tonal action, for disabling it while the action runs. */
     var actionButton: MaterialButton? = null
         private set
@@ -151,7 +152,17 @@ internal class StateCard(private val context: Context) {
         words.addView(reading, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.token(R.dimen.duck_space_x_small) })
         // I3 Working: progress updates inside one fixed slot; absent content reserves no rows.
         words.addView(bar, LinearLayout.LayoutParams(-1, context.dp(3)).apply { topMargin = context.token(R.dimen.duck_space_small) })
+        words.addView(media, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
         words.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
+    }
+
+    /** Optional fixed-size photo evidence, before the single problem action. */
+    fun media(content: View?) {
+        if (media.getChildAt(0) !== content) {
+            media.removeAllViews()
+            content?.let { media.addView(it) }
+        }
+        media.visibility = if (content == null) View.GONE else View.VISIBLE
     }
 
     fun actionFeedback(message: String, failed: Boolean) {

@@ -161,7 +161,8 @@ internal object CatalogRuntime {
     )
 
     private fun answer(request: String): String {
-        val op = runCatching { JSONObject(request).getString("op") }.getOrDefault("?")
+        val query = runCatching { JSONObject(request) }.getOrNull()
+        val op = query?.optString("op") ?: "?"
         val scenario = current
         val answer = synchronized(lock) {
             val list = scenario?.core?.get(op)
@@ -179,7 +180,11 @@ internal object CatalogRuntime {
         // A scenario switch while this answer waited belongs to the old page.
         if (current !== scenario) return JSONObject().put("ok", false).put("error", "catalog_cancelled").toString()
         answer.error?.let { return JSONObject().put("ok", false).put("error", it).toString() }
-        val value = if (op == "receiver_history") CatalogMedia.history(answer.value) else answer.value
+        val value = when (op) {
+            "receiver_history" -> CatalogMedia.history(answer.value)
+            "receiver_preview" -> CatalogMedia.preview(checkNotNull(query), answer.value)
+            else -> answer.value
+        }
         return JSONObject().put("ok", true).put("value", value ?: JSONObject.NULL).toString()
     }
 }

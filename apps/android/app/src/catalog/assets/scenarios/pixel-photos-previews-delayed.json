@@ -1,0 +1,15 @@
+{
+  "id": "pixel.photos-previews-delayed",
+  "extends": "pixel.photos-problems",
+  "title": "Received photos with slow previews",
+  "expect": [
+    "Problem-card geometry stays fixed as neutral tiles become photos from the optional pool or synthetic fallback.",
+    "Scroll away or dismiss the viewer while previews load: cancelled work never paints a recycled tile or dismissed viewer."
+  ],
+  "core": {
+    "receiver_preview": {
+      "delay_ms": 700,
+      "value": { "status": "available" }
+    }
+  }
+}

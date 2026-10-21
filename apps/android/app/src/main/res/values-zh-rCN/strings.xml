@@ -507,6 +507,7 @@
     <string name="photos_kind_video">视频</string>
     <string name="photos_kind_burst">连拍照片</string>
     <string name="nav_photos">照片</string>
+    <string name="photos_preview_unavailable">照片预览不可用</string>
     <string name="pref_storage">存储空间</string>
     <!-- Connect a device and Connected devices (design/pixel-connect.md), proposed design. -->
     <string name="connect_code_title">用 iPhone 上的备份鸭扫这个码</string>

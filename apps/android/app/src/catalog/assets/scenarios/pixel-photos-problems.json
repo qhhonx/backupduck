@@ -28,6 +28,9 @@
     "failed": 5
   },
   "core": {
+    "receiver_preview": {
+      "value": { "status": "available" }
+    },
     "device_status": {
       "value": {
         "device": {

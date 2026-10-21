@@ -7,6 +7,9 @@
     "The failed item says what failed and offers a retry."
   ],
   "core": {
+    "receiver_preview": {
+      "value": { "status": "available" }
+    },
     "receiver_history": {
       "value": {
         "items": [

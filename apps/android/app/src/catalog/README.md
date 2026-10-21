@@ -15,7 +15,7 @@ The receiver UI takes these from outside the activity:
 | `NativeBridge.transport` | The linked Rust library | `CatalogRuntime`, which answers from the scenario |
 | `ReceiverEnvironment.startService` / `stopService` | Start or stop `ReceiverService` | Play the scenario's `service` snapshots or publish `stopped` |
 | `ReceiverEnvironment.checksUpdates` | On | Off |
-| `ReceiverEnvironment.previewImage` | Unset: pictures come from the copy in the Pixel's Photos | `CatalogMedia`, an optional local photo pool with `SyntheticPhotos` fallback, drawn only where the app would read a copy in Photos |
+| `ReceiverEnvironment.previewImage` | Unset: published pictures come from the copy in the Pixel's Photos | `CatalogMedia`, an optional local photo pool with `SyntheticPhotos` fallback, drawn where the app would read a copy in Photos |
 | `ReceiverEnvironment.now` | The system clock | The scenario's `now_ms`, when set |
 | `ReceiverEnvironment.scanOverride` | Unset: scanning opens the camera | The scenario's `scan` result, when set |
 | `ReceiverState` | Written by `ReceiverService` | Set from the scenario's `snapshot` |
@@ -134,6 +134,28 @@ a separate 4 MiB cache. The production loading, cancellation and stable tile
 identity remain in charge. A missing, empty or invalid manifest uses procedural
 landscapes; an unreadable individual photo falls back for that item. Removing the
 pool and restarting the scenario restores procedural images everywhere.
+
+## Received-original previews
+
+The production image loader falls back to `receiver_preview` for received items
+whose published copy cannot be loaded, including failed and pending saves. Its
+two bounded IO workers retain cancellation, stable identity and a 16 MiB bitmap
+cache. Disposable paths purged before opening are requested once more. Missing,
+unsupported or failed previews leave neutral media icons without error text;
+preview availability never changes receipt or publication facts.
+
+Problem cards show up to three affected photos between the cause and its single
+action. A nonempty group reserves a 48 dp row immediately; an empty group reserves
+no row. Loading replaces pixels inside those slots without resizing the card.
+Offscreen/recycled cells and dismissed viewers cancel image work.
+
+The problem scenarios script `receiver_preview` with `status: available`.
+`CatalogMedia` materializes a disposable JPEG with a maximum edge of 512 pixels
+under the catalog's cache directory, using the same ID-to-pool mapping (or
+synthetic fallback) as the timeline and viewer. `pixel.photos-previews-unavailable`
+and `pixel.photos-previews-delayed` cover neutral placeholders and late results.
+The base scenario scripts unavailable previews, so unrelated scenarios stay
+explicit about this capability.
 
 The stock images are CC0; local license records are in `build/promo-040/licenses`.
 Keep images, manifests and license records local and ignored. Never add them to

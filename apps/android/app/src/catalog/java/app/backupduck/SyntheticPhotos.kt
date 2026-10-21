@@ -33,9 +33,9 @@ internal object SyntheticPhotos {
         (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt(),
         (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt())
 
-    fun draw(item: HistoryItem, width: Int, height: Int): Bitmap {
+    fun draw(id: String, width: Int, height: Int): Bitmap {
         // Scramble the id so neighbouring ids draw unrelated scenes.
-        val random = Random(item.id.hashCode() * -7046029254386353131L)
+        val random = Random(id.hashCode() * -7046029254386353131L)
         val sky = skies[random.nextInt(skies.size)]
         val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

@@ -15,6 +15,9 @@
     "error": null
   },
   "core": {
+    "receiver_preview": {
+      "value": { "status": "unavailable", "path": null, "reason": "decode_unavailable" }
+    },
     "device_status": {
       "value": {
         "device": {

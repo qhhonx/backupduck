@@ -1,0 +1,14 @@
+{
+  "id": "pixel.photos-previews-unavailable",
+  "extends": "pixel.photos-problems",
+  "title": "Received photos with unavailable previews",
+  "expect": [
+    "Both problem cards reserve the same thumbnail row as the available-preview scenario, showing neutral media tiles without error text.",
+    "Opening an affected photo keeps the neutral viewer placeholder and its existing facts and action."
+  ],
+  "core": {
+    "receiver_preview": {
+      "value": { "status": "unavailable", "path": null, "reason": "original_unavailable" }
+    }
+  }
+}
