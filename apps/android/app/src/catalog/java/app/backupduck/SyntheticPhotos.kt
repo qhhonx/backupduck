@@ -10,8 +10,8 @@ import android.graphics.Shader
 import kotlin.random.Random
 
 /**
- * Procedural landscapes standing in for photos, since the catalog has no
- * files. Each item id always draws the same scene: a sky, a sun or moon,
+ * Procedural fallback when the optional catalog media pool is unavailable.
+ * Each item id always draws the same scene: a sky, a sun or moon,
  * layered ridges fading into the haze, and water or a meadow in front.
  * Synthetic illustration only; these colors never reach the app.
  */

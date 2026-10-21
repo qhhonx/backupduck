@@ -70,7 +70,7 @@ internal object CatalogRuntime {
         ReceiverEnvironment.startService = { play() }
         ReceiverEnvironment.stopService = { publish(current?.stopped ?: JSONObject()) }
         ReceiverEnvironment.checksUpdates = false
-        ReceiverEnvironment.previewImage = SyntheticPhotos::draw
+        ReceiverEnvironment.previewImage = CatalogMedia::draw
     }
 
     val unscripted: List<String> get() = synchronized(lock) { missing.toList() }
@@ -101,6 +101,7 @@ internal object CatalogRuntime {
 
     /** Makes [scenario] current: resets this app's preferences, seeds the scenario's and publishes its snapshot. */
     fun apply(context: Context, scenario: CatalogScenario) {
+        CatalogMedia.reload(context)
         synchronized(lock) { cursor = HashMap(); missing.clear(); current = scenario }
         File(context.applicationInfo.dataDir, "shared_prefs").listFiles().orEmpty().forEach { file ->
             context.getSharedPreferences(file.nameWithoutExtension, Context.MODE_PRIVATE).edit().clear().commit()
@@ -178,6 +179,7 @@ internal object CatalogRuntime {
         // A scenario switch while this answer waited belongs to the old page.
         if (current !== scenario) return JSONObject().put("ok", false).put("error", "catalog_cancelled").toString()
         answer.error?.let { return JSONObject().put("ok", false).put("error", it).toString() }
-        return JSONObject().put("ok", true).put("value", answer.value ?: JSONObject.NULL).toString()
+        val value = if (op == "receiver_history") CatalogMedia.history(answer.value) else answer.value
+        return JSONObject().put("ok", true).put("value", value ?: JSONObject.NULL).toString()
     }
 }
