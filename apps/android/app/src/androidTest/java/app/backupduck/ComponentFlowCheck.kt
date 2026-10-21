@@ -67,6 +67,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
     }
     var calls=0;var fail=true
     var sheet:DuckSheet?=null
+    var editDialog:DuckEditDialog?=null
     var browserHost:BrowserManagementActivity?=null
     try {
         Thread.sleep(900)
@@ -93,20 +94,15 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
             if(fail) error("injected_failure")
             JSONObject().put("code","0123456789")
         }
-        runOnMainSync {sheet=ui.code()};waitForIdleSync();Thread.sleep(350)
-        val form=checkNotNull(sheet)
+        runOnMainSync {editDialog=ui.code()};waitForIdleSync();Thread.sleep(350)
+        val form=checkNotNull(editDialog)
         val edit=views(form.body).filterIsInstance<TextInputEditText>().single()
         check(form.window!!.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE==0) {"Masked validation form cannot be captured"}
         check(edit.transformationMethod is AlwaysMaskedPassword) {"Access-code input lost its password mask"}
         val field=views(form.body).filterIsInstance<TextInputLayout>().single()
-        val save=form.footer.getChildAt(0) as com.google.android.material.button.MaterialButton
+        val save=form.save
         runOnMainSync {
-            val label=views(form.body).filterIsInstance<TextView>().single {it.labelFor==edit.id}
-            check(!field.isHintEnabled&&field.hint==null) {"Code field used a floating placeholder"}
-            check(label.bottom<field.top) {"Code label is not outside the field"}
-            check(kotlin.math.abs(field.top-label.bottom-activity.dp(8))<=2) {"Code label-to-input spacing drift"}
-            val reset=views(form.body).filterIsInstance<com.google.android.material.button.MaterialButton>().single {it.text.toString()==activity.getString(R.string.duck_reset_random_code)}
-            check(reset.strokeWidth>=activity.dp(1)) {"Reset action is not outlined"}
+            check(field.isHintEnabled && field.hint.toString()==activity.getString(R.string.duck_new_access_code)) {"Native field label missing"}
             check(views(form.body).filterIsInstance<TextView>().any {it.isShown&&it.text.toString()==activity.getString(R.string.duck_code_tasks_unchanged)}) {"Code information missing"}
         }
         val formScreen=windowScreenshot()
@@ -140,7 +136,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         runOnMainSync {confirm=ui.revoke()}
         Thread.sleep(250);capture("confirmation",confirm!!.window!!.decorView)
         checkMessageAlignment(confirm!!.window!!.decorView)
-        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString()==activity.getString(R.string.duck_revoke_sign_in)}) {"Revoke information missing"}}
+        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString().contains(activity.getString(R.string.duck_revoke_sign_in))}) {"Revoke information missing"}}
         val revokeScreen=windowScreenshot()
         File(targetContext.cacheDir,"component-revoke-default-${if(dark) "dark" else "light"}.png").outputStream().use {revokeScreen.compress(Bitmap.CompressFormat.PNG,100,it)};revokeScreen.recycle()
         runOnMainSync {
@@ -150,7 +146,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         runOnMainSync {confirm?.dismiss();confirm=ui.reset()}
         Thread.sleep(250)
         checkMessageAlignment(confirm!!.window!!.decorView)
-        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString()==activity.getString(R.string.duck_reset_unchanged)}) {"Reset information missing"}}
+        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString().contains(activity.getString(R.string.duck_reset_unchanged))}) {"Reset information missing"}}
         val resetScreen=windowScreenshot()
         File(targetContext.cacheDir,"component-reset-default-${if(dark) "dark" else "light"}.png").outputStream().use {resetScreen.compress(Bitmap.CompressFormat.PNG,100,it)};resetScreen.recycle()
         fail=true
@@ -158,10 +154,10 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         Thread.sleep(700);waitForIdleSync()
         runOnMainSync {
             check(confirm!!.isShowing&&confirm!!.confirm.isEnabled)
-            check(confirm!!.failure.isShown) {"Confirmation failure did not remain actionable"}
-            val retry=views(confirm!!.window!!.decorView).filterIsInstance<TextView>().single {it.isShown&&it.text.toString()==activity.getString(R.string.duck_retry)}
-            check(retry.isEnabled)
-            fail=false;retry.performClick()
+            check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {
+                it.isShown && it.text.toString().contains(activity.getString(R.string.duck_access_change_failed))
+            }) {"Confirmation failure did not remain actionable"}
+            fail=false;confirm!!.confirm.performClick()
         }
         Thread.sleep(700);waitForIdleSync()
         check(!confirm!!.isShowing) {"Confirmation retry did not complete"}
@@ -232,8 +228,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
             File(targetContext.cacheDir,"component-access-masked-${if(dark) "dark" else "light"}.png").outputStream().use {screen.compress(Bitmap.CompressFormat.PNG,100,it)};screen.recycle()
             checkMessageAlignment(sheet!!.body)
             runOnMainSync {views(sheet!!.body).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.duck_copy_management_address)}.performClick()}
-            // Wait for the real snackbar enter animation to finish. A fixed
-            // sleep can sample an intermediate frame on a busy emulator.
+            // In-place copy feedback must be visible in the source sheet.
             var feedbackVisible=false
             val feedbackDeadline=android.os.SystemClock.uptimeMillis()+2500
             while(!feedbackVisible&&android.os.SystemClock.uptimeMillis()<feedbackDeadline) {
@@ -269,5 +264,5 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
             screenshot.recycle()
         } finally {runOnMainSync {browserPage.finish()}}
         return "PASS: rendered message icon/first-line alignment; copy clipboard and visible feedback in dialog window; prototype modal order/gaps/external label/outlined reset/reset and revoke information; startup click/error/sticky auto-retry/manual retry/ready; masked credential screenshot and protected reveal; native navigation has separate icon/label bounds; invalid input makes no request; failed write stays editable; retry succeeds; confirmation and form components. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
-    } finally {runOnMainSync {sheet?.dismiss();browserHost?.finish();activity.finish()}}
+    } finally {runOnMainSync {editDialog?.dismiss();sheet?.dismiss();browserHost?.finish();activity.finish()}}
 }

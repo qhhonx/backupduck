@@ -79,7 +79,7 @@ padding of general content cards. Keep headings and their content together;
 trailing actions must not change heading geometry.
 
 Apple preference rows use `DuckPreferenceMetrics`: 52 pt minimum on iPhone and
-48 pt on Mac. Descriptions, wrapping and accessibility text can increase height.
+41 pt on Mac. Descriptions, wrapping and accessibility text can increase height.
 Mac sections use `MacContentSection`: 24 pt between sections, a 32 pt minimum
 heading area, and 12 pt between heading and content. Content cards and preference
 groups have different padding contracts.
@@ -100,16 +100,22 @@ row metrics supply their spacing.
 
 ## Apple sheet chrome
 
-Shared sheets use `DuckSheetHeader`, including the activity-log sheet and desktop
-Help. Centre title text and the close glyph vertically in one row. Titles wrap
-without shrinking or clipping; close/back controls retain 44 pt targets on iPhone
-and 32 pt on Mac. Busy sheets retain the close target and disable dismissal.
+`DuckSheetLayout` follows `platform-expression.md` A0/A4. On iOS it owns a
+`NavigationStack`, an inline navigation title and system cancellation and
+confirmation toolbar items. iOS 26 uses the system close/confirm button roles;
+earlier versions use Cancel/Done. Fitted detents retain a large option for growing
+content. Background, corners and the drag indicator remain system-owned.
 
-Phone footer actions fill their available column, with centred labels. Two short
-actions share a row; narrow layouts or accessibility text stack them at full
-width. Use `DuckSheetAction` for detail actions instead of desktop-sized buttons.
-Mac footer actions retain their intrinsic widths and trailing alignment. The
-header and footer stay outside the scrolling body, including failure/retry states.
+On Mac, the title is bold semantic content text, forms use grouped `Form`, and
+native push buttons sit at the bottom trailing edge. Cancel uses the cancel
+keyboard shortcut; the default action is prominent and Return-activated. There
+is no close X or painted header/footer. Long explanations end with Done.
+
+A dirty name editor blocks interactive dismissal and offers a native discard
+confirmation from Cancel. Busy sheets disable dismissal. Errors use neutral
+semantic text with one small colored symbol, without a colored notice surface.
+`DuckSheetHeader` remains a compatibility adapter for standalone title content;
+new sheets use the complete layout so navigation owns its toolbar.
 
 ## Brand resources
 

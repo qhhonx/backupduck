@@ -13,6 +13,7 @@ struct MacHub: View {
   var sources: () -> Void
   var showTransfers: (String) -> Void
   @State private var offlineHelp = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
   private var connected: Bool { model.pairing != nil && model.ready }
@@ -20,6 +21,7 @@ struct MacHub: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: DuckSpacing.medium) {
+        if model.pairing != nil { devicePill }
         status
         if connected, let history = model.historicalImport, history.state != "idle" { earlier(history) }
         if connected, !recentSources.isEmpty {
@@ -33,10 +35,9 @@ struct MacHub: View {
       .padding(DuckSpacing.large)
       .frame(maxWidth: 680)
       .frame(maxWidth: .infinity)
-      .animation(.easeOut(duration: DuckMotion.text), value: model.hubStatus)
+      .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.text), value: model.hubStatus)
     }
     .background(DuckRole.background)
-    .toolbar { if model.pairing != nil { ToolbarItem(placement: .primaryAction) { devicePill } } }
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
   }
@@ -83,7 +84,9 @@ struct MacHub: View {
           ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
           : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })
     case .empty:
-      DuckEmptyState(pose: .empty, title: "hub_empty", note: "hub_empty_note")
+      DuckEmptyState(pose: .empty, title: "hub_empty", note: "hub_empty_note") {
+        Button("records_title") { showTransfers("all") }.buttonStyle(.bordered)
+      }
     }
   }
 
@@ -130,15 +133,16 @@ struct MacHub: View {
 
   private var offlineHelpSheet: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("hub_help_title").font(.title3.weight(.semibold))
+      Text("hub_help_title").font(.title2.bold())
       Label("hub_help_wifi_mac", systemImage: "wifi")
       Label("hub_help_running", systemImage: "iphone.gen3")
       Label("hub_help_vpn", systemImage: "lock.shield")
       HStack {
         Spacer()
-        Button("onboarding_later") { offlineHelp = false }
         Button("hub_help_check") { Task { await model.checkConnection(); offlineHelp = false } }
-          .buttonStyle(.borderedProminent).disabled(model.checkingConnection)
+          .buttonStyle(.bordered).disabled(model.checkingConnection)
+        Button("settings_done") { offlineHelp = false }
+          .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
       }.padding(.top, 8)
     }
     .padding(24).frame(width: 420)

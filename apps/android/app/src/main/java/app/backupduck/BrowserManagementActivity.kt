@@ -12,13 +12,17 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** RC.3 browser controls presented through the complete Android v1.2 flow. */
-class BrowserManagementActivity:AppCompatActivity() {
+class BrowserManagementActivity:BackupDuckActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
-        val access=DashboardAccessUI(this)
+        val feedback=lookText("",com.google.android.material.R.style.TextAppearance_Material3_BodyMedium).apply {
+            accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        val access=DashboardAccessUI(this, changed={feedback.text=it})
         nativeDetailPage(R.string.dashboard_section) {panel ->
             panel.addView(duckText(getString(R.string.duck_browser_intro),13,true),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(16)})
+            panel.addView(feedback)
             val group=duckGroup(panel)
             var applying=false
             val enabled=duckSwitch(ReceiverDashboardSettings.enabled(this)) {}

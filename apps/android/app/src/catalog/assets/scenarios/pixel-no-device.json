@@ -3,13 +3,18 @@
   "page": "receive",
   "title": "Receiving on, no device connected",
   "extends": "base",
+  "prefs": {
+    "first_run": {
+      "done": true
+    }
+  },
   "expect": [
-    "Pairing duck, one sentence and Connect a device. Recent items are hidden."
+    "First run is completed; the Receive hub shows a not-connected symbol, title, one sentence and Connect a device. Recent items are hidden."
   ],
   "actions": [
     {
       "action": "Tap Connect a device",
-      "result": "The pairing choice opens."
+      "result": "The shared connect screen opens."
     }
   ],
   "snapshot": {

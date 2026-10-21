@@ -57,6 +57,7 @@ class CleanupUnlockActivity : Activity() {
     private var requested = false
     private val requestID get() = intent.getStringExtra("request")
     override fun onCreate(savedInstanceState: Bundle?) {
+        DuckLook.applyScheme(this)
         super.onCreate(savedInstanceState)
         if (!CleanupUnlock.attach(requestID, this)) { finish(); return }
         val keyguard = getSystemService(KeyguardManager::class.java)

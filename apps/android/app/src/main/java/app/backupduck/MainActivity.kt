@@ -32,7 +32,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
 import org.json.JSONObject
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : BackupDuckActivity() {
     private val currentSettingValues=mutableListOf<Pair<TextView,()->String>>()
     private lateinit var pairingUI:PairingUI
 
@@ -88,12 +88,6 @@ class MainActivity : AppCompatActivity() {
             AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it))
         }
         super.onCreate(savedInstanceState)
-        // The redesigned pages (design/visual-language.md) use the generated Material 3 scheme.
-        if (look) {
-            DuckLook.applyScheme(this)
-            window.statusBarColor = getColor(R.color.duck_role_background)
-            window.navigationBarColor = getColor(R.color.duck_m3_surface_container)
-        }
         RelayMaintenance.schedule(this)
         devicePanels = DevicePanels(this) {
             if(::receiverHome.isInitialized) receiverHome.render(ReceiverState.snapshot.value,devicePanels.name,false)
@@ -109,24 +103,35 @@ class MainActivity : AppCompatActivity() {
         val canvas = getColor(if (look) R.color.duck_role_background else R.color.duck_surface)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         val toolbar = MaterialToolbar(this).apply {
-            title = getString(R.string.nav_receive)
-            // V2: the page title is Headline medium.
-            if (look) { setTitleTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_HeadlineMedium); setTitleTextColor(getColor(R.color.duck_role_primary_text)) }
-            else setTitleTextAppearance(this@MainActivity,R.style.DuckToolbarTitle)
-            setBackgroundColor(canvas); contentInsetStartWithNavigation=dp(16)
             menu.add(0,100,0,R.string.receiver_help_title).apply {
                 isVisible=false
                 setIcon(R.drawable.ic_info)
-                iconTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_text_secondary))
                 setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
             setOnMenuItemClickListener {if(selectedPage==2&&receivedPhotos==null)historyPage.showFilters();true}
         }
         titleBar = toolbar
-        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(if (look) 64 else 56)))
-        if (!look) root.addView(duckRule())
+        val coordinator = androidx.coordinatorlayout.widget.CoordinatorLayout(this)
+        val appBar = com.google.android.material.appbar.AppBarLayout(this)
+        val collapsing = com.google.android.material.appbar.CollapsingToolbarLayout(this, null,
+            com.google.android.material.R.attr.collapsingToolbarLayoutLargeStyle).apply {
+            title = getString(R.string.nav_receive)
+            minimumHeight = resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact)
+        }
+        toolbar.id = View.generateViewId()
+        collapsing.addView(toolbar, com.google.android.material.appbar.CollapsingToolbarLayout.LayoutParams(-1, resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact)).apply {
+            collapseMode = com.google.android.material.appbar.CollapsingToolbarLayout.LayoutParams.COLLAPSE_MODE_PIN
+        })
+        appBar.addView(collapsing, com.google.android.material.appbar.AppBarLayout.LayoutParams(-1, resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_large)).apply {
+            scrollFlags = com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+                com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED
+        })
+        coordinator.addView(appBar, androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(-1, -2))
         val host = FrameLayout(this)
-        root.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
+        coordinator.addView(host, androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(-1, -1).apply {
+            behavior = com.google.android.material.appbar.AppBarLayout.ScrollingViewBehavior()
+        })
+        root.addView(coordinator, LinearLayout.LayoutParams(-1, 0, 1f))
         historyPage = HistoryPage(this, history, receiverRoot)
         storagePage = StoragePage(this, receiverRoot, export = {
             showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
@@ -145,25 +150,18 @@ class MainActivity : AppCompatActivity() {
         val icons = listOf(R.drawable.ic_receiver, R.drawable.ic_transfers, R.drawable.ic_storage, R.drawable.ic_settings)
         navigation = BottomNavigationView(this).apply {
             id = R.id.main_navigation
-            labelVisibilityMode = NavigationBarView.LABEL_VISIBILITY_LABELED
-            isItemHorizontalTranslationEnabled = false
-            setBackgroundColor(getColor(if (look) R.color.duck_m3_surface_container else R.color.duck_subtle)); elevation=0f
-            itemIconSize=dp(22)
-            itemActiveIndicatorColor=android.content.res.ColorStateList.valueOf(getColor(if (look) R.color.duck_m3_secondary_container else R.color.duck_action_background))
-            itemActiveIndicatorWidth=dp(56);itemActiveIndicatorHeight=dp(32)
-            duckNavigation(this)
             navTitles.forEachIndexed { index, title -> if (!(proposed && index == 2)) menu.add(0, index + 1, index, title).setIcon(if (proposed && index == 1) R.drawable.ic_photo else icons[index]) }
             setOnItemSelectedListener { item ->
                 selectedPage = item.itemId
-                toolbar.setTitle(pageTitles[selectedPage - 1])
+                collapsing.title = getString(pageTitles[selectedPage - 1])
+                appBar.setExpanded(true, false)
                 toolbar.menu.findItem(100).apply {isVisible=selectedPage==2&&receivedPhotos==null;setIcon(R.drawable.ic_more);setTitle(R.string.duck_advanced_filters)}
                 pages.forEachIndexed { index, page -> page.visibility = if (index + 1 == selectedPage) View.VISIBLE else View.GONE }
                 if (selectedPage == 3) storagePage.refresh(force = true)
                 true
             }
         }
-        if (!look) root.addView(duckRule())
-        root.addView(navigation, LinearLayout.LayoutParams(-1, if(resources.configuration.fontScale>1.3f) -2 else dp(80)))
+        root.addView(navigation, LinearLayout.LayoutParams(-1, -2))
         setContentView(root)
         navigation.selectedItemId = selectedPage
         refreshDiscovery()
@@ -271,6 +269,7 @@ class MainActivity : AppCompatActivity() {
         outState.putString("connect.surface", when { connectPage?.isShowing == true -> connectPage?.flow?.surface; devicesPage?.isShowing == true -> "devices"; storageScreen?.isShowing == true -> "storage"; else -> null })
         super.onSaveInstanceState(outState)
     }
+    private var updateFeedback: android.widget.TextView? = null
     override fun onStart() {
         super.onStart()
         currentSettingValues.forEach {(view,value)->val next=value();if(view.text.toString()!=next)view.text=next}
@@ -282,7 +281,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 val next = withContext(Dispatchers.IO) { runCatching { AppUpdates.latest(this@MainActivity) }.getOrNull() }
                 if (next != null && !isFinishing && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                    duckAcknowledge(getString(R.string.updates_available,next.version)).setAction(R.string.updates_title) {startActivity(Intent(this@MainActivity,UpdatesActivity::class.java))}
+                    updateFeedback?.text = getString(R.string.updates_available,next.version)
                 }
             }
         }
@@ -411,19 +410,23 @@ class MainActivity : AppCompatActivity() {
     private fun chooseAppearance() {
         val modes=listOf(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,AppCompatDelegate.MODE_NIGHT_NO,AppCompatDelegate.MODE_NIGHT_YES)
         val labels=listOf(R.string.appearance_system,R.string.appearance_light,R.string.appearance_dark)
-        val sheet=DuckSheet(this,getString(R.string.settings_appearance))
-        val choices=duckGroup(sheet.body)
-        labels.forEachIndexed { i,label -> receiverSetting(choices,getString(label),control=if(delegate.localNightMode==modes[i]) duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
-            sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putInt("mode",modes[i]).apply();delegate.localNightMode=modes[i]
-        } };sheet.show()
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.settings_appearance)
+            .setSingleChoiceItems(labels.map {getString(it)}.toTypedArray(), modes.indexOf(delegate.localNightMode)) { dialog, index ->
+                dialog.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putInt("mode",modes[index]).apply();delegate.localNightMode=modes[index]
+            }.setNegativeButton(R.string.device_cancel, null).show()
     }
     private fun chooseLanguage() {
         val language=currentLanguageTag()
-        val sheet=DuckSheet(this,getString(R.string.duck_language))
-        val choices=duckGroup(sheet.body)
-        listOf("" to getString(R.string.appearance_system),"zh-CN" to "简体中文","en" to "English").forEach { (tag,label) -> receiverSetting(choices,label,control=if(language.equals(tag,true))duckPill(getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background) else duckText("",13)) {
-            sheet.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply();AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
-        } };sheet.show()
+        val tags=listOf("", "zh-CN", "en")
+        val labels=arrayOf(getString(R.string.appearance_system), "简体中文", "English")
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.duck_language)
+            .setSingleChoiceItems(labels, tags.indexOfFirst {language.equals(it,true)}) { dialog, index ->
+                val tag=tags[index]
+                dialog.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply()
+                AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
+            }.setNegativeButton(R.string.device_cancel, null).show()
     }
     /** Settings per design/settings.md in Material 3, built from the shared components; shown by the design catalog until migration step 6. */
     private fun proposedDesignPage(): View = scrollPage { panel ->
@@ -461,7 +464,9 @@ class MainActivity : AppCompatActivity() {
         footer.addView(lookText(getString(R.string.pref_version,receiverDisplayVersion()),com.google.android.material.R.style.TextAppearance_Material3_BodySmall,secondary=true))
         val links=FlowRow(this,0)
         fun link(text:Int,action:()->Unit)=links.addView(lookButton(getString(text),LookButton.TEXT,action=action))
-        link(R.string.pref_check_updates) {startActivity(Intent(this@MainActivity,UpdatesActivity::class.java))}
+        updateFeedback = lookButton(getString(R.string.pref_check_updates), LookButton.TEXT) {
+            startActivity(Intent(this@MainActivity, UpdatesActivity::class.java))
+        }.also { links.addView(it) }
         link(R.string.pref_diagnostics) {showReportExport(false)}
         link(R.string.pref_advanced) {proposedAdvancedPage()}
         footer.addView(links,LinearLayout.LayoutParams(-2,-2))
@@ -532,7 +537,7 @@ class MainActivity : AppCompatActivity() {
     private fun reportResult(success:Boolean) {
         val page=reportPage?.takeIf {it.isShowing} ?: return
         page.body.removeAllViews()
-        if(success) {duckNotice(page.body,getString(R.string.duck_export_report_success));duckAcknowledge(getString(R.string.duck_export_report_success),page.body)}
+        if(success) {duckNotice(page.body,getString(R.string.duck_export_report_success))}
         else {
             duckProblem(page.body,getString(R.string.duck_export_report_failure))
             page.body.addView(duckButton(getString(R.string.duck_retry)) {

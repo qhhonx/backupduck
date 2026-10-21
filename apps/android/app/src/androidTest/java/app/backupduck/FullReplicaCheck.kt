@@ -44,7 +44,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
     fun config()=(NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",settingsRoot)) as JSONObject).getJSONObject("settings")
     val oldConfig=config();val oldName=DeviceProfiles.read(targetContext).getJSONObject("device").getString("name")
     val oldThermal=ReceiverThermalSettings.enabled(targetContext);val oldThreshold=ReceiverThermalSettings.threshold(targetContext);val oldConversion=MotionConversionSettings.enabled(targetContext)
-    var current:android.app.Dialog?=null
+    var current:android.content.DialogInterface?=null
     try {
         settle()
         var starts=0
@@ -124,7 +124,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
         main {
             // Theme changes can recreate the host while a previously closed
             // dialog remains referenced by this check. Only dismiss attached windows.
-            current?.takeIf {it.window?.decorView?.isAttachedToWindow==true}?.dismiss()
+            current?.dismiss()
             activity.finish()
         }
     }

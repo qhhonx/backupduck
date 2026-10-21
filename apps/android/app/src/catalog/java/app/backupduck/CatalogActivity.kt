@@ -32,7 +32,7 @@ class CatalogApplication : Application() {
  * opens a scenario directly; `--es appearance dark|light` sets the appearance and
  * `--es language zh-CN` the language.
  */
-class CatalogActivity : AppCompatActivity() {
+class CatalogActivity : BackupDuckActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val scenarios = runCatching { CatalogRuntime.loadAll(this) }

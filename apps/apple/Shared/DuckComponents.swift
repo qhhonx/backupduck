@@ -6,7 +6,7 @@ enum DuckPreferenceMetrics {
   #if os(iOS)
   static let rowHeight: CGFloat = 52
   #else
-  static let rowHeight: CGFloat = 48
+  static let rowHeight: CGFloat = 41
   #endif
   static let desktopControlHeight: CGFloat = 24
   static let desktopVerticalInset: CGFloat = (rowHeight - desktopControlHeight) / 2
@@ -30,8 +30,7 @@ struct DuckSurface<Content: View>: View {
   @ViewBuilder var content: () -> Content
   var body: some View {
     content().padding(contentInsets).frame(maxWidth: .infinity, alignment: .leading)
-      .background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 16))
-      .overlay { RoundedRectangle(cornerRadius: 16).stroke(DuckColors.border, lineWidth: 1) }
+      .background(DuckRole.groupedSurface, in: RoundedRectangle(cornerRadius: DuckLook.cardRadius))
   }
 }
 
@@ -39,22 +38,14 @@ enum DuckTone {
   case action, saved, attention, failure, neutral
   var color: Color {
     switch self {
-    case .action: return DuckColors.action
-    case .saved: return DuckColors.saved
-    case .attention: return DuckColors.attention
-    case .failure: return DuckColors.failure
-    case .neutral: return DuckColors.textSecondary
+    case .action: return DuckRole.accent
+    case .saved: return DuckRole.saved
+    case .attention: return DuckRole.attention
+    case .failure: return DuckRole.failure
+    case .neutral: return DuckRole.secondaryText
     }
   }
-  var background: Color {
-    switch self {
-    case .action: return DuckColors.actionBackground
-    case .saved: return DuckColors.savedBackground
-    case .attention: return DuckColors.attentionBackground
-    case .failure: return DuckColors.failureBackground
-    case .neutral: return DuckColors.subtle
-    }
-  }
+
 }
 
 struct DuckStatusBadge: View {
@@ -62,9 +53,10 @@ struct DuckStatusBadge: View {
   let symbol: String
   let tone: DuckTone
   var body: some View {
-    Label(text, systemImage: symbol).font(.caption.weight(.medium))
-      .foregroundStyle(tone.color).padding(.horizontal, 8).padding(.vertical, 5)
-      .background(tone.background, in: RoundedRectangle(cornerRadius: 7))
+    HStack(spacing: DuckSpacing.xxSmall) {
+      Image(systemName: symbol).foregroundStyle(tone.color).accessibilityHidden(true)
+      Text(text).foregroundStyle(.primary)
+    }.font(.caption.weight(.medium)).accessibilityElement(children: .combine)
   }
 }
 
@@ -109,7 +101,7 @@ struct DuckBackupProgress: View {
   #endif
   @ViewBuilder private var progressTitle: some View {
     #if os(iOS)
-    Text(title).iosPrototypeText(size: sectionSize, weight: .semibold, lineHeight: 1.4)
+    Text(title).font(.headline.weight(.semibold))
     #else
     Text(title).font(.headline)
     #endif
@@ -129,10 +121,10 @@ struct DuckBackupProgress: View {
       DuckSurface {
       VStack(alignment: .leading, spacing: 16) {
         VStack(alignment: .leading, spacing: 6) {
-          Text(model.summary.published.formatted()).font(.system(size: countSize, weight: .semibold)).monospacedDigit()
+          Text(model.summary.published.formatted()).font(.largeTitle.weight(.semibold)).monospacedDigit()
           Text(String(format: NSLocalizedString("design_saved_of", comment: ""), model.summary.total))
             #if os(iOS)
-              .iosPrototypeText(size: captionSize, lineHeight: 1.6)
+              .font(.footnote)
             #else
               .font(.callout)
             #endif
@@ -146,7 +138,7 @@ struct DuckBackupProgress: View {
             model.summary.count(for: "active"),
             model.summary.failed + model.summary.publication_failed))
             #if os(iOS)
-              .iosPrototypeText(size: bodySize)
+              .font(.body)
             #else
               .font(.caption)
             #endif
@@ -213,20 +205,20 @@ struct DuckBackupProgress: View {
     DuckSurface {
       VStack(alignment: .leading, spacing: 0) {
         HStack(alignment: .center) {
-          Text(title).font(.system(size: 16, weight: .semibold))
+          Text(title).font(.headline.weight(.semibold))
           Spacer()
           BackupStatusIndicator(model: model, compactMac: true, actionTitle: macPhase)
         }.frame(minHeight: 24).padding(.bottom, 12)
         VStack(alignment: .leading, spacing: 10) {
-          Text(model.summary.published.formatted()).font(.system(size: countSize, weight: .semibold)).monospacedDigit()
+          Text(model.summary.published.formatted()).font(.largeTitle.weight(.semibold)).monospacedDigit()
           Text(String(format: NSLocalizedString("design_saved_of", comment: ""), model.summary.total))
-            .font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)
+            .font(.body).foregroundStyle(DuckColors.textSecondary)
         }.padding(.top, 20).padding(.bottom, 8)
         if showsTrack { DuckProgressTrack(fraction: fraction, height: 6).padding(.vertical, 20) }
         Text(String(format: NSLocalizedString("design_in_progress", comment: ""),
           model.summary.count(for: "active"),
           model.summary.failed + model.summary.publication_failed))
-          .font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary).frame(minHeight: 23, alignment: .leading)
+          .font(.body).foregroundStyle(DuckColors.textSecondary).frame(minHeight: 23, alignment: .leading)
         DuckActions(alignment: .trailing) {
           Button { Task { await model.setPaused(!model.paused) } } label: {
             Label(LocalizedStringKey(model.paused ? "resume_backup" : "pause_backup"), systemImage: model.paused ? "play" : "pause")
@@ -324,7 +316,7 @@ struct DuckRecentTransfers: View {
       HStack {
         Text("design_recent_transfers")
           #if os(iOS)
-          .iosPrototypeText(size: sectionSize, weight: .semibold, lineHeight: 1.4)
+          .font(.headline.weight(.semibold))
           #else
           .font(.headline)
           #endif
@@ -380,46 +372,51 @@ struct DuckActions<Content: View>: View {
     .frame(maxWidth: .infinity, alignment: alignment == .trailing ? .trailing : .leading)
   }
 }
+private struct DuckSheetActionsKey: EnvironmentKey {
+  static let defaultValue = false
+}
+extension EnvironmentValues {
+  var duckSheetActions: Bool {
+    get { self[DuckSheetActionsKey.self] }
+    set { self[DuckSheetActionsKey.self] = newValue }
+  }
+}
+
 extension View {
-  func duckAction() -> some View {
+  func duckAction() -> some View { controlSize(.regular).tint(DuckRole.accent) }
+  func duckPrimaryAction() -> some View { modifier(DuckNativeAction(primary: true)) }
+  func duckSecondaryAction() -> some View { modifier(DuckNativeAction(primary: false)) }
+}
+
+private struct DuckNativeAction: ViewModifier {
+  var primary: Bool
+  @Environment(\.duckSheetActions) private var sheet
+  @ViewBuilder func body(content: Content) -> some View {
     #if os(iOS)
-      return self.controlSize(.large).tint(DuckColors.action).frame(minHeight: 44)
+    if sheet { content.buttonStyle(.automatic) }
+    else if primary { content.buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accent) }
+    else { content.buttonStyle(.bordered).controlSize(.small).tint(DuckRole.accent) }
     #else
-      return self.controlSize(.regular).font(.system(size: 14)).tint(DuckColors.action).frame(minHeight: 32)
+    if primary && sheet {
+      content.buttonStyle(.borderedProminent).controlSize(.regular).keyboardShortcut(.defaultAction)
+    } else if primary {
+      content.buttonStyle(.borderedProminent).controlSize(.regular)
+    } else {
+      content.buttonStyle(.bordered).controlSize(sheet ? .regular : .small)
+    }
     #endif
   }
 }
 
 #if os(macOS)
-struct DuckDesktopActionStyle: ButtonStyle {
+/// Compatibility for callers: AppKit owns drawing, focus and pressed states.
+struct DuckDesktopActionStyle: PrimitiveButtonStyle {
   var prominent = false
-  @Environment(\.isEnabled) private var enabled
   func makeBody(configuration: Configuration) -> some View {
-    configuration.label.font(.system(size: 14, weight: .medium))
-      .padding(.horizontal, 14).frame(minHeight: 32)
-      .foregroundStyle(prominent ? Color.white : DuckColors.action)
-      .background(prominent ? DuckColors.action : DuckColors.subtle, in: RoundedRectangle(cornerRadius: 8))
-      .opacity(enabled ? (configuration.isPressed ? 0.72 : 1) : 0.4)
-      .contentShape(RoundedRectangle(cornerRadius: 8))
+    Button(configuration).modifier(DuckNativeAction(primary: prominent))
   }
 }
 #endif
-extension View {
-  func duckPrimaryAction() -> some View {
-    #if os(macOS)
-    self.buttonStyle(DuckDesktopActionStyle(prominent: true)).duckAction()
-    #else
-    self.buttonStyle(.borderedProminent).buttonBorderShape(.roundedRectangle).foregroundStyle(DuckColors.canvas).duckAction()
-    #endif
-  }
-  func duckSecondaryAction() -> some View {
-    #if os(macOS)
-    self.buttonStyle(DuckDesktopActionStyle()).duckAction()
-    #else
-    self.buttonStyle(.bordered).buttonBorderShape(.roundedRectangle).foregroundStyle(DuckColors.action).duckAction()
-    #endif
-  }
-}
 
 /// Explanations and failures remain in the window where the action happened.
 struct DuckNotice: View {
@@ -427,50 +424,19 @@ struct DuckNotice: View {
   var message: LocalizedStringKey? = nil
   var tone: DuckTone = .neutral
   var symbol: String = "info.circle"
-  #if os(iOS)
-  @ScaledMetric(relativeTo: .body) private var titleSize = 16
-  @ScaledMetric(relativeTo: .callout) private var messageSize = 14
-  #endif
   var body: some View {
-    HStack(alignment: noticeAlignment, spacing: 10) {
-      Image(systemName: symbol).foregroundStyle(tone.color)
-        #if os(macOS)
-          .font(.system(size: 16)).frame(width: 18)
-        #else
-          .font(.system(size: titleSize, weight: .regular)).frame(width: titleSize)
-        #endif
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 6) {
-        #if os(iOS)
-        Text(title).iosPrototypeText(size: titleSize, weight: .semibold, lineHeight: 1.6)
-        if let message { Text(message).iosPrototypeText(size: messageSize, lineHeight: 1.6).foregroundStyle(DuckColors.textSecondary) }
-        #else
-        Text(title).font(.system(size: 14))
-        if let message { Text(message).font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary) }
-        #endif
+    HStack(alignment: .firstTextBaseline, spacing: DuckSpacing.xSmall) {
+      Image(systemName: symbol).font(.body).foregroundStyle(tone.color).accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
+        Text(title).font(.body).foregroundStyle(.primary)
+        if let message { Text(message).font(.callout).foregroundStyle(.secondary) }
       }.fixedSize(horizontal: false, vertical: true)
-    }.frame(maxWidth: .infinity, alignment: .leading).padding(noticeInset)
-      .background(tone.background, in: RoundedRectangle(cornerRadius: 12))
+    }.frame(maxWidth: .infinity, alignment: .leading)
       .accessibilityElement(children: .combine)
-  }
-  private var noticeAlignment: VerticalAlignment {
-    #if os(iOS)
-    .firstTextBaseline
-    #else
-    .firstTextBaseline
-    #endif
-  }
-  private var noticeInset: CGFloat {
-    #if os(macOS)
-    12
-    #else
-    14
-    #endif
   }
 }
 
-/// Shared sheet chrome keeps title text and the close glyph vertically centred.
-/// The text may wrap; close and back retain their platform-sized hit targets.
+/// Standalone header uses the system navigation bar on iOS; Mac titles are content.
 struct DuckSheetHeader: View {
   let title: LocalizedStringKey
   var busy = false
@@ -478,52 +444,58 @@ struct DuckSheetHeader: View {
   var titleIdentifier = "sheet.title"
   var closeIdentifier = "sheet.close"
   var close: () -> Void
-  #if os(iOS)
-  @ScaledMetric(relativeTo: .title2) private var titleSize = 22
-  #endif
   var body: some View {
-    HStack(alignment: .center, spacing: 12) {
-      if let back {
-        Button(action: back) { Image(systemName: "chevron.left").frame(width: closeSize,height: closeSize) }
-          .buttonStyle(.plain).foregroundStyle(DuckColors.action)
-          .accessibilityLabel(Text("mac_fidelity_back")).accessibilityIdentifier("scope.back")
-      }
-      Group {
-        #if os(iOS)
-        Text(title).iosPrototypeText(size: titleSize,weight: .bold,lineHeight: 1.3)
-        #else
-        Text(title).font(.title2.weight(.semibold))
-        #endif
-      }.fixedSize(horizontal: false,vertical: true)
-        .frame(maxWidth: .infinity,alignment: .leading).accessibilityIdentifier(titleIdentifier)
-      Button(action: close) {
-        Image(systemName: "xmark")
-          #if os(iOS)
-          .font(.system(size: 22)).foregroundStyle(DuckColors.action)
-          #endif
-          .frame(width: closeSize,height: closeSize).contentShape(Rectangle())
-      }.buttonStyle(.plain).duckAction().accessibilityLabel(Text("close"))
-        .accessibilityIdentifier(closeIdentifier).disabled(busy)
-    }.padding(20)
-  }
-  private var closeSize: CGFloat {
     #if os(iOS)
-    44
+    Color.clear.frame(height: 0)
+      .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          DuckSheetDismissButton(action: close).disabled(busy).accessibilityIdentifier(closeIdentifier)
+        }
+      }
     #else
-    32
+    Text(title).font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .leading).padding(DuckSpacing.large)
+      .accessibilityIdentifier(titleIdentifier)
     #endif
   }
 }
 
+#if os(iOS)
+struct DuckSheetDismissButton: View {
+  var title: LocalizedStringKey = "cancel"
+  var action: () -> Void
+  var body: some View {
+    if #available(iOS 26.0, *) {
+      Button(role: .close, action: action)
+    } else {
+      Button(title, action: action)
+    }
+  }
+}
+struct DuckSheetConfirmButton: View {
+  let title: LocalizedStringKey
+  var action: () -> Void
+  var body: some View {
+    if #available(iOS 26.0, *) {
+      Button(role: .confirm, action: action)
+        .accessibilityLabel(Text(title))
+    } else {
+      Button("settings_done", action: action).accessibilityLabel(Text(title))
+    }
+  }
+}
+#endif
+
 /// Sheet actions fill their phone column; desktop actions keep intrinsic width.
 struct DuckSheetAction: View {
   let title: LocalizedStringKey
-  var primary = false
+  var primary = true
   var action: () -> Void
   var body: some View {
     #if os(iOS)
-    Button(action: action) { Text(title).frame(maxWidth: .infinity) }
-      .iosPrototypeAction(primary: primary)
+    if primary { DuckSheetConfirmButton(title: title, action: action) }
+    else { Button(title, action: action) }
     #else
     if primary { Button(title,action: action).duckPrimaryAction() }
     else { Button(title,action: action).duckSecondaryAction() }
@@ -531,8 +503,7 @@ struct DuckSheetAction: View {
   }
 }
 
-/// Native sheet contract: stable header, scrollable content, fixed action region.
-/// Uses system presentation/material rather than embedding a web prototype.
+/// A0/A4: the system owns the sheet frame and controls on both platforms.
 struct DuckSheetLayout<Content: View, Actions: View>: View {
   let title: LocalizedStringKey
   var busy = false
@@ -542,70 +513,75 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   var desktopIdealHeight: CGFloat = 560
   var back: (() -> Void)? = nil
   var expandable = true
+  var closeOnly = false
+  var form = false
+  var cancel: (() -> Void)? = nil
   @ViewBuilder var content: () -> Content
   @ViewBuilder var actions: () -> Actions
   @Environment(\.dismiss) private var dismiss
   @Environment(\.dynamicTypeSize) private var textSize
   #if os(iOS)
   @State private var measuredHeights: [String: CGFloat] = [:]
-  @State private var selectedDetent: PresentationDetent = .height(560)
   private var fittedHeight: CGFloat {
-    guard measuredHeights["body"] != nil else { return 560 }
-    return min(max(220, measuredHeights.values.reduce(0, +) + 12), UIScreen.main.bounds.height * 0.92 - 34)
+    guard let body = measuredHeights["body"] else { return 560 }
+    return min(max(220, body + 76), UIScreen.main.bounds.height * 0.85)
   }
   #endif
-  var body: some View {
-    VStack(spacing: 0) {
-      DuckSheetHeader(title: title,busy: busy,back: back,close: { dismiss() })
-      #if os(iOS)
-        .duckSheetMeasure("header")
-      #endif
-      Divider()
+  private var sheetContent: some View {
+    VStack(alignment: .leading, spacing: DuckSpacing.medium) {
       if let error {
         DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
-          .textSelection(.enabled).padding(.horizontal, 20).padding(.top, 12)
-          .accessibilityIdentifier("sheet.error")
-          #if os(iOS)
-            .duckSheetMeasure("error")
-          #endif
+          .textSelection(.enabled).accessibilityIdentifier("sheet.error")
       }
-      ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-          content()
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(20)
-        #if os(iOS)
-          .duckSheetMeasure("body")
-        #endif
-      }
-      Divider()
-      DuckActions(alignment: footerAlignment, content: actions).padding(20)
-      #if os(iOS)
-        .duckSheetMeasure("actions")
-      #endif
-    }.background(DuckColors.surface).tint(DuckColors.action)
-      #if os(iOS)
-        .foregroundStyle(DuckColors.text)
-      #endif
-      .interactiveDismissDisabled(busy)
-      #if os(macOS)
-        .background(MacSheetInitialFocus().frame(width: 0, height: 0))
-        .frame(width: desktopWidth)
-        .frame(minHeight: desktopMinHeight, idealHeight: desktopIdealHeight, maxHeight: 760)
-      #else
-        .presentationDetents(textSize.isAccessibilitySize ? [.large] : expandable ? [.height(fittedHeight), .large] : [.height(fittedHeight)], selection: $selectedDetent)
-        .presentationDragIndicator(expandable ? .visible : .hidden)
-        .presentationCornerRadius(20).iosPrototypeSheetHost()
-        .onPreferenceChange(DuckSheetHeightPreference.self) { values in
-          measuredHeights = values
-          selectedDetent = textSize.isAccessibilitySize ? .large : .height(fittedHeight)
-        }
-      #endif
+      content()
+    }.frame(maxWidth: .infinity, alignment: .leading)
   }
-  private var footerAlignment: HorizontalAlignment {
-    #if os(macOS)
-    .trailing
+  var body: some View {
+    #if os(iOS)
+    NavigationStack {
+      ScrollView { sheetContent.padding(DuckSpacing.medium).duckSheetMeasure("body") }
+      .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: closeOnly ? .confirmationAction : .cancellationAction) {
+          DuckSheetDismissButton(title: closeOnly ? "settings_done" : "cancel", action: { (cancel ?? { dismiss() })() })
+            .disabled(busy).accessibilityIdentifier("sheet.close")
+        }
+        ToolbarItemGroup(placement: .navigation) {
+          if let back { Button("mac_fidelity_back", action: back) }
+        }
+        ToolbarItemGroup(placement: .confirmationAction) {
+          actions().environment(\.duckSheetActions, true)
+        }
+      }
+    }
+    .interactiveDismissDisabled(busy)
+    .presentationDetents(textSize.isAccessibilitySize ? [.large] : expandable ? [.height(fittedHeight), .large] : [.height(fittedHeight)])
+    .iosPrototypeSheetHost()
+    .onPreferenceChange(DuckSheetHeightPreference.self) { measuredHeights = $0 }
     #else
-    .leading
+    VStack(alignment: .leading, spacing: DuckSpacing.medium) {
+      HStack {
+        if let back { Button("mac_fidelity_back", action: back).buttonStyle(.bordered) }
+        Text(title).font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
+          .accessibilityIdentifier("sheet.title")
+      }
+      if form {
+        Form {
+          if let error { DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle") }
+          content()
+        }.formStyle(.grouped)
+      } else { ScrollView { sheetContent } }
+      HStack {
+        Spacer(minLength: 0)
+        if let cancel {
+          Button("cancel", action: cancel).buttonStyle(.bordered).keyboardShortcut(.cancelAction).disabled(busy)
+        }
+        actions().environment(\.duckSheetActions, true)
+      }.controlSize(.regular)
+    }.padding(DuckSpacing.large)
+      .frame(width: desktopWidth)
+      .frame(minHeight: desktopMinHeight, idealHeight: desktopIdealHeight, maxHeight: 760)
+      .interactiveDismissDisabled(busy)
     #endif
   }
 }
@@ -623,19 +599,19 @@ struct DuckSelectedBackup: View {
   @ScaledMetric(relativeTo: .caption) private var captionSize = 13
   #endif
   var body: some View {
-    DuckSheetLayout(title: "backup_selected_confirm_title", busy: busy, error: error, desktopMinHeight: 360, desktopIdealHeight: 420) {
+    DuckSheetLayout(title: "backup_selected_confirm_title", busy: busy, error: error, desktopMinHeight: 360, desktopIdealHeight: 420, cancel: { dismiss() }) {
       #if os(iOS)
-      Text(String(format: NSLocalizedString("apple_selected_items", comment: ""), count)).iosPrototypeText(size: bodySize)
+      Text(String(format: NSLocalizedString("apple_selected_items", comment: ""), count)).font(.body)
       Toggle(isOn: $rebackup) {
         VStack(alignment: .leading, spacing: 5) {
-          Text("backup_selected_rebackup_received").iosPrototypeText(size: bodySize, weight: .semibold)
+          Text("backup_selected_rebackup_received").font(.body.weight(.semibold))
         }
-      }.toggleStyle(IOSCheckboxToggleStyle()).disabled(busy).accessibilityIdentifier("selection.force_resend")
+      }.toggleStyle(.switch).disabled(busy).accessibilityIdentifier("selection.force_resend")
       #else
-      Text(String(format: NSLocalizedString("apple_selected_items", comment: ""), count)).font(.system(size: 16, weight: .semibold))
+      Text(String(format: NSLocalizedString("apple_selected_items", comment: ""), count)).font(.headline.weight(.semibold))
       HStack(alignment: .center, spacing: 14) {
         VStack(alignment: .leading, spacing: 5) {
-          Text("backup_selected_rebackup_received").font(.system(size: 14, weight: .semibold))
+          Text("backup_selected_rebackup_received").font(.body.weight(.semibold))
         }.frame(maxWidth: .infinity, alignment: .leading)
         Toggle("backup_selected_rebackup_received", isOn: $rebackup).labelsHidden().toggleStyle(.checkbox)
           .disabled(busy).accessibilityIdentifier("selection.force_resend")
@@ -643,9 +619,9 @@ struct DuckSelectedBackup: View {
       #endif
       Text(LocalizedStringKey(rebackup ? "backup_selected_rebackup_note" : "backup_selected_confirm_note"))
         #if os(iOS)
-        .iosPrototypeText(size: captionSize, lineHeight: 1.6)
+        .font(.footnote)
         #else
-        .font(.system(size: 12))
+        .font(.caption)
         #endif
         .foregroundStyle(DuckColors.textSecondary).fixedSize(horizontal: false, vertical: true)
       if busy {
@@ -655,14 +631,9 @@ struct DuckSelectedBackup: View {
       }
     } actions: {
       #if os(iOS)
-      Button { dismiss() } label: { Text("cancel").frame(maxWidth: .infinity) }
-        .iosPrototypeAction().disabled(busy).keyboardShortcut(.cancelAction)
-      Button(action: submit) { Text("backup_selected_confirm_action").frame(maxWidth: .infinity) }
-        .iosPrototypeAction(primary: true).disabled(count == 0 || busy)
+      DuckSheetConfirmButton(title: "backup_selected_confirm_action", action: submit).disabled(count == 0 || busy)
         .accessibilityIdentifier("selection.confirm")
       #else
-      Button("cancel") { dismiss() }.duckSecondaryAction()
-        .disabled(busy).keyboardShortcut(.cancelAction)
       Button("backup_selected_confirm_action", action: submit)
         .duckPrimaryAction().disabled(count == 0 || busy)
         .accessibilityIdentifier("selection.confirm")
@@ -705,7 +676,7 @@ struct DuckPairingSteps: View {
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       Text(number.formatted())
         #if os(iOS)
-          .font(.system(size: 14, weight: .semibold))
+          .font(.body.weight(.semibold))
         #else
           .font(.callout.weight(.semibold))
         #endif
@@ -714,8 +685,8 @@ struct DuckPairingSteps: View {
         .foregroundStyle(DuckColors.action)
       VStack(alignment: .leading, spacing: 6) {
         #if os(iOS)
-        Text(title).iosPrototypeText(size: titleSize, weight: .semibold)
-        Text(note).iosPrototypeText(size: detailSize, lineHeight: 1.6).foregroundStyle(DuckColors.textSecondary)
+        Text(title).font(.title2.weight(.semibold))
+        Text(note).font(.subheadline).foregroundStyle(DuckColors.textSecondary)
           .fixedSize(horizontal: false, vertical: true)
         #else
         Text(title).font(.headline)
@@ -740,9 +711,9 @@ struct DuckReceiverSummary: View {
     #if os(iOS)
     DuckSurface {
       VStack(alignment: .leading, spacing: 16) {
-        Text(model.peerDevice?.name ?? NSLocalizedString("receiver_paired", comment: "")).iosPrototypeText(size: titleSize, weight: .semibold, lineHeight: 1.4)
-        Text("receiver_address").iosPrototypeText(size: captionSize, lineHeight: 1.6).foregroundStyle(DuckColors.textSecondary)
-        if let pairing = model.pairing { Text(pairing.endpoint).iosPrototypeText(size: bodySize).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+        Text(model.peerDevice?.name ?? NSLocalizedString("receiver_paired", comment: "")).font(.title2.weight(.semibold))
+        Text("receiver_address").font(.footnote).foregroundStyle(DuckColors.textSecondary)
+        if let pairing = model.pairing { Text(pairing.endpoint).font(.body).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
       }
     }
     #else
@@ -796,7 +767,7 @@ struct DuckPhotoDetail: View {
   @ObservedObject private var policy = PreviewNetworkPolicy.shared
   init(asset: PHAsset) { self.asset = asset; _preview = StateObject(wrappedValue: MediaPreviewModel(asset: asset)) }
   var body: some View {
-    DuckSheetLayout(title: "apple_photo_detail") {
+    DuckSheetLayout(title: "apple_photo_detail", closeOnly: true) {
       if let image = preview.image {
         #if os(macOS)
         Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 300)
@@ -807,7 +778,11 @@ struct DuckPhotoDetail: View {
       else if preview.loading { DuckLoadingState("library_loading") }
       PhotoMetadataPanel(preview: preview)
       DuckNotice(title: "apple_photo_source_note", symbol: "cloud")
-    } actions: { DuckSheetAction(title: "settings_done") { dismiss() } }
+    } actions: {
+      #if os(macOS)
+      DuckSheetAction(title: "settings_done") { dismiss() }
+      #endif
+    }
       .task(id: asset.localIdentifier) { preview.load(asset); preview.loadMetadata() }
       .onChange(of: policy.choice) { _, _ in preview.load(); preview.loadMetadata() }
       .onDisappear { preview.cancel() }

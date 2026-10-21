@@ -150,8 +150,17 @@ internal class StateCard(private val context: Context) {
         words.addView(title)
         words.addView(note, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_xx_small) })
         words.addView(reading, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.token(R.dimen.duck_space_x_small) })
-        words.addView(bar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
+        // I3 Working: progress updates inside one fixed slot; absent content reserves no rows.
+        words.addView(bar, LinearLayout.LayoutParams(-1, context.dp(3)).apply { topMargin = context.token(R.dimen.duck_space_small) })
         words.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
+    }
+
+    fun actionFeedback(message: String, failed: Boolean) {
+        note.text = message; note.visibility = View.VISIBLE
+        if (failed) {
+            glyph.setImageResource(R.drawable.ic_alert)
+            glyph.imageTintList = ColorStateList.valueOf(context.getColor(R.color.duck_state_failure))
+        }
     }
 
     fun show(state: LookState) {
@@ -163,10 +172,10 @@ internal class StateCard(private val context: Context) {
         glyph.setImageResource(state.glyph); glyph.imageTintList = ColorStateList.valueOf(state.tint)
         title.text = state.title
         note.text = state.note; note.visibility = if (state.note.isNullOrEmpty()) View.GONE else View.VISIBLE
-        reading.text = state.reading; reading.visibility = if (state.reading == null) View.GONE else View.VISIBLE
+        reading.text = state.reading; reading.visibility = if (state.reading.isNullOrEmpty()) View.GONE else View.VISIBLE
         bar.visibility = if (state.progress == null) View.GONE else View.VISIBLE
         actions.removeAllViews()
-        actionButton = state.action?.let { (label, run) -> context.lookButton(label, LookButton.TONAL, action = run).also { actions.addView(it) } }
+        actionButton = state.action?.let { (label, run) -> context.lookButton(label, LookButton.TONAL, action = run).also { it.tag = this; actions.addView(it) } }
         state.secondary?.let { (label, run) -> actions.addView(context.lookButton(label, LookButton.TEXT, action = run)) }
         actions.visibility = if (actions.childCount == 0) View.GONE else View.VISIBLE
         // I7: a state change fades in place over the text duration; Reduce Motion adopts it at once.
@@ -179,9 +188,19 @@ internal class StateCard(private val context: Context) {
 
 /** An empty state (I3): the duck, a neutral title, one sentence and at most one action. Never used for problems (V6). */
 internal fun Context.lookEmpty(parent: ViewGroup, @DrawableRes duck: Int, title: String, note: String?,
-    action: Pair<String, () -> Unit>? = null, card: Boolean = true): LinearLayout {
-    val box = if (card) lookCard(parent) else LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }.also { parent.addView(it, LinearLayout.LayoutParams(-1, -2)) }
-    box.gravity = Gravity.CENTER_HORIZONTAL
+    action: Pair<String, () -> Unit>? = null, card: Boolean = true, centered: Boolean = false): LinearLayout {
+    val box = if (card) lookCard(parent) else object : LinearLayout(this) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (centered) {
+                val viewport = generateSequence(parent as? View) { it.parent as? View }.firstOrNull {
+                    it is androidx.recyclerview.widget.RecyclerView || it is NestedScrollView
+                }
+                minimumHeight = viewport?.let { maxOf(it.height, it.measuredHeight) - it.paddingTop - it.paddingBottom }?.coerceAtLeast(0) ?: 0
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }.apply { orientation = LinearLayout.VERTICAL }.also { parent.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+    box.gravity = if (centered) Gravity.CENTER else Gravity.CENTER_HORIZONTAL
     token(R.dimen.duck_space_large).let { box.setPadding(box.paddingLeft, it, box.paddingRight, it) }
     box.addView(ImageView(this).apply { setImageResource(duck); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
         LinearLayout.LayoutParams(dp(112), dp(112)))
@@ -194,32 +213,30 @@ internal fun Context.lookEmpty(parent: ViewGroup, @DrawableRes duck: Int, title:
     return box
 }
 
+/** Unavailable content uses a system glyph, a sentence and the existing recovery action. */
+internal fun Context.lookUnavailable(parent: LinearLayout, title: String, note: String, action: Pair<String, () -> Unit>) {
+    lookEmpty(parent, R.drawable.ic_alert, title, note, action, card = false, centered = true)
+}
+
 // ---- Buttons and pills ----
 
 internal enum class LookButton { FILLED, TONAL, OUTLINED, TEXT }
 
 /**
- * A capsule button (V3, I4). FILLED is the one primary action of a screen,
- * TONAL an action inside a card, OUTLINED and TEXT quieter alternatives.
+ * Native Material button roles (A1). FILLED is the primary action,
+ * TONAL an action inside a card. The legacy OUTLINED role now resolves to TEXT.
  * [large] is the fixed bottom action of a guided flow.
  */
 internal fun Context.lookButton(text: String, kind: LookButton, large: Boolean = false, @DrawableRes icon: Int? = null, action: () -> Unit): MaterialButton {
-    val button = when (kind) {
-        LookButton.FILLED, LookButton.TONAL -> MaterialButton(this)
-        LookButton.OUTLINED -> MaterialButton(this, null, M.attr.materialButtonOutlinedStyle)
-        LookButton.TEXT -> MaterialButton(this, null, M.attr.borderlessButtonStyle)
+    val style = when (kind) {
+        LookButton.FILLED -> R.style.DuckButtonFilled
+        LookButton.TONAL -> R.style.DuckButtonTonal
+        LookButton.OUTLINED, LookButton.TEXT -> R.style.DuckButtonText
     }
-    return button.apply {
-        this.text = text; isAllCaps = false; setOnClickListener { action() }
-        val height = dp(if (large) 56 else 40)
-        cornerRadius = height / 2
-        if (large) { insetTop = 0; insetBottom = 0; minHeight = height; minimumHeight = height }
-        if (kind == LookButton.TONAL) {
-            backgroundTintList = ColorStateList.valueOf(themeColor(M.attr.colorSecondaryContainer))
-            setTextColor(themeColor(M.attr.colorOnSecondaryContainer)); iconTint = ColorStateList.valueOf(themeColor(M.attr.colorOnSecondaryContainer))
-            elevation = 0f; stateListAnimator = null
-        }
-        icon?.let { setIconResource(it); iconPadding = token(R.dimen.duck_space_x_small) }
+    return MaterialButton(androidx.appcompat.view.ContextThemeWrapper(this, style)).apply {
+        this.text = text; setOnClickListener { action() }
+        if (large) minimumHeight = dp(56)
+        icon?.let { setIconResource(it) }
     }
 }
 
@@ -251,7 +268,7 @@ internal class FlowRow(context: Context, private val gap: Int) : ViewGroup(conte
             if (x > 0 && x + child.measuredWidth > width) { x = 0; y += line + gap; line = 0 }
             x += child.measuredWidth + gap; line = maxOf(line, child.measuredHeight)
         }
-        setMeasuredDimension(width, y + line)
+        setMeasuredDimension(width, resolveSize(maxOf(suggestedMinimumHeight, y + line), heightMeasureSpec))
     }
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val width = r - l; val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
@@ -348,12 +365,11 @@ internal class LookPage(activity: AppCompatActivity, title: String) : AppCompatD
     init {
         val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         root.addView(MaterialToolbar(activity).apply {
-            this.title = title; setTitleTextAppearance(activity, M.style.TextAppearance_Material3_TitleLarge)
-            setTitleTextColor(activity.getColor(R.color.duck_role_primary_text))
-            setNavigationIcon(R.drawable.ic_back); setNavigationIconTint(activity.getColor(R.color.duck_role_primary_text))
+            this.title = title
+            setNavigationIcon(R.drawable.ic_back)
             setNavigationContentDescription(R.string.nav_back); setNavigationOnClickListener { dismiss() }
         }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(NestedScrollView(activity).apply { addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(NestedScrollView(activity).apply { isFillViewport = true; addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
     }
 
@@ -361,12 +377,12 @@ internal class LookPage(activity: AppCompatActivity, title: String) : AppCompatD
 
     override fun show() {
         super.show()
-        window?.let { it.setLayout(-1, -1); it.statusBarColor = canvas; it.navigationBarColor = canvas; it.decorView.setBackgroundColor(canvas) }
+        window?.setLayout(-1, -1)
     }
 }
 
 /** A Material 3 modal bottom sheet (I1 detail and chooser) with a drag handle, the sheet radius and a scrolling body. */
-internal class LookSheet(context: Context) : BottomSheetDialog(context, R.style.DuckBottomSheetDialog) {
+internal class LookSheet(context: Context) : BottomSheetDialog(context) {
     val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, context.token(R.dimen.duck_space_medium)) }
     init {
         val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -376,13 +392,6 @@ internal class LookSheet(context: Context) : BottomSheetDialog(context, R.style.
     }
     override fun onStart() {
         super.onStart()
-        findViewById<FrameLayout>(M.id.design_bottom_sheet)?.let { sheet ->
-            sheet.backgroundTintList = null
-            sheet.background = GradientDrawable().apply {
-                val r = context.dp(28).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
-                setColor(context.themeColor(M.attr.colorSurfaceContainerLow))
-            }
-        }
         behavior.state = BottomSheetBehavior.STATE_EXPANDED; behavior.skipCollapsed = true
     }
 }

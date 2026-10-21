@@ -15,28 +15,34 @@ struct IOSPixelScanner: View {
   @State private var working = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    Group {
       if let cameraFailure {
-        Label(cameraFailure == .permission ? "apple_camera_restricted" : "apple_camera_unavailable", systemImage: "camera")
-          .foregroundStyle(DuckRole.attention)
+        ContentUnavailableView {
+          Label(cameraFailure == .permission ? "apple_camera_restricted" : "apple_camera_unavailable", systemImage: "camera")
+        } description: {
+          Text(cameraFailure == .permission ? "apple_camera_restricted_note" : "apple_camera_unavailable_note")
+        } actions: {
+          if cameraFailure == .permission {
+            Button("photos_open_settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
+              .duckPrimaryButton()
+          } else { retryButton }
+        }
+      } else if let scanError {
+        ContentUnavailableView {
+          Label("desktop_pair_failed", systemImage: "exclamationmark.triangle")
+        } description: {
+          Text(scanError)
+        } actions: { retryButton }
       } else {
         PairingScanner(scanned: accept, failed: { cameraFailure = $0 })
-          .id(scannerID)
-          .frame(height: 300)
-          .clipShape(RoundedRectangle(cornerRadius: 20))
+          .id(scannerID).frame(height: 300)
+          .clipShape(RoundedRectangle(cornerRadius: DuckRadius.card))
           .overlay { if working { ProgressView().controlSize(.large) } }
       }
-      if let scanError { Label(scanError, systemImage: "exclamationmark.triangle").foregroundStyle(DuckRole.failure) }
-      if cameraFailure == .permission {
-        Button { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } } label: {
-          Text("photos_open_settings").frame(maxWidth: .infinity)
-        }.buttonStyle(.borderedProminent).controlSize(.large)
-      } else if scanError != nil || cameraFailure != nil {
-        Button { scanError = nil; cameraFailure = nil; scannerID = UUID() } label: {
-          Text("apple_scan_again").frame(maxWidth: .infinity)
-        }.buttonStyle(.borderedProminent).controlSize(.large)
-      }
     }
+  }
+  private var retryButton: some View {
+    Button("apple_scan_again") { scanError = nil; cameraFailure = nil; scannerID = UUID() }.duckPrimaryButton()
   }
 
   private func accept(_ payload: String) {
@@ -73,13 +79,13 @@ struct IOSConnectSheet: View {
             VStack(spacing: 16) {
               DuckIllustration(pose: .pairing, size: 160).padding(.top, 32)
               Text(String(format: NSLocalizedString("onboarding_connected_title", comment: ""), model.peerDevice?.name ?? "Pixel"))
-                .font(.title.weight(.bold)).multilineTextAlignment(.center)
+                .font(.title2.bold()).multilineTextAlignment(.center)
               Text("onboarding_connected_body").foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
             .transition(.opacity)
           } else {
-            Text(reconnect ? "connect_again_title" : "onboarding_connect_title").font(.title.weight(.bold))
+            Text(reconnect ? "connect_again_title" : "onboarding_connect_title").font(.title2.bold())
             Text(reconnect ? "connect_again_body" : "onboarding_connect_body").foregroundStyle(.secondary)
             IOSPixelScanner(model: model) { withAnimation(.smooth(duration: 0.25)) { connected = true } }
           }
@@ -89,7 +95,8 @@ struct IOSConnectSheet: View {
       .background(DuckRole.background)
       .toolbar {
         ToolbarItem(placement: connected ? .confirmationAction : .cancellationAction) {
-          Button(connected ? "records_done" : "cancel") { dismiss() }
+          if connected { DuckSheetConfirmButton(title: "records_done") { dismiss() } }
+          else { DuckSheetDismissButton { dismiss() } }
         }
       }
     }

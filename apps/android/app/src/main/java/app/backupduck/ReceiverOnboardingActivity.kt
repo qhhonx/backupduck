@@ -36,7 +36,7 @@ import org.json.JSONObject
  * shared components; shown by the design catalog until migration step 6 opens
  * it on first launch.
  */
-class ReceiverOnboardingActivity : AppCompatActivity() {
+class ReceiverOnboardingActivity : BackupDuckActivity() {
     enum class Step { WELCOME, RUNNING, CODE, CONNECTED, GPHOTOS, SPACE }
 
     private lateinit var band: FrameLayout
@@ -61,9 +61,7 @@ class ReceiverOnboardingActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
-        DuckLook.applyScheme(this)
         val background = getColor(R.color.duck_role_background)
-        window.statusBarColor = background; window.navigationBarColor = background
         step = intent.getStringExtra("step")?.let { name -> Step.values().firstOrNull { it.name.equals(name, true) } } ?: Step.WELCOME
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(background) }
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -206,7 +204,7 @@ class ReceiverOnboardingActivity : AppCompatActivity() {
 
     /** Guided-flow title: Headline medium (V2). */
     private fun title(text: String) {
-        content.addView(lookText(text, M.style.TextAppearance_Material3_HeadlineMedium).apply { isAccessibilityHeading = true },
+        content.addView(lookText(text, M.style.TextAppearance_Material3_HeadlineSmall).apply { isAccessibilityHeading = true },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium); bottomMargin = token(R.dimen.duck_space_small) })
     }
 
@@ -222,12 +220,12 @@ class ReceiverOnboardingActivity : AppCompatActivity() {
         content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
     }
 
-    /** The journey's three marks, the current one in full color and the others faint (V6: one at a time on later steps). */
+    /** One current step mark (V6: one at a time on later steps). */
     private fun marks(current: Int): View = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
         contentDescription = getString(R.string.onb_step_of, current); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         listOf(Triple(R.drawable.mark_circle, 20, 20), Triple(R.drawable.mark_wing, 28, 14), Triple(R.drawable.mark_sparkle, 22, 22)).forEachIndexed { index, (drawable, w, h) ->
-            addView(ImageView(context).apply { setImageResource(drawable); alpha = if (index + 1 == current) 1f else .25f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
+            if (index + 1 == current) addView(ImageView(context).apply { setImageResource(drawable); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
                 LinearLayout.LayoutParams(dp(w), dp(h)).apply { marginEnd = token(R.dimen.duck_space_small) })
         }
     }.also { it.layoutParams = LinearLayout.LayoutParams(-2, dp(28)) }

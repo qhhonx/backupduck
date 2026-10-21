@@ -104,9 +104,6 @@ struct MacWorkspace: View {
   }
   private var sidebar: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 10) { DuckBrandMark(size: 38); Text("brand_name").font(.system(size: 18, weight: .semibold)) }.padding(
-        .horizontal, 20
-      ).padding(.vertical, 28)
       List(selection: $destination) {
         if DesignPreview.proposedDesign {
           // design/navigation.md: photos, backup, settings. Devices open from Settings.
@@ -136,12 +133,8 @@ struct MacWorkspace: View {
           }
         }
         }
-      }.listStyle(.sidebar).font(.body.weight(.medium))
-      VStack(alignment: .leading, spacing: 8) {
-        ReceiverStatusIndicator(model: model)
-        Text(model.peerDevice?.name ?? NSLocalizedString(model.pairing == nil ? "receiver_unpaired" : "receiver_paired", comment: "")).font(.caption)
-          .foregroundStyle(.secondary)
-      }.font(.callout).padding(20)
+      }.listStyle(.sidebar)
+
     }.navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 300)
   }
   private var detailContent: some View {
@@ -307,11 +300,7 @@ struct MacWorkspace: View {
   }
   }
   private func sidebarRow(_ item: MacDestination, title: String? = nil) -> some View {
-    let selected = destination == item
-    return HStack(spacing: 12) {
-      Image(systemName: item.icon).font(.system(size: 16)).frame(width: 20).foregroundStyle(selected ? DuckColors.action : DuckColors.text)
-      Text(LocalizedStringKey(title ?? item.title)).font(.system(size: 14, weight: selected ? .semibold : .regular))
-    }.frame(minHeight: 36).tag(item)
+    Label(LocalizedStringKey(title ?? item.title), systemImage: item.icon).tag(item)
   }
   private func showTransfers(_ filter: String) {
     transferFilter = filter

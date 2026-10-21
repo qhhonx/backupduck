@@ -69,7 +69,7 @@ struct IOSPairingFlow: View {
   @ScaledMetric(relativeTo: .caption) private var captionSize = 13
   var body: some View {
     DuckSheetLayout(title: "apple_scan_title", busy: model.pairingInProgress,
-      error: captured ? (requestError ?? model.pairingError) : nil) {
+      error: captured ? (requestError ?? model.pairingError) : nil, closeOnly: paired) {
       if paired {
         DuckNotice(title: "apple_pair_success", tone: .saved, symbol: "checkmark.circle")
         DuckReceiverSummary(model: model)
@@ -99,16 +99,10 @@ struct IOSPairingFlow: View {
         if !model.pairingInProgress { DuckPairingSteps() }
       }
     } actions: {
-      if paired {
-        Button { dismiss() } label: { Text("settings_done").frame(maxWidth: .infinity) }
-          .iosPrototypeAction(primary: true)
-          .accessibilityIdentifier("pairing.done")
-      } else if model.pairingInProgress {
+      if !paired, model.pairingInProgress {
         Button {} label: { Text("receiver_indicator_pairing").frame(maxWidth: .infinity) }
           .iosPrototypeAction(primary: true).disabled(true)
-      } else {
-        Button { dismiss() } label: { Text("cancel").frame(maxWidth: .infinity) }.iosPrototypeAction()
-          .disabled(model.pairingInProgress)
+      } else if !paired {
         if cameraFailure == .permission {
           Button {
             Task {

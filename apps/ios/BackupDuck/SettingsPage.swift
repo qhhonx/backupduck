@@ -170,7 +170,7 @@ struct IOSBackupPreferences: View {
           }
           IOSPreferenceSection(title: "history_title") {
             VStack(alignment: .leading, spacing: 16) {
-              Text("history_explanation").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+              Text("history_explanation").font(.body).foregroundStyle(DuckColors.textSecondary)
               if let status = model.historicalImport {
                 LabeledContent("history_scan_status", value: NSLocalizedString("history_state_" + status.state, comment: ""))
                 Text(String(format: NSLocalizedString("history_counts", comment: ""), status.checked, status.pending)).font(.callout).foregroundStyle(DuckColors.textSecondary)
@@ -219,11 +219,11 @@ struct IOSPrototypeHeader<Trailing: View>: View {
   var body: some View {
     HStack(spacing: 12) {
       if let back {
-        Button(action: back) { Image(systemName: "chevron.left").font(.system(size: 22)).frame(width: 44, height: 44).contentShape(Rectangle()) }
+        Button(action: back) { Image(systemName: "chevron.left").font(.title2).frame(width: 44, height: 44).contentShape(Rectangle()) }
           .buttonStyle(.plain).foregroundStyle(DuckColors.action)
           .accessibilityLabel(Text("apple_back")).accessibilityIdentifier("page.header.back")
       }
-      Text(title).iosPrototypeText(size: titleSize, weight: .semibold, lineHeight: 1.2)
+      Text(title).font(.title2.weight(.semibold))
         .accessibilityIdentifier("page.header.title")
         .fixedSize(horizontal: false, vertical: true)
       Spacer(minLength: 8)
@@ -333,7 +333,7 @@ struct IOSPreferenceSection<Content: View>: View {
   @ScaledMetric(relativeTo: .headline) private var titleSize = 19
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(title).iosPrototypeText(size: titleSize, weight: .semibold, lineHeight: 1.4)
+      Text(title).font(.title2.weight(.semibold))
       VStack(spacing: 0, content: content)
         .background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 16))
         .overlay { RoundedRectangle(cornerRadius: 16).stroke(DuckColors.border, lineWidth: 1) }
@@ -342,10 +342,7 @@ struct IOSPreferenceSection<Content: View>: View {
 }
 struct IOSPreferenceGroup<Content: View>: View {
   @ViewBuilder var content: () -> Content
-  var body: some View {
-    VStack(spacing: 0, content: content).background(DuckColors.surface, in: RoundedRectangle(cornerRadius: 16))
-      .overlay(RoundedRectangle(cornerRadius: 16).stroke(DuckColors.border, lineWidth: 1))
-  }
+  var body: some View { Section(content: content) }
 }
 struct IOSPreferenceRow<Control: View>: View {
   let title: LocalizedStringKey
@@ -376,8 +373,8 @@ struct IOSPreferenceRow<Control: View>: View {
     HStack(alignment: textSize.isAccessibilitySize ? .top : .center, spacing: 12) {
 
       VStack(alignment: .leading, spacing: 5) {
-        Text(title).iosPrototypeText(size: bodySize, weight: .semibold)
-        if let note { Text(note).iosPrototypeText(size: noteSize, lineHeight: 1.6)
+        Text(title).font(.body.weight(.semibold))
+        if let note { Text(note).font(.footnote)
           .foregroundStyle(DuckColors.textSecondary).fixedSize(horizontal: false, vertical: true) }
       }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -388,27 +385,21 @@ extension View {
     self.buttonStyle(IOSPrototypeActionStyle(primary: primary))
   }
 }
-private struct IOSPrototypeActionStyle: ButtonStyle {
+private struct IOSPrototypeActionStyle: PrimitiveButtonStyle {
   let primary: Bool
-  @Environment(\.isEnabled) private var enabled
-  @ScaledMetric(relativeTo: .body) private var bodySize = 16
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label.font(.system(size: bodySize, weight: primary ? .semibold : .regular))
-      .foregroundStyle(primary ? DuckColors.surface : DuckColors.action)
-      .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: DuckPreferenceMetrics.rowHeight)
-      .background(primary ? DuckColors.action : DuckColors.surface, in: RoundedRectangle(cornerRadius: 10))
-      .overlay { RoundedRectangle(cornerRadius: 10).stroke(primary ? DuckColors.action : DuckColors.border, lineWidth: 1) }
-      .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.5)
+  @Environment(\.duckSheetActions) private var sheet
+  @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+    if sheet { Button(configuration).buttonStyle(.automatic) }
+    else if primary { Button(configuration).buttonStyle(.borderedProminent).controlSize(.large) }
+    else { Button(configuration).buttonStyle(.bordered).controlSize(.small) }
   }
 }
 
-/// CSS line-height is part of the frozen density contract. UIKit's glyph box is
-/// smaller, so add half-leading outside plus inter-line leading, without fixing
-/// a height or clipping multilingual/accessible text. Callers supply scaled size.
+/// Compatibility for legacy callers. New content uses semantic styles directly.
 extension View {
   func iosPrototypeText(size: CGFloat, weight: Font.Weight = .regular, lineHeight: CGFloat = 1.5) -> some View {
-    let extra = max(0, size * lineHeight - UIFont.systemFont(ofSize: size).lineHeight)
-    return font(.system(size: size, weight: weight)).lineSpacing(extra).padding(.vertical, extra / 2)
+    let style: Font.TextStyle = size >= 22 ? .title2 : size >= 19 ? .headline : size >= 16 ? .body : size >= 14 ? .subheadline : .footnote
+    return font(.system(style).weight(weight))
   }
 }
 
@@ -593,7 +584,7 @@ struct IOSPreferenceValue: View {
           .fixedSize(horizontal: false, vertical: true)
           .foregroundStyle(actionable ? DuckColors.action : DuckColors.textSecondary)
       }
-      Image(systemName: indicator ?? "chevron.right").font(.system(size: 11))
+      Image(systemName: indicator ?? "chevron.right").font(.caption)
         .frame(width: 16, height: 22).foregroundStyle(DuckColors.action)
         .opacity(indicator == nil ? 0 : 1).accessibilityHidden(true)
     }.frame(minHeight: DuckPreferenceMetrics.rowHeight).contentShape(Rectangle())
@@ -641,17 +632,8 @@ extension View {
 }
 
 struct IOSCheckboxToggleStyle: ToggleStyle {
-  @ScaledMetric(relativeTo: .body) private var symbolSize = 16
   func makeBody(configuration: Configuration) -> some View {
-    Button { configuration.isOn.toggle() } label: {
-      HStack(alignment: .firstTextBaseline, spacing: 12) {
-        Image(systemName: configuration.isOn ? "checkmark.square" : "square")
-          .symbolVariant(.none).font(.system(size: symbolSize, weight: .regular))
-          .foregroundStyle(configuration.isOn ? DuckColors.action : DuckColors.textSecondary)
-          .frame(width: symbolSize).accessibilityHidden(true)
-        configuration.label.frame(maxWidth: .infinity, alignment: .leading)
-      }
-    }.buttonStyle(.plain).frame(minHeight: DuckPreferenceMetrics.rowHeight).contentShape(Rectangle()).accessibilityAddTraits(configuration.isOn ? .isSelected : [])
+    Toggle(isOn: configuration.$isOn) { configuration.label }.toggleStyle(.switch)
   }
 }
 

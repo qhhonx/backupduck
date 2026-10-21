@@ -1,10 +1,12 @@
 import AppKit
+import ScreenCaptureKit
 import SwiftUI
 
 /// Mac design catalog: the production workspace window driven by scenario data
 /// instead of the Rust core, the keychain and the network. It never ships; see
 /// `apps/apple/Catalog/README.md`.
 @main struct MacCatalogApp: App {
+  @NSApplicationDelegateAdaptor(MacCatalogLifecycle.self) private var lifecycle
   static let core = ScenarioCore()
   static let credentials = ScenarioCredentials()
 
@@ -38,12 +40,62 @@ import SwiftUI
   }
 }
 
+/// Command-line startup belongs to the app lifecycle, not a SwiftUI view task:
+/// background launches can defer that task until the window is activated.
+private enum MacCatalogLaunch {
+  static func value(_ flag: String) -> String? {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+    return arguments[index + 1]
+  }
+}
+
+@MainActor private final class MacCatalogLifecycle: NSObject, NSApplicationDelegate {
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    guard let path = MacCatalogLaunch.value("-snapshot") else { return }
+    Task { @MainActor in
+      do {
+        // Direct executable launches can enter the run loop without an open-app
+        // event, leaving SwiftUI with no window or root view task. Reopen this
+        // running app through Launch Services; do not create another instance.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = false
+        _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        let delay = max(0, Double(MacCatalogLaunch.value("-snapshot-delay") ?? "") ?? 9)
+        try await Task.sleep(for: .seconds(delay))
+        try await MacWindowSnapshot.write(to: URL(fileURLWithPath: path))
+        print("Catalog snapshot written: \(path)")
+        NSApp.terminate(nil)
+      } catch {
+        fputs("Catalog snapshot failed: \(error.localizedDescription)\n", stderr)
+        exit(EXIT_FAILURE)
+      }
+    }
+  }
+}
+
 private struct MacCatalogRoot: View {
   @State private var scenarios: [Scenario] = []
   @State private var failure: String?
   @State private var open: Scenario?
   @State private var run: UUID?
   @State private var scheme: ColorScheme?
+
+  init() {
+    do {
+      let loaded = try Scenario.loadAll()
+      _scenarios = State(initialValue: loaded)
+      if let id = MacCatalogLaunch.value("-scenario"), let scenario = loaded.first(where: { $0.id == id }) {
+        _open = State(initialValue: scenario)
+        _run = State(initialValue: UUID())
+      }
+    } catch {
+      _failure = State(initialValue: error.localizedDescription)
+    }
+    if let appearance = MacCatalogLaunch.value("-appearance") {
+      _scheme = State(initialValue: appearance == "dark" ? .dark : .light)
+    }
+  }
 
   var body: some View {
     Group {
@@ -59,7 +111,6 @@ private struct MacCatalogRoot: View {
       }
     }
     .preferredColorScheme(scheme)
-    .task { load() }
   }
 
   private var list: some View {
@@ -88,27 +139,6 @@ private struct MacCatalogRoot: View {
   private func restart() {
     run = nil
     DispatchQueue.main.async { run = UUID() }
-  }
-
-  private func load() {
-    do { scenarios = try Scenario.loadAll() } catch { failure = error.localizedDescription }
-    // `-scenario <id>` opens one scenario; `-appearance dark|light` sets the
-    // appearance; `-snapshot <path>` writes the window as PNG after it settles
-    // and quits. These serve screenshot runs that need no screen recording.
-    let arguments = ProcessInfo.processInfo.arguments
-    func value(_ flag: String) -> String? {
-      guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
-      return arguments[index + 1]
-    }
-    if let id = value("-scenario"), let scenario = scenarios.first(where: { $0.id == id }) { start(scenario) }
-    if let appearance = value("-appearance") { scheme = appearance == "dark" ? .dark : .light }
-    if let path = value("-snapshot") {
-      let delay = Double(value("-snapshot-delay") ?? "") ?? 9
-      DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-        MacWindowSnapshot.write(to: URL(fileURLWithPath: path))
-        NSApp.terminate(nil)
-      }
-    }
   }
 }
 
@@ -206,16 +236,49 @@ private struct MacScenarioInfo: View {
   }
 }
 
-/// Renders the catalog window, title bar included, into a PNG.
+/// Captures the catalog's composited window, including title bar and materials.
+/// macOS 14.0–14.3 uses the older view-cache fallback; its sidebar materials
+/// are incomplete and must be judged in the live window.
 enum MacWindowSnapshot {
-  @MainActor static func write(to url: URL) {
-    guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
-      let view = window.contentView?.superview ?? window.contentView,
-      let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-    view.cacheDisplay(in: view.bounds, to: bitmap)
-    try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
+  @MainActor static func write(to url: URL) async throws {
+    guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.contentView != nil }) else {
+      throw SnapshotError("The catalog window is not visible (\(NSApp.windows.count) windows).")
+    }
+    let bitmap: NSBitmapImageRep
+    if #available(macOS 14.4, *) {
+      // Restrict capture to this process; no screen-recording consent is needed.
+      let content = try await SCShareableContent.currentProcess
+      guard let capturedWindow = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else {
+        throw SnapshotError("The catalog window is not available for capture.")
+      }
+      let filter = SCContentFilter(desktopIndependentWindow: capturedWindow)
+      let configuration = SCStreamConfiguration()
+      configuration.width = Int((filter.contentRect.width * CGFloat(filter.pointPixelScale)).rounded())
+      configuration.height = Int((filter.contentRect.height * CGFloat(filter.pointPixelScale)).rounded())
+      configuration.ignoreShadowsSingleWindow = true
+      configuration.showsCursor = false
+      let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+      bitmap = NSBitmapImageRep(cgImage: image)
+    } else {
+      fputs("Catalog snapshot: macOS before 14.4 cannot capture sidebar materials.\n", stderr)
+      guard let view = window.contentView?.superview ?? window.contentView,
+        let cached = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+        throw SnapshotError("The catalog window could not be rendered.")
+      }
+      view.cacheDisplay(in: view.bounds, to: cached)
+      bitmap = cached
+    }
+    guard let png = bitmap.representation(using: .png, properties: [:]) else {
+      throw SnapshotError("The catalog image could not be encoded as PNG.")
+    }
+    try png.write(to: url, options: .atomic)
     // The unscripted list goes next to the image for the same run.
-    try? MacCatalogApp.core.unscripted.joined(separator: "\n")
+    try MacCatalogApp.core.unscripted.joined(separator: "\n")
       .write(to: url.deletingPathExtension().appendingPathExtension("unscripted.txt"), atomically: true, encoding: .utf8)
+  }
+
+  private struct SnapshotError: LocalizedError {
+    let errorDescription: String?
+    init(_ message: String) { errorDescription = message }
   }
 }

@@ -272,7 +272,7 @@ struct DuckTransferDetail: View {
     }.frame(width: markerSize).accessibilityHidden(true)
   }
   var body: some View {
-    DuckSheetLayout(title: "apple_transfer_stages", busy: retrying, error: retryFailed ? NSLocalizedString("apple_retry_failed", comment: "") : nil) {
+    DuckSheetLayout(title: "apple_transfer_stages", busy: retrying, error: retryFailed ? NSLocalizedString("apple_retry_failed", comment: "") : nil, closeOnly: true) {
       #if os(iOS)
       iosDetails
       #else
@@ -305,8 +305,6 @@ struct DuckTransferDetail: View {
       #endif
     } actions: {
       #if os(iOS)
-      Button { dismiss() } label: { Text("settings_done").frame(maxWidth: .infinity) }
-        .iosPrototypeAction().disabled(retrying)
       if (job.state == "failed" || job.state == "waiting") && !retrySubmitted {
         Button(action: performRetry) { Text(LocalizedStringKey(retrying ? "apple_retry_running" : "retry_task")).frame(maxWidth: .infinity) }
           .iosPrototypeAction(primary: true).disabled(retrying).accessibilityIdentifier("transfer.detail.retry")
@@ -633,12 +631,14 @@ struct BackupTaskRow: View {
     }
     }.sheet(isPresented: $preparationDetails) {
       if let source = item.preparation {
-        DuckSheetLayout(title: "original_preparation_detail", busy: retrying, error: retryError) {
+        DuckSheetLayout(title: "original_preparation_detail", busy: retrying, error: retryError, closeOnly: true) {
           SourceBrowserRow(item: source, active: model.importingSourceID == source.source, progress: model.exportProgress)
           if model.paused { DuckNotice(title: "backup_paused") }
           if retrySubmitted { DuckNotice(title: "apple_retry_submitted", tone: .action) }
         } actions: {
+          #if os(macOS)
           DuckSheetAction(title: "settings_done") { preparationDetails = false }
+          #endif
           if source.error_code != nil, !retrySubmitted {
             DuckSheetAction(title: "retry_task",primary: true) { Task {
               guard let receiver = model.pairing?.receiverID else { return }
@@ -812,7 +812,7 @@ struct BackupStatusIndicator: View {
     }.buttonStyle(.plain).accessibilityIdentifier("backup.status_indicator")
       .accessibilityHint(Text("backup_status_details"))
       .sheet(isPresented: $details) {
-        DuckSheetLayout(title: "backup_status_title") {
+        DuckSheetLayout(title: "backup_status_title", closeOnly: true) {
           #if os(iOS)
           DuckStatusBadge(text: NSLocalizedString(status.key, comment: ""), symbol: status.symbol,
             tone: model.summary.failed + model.summary.publication_failed > 0 ? .failure : .neutral)
@@ -835,7 +835,10 @@ struct BackupStatusIndicator: View {
           } else { WaitingStatus(model: model) }
           Text("design_gallery_boundary").font(.footnote).foregroundStyle(DuckColors.textSecondary)
           #else
-          Label(LocalizedStringKey(status.key), systemImage: status.symbol).foregroundStyle(status.color)
+          HStack {
+            Image(systemName: status.symbol).foregroundStyle(status.color).accessibilityHidden(true)
+            Text(LocalizedStringKey(status.key)).foregroundStyle(.primary)
+          }.accessibilityElement(children: .combine)
           Text(title).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
           Text(String(format: NSLocalizedString("transfer_summary", comment: ""), model.summary.received, model.summary.total))
           Text(String(format: NSLocalizedString("publication_summary", comment: ""), model.summary.published, model.summary.received))
@@ -845,7 +848,7 @@ struct BackupStatusIndicator: View {
           #endif
         } actions: {
           #if os(iOS)
-          Button { details = false } label: { Text("backup_status_close").frame(maxWidth: .infinity) }.iosPrototypeAction()
+
           #else
           Button("backup_status_close") { details = false }.duckSecondaryAction()
           #endif
@@ -887,7 +890,7 @@ struct ReceiverStatusIndicator: View {
     }.accessibilityIdentifier("receiver.status_indicator")
       .accessibilityHint(Text("backup_status_details"))
       .sheet(isPresented: $details) {
-        DuckSheetLayout(title: "receiver_connection_details") {
+        DuckSheetLayout(title: "receiver_connection_details", closeOnly: true) {
           #if os(iOS)
           DuckStatusBadge(text: NSLocalizedString(status.key, comment: ""), symbol: status.symbol,
             tone: model.pairingError != nil || model.receiverConnection == .authentication ? .failure : .attention)
@@ -902,7 +905,10 @@ struct ReceiverStatusIndicator: View {
             }.iosPrototypeAction(primary: true).disabled(model.checkingConnection).accessibilityIdentifier("receiver.check_connection")
           }
           #else
-          Label(LocalizedStringKey(status.key), systemImage: status.symbol).foregroundStyle(status.color)
+          HStack {
+            Image(systemName: status.symbol).foregroundStyle(status.color).accessibilityHidden(true)
+            Text(LocalizedStringKey(status.key)).foregroundStyle(.primary)
+          }.accessibilityElement(children: .combine)
           Text(LocalizedStringKey(model.pairing == nil ? "receiver_pair_instructions" : "receiver_indicator_explanation"))
           if let pairing = model.pairing {
             Text("receiver_address").font(.caption).foregroundStyle(DuckColors.textSecondary)
@@ -917,7 +923,7 @@ struct ReceiverStatusIndicator: View {
           #endif
         } actions: {
           #if os(iOS)
-          Button { details = false } label: { Text("backup_status_close").frame(maxWidth: .infinity) }.iosPrototypeAction()
+
           #else
           Button("backup_status_close") { details = false }.duckSecondaryAction()
           if model.pairing != nil {
@@ -1038,7 +1044,7 @@ struct TransferStatusGuide: View {
   ]
 
   var body: some View {
-    DuckSheetLayout(title: "design_status_guide") {
+    DuckSheetLayout(title: "design_status_guide", closeOnly: true) {
       VStack(alignment: .leading, spacing: 0) {
         ForEach(Array(phases.enumerated()), id: \.offset) { index, phase in
           VStack(alignment: .leading, spacing: 6) {
@@ -1055,7 +1061,7 @@ struct TransferStatusGuide: View {
       }
     } actions: {
       #if os(iOS)
-      Button { dismiss() } label: { Text("settings_done").frame(maxWidth: .infinity) }.iosPrototypeAction()
+
       #else
       Button("settings_done") { dismiss() }.duckSecondaryAction().keyboardShortcut(.cancelAction)
       #endif

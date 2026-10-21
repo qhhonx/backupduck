@@ -190,11 +190,16 @@ struct BackupHistoryView: View {
         if history.failed && history.photos.isEmpty {
           ContentUnavailableView {
             Label("records_load_failed", systemImage: "exclamationmark.triangle")
-          } actions: {
+          } description: { Text("records_empty_note") } actions: {
             Button("records_try_again") { Task { await reload() } }
           }
         } else if !history.loading && history.photos.isEmpty {
-          ContentUnavailableView("records_empty", systemImage: "photo.on.rectangle", description: Text("records_empty_note"))
+          ContentUnavailableView {
+            DuckIllustration(pose: .empty, size: 112)
+            Text("records_empty")
+          } description: { Text("records_empty_note") } actions: {
+            Button("records_try_again") { Task { await reload() } }.buttonStyle(.bordered)
+          }
         }
         ForEach(history.days, id: \.0) { day, photos in
           Section {
@@ -476,7 +481,7 @@ struct PhotoBackupFacts: View {
       }.font(.body)
       VStack(alignment: .leading, spacing: 3) {
         Text(title).font(.body.weight(.medium))
-        if let status { Text(status).font(.subheadline).foregroundStyle(state == .problem ? DuckRole.attention : .secondary) }
+        if let status { Text(status).font(.subheadline).foregroundStyle(.secondary) }
         if let time {
           Text(Date(timeIntervalSince1970: Double(time) / 1000).formatted(date: .abbreviated, time: .shortened))
             .font(.subheadline).foregroundStyle(.secondary)

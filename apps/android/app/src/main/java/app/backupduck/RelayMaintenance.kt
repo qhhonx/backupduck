@@ -138,7 +138,7 @@ internal suspend fun reclaimRelay(context: Context, root: String, plan: RelayPla
 
 internal fun MainActivity.checkHistoricalOriginals(completed:()->Unit,owner:DuckSheet?=null) {
     if(!RelayMaintenance.manualActive.compareAndSet(false,true)) {
-        duckAcknowledge(getString(R.string.relay_scanning),owner?.body ?: window.decorView);return
+        return
     }
     val root="$filesDir/receiver"
     val sheet=DuckSheet(this,getString(R.string.relay_check_history))

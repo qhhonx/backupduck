@@ -12,6 +12,7 @@ struct IOSHub: View {
   @Environment(\.openURL) private var openURL
   @State private var pairing = false
   @State private var offlineHelp = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var records: String?
 
   /// Opens a backup view of the library (design/library.md). When set, the
@@ -36,6 +37,7 @@ struct IOSHub: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: DuckSpacing.large) {
+          if model.pairing != nil { devicePill }
           stateCard
           if connected, let history = model.historicalImport, history.state != "idle" { earlierCard(history) }
           if connected, !recentSources.isEmpty {
@@ -47,17 +49,16 @@ struct IOSHub: View {
           if connected { summaryRows }
         }
         .padding(.horizontal, DuckSpacing.medium).padding(.top, DuckSpacing.xxSmall).padding(.bottom, DuckSpacing.xLarge)
-        .animation(.easeOut(duration: DuckMotion.text), value: status)
+        .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.text), value: status)
       }
       .background(DuckRole.background)
       .navigationTitle("nav_backup")
-      .toolbar { if model.pairing != nil { ToolbarItem(placement: .topBarTrailing) { devicePill } } }
       .navigationDestination(item: $records) { _ in
         BackupHistoryView(model: model).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
       }
     }
     .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: status == .problem(.receiverRejected)) }
-    .sheet(isPresented: $offlineHelp) { offlineHelpSheet.presentationDetents([.medium]) }
+    .sheet(isPresented: $offlineHelp) { offlineHelpSheet.presentationDetents([.medium, .large]) }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
     .tint(DuckRole.accent)
   }
@@ -91,7 +92,9 @@ struct IOSHub: View {
     case .opening:
       DuckStateCard(symbol: "hourglass", tone: .secondary, title: Text("hub_opening"))
     case .empty:
-      DuckEmptyState(pose: .empty, title: "hub_empty", note: "hub_empty_note")
+      DuckEmptyState(pose: .empty, title: "hub_empty", note: "hub_empty_note") {
+        Button("library_show_all") { open(.all, fallback: "all") }.duckPrimaryButton()
+      }
     case .caughtUp(let last, let saving):
       DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
         title: Text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up"),
@@ -181,6 +184,11 @@ struct IOSHub: View {
         }
       }
       .navigationTitle("hub_help_title").navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          DuckSheetDismissButton(title: "settings_done") { offlineHelp = false }
+        }
+      }
     }
   }
 

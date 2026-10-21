@@ -26,6 +26,7 @@ internal fun Instrumentation.checkReceiverFeedback(args:Bundle):String {
  val output=File(targetContext.cacheDir,"feedback-check").apply {mkdirs()};val suffix="${a.resources.configuration.screenWidthDp}-${if(dark)"dark" else "light"}"
  fun shot(name:String){waitForIdleSync();Thread.sleep(180);val b=checkNotNull(uiAutomation.takeScreenshot());File(output,"$name-$suffix.png").outputStream().use {b.compress(Bitmap.CompressFormat.PNG,100,it)};b.recycle()}
  var sheet:DuckSheet?=null
+ var editDialog:DuckEditDialog?=null
  try {
   Thread.sleep(700)
   val empty=HistoryModel();runBlocking {empty.select(File(targetContext.cacheDir,"empty-history-${System.nanoTime()}").path)};check(!empty.state.value.failed&&empty.state.value.items.isEmpty()){"Real empty history did not read"}
@@ -42,10 +43,10 @@ internal fun Instrumentation.checkReceiverFeedback(args:Bundle):String {
   main {val nameHeading=views(root()).filterIsInstance<TextView>().single {it.text.toString()==a.getString(R.string.duck_device_name)};check(nameHeading.lineCount==1){"Name object squeezed by value: ${nameHeading.lineCount} lines"};val texts=views(root()).filterIsInstance<TextView>().map {it.text.toString()};for(id in listOf(R.string.duck_thermal_note,R.string.duck_conversion_note,R.string.duck_access_note,R.string.duck_sender_settings_note,R.string.duck_brand_note))check(a.getString(id) !in texts){"Duplicate first-tier explanation:$id"}}
   main {val title=views(root()).filterIsInstance<TextView>().single {it.text.toString()==a.getString(R.string.duck_device_name)};val row=title.parent.parent as View;row.requestRectangleOnScreen(Rect(0,0,row.width,row.height),true)};shot("settings-device-value")
   main {views(root()).filterIsInstance<ScrollView>().single {it.isShown}.fullScroll(View.FOCUS_DOWN)};shot("settings-actions-tail")
-  val d=DevicePanels(a);main {d.refresh()};Thread.sleep(500);main {sheet=d.rename()};shot("name");main {check(views(root()).filterIsInstance<TextView>().none {it.text.toString()==a.getString(R.string.duck_name_intro)||it.text.toString()==a.getString(R.string.duck_code_tasks_unchanged)})};main {sheet!!.dismiss()};Thread.sleep(250)
+  val d=DevicePanels(a);main {d.refresh()};Thread.sleep(500);main {editDialog=d.rename()};shot("name");main {check(views(root()).filterIsInstance<TextView>().none {it.text.toString()==a.getString(R.string.duck_name_intro)||it.text.toString()==a.getString(R.string.duck_code_tasks_unchanged)})};main {editDialog!!.dismiss()};Thread.sleep(250)
   main {sheet=a.showStorageControls(StorageSection.LOGS){}};Thread.sleep(500);shot("log-retention")
   main {val area=views(root()).single {it.tag=="receiver.select-field.log_days"};check(area.isClickable&&area.height>=a.dp(48));check(area.performClick())};Thread.sleep(180);shot("log-whole-row-popup");sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);Thread.sleep(180)
   File(output,"result-$suffix.json").writeText(JSONObject().put("emptyHistoryActualJNI",true).put("historyReadFailureActualFilesystem",true).put("loadedRecordsSyntheticOnly",true).put("firstTierNoRepeatedDescriptions",true).put("logWholeRowNativePopup",true).put("scope","No real Pixel, media, credentials or Google Photos operations").toString())
   return "PASS: BD24 telemetry/records grouping, no home cloud duplication; actual JNI empty/read failure, synthetic loaded rows; BD25 first-tier copy/name/whole log field native selector. $suffix"
- } finally {main {sheet?.takeIf {it.window?.decorView?.isAttachedToWindow==true}?.dismissImmediately();a.finish()};ReceiverPreferences.setEnabled(targetContext,oldEnabled);DeviceProfiles.read(targetContext,oldName);prefs.edit().putInt("mode",previousMode).commit()}
+ } finally {main {sheet?.takeIf {it.window?.decorView?.isAttachedToWindow==true}?.dismissImmediately();editDialog?.dismiss();a.finish()};ReceiverPreferences.setEnabled(targetContext,oldEnabled);DeviceProfiles.read(targetContext,oldName);prefs.edit().putInt("mode",previousMode).commit()}
 }

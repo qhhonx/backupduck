@@ -597,4 +597,5 @@
         <item quantity="other">%1$d devices connected</item>
     </plurals>
     <string name="storage_relay_unavailable">Couldn\'t read this setting. Open Storage again later.</string>
+    <string name="action_undo">Undo</string>
 </resources>

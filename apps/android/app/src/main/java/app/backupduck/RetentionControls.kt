@@ -35,7 +35,8 @@ internal class RetentionControls(private val activity:MainActivity,private val p
         scopeArea.addView(activity.duckParagraph(activity.getString(R.string.storage_flow_scope_caption)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=activity.dp(12)})
         val selection=activity.duckGroup(scopeArea)
         listOf(R.string.relay_new_only,R.string.relay_include_history).forEachIndexed {index,label ->
-            val check=activity.duckPill(activity.getString(R.string.duck_selected),R.color.duck_action,R.color.duck_action_background);choices+=check
+            val check=com.google.android.material.radiobutton.MaterialRadioButton(activity).apply {contentDescription=activity.getString(label)};choices+=check
+            check.setOnClickListener {if(!saving) {includeHistory=index==1;renderChoices()}}
             activity.receiverSetting(selection,activity.getString(label),control=check) {
                 if(!saving) {includeHistory=index==1;renderChoices()}
             }
@@ -57,7 +58,7 @@ internal class RetentionControls(private val activity:MainActivity,private val p
         failure.visibility=View.GONE;renderChoices();renderActions()
     }
     private fun renderChoices() {
-        choices.forEachIndexed {index,view ->view.visibility=if((index==1)==includeHistory)View.VISIBLE else View.INVISIBLE}
+        choices.forEachIndexed {index,view ->(view as com.google.android.material.radiobutton.MaterialRadioButton).isChecked=(index==1)==includeHistory}
         historyEffect.visibility=if(includeHistory)View.VISIBLE else View.GONE
     }
     internal fun cancelScope() {
@@ -80,7 +81,7 @@ internal class RetentionControls(private val activity:MainActivity,private val p
             if(result.isSuccess) {
                 editing=false;scopeArea.visibility=View.GONE;owner?.footer?.removeAllViews();(owner?.footer?.tag as? View)?.visibility=View.GONE;render(value)
                 RelayMaintenance.cancelAutomatic();if(value)RelayMaintenance.schedule(activity)
-                changed();activity.duckAcknowledge(activity.getString(if(value)R.string.relay_enabled else R.string.relay_disabled),parent)
+                changed()
             } else {
                 if(editing) {toggle.isEnabled=false;renderActions()} else render(enabled)
                 failure.visibility=View.VISIBLE

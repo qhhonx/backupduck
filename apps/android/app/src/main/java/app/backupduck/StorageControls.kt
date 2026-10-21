@@ -57,7 +57,7 @@ internal fun MainActivity.showStorageControls(section:StorageSection,saved:()->U
                     lifecycleScope.launch {
                         val persisted=withContext(Dispatchers.IO) {runCatching {NativeBridge.request(JSONObject().put("op","receiver_settings").put("root","$filesDir/receiver").put("settings",draft))}}
                         save.isEnabled=true;cancel.isEnabled=true;controls.values.forEach {it.first.isEnabled=true};selectionAreas.forEach {it.isEnabled=true};sheet.setCancelable(true);save.setText(R.string.settings_save)
-                        persisted.onSuccess {sheet.dismiss();saved();duckAcknowledge(getString(R.string.settings_save))}.onFailure {failure.visibility=View.VISIBLE}
+                        persisted.onSuccess {sheet.dismiss();saved()}.onFailure {failure.visibility=View.VISIBLE}
                     }
                 }
             }

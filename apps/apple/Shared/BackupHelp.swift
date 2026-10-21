@@ -16,11 +16,10 @@ struct BackupHelp: View {
         Divider()
         HStack {
           Spacer()
-          Button("settings_done") { dismiss() }.duckSecondaryAction()
-            .keyboardShortcut(.cancelAction)
+          Button("settings_done") { dismiss() }.duckPrimaryAction()
+            .keyboardShortcut(.defaultAction)
         }.padding(20)
       }.frame(minWidth: 480, idealWidth: 620, minHeight: 480, idealHeight: 620, maxHeight: 760)
-        .background(DuckColors.canvas)
     #else
       helpContent
     #endif
@@ -32,7 +31,7 @@ struct BackupHelp: View {
         iosTopic("help_start_title", "help_start_body")
         iosTopic("help_scope_title", "help_scope_body")
         iosTopic("background_section", "background_explanation")
-        Text("background_force_quit").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
+        Text("background_force_quit").font(.body).foregroundStyle(DuckColors.textSecondary)
         iosTopic("help_receipt_title", "help_receipt_body")
         iosTopic("help_recover_title", "help_recover_body")
         iosTopic("help_permission_title", "help_permission_body")
@@ -83,8 +82,8 @@ struct BackupHelp: View {
   #if os(iOS)
   private func iosTopic(_ title: LocalizedStringKey, _ body: LocalizedStringKey) -> some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(title).iosPrototypeText(size: titleSize, weight: .semibold, lineHeight: 1.4)
-      Text(body).iosPrototypeText(size: bodySize, lineHeight: 1.7).foregroundStyle(DuckColors.textSecondary).textSelection(.enabled)
+      Text(title).font(.title2.weight(.semibold))
+      Text(body).font(.body).foregroundStyle(DuckColors.textSecondary).textSelection(.enabled)
     }.frame(maxWidth: .infinity, alignment: .leading)
   }
   #endif

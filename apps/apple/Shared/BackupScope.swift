@@ -210,134 +210,107 @@ struct BackupScopeEditor: View {
     nonmutating set { opened.wrappedValue = newValue }
   }
   #endif
-  @FocusState private var searchFocused: Bool
-  @Environment(\.dynamicTypeSize) private var textSize
-  #if os(iOS)
-  @ScaledMetric(relativeTo: .body) private var choiceSymbolSize = 20
-  #else
-  private var choiceSymbolSize: CGFloat { 16 }
-  #endif
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      if destination == .albums {
-        HStack(spacing: 8) {
-          Image(systemName: "magnifyingglass").foregroundStyle(Color.secondary)
-          TextField("scope_search_albums", text: $search).textFieldStyle(.plain).focused($searchFocused)
-            .accessibilityIdentifier("backup.scope.album_search")
-          if !search.isEmpty {
-            Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Color.secondary) }
-              .buttonStyle(.plain).accessibilityLabel(Text("close"))
-          }
-        }.padding(10).background(DuckRole.groupedSurface,in: Capsule())
-          .padding(.horizontal, 16).padding(.top, 12)
-        // Always present so the grid never moves when a choice changes; with All
-        // Albums on it states the effect instead of repeating the switch title.
-        Text(store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count)
-          : NSLocalizedString("scope_all_albums_summary", comment: ""))
-          .font(.callout).foregroundStyle(Color.secondary).padding(.horizontal, 16)
-          .accessibilityIdentifier("backup.scope.album_count")
-      }
-      if model.denied && destination == .albums {
-        DuckNotice(title: "photos_permission_needed").padding(16)
-        Button("library_request_access") { Task { await model.load(requestPermission: true, selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) } }.duckPrimaryAction().padding(16)
-      } else if destination == .types {
-        #if os(macOS)
-        MacPreferenceGroup { typeChoices }
-        #else
-        ScrollView { IOSPreferenceGroup { typeChoices }.padding(20) }
-        #endif
-      } else {
-        #if os(iOS)
-        IOSPreferenceGroup {
-          IOSPreferenceRow(title: "scope_all_albums") {
-            Toggle("scope_all_albums", isOn: allAlbums).labelsHidden().toggleStyle(.switch)
-              .accessibilityIdentifier("backup.scope.all_albums")
-          }
-        }.padding(.horizontal, 16)
-        ScopeAlbumGrid(albums: model.albums.filter { !$0.system || (store.rule.usesSpecifiedAlbums && store.rule.albums.contains($0.id)) },
-          selected: store.rule.usesSpecifiedAlbums ? store.rule.albums : [], search: search,
-          listMode: textSize.isAccessibilitySize,
-          choose: selectAlbum, open: openAlbum)
-        missingAlbums.padding(.horizontal,16)
-        #else
-        albumList
-        #endif
-        if model.loading && destination == .albums { ProgressView("library_loading").frame(maxWidth: .infinity) }
-      }
+    Group {
+      #if os(macOS)
+      NavigationStack { searchableContent }
+      #else
+      searchableContent
+      #endif
     }
     #if os(macOS)
-    // The picker stays laid out underneath, so its scroll position, search and
-    // selection are unchanged on Back.
     .opacity(openedAlbum == nil ? 1 : 0).allowsHitTesting(openedAlbum == nil)
     .accessibilityHidden(openedAlbum != nil)
     .overlay { if let openedAlbum { MacScopeAlbumBrowser(album: openedAlbum) } }
+    #else
+    .navigationDestination(item: $openedAlbum) { album in ScopeAlbumBrowser(album: album) }
     #endif
-    .background(DuckRole.background).tint(DuckRole.accent)
-      .task { if destination == .albums { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) } }
-      #if os(macOS)
-      .frame(height: destination == .albums ? 440 : 208, alignment: .top)
-      #else
-      .navigationDestination(item: $openedAlbum) { album in ScopeAlbumBrowser(album: album) }
-      #endif
+    .task { if destination == .albums { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) } }
   }
-  #if os(macOS)
-  /// Album covers in a grid, as on iPhone: user albums, plus any system album
-  /// that is already chosen. The surrounding sheet owns search and the summary.
+
+  @ViewBuilder private var searchableContent: some View {
+    if destination == .albums {
+      scopeContent.searchable(text: $search, prompt: Text("scope_search_albums"))
+    } else { scopeContent }
+  }
+
+  @ViewBuilder private var scopeContent: some View {
+    if destination == .types {
+      Form { Section { typeChoices } }.formStyle(.grouped)
+    } else if model.denied {
+      ContentUnavailableView {
+        Label("photos_access_title", systemImage: "photo.badge.exclamationmark")
+      } description: {
+        Text("photos_permission_needed")
+      } actions: {
+        Button("library_request_access") {
+          Task { await model.load(requestPermission: true, selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) }
+        }.duckPrimaryButton()
+      }
+    } else {
+      albumList
+    }
+  }
+
   private var albumList: some View {
     let chosen = store.rule.usesSpecifiedAlbums ? store.rule.albums : []
     let visible = model.albums.filter { (!$0.system || chosen.contains($0.id))
       && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
-    return GeometryReader { proxy in
-      // Three covers fill the width, as on iPhone.
-      let side = max(80, floor((proxy.size.width - 32 - 24) / 3))
-      ScrollView {
-      VStack(alignment: .leading, spacing: 12) {
-        MacPreferenceGroup {
-          MacPreferenceRow(title: "scope_all_albums") {
-            Toggle("scope_all_albums", isOn: allAlbums).labelsHidden().toggleStyle(.switch)
-              .accessibilityIdentifier("backup.scope.all_albums")
-          }
-        }
-        if visible.isEmpty && !model.loading {
-          Text("scope_albums_empty").foregroundStyle(Color.secondary)
-            .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 24)
-        }
-        LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: 12, alignment: .top), count: 3),
-          alignment: .leading, spacing: 16) {
-          ForEach(visible) { album in albumCover(album, side: side, selected: chosen.contains(album.id)) }
-        }
-        missingAlbums
-      }.padding(16)
-      }.accessibilityIdentifier("backup.scope.choices")
-    }
-  }
-  private func albumCover(_ album: ScopeAlbum, side: CGFloat, selected: Bool) -> some View {
-    Button { selectAlbum(album) } label: {
-      VStack(alignment: .leading, spacing: 4) {
-        // The iPhone's image-choice treatment (`DuckMediaSelection`): the cover
-        // dims and a check sits at its corner; nothing changes size.
-        ReadOnlyMediaThumbnail(asset: album.cover, width: side, height: side)
-          .opacity(selected ? 0.72 : 1)
-          .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "checkmark.circle.fill").resizable().foregroundStyle(DuckRole.accent)
-              .background(Circle().fill(.white)).frame(width: 23, height: 23).padding(6)
-              .opacity(selected ? 1 : 0)
-          }
-        Text(album.name).font(.callout).foregroundStyle(Color.primary).lineLimit(2)
-        Text(albumItemCount(album.count)).font(.caption).foregroundStyle(Color.secondary)
-      }.frame(width: side, alignment: .leading).contentShape(Rectangle())
-    }.buttonStyle(.plain).transaction { $0.animation = nil }
-      // A click chooses, as on iPhone; the secondary-click menu opens the album.
-      .contextMenu {
-        Button("scope_album_view") { openAlbum(album) }
-        Button(selected ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+    return List {
+      Section {
+        Toggle("scope_all_albums", isOn: allAlbums)
+          .accessibilityIdentifier("backup.scope.all_albums")
+      } footer: {
+        Text(store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count)
+          : NSLocalizedString("scope_all_albums_summary", comment: ""))
+          .accessibilityIdentifier("backup.scope.album_count")
       }
-      .accessibilityAction(named: Text("scope_album_view")) { openAlbum(album) }
-      .accessibilityIdentifier("backup.scope.album." + album.id)
-      .accessibilityLabel(Text(album.name)).accessibilityValue(Text(albumItemCount(album.count)))
-      .accessibilityAddTraits(selected ? .isSelected : [])
+      Section {
+        if visible.isEmpty && !model.loading {
+          ContentUnavailableView {
+            Label("scope_albums_empty", systemImage: search.isEmpty ? "rectangle.stack" : "magnifyingglass")
+          } description: { Text("scope_summary_note") } actions: {
+            if !search.isEmpty { Button("library_show_all") { search = "" }.buttonStyle(.bordered) }
+            else {
+              Button("retry_task") {
+                Task { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) }
+              }.buttonStyle(.bordered)
+            }
+          }
+        }
+        ForEach(visible) { album in
+          Button { selectAlbum(album) } label: {
+            HStack(spacing: DuckSpacing.small) {
+              ReadOnlyMediaThumbnail(asset: album.cover, width: 44, height: 44)
+              VStack(alignment: .leading) {
+                Text(album.name).font(.body).foregroundStyle(.primary)
+                Text(albumItemCount(album.count)).font(.caption).foregroundStyle(.secondary)
+              }
+              Spacer()
+              Image(systemName: "checkmark").foregroundStyle(DuckRole.accent)
+                .opacity(chosen.contains(album.id) ? 1 : 0).accessibilityHidden(true)
+            }.frame(minHeight: DuckPreferenceMetrics.rowHeight)
+          }
+          .buttonStyle(.borderless)
+          .contextMenu {
+            Button("scope_album_view") { openAlbum(album) }
+            Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+          }
+          .accessibilityAction(named: Text("scope_album_view")) { openAlbum(album) }
+          .accessibilityIdentifier("backup.scope.album." + album.id)
+          .accessibilityAddTraits(chosen.contains(album.id) ? .isSelected : [])
+        }
+      }
+      missingAlbums
+    }
+    #if os(iOS)
+    .listStyle(.insetGrouped)
+    #else
+    .listStyle(.inset)
+    #endif
+    .overlay { if model.loading { ProgressView("library_loading") } }
+    .accessibilityIdentifier("backup.scope.choices")
   }
-  #endif
   private var missingAlbums: some View {
     let missing = store.rule.usesSpecifiedAlbums ? store.rule.albums.subtracting(Set(model.albums.map(\.id))) : []
     return VStack(alignment: .leading, spacing: 8) {
@@ -359,43 +332,31 @@ struct BackupScopeEditor: View {
     })
   }
   private func selectAlbum(_ album: ScopeAlbum) {
-    searchFocused = false
     store.save(store.rule.toggling(album: album.id, name: album.name))
   }
   /// Browsing reads the album only: it changes neither the scope nor any work.
   private func openAlbum(_ album: ScopeAlbum) {
-    searchFocused = false
     openedAlbum = album
   }
   private var typeChoices: some View {
-    VStack(spacing: 0) {
-      ForEach(Array(BackupMediaKind.allCases.enumerated()), id: \.element.id) { index,kind in
-        if index > 0 { Divider() }
-        choiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol, selected: store.rule.types.contains(kind)) {
-          var next = store.rule
-          if next.types.contains(kind) { next.types.remove(kind) } else { next.types.insert(kind) }
-          store.save(next)
-        }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
-        #if os(iOS)
-        .padding(.horizontal,16)
-        #endif
-      }
+    ForEach(BackupMediaKind.allCases) { kind in
+      choiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol, selected: store.rule.types.contains(kind)) {
+        var next = store.rule
+        if next.types.contains(kind) { next.types.remove(kind) } else { next.types.insert(kind) }
+        store.save(next)
+      }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
     }
   }
   private func choiceRow(title: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
     Button(action: action) {
-      HStack(spacing: 12) {
-        Image(systemName: symbol).font(.system(size: choiceSymbolSize)).frame(width: choiceSymbolSize,height: choiceSymbolSize).foregroundStyle(Color.secondary)
-        Text(title).foregroundStyle(Color.primary)
-        Spacer(minLength: 12)
-        selectionMark(selected)
-      }.frame(maxWidth: .infinity, minHeight: DuckPreferenceMetrics.rowHeight, alignment: .leading).contentShape(Rectangle())
-    }.buttonStyle(DuckChoiceButtonStyle()).transaction { $0.animation = nil }.listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+      HStack(spacing: DuckSpacing.small) {
+        Label(title, systemImage: symbol).foregroundStyle(.primary)
+        Spacer()
+        Image(systemName: "checkmark").foregroundStyle(DuckRole.accent)
+          .opacity(selected ? 1 : 0).accessibilityHidden(true)
+      }.font(.body).frame(minHeight: DuckPreferenceMetrics.rowHeight).contentShape(Rectangle())
+    }.buttonStyle(.borderless).transaction { $0.animation = nil }
       .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-  private func selectionMark(_ selected: Bool) -> some View {
-    Image(systemName: "checkmark").font(.system(size: choiceSymbolSize,weight: .semibold)).foregroundStyle(DuckRole.accent)
-      .frame(width: choiceSymbolSize+4).opacity(selected ? 1 : 0).accessibilityHidden(true)
   }
 }
 

@@ -1482,3 +1482,6 @@
 "notify_earlier_title" = "Earlier photos are all backed up";
 "notify_earlier_body" = "New photos keep going over by themselves.";
 "menu_settings" = "Settings…";
+
+"device_discard_title" = "Discard name changes?";
+"device_discard" = "Discard Changes";

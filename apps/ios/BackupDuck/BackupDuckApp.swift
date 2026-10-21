@@ -62,7 +62,16 @@ import SwiftUI
         switch needsFirstRun {
         case .some(true): IOSOnboarding(model: model) { firstRunDone = true }
         case .some(false): tabs
-        case .none: DuckRole.background.ignoresSafeArea()
+        case .none:
+          if let message = model.message {
+            ContentUnavailableView {
+              Label("settings_open_failed", systemImage: "exclamationmark.triangle")
+            } description: {
+              Text(message)
+            } actions: {
+              Button("retry_task") { Task { await model.open() } }.duckPrimaryButton()
+            }
+          } else { DuckLoadingState("hub_opening") }
         }
       }
         .onChange(of: model.ready) { _, ready in if ready && model.pairing != nil { firstRunDone = true } }

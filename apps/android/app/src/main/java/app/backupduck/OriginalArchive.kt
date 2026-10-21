@@ -106,7 +106,7 @@ internal fun MainActivity.exportOriginals(uri:Uri) {
                             NativeBridge.request(JSONObject().put("op","release_archived").put("root",ticket.receiverRoot).put("ids",JSONArray(ticket.ids)).put("verified",JSONArray(ticket.resources.toList())))
                         }}}
                         dialog.busy(false)
-                        reclaimed.onSuccess {done=true;dialog.dismiss();result.dismiss();duckAcknowledge(getString(R.string.originals_reclaimed))}
+                        reclaimed.onSuccess {done=true;dialog.dismiss();result.body.removeAllViews();duckNotice(result.body,getString(R.string.originals_reclaimed));result.show()}
                             .onFailure {dialog.showFailure(R.string.originals_export_failed)}
                     }
                 }

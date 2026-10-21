@@ -34,7 +34,7 @@ internal enum class ReceiverHelpTopic(val key: String, val title: Int, val descr
         R.string.updates_title to R.string.duck_help_update_note)),
 }
 
-class ReceiverHelpActivity : AppCompatActivity() {
+class ReceiverHelpActivity : BackupDuckActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)

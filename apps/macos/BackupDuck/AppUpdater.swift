@@ -9,7 +9,7 @@ import SwiftUI
 
 struct UpdateSettings: View {
   var body: some View {
-    Text("updates_store_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+    Text("updates_store_note").font(.caption).foregroundStyle(DuckColors.textSecondary)
   }
 }
 #else
@@ -67,15 +67,15 @@ import Sparkle
 struct UpdateSettings: View {
   @ObservedObject private var updater = AppUpdater.shared
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
+    Form {
       MacPreferenceGroup {
         MacPreferenceRow(title: "updates_automatic") {
           Toggle("updates_automatic", isOn: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks)).labelsHidden().toggleStyle(.switch)
         }
       }
-      Text("updates_mac_note").font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+      Text("updates_mac_note").font(.caption).foregroundStyle(DuckColors.textSecondary)
       Button("updates_check", action: updater.check).duckPrimaryAction().disabled(!updater.canCheck)
-    }
+    }.formStyle(.grouped)
   }
 }
 

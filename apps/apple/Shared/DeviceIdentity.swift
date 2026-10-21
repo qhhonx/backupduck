@@ -110,9 +110,12 @@ struct DeviceNameEditor: View {
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss
   @State var name: String
-  #if os(iOS)
-  @ScaledMetric(relativeTo: .body) private var bodySize = 16
-  #endif
+  @State private var originalName = ""
+  @State private var confirmDiscard = false
+  private var dirty: Bool { name != originalName }
+  private func cancel() {
+    if dirty { confirmDiscard = true } else { dismiss() }
+  }
   private var valid: Bool {
     let scalars = name.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars
     return !scalars.isEmpty && scalars.count <= 40 && !scalars.contains {
@@ -120,35 +123,37 @@ struct DeviceNameEditor: View {
     }
   }
   var body: some View {
-    DuckSheetLayout(title: "device_rename", busy: model.savingDevice, error: model.deviceError) {
-      #if os(iOS)
-      Text("device_name_note").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
-      #endif
-      VStack(alignment: .leading, spacing: 8) {
-        #if os(iOS)
-        Text("device_name").iosPrototypeText(size: bodySize).foregroundStyle(DuckColors.textSecondary)
-        #else
-        Text("device_name").font(.caption.weight(.medium)).foregroundStyle(DuckColors.textSecondary)
-        #endif
-        TextField("device_name", text: $name).textFieldStyle(.roundedBorder)
+    DuckSheetLayout(title: "device_rename", busy: model.savingDevice, error: model.deviceError,
+      form: true, cancel: cancel) {
+      Section {
+        TextField("device_name", text: $name)
           .accessibilityIdentifier("device.name").disabled(model.savingDevice)
+      } footer: {
+        Text("device_name_note").font(.footnote).foregroundStyle(.secondary)
       }
-      #if os(macOS)
-      DuckNotice(title: "device_name_note")
-      #endif
-      if !valid { Text("device_name_invalid").font(.callout).foregroundStyle(DuckColors.failure) }
+      if !valid { DuckNotice(title: "device_name_invalid", tone: .failure, symbol: "exclamationmark.circle") }
       if model.savingDevice { DuckLoadingState("apple_working") }
     } actions: {
       #if os(iOS)
-      Button { dismiss() } label: { Text("device_cancel").frame(maxWidth: .infinity) }
-        .iosPrototypeAction().disabled(model.savingDevice)
-      Button { Task { if await model.renameDevice(name) { dismiss() } } } label: { Text("device_save").frame(maxWidth: .infinity) }
-        .iosPrototypeAction(primary: true).disabled(model.savingDevice || !valid).accessibilityIdentifier("device.name_save")
+      DuckSheetConfirmButton(title: "device_save") { Task { if await model.renameDevice(name) { dismiss() } } }
+        .disabled(model.savingDevice || !valid).accessibilityIdentifier("device.name_save")
       #else
-      Button("device_cancel") { dismiss() }.duckSecondaryAction().disabled(model.savingDevice)
       Button("device_save") { Task { if await model.renameDevice(name) { dismiss() } } }
         .duckPrimaryAction().disabled(model.savingDevice || !valid).accessibilityIdentifier("device.name_save")
       #endif
-    }.onAppear { model.deviceError = nil }
+    }
+    .interactiveDismissDisabled(model.savingDevice || dirty)
+    #if os(iOS)
+    .confirmationDialog("device_discard_title", isPresented: $confirmDiscard, titleVisibility: .visible) {
+      Button("device_discard", role: .destructive) { dismiss() }
+      Button("cancel", role: .cancel) {}
+    }
+    #else
+    .alert("device_discard_title", isPresented: $confirmDiscard) {
+      Button("cancel", role: .cancel) {}
+      Button("device_discard") { dismiss() }.keyboardShortcut(.defaultAction)
+    }
+    #endif
+    .onAppear { originalName = name; model.deviceError = nil }
   }
 }

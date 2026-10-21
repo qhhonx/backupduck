@@ -18,6 +18,7 @@ import org.json.JSONObject
 
 /** One native implementation of the v1.2 browser flow, reusing RC.3 operations. */
 internal class DashboardAccessUI(private val activity:AppCompatActivity,
+    private val changed:(String)->Unit={},
     private val request:suspend (JSONObject)->JSONObject = {withContext(Dispatchers.IO) {NativeBridge.request(it) as JSONObject}}) {
     private val root get()="${activity.filesDir}/receiver"
     fun access(onDismiss:()->Unit={}):DuckSheet = with(activity) {
@@ -33,9 +34,9 @@ internal class DashboardAccessUI(private val activity:AppCompatActivity,
         val group=duckGroup(sheet.body)
         (group.parent as View).duckMargins(bottom=20)
         listOf(getString(R.string.duck_management_address) to address,getString(R.string.duck_access_code) to code).forEach {(title,value)->
-            val row=LinearLayout(this).apply {gravity=android.view.Gravity.CENTER_VERTICAL;minimumHeight=dp(64);setPadding(dp(14),dp(12),dp(14),dp(12))}
+            val row=LinearLayout(this).apply {gravity=android.view.Gravity.CENTER_VERTICAL;minimumHeight=dp(72);setPadding(dp(14),dp(12),dp(14),dp(12))}
             val words=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-            words.addView(duckText(title,16,bold=true).apply {minimumHeight=(16*resources.displayMetrics.scaledDensity*1.4f).toInt()})
+            words.addView(lookText(title,com.google.android.material.R.style.TextAppearance_Material3_TitleMedium))
             words.addView(value,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(4)})
             row.addView(words,LinearLayout.LayoutParams(0,-2,1f))
             if(review&&value===code) {
@@ -55,8 +56,10 @@ internal class DashboardAccessUI(private val activity:AppCompatActivity,
         }
         var url:String?=null
         var loading=false
+        val copyFeedback=duckParagraph("").apply { accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE }
+        sheet.body.addView(copyFeedback)
         val copy=duckButton(getString(R.string.duck_copy_management_address),true) {
-            url?.let {(getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("BackupDuck",it));duckAcknowledge(getString(R.string.duck_address_copied),sheet.body)}
+            url?.let {(getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("BackupDuck",it));copyFeedback.setText(R.string.duck_address_copied)}
         }
         copy.isEnabled=false
         sheet.body.addView(copy,LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(16)})
@@ -83,59 +86,45 @@ internal class DashboardAccessUI(private val activity:AppCompatActivity,
         sheet.setOnDismissListener {startup.close();secret="";onDismiss()}
         sheet
     }
-    fun code():DuckSheet = with(activity) {
-        val sheet=DuckSheet(this,getString(R.string.dashboard_manage_code))
+    fun code():DuckEditDialog = with(activity) {
+        val dialog = DuckEditDialog(this, getString(R.string.dashboard_manage_code), getString(R.string.duck_new_access_code), numeric = true, maxLength = 10)
         val review=packageName=="app.backupduck.validation"
-        if(!review) sheet.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        sheet.body.addView(duckParagraph(getString(R.string.dashboard_code_note)),LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8);bottomMargin=dp(16)})
-        val field=TextInputLayout(this).apply {
-            isHintEnabled=false;boxBackgroundMode=TextInputLayout.BOX_BACKGROUND_OUTLINE
-            setBoxCornerRadii(dp(8).toFloat(),dp(8).toFloat(),dp(8).toFloat(),dp(8).toFloat())
-        }
-        val edit=TextInputEditText(field.context).apply {
-            id=View.generateViewId();textSize=16f;minimumHeight=dp(56);setPadding(dp(12),dp(12),dp(12),dp(12))
-            contentDescription=getString(R.string.duck_new_access_code)
+        val field=dialog.field.box
+        val edit=dialog.field.input.apply {
             inputType=InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            filters=arrayOf(android.text.InputFilter.LengthFilter(10));isSingleLine=true
             transformationMethod=if(review) AlwaysMaskedPassword() else android.text.method.PasswordTransformationMethod.getInstance()
-        };field.addView(edit)
-        sheet.body.addView(duckParagraph(getString(R.string.duck_new_access_code)).apply {labelFor=edit.id},LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(8)})
-        sheet.body.addView(field,LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(16)})
-        val status=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        sheet.body.addView(status,LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(18)})
-        val note=duckNotice(status,getString(R.string.duck_code_tasks_unchanged)).duckMargins()
-        val working=duckNotice(status,getString(R.string.duck_saving)).duckMargins().apply {visibility=View.GONE}
-        val problem=duckFailure(status,getString(R.string.duck_code_save_failed)).duckMargins()
-        val reset=duckButton(getString(R.string.duck_reset_random_code)) {
-            // The prototype presents one modal at a time. Keep the draft while confirming.
-            sheet.hide()
+        }
+        dialog.body.addView(duckParagraph(getString(R.string.dashboard_code_note)))
+        dialog.body.addView(duckParagraph(getString(R.string.duck_code_tasks_unchanged)))
+        val problem=duckFailure(dialog.body,getString(R.string.duck_code_save_failed))
+        val reset=duckLink(getString(R.string.duck_reset_random_code)) {
+            dialog.hide()
             var changed=false
-            reset(onSuccess={changed=true;sheet.dismiss()}).setOnDismissListener {
-                if(!changed&&!isFinishing&&!isDestroyed) sheet.show()
+            reset(onSuccess={changed=true;dialog.dismiss()}).setOnDismissListener {
+                if(!changed&&!isFinishing&&!isDestroyed) dialog.show()
             }
-        };sheet.body.addView(reset,LinearLayout.LayoutParams(-1,-2))
+        }
+        dialog.body.addView(reset)
         var saving=false
-        lateinit var save:com.google.android.material.button.MaterialButton
-        save=sheet.addAction(getString(R.string.duck_save_access_code),true) {
+        dialog.show()
+        if(!review) dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        dialog.save.setOnClickListener {
             if(!saving) {
-                val value=edit.text?.toString().orEmpty()
-                field.error=null
+                val value=edit.text?.toString().orEmpty();field.error=null
                 if(!value.matches(Regex("[0-9]{10}"))) {field.error=getString(R.string.dashboard_custom_hint);edit.requestFocus()}
                 else {
-                    saving=true;save.isEnabled=false;edit.isEnabled=false;reset.isEnabled=false;sheet.setCancelable(false)
-                    save.setText(R.string.duck_saving);problem.visibility=View.GONE;note.visibility=View.GONE;working.visibility=View.VISIBLE
+                    saving=true;dialog.busy(true);reset.isEnabled=false;problem.visibility=View.GONE
                     lifecycleScope.launch {
                         val result=runCatching {request(JSONObject().put("op","dashboard_access").put("root",root).put("code",value))}
-                        saving=false;save.isEnabled=true;edit.isEnabled=true;reset.isEnabled=true;sheet.setCancelable(true);save.setText(R.string.duck_save_access_code)
-                        if(!sheet.isShowing)return@launch
-                        working.visibility=View.GONE
-                        result.onSuccess {sheet.dismiss();duckAcknowledge(getString(R.string.dashboard_access_saved))}
+                        saving=false;dialog.busy(false);reset.isEnabled=true
+                        if(!dialog.isShowing)return@launch
+                        result.onSuccess {dialog.dismiss();changed(getString(R.string.dashboard_access_saved))}
                             .onFailure {problem.visibility=View.VISIBLE}
                     }
                 }
             }
         }
-        sheet.show();sheet
+        dialog
     }
     fun reset(onSuccess:()->Unit={}) = with(activity) {duckConfirm(R.string.dashboard_reset_code,R.string.dashboard_reset_note,R.string.dashboard_reset_code,notice=R.string.duck_reset_unchanged,busyNotice=R.string.duck_resetting) {dialog->change(dialog,reset=true,onSuccess=onSuccess)}}
     fun revoke() = with(activity) {duckConfirm(R.string.dashboard_revoke,R.string.dashboard_revoke_note,R.string.dashboard_revoke,true,notice=R.string.duck_revoke_sign_in,busyNotice=R.string.duck_revoking) {dialog->change(dialog,revoke=true)}}
@@ -145,7 +134,7 @@ internal class DashboardAccessUI(private val activity:AppCompatActivity,
             val result=runCatching {request(JSONObject().put("op","dashboard_access").put("root",root).put("reset",reset).put("revoke",revoke))}
             dialog.busy(false)
             if(!dialog.isShowing)return@launch
-            result.onSuccess {onSuccess();dialog.dismiss();duckAcknowledge(getString(R.string.dashboard_access_saved))}
+            result.onSuccess {onSuccess();dialog.dismiss();changed(getString(R.string.dashboard_access_saved))}
                 .onFailure {dialog.showFailure()}
         }
     }

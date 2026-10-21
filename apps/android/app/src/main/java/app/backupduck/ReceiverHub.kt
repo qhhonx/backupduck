@@ -111,7 +111,8 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         val first = hub == ReceiverHubState.WAITING && total == 0
         empty.removeAllViews()
         if (first) lookEmpty(empty, R.drawable.duck_empty, getString(R.string.rhub_waiting_first),
-            if (names.size == 1) getString(R.string.rhub_waiting_first_from, names[0]) else getString(R.string.rhub_waiting_note))
+            if (names.size == 1) getString(R.string.rhub_waiting_first_from, names[0]) else getString(R.string.rhub_waiting_note),
+            getString(R.string.pref_devices) to actions.devices)
         this@ReceiverHub.state.view.visibility = if (first) View.GONE else View.VISIBLE
         empty.visibility = if (first) View.VISIBLE else View.GONE
         if (!first) this@ReceiverHub.state.show(card(hub, state, names, storage, cleanup))

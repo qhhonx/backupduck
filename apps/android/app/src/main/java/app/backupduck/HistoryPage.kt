@@ -126,7 +126,7 @@ internal class HistoryPage(private val activity: MainActivity, private val model
         val group=activity.duckGroup(sheet.body)
         activity.duckSetting(group,activity.getString(R.string.duck_type),activity.getString(R.string.duck_type),activity.duckText(activity.getString(when(model.state.value.kind) {"photo"->R.string.filter_photo;"video"->R.string.filter_video;"motion"->R.string.filter_motion;"burst"->R.string.filter_burst;else->R.string.filter_all}),13,true)) {sheet.dismiss();showKinds()}
         activity.duckSetting(group,activity.getString(R.string.history_sender),action={sheet.dismiss();showSenders()})
-        sheet.body.addView(activity.duckButton(activity.getString(R.string.storage_refresh)) {sheet.dismiss();activity.lifecycleScope.launch {model.refreshVisible(root,firstVisible());if(!model.state.value.failed)activity.duckAcknowledge(activity.getString(R.string.duck_history_refreshed))}},LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=activity.dp(16)})
+        sheet.body.addView(activity.duckButton(activity.getString(R.string.storage_refresh)) {sheet.dismiss();activity.lifecycleScope.launch {model.refreshVisible(root,firstVisible())}},LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=activity.dp(16)})
         val failure=activity.duckFailure(sheet.body,activity.getString(R.string.settings_start_first))
         lateinit var retry:com.google.android.material.button.MaterialButton
         retry=activity.duckButton(activity.getString(R.string.receiver_retry_processing)) {
@@ -134,7 +134,7 @@ internal class HistoryPage(private val activity: MainActivity, private val model
             activity.lifecycleScope.launch {
                 val result=withContext(Dispatchers.IO) {runCatching {NativeBridge.request(JSONObject().put("op","retry_processing"))}}
                 retry.isEnabled=true
-                result.onSuccess {activity.duckAcknowledge(activity.getString(R.string.design_retry_requested),sheet.body)}.onFailure {failure.visibility=View.VISIBLE}
+                result.onSuccess {activity.duckNotice(sheet.body,activity.getString(R.string.design_retry_requested))}.onFailure {failure.visibility=View.VISIBLE}
             }
         };sheet.body.addView(retry,LinearLayout.LayoutParams(-1,-2));sheet.show()
     }
@@ -386,7 +386,7 @@ internal class TransferAdapter(private val activity: MainActivity, private val o
                 activity.lifecycleScope.launch {
                     val result=withContext(Dispatchers.IO) {runCatching {NativeBridge.request(JSONObject().put("op","retry_processing").put("id",item.id))}}
                     retry.isEnabled=true
-                    result.onSuccess {activity.duckAcknowledge(activity.getString(R.string.design_retry_requested),sheet.body)}.onFailure {failure.visibility=View.VISIBLE}
+                    result.onSuccess {activity.duckNotice(sheet.body,activity.getString(R.string.design_retry_requested))}.onFailure {failure.visibility=View.VISIBLE}
                 }
             }
             sheet.body.addView(retry,LinearLayout.LayoutParams(-1,-2))

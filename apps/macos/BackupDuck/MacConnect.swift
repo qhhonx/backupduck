@@ -17,22 +17,20 @@ struct MacConnectSheet: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .padding(28)
-      Divider()
       HStack {
         Spacer()
         if connected {
           Button("records_done") { dismiss() }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
         } else {
-          Button("cancel") { exchange.stop(); dismiss() }.keyboardShortcut(.cancelAction).disabled(model.pairingInProgress)
+          Button("cancel") { exchange.stop(); dismiss() }.buttonStyle(.bordered).keyboardShortcut(.cancelAction).disabled(model.pairingInProgress)
           if exchange.error != nil {
-            Button("mac_connect_try_again") { start() }.buttonStyle(.borderedProminent).disabled(model.pairingInProgress)
+            Button("mac_connect_try_again") { start() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(model.pairingInProgress)
           }
         }
       }
       .padding(16)
     }
     .frame(width: 620, height: 460)
-    .background(DuckRole.background)
     .onAppear { start() }
     .onDisappear { exchange.stop() }
   }
@@ -62,7 +60,7 @@ struct MacConnectSheet: View {
         if let error = exchange.error {
           VStack(spacing: 8) {
             Image(systemName: "wifi.exclamationmark").font(.title).foregroundStyle(DuckRole.attention)
-            Text(LocalizedStringKey(error)).font(.callout).multilineTextAlignment(.center).foregroundStyle(DuckRole.attention)
+            Text(LocalizedStringKey(error)).font(.callout).multilineTextAlignment(.center).foregroundStyle(.primary)
           }.padding(16)
         }
       }

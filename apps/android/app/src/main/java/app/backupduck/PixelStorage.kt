@@ -45,8 +45,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
     private lateinit var cleanup: MaterialSwitch
     private lateinit var relay: MaterialSwitch
     private lateinit var relaySupport: TextView
-    private val failure = activity.lookText(activity.getString(R.string.storage_save_failed), M.style.TextAppearance_Material3_BodyMedium,
-        color = activity.getColor(R.color.duck_state_failure)).apply { visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }
+    private val failure = activity.duckError(activity.getString(R.string.storage_save_failed))
     private var load: Job? = null
     private var relayOn: Boolean? = null
 

@@ -30,7 +30,11 @@ extension View {
 
   /// I4: the one primary action of a context, a filled capsule.
   func duckPrimaryButton() -> some View {
-    buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large).tint(DuckRole.accent)
+    #if os(iOS)
+    buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accent)
+    #else
+    buttonStyle(.borderedProminent).controlSize(.regular).tint(DuckRole.accent).keyboardShortcut(.defaultAction)
+    #endif
   }
 }
 
@@ -41,7 +45,7 @@ struct DuckTintedButton: View {
   init(_ title: LocalizedStringKey, action: @escaping () -> Void) { self.title = title; self.action = action }
   var body: some View {
     Button(action: action) { Text(title) }
-      .buttonStyle(.bordered).buttonBorderShape(.capsule).tint(DuckRole.accent)
+      .buttonStyle(.bordered).controlSize(.small).tint(DuckRole.accent)
   }
 }
 
@@ -52,7 +56,7 @@ struct DuckPill: View {
   var body: some View {
     HStack(spacing: 6) {
       if let dot { Circle().fill(dot).frame(width: 8, height: 8) }
-      title.font(.footnote.weight(.semibold)).lineLimit(1)
+      title.font(.footnote.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
     }
     .foregroundStyle(.primary)
     .padding(.horizontal, DuckSpacing.small).padding(.vertical, 6)
@@ -80,22 +84,26 @@ struct DuckStateCard<Trailing: View, Action: View>: View {
     self.trailing = trailing; self.action = action
   }
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     HStack(alignment: .top, spacing: DuckSpacing.small) {
       Image(systemName: symbol).font(.title3).foregroundStyle(tone).frame(width: 28).accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 4) {
         title.font(.headline).fixedSize(horizontal: false, vertical: true)
         if let note { note.font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-        if let progress {
-          ProgressView(value: progress).tint(DuckRole.accent).padding(.top, 8)
-            .animation(.easeOut(duration: DuckMotion.progress), value: progress)
-        }
         action().padding(.top, 6)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       trailing()
     }
     .duckCard()
+    .overlay(alignment: .bottom) {
+      if let progress {
+        ProgressView(value: progress).tint(DuckRole.accent)
+          .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.progress), value: progress)
+          .padding(.horizontal, DuckLook.cardPadding)
+      }
+    }
     .accessibilityElement(children: .contain)
   }
 }
@@ -114,14 +122,18 @@ struct DuckEmptyState<Action: View>: View {
   }
 
   var body: some View {
-    VStack(spacing: 10) {
-      DuckIllustration(pose: pose, size: 112)
-      Text(title).font(.title3.weight(.semibold)).multilineTextAlignment(.center)
-      if let note { Text(note).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
-      action().padding(.top, 6)
+    ContentUnavailableView {
+      if pose == .pairing {
+        Label(title, systemImage: "iphone.and.arrow.forward")
+      } else {
+        DuckIllustration(pose: pose, size: 112)
+        Text(title)
+      }
+    } description: {
+      if let note { Text(note) }
+    } actions: {
+      action()
     }
-    .frame(maxWidth: .infinity).padding(.vertical, DuckSpacing.small)
-    .duckCard()
   }
 }
 

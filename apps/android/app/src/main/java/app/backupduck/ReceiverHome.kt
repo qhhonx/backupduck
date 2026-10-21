@@ -115,7 +115,6 @@ internal class ReceiverHome(private val activity: MainActivity, connect: () -> U
         art.imageTintList=if(idle) null else android.content.res.ColorStateList.valueOf(getColor(R.color.duck_action))
         art.background=duckBackground(if(idle) R.color.duck_brand_accent_background else R.color.duck_action_background,14,false)
         connection.isEnabled=!pending
-        duckActionStyle(connection,!paused);duckActionStyle(pause,paused)
         pause.visibility=if(idle)View.GONE else View.VISIBLE;pause.isEnabled=!pending
         pauseExplanation.visibility=if(paused)View.VISIBLE else View.GONE
         // Resume becomes primary and is first; neither action changes thermal/storage holds.

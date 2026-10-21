@@ -109,8 +109,7 @@ struct MacSettings: View {
 
   private var openFailedCard: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Label("settings_open_failed", systemImage: "exclamationmark.triangle.fill")
-        .font(.headline).foregroundStyle(DuckRole.attention)
+      DuckNotice(title: "settings_open_failed", tone: .attention, symbol: "exclamationmark.triangle.fill")
       if let message = model.message, message != NSLocalizedString("pairing_unlock_wait", comment: "") {
         Text(message).font(.subheadline).foregroundStyle(.secondary)
       }
@@ -174,7 +173,7 @@ private struct MacAutoBackupSettings: View {
           .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
       } footer: {
         if let error = model.autoBackupError {
-          Text(error).foregroundStyle(DuckRole.failure)
+          DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
         } else if model.ready {
           Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
             : String(format: NSLocalizedString("settings_auto_footer_mac", comment: ""), DuckSettingsValues(model: model).receiverName))
@@ -192,7 +191,7 @@ private struct MacAutoBackupSettings: View {
     }
     .formStyle(.grouped)
     .sheet(item: $editing) { destination in
-      BackupScopeEditor(destination: destination).frame(minWidth: 520, minHeight: 480)
+      MacScopeEditorSheet(destination: destination)
     }
   }
 }
@@ -279,5 +278,18 @@ private struct MacAdvancedSettings: View {
     }
     .formStyle(.grouped)
     .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
+  }
+}
+
+/// A6: task-owned album choices keep immediate persistence and system Done.
+private struct MacScopeEditorSheet: View {
+  let destination: BackupScopeDestination
+  @Environment(\.dismiss) private var dismiss
+  var body: some View {
+    DuckSheetLayout(title: destination == .types ? "settings_media_types" : "settings_albums") {
+      BackupScopeEditor(destination: destination).frame(minHeight: 440)
+    } actions: {
+      Button("settings_done") { dismiss() }.duckPrimaryAction()
+    }
   }
 }

@@ -9,21 +9,12 @@ struct MacPreferenceGroup<Content: View>: View {
   var layout: Layout = .rows
   @ViewBuilder var content: () -> Content
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      DuckSurface(contentInsets: EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)) {
-        VStack(alignment: .leading, spacing: 0) {
-          if let title {
-            Text(title).font(.system(size: 16, weight: .semibold))
-              .padding(.top, 20).padding(.bottom, 8)
-          }
-          content()
-            .padding(.bottom, layout == .content ? 20 : 0)
-        }
-      }
-      if let note {
-        Text(note).font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
-          .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
-      }
+    Section {
+      content()
+    } header: {
+      if let title { Text(title) }
+    } footer: {
+      if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
     }
   }
 }
@@ -36,16 +27,15 @@ struct MacPreferenceRow<Control: View>: View {
   var body: some View {
     HStack(alignment: .center, spacing: 12) {
       VStack(alignment: .leading, spacing: 5) {
-        Text(title).font(.system(size: 14))
+        Text(title).font(.body)
         if let note {
-          Text(note).font(.system(size: 12)).foregroundStyle(DuckColors.textSecondary)
+          Text(note).font(.caption).foregroundStyle(DuckColors.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
         }
       }.frame(maxWidth: .infinity, alignment: .leading)
-      control().font(.system(size: 14)).controlSize(.small)
-    }.padding(.vertical, 10).frame(minHeight: DuckPreferenceMetrics.rowHeight)
+      control().font(.body).controlSize(.regular)
+    }.padding(.vertical, DuckSpacing.xxSmall).frame(minHeight: DuckPreferenceMetrics.rowHeight)
       .contentShape(Rectangle())
-      .overlay(alignment: .top) { if !first { Divider() } }
   }
 }
 

@@ -99,7 +99,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
             button.isEnabled = false
             actions.retryAll { ok ->
                 button.isEnabled = true
-                activity.duckAcknowledge(activity.getString(if (ok) R.string.photos_trying_again else R.string.photos_retry_failed))
+                (button.tag as? StateCard)?.actionFeedback(activity.getString(if (ok) R.string.photos_trying_again else R.string.photos_retry_failed), !ok)
             }
         }
     }
@@ -230,9 +230,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
 
     private inner class DayHolder(activity: MainActivity) : RecyclerView.ViewHolder(LinearLayout(activity)) {
         private val day = activity.lookText("", M.style.TextAppearance_Material3_TitleSmall).apply { isAccessibilityHeading = true }
-        private val senders = activity.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
-            maxLines = 1; ellipsize = TextUtils.TruncateAt.END
-        }
+        private val senders = activity.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true)
         init {
             (itemView as LinearLayout).apply {
                 gravity = Gravity.CENTER_VERTICAL; setPadding(activity.dp(16), activity.dp(20), activity.dp(16), activity.dp(8))
@@ -321,15 +319,13 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                 }
                 StatusKind.FAILED -> {
                     box.setPadding(margin, token(R.dimen.duck_space_x_small), margin, 0)
-                    val card = StateCard(this)
-                    card.show(LookState(R.drawable.ic_alert, getColor(R.color.duck_state_attention), getString(R.string.photos_load_failed),
-                        action = getString(R.string.photos_try_again) to actions.reload))
-                    box.addView(card.view, LinearLayout.LayoutParams(-1, -2))
+                    lookUnavailable(box, getString(R.string.nav_photos), getString(R.string.photos_load_failed),
+                        getString(R.string.photos_try_again) to actions.reload)
                 }
                 StatusKind.EMPTY -> {
                     box.setPadding(margin, token(R.dimen.duck_space_xx_large), margin, token(R.dimen.duck_space_large))
                     lookEmpty(box, R.drawable.duck_empty, getString(R.string.photos_empty_title), getString(R.string.photos_empty_note),
-                        if (hasSenders) null else getString(R.string.rhub_connect) to actions.connect, card = false)
+                        getString(R.string.rhub_connect) to actions.connect, card = false)
                 }
             }
         }
@@ -345,7 +341,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
 private class PhotoDetail(private val activity: MainActivity, private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
     fun show(item: HistoryItem): Unit = with(activity) {
         val dark = darkLook()
-        val page = androidx.appcompat.app.AppCompatDialog(this, R.style.DuckFullPage)
+        val page = androidx.appcompat.app.AppCompatDialog(dark, R.style.DuckFullPage)
         val canvas = dark.getColor(R.color.duck_role_background)
         val root = LinearLayout(dark).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         root.addView(android.widget.ImageButton(dark).apply {
@@ -405,7 +401,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
                 retry.isEnabled = false; failure.visibility = View.GONE
                 actions.retry(item) { ok ->
                     retry.isEnabled = true
-                    if (ok) { page.dismiss(); duckAcknowledge(getString(R.string.photos_trying_again)) } else failure.visibility = View.VISIBLE
+                    if (ok) { page.dismiss() } else failure.visibility = View.VISIBLE
                 }
             }
             action.addView(retry, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
@@ -429,8 +425,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
         page.setOnDismissListener { signal.cancel(); work.cancel(); lookup?.cancel() }
         page.show()
         page.window?.let { window ->
-            window.setLayout(-1, -1); window.statusBarColor = canvas; window.navigationBarColor = dark.getColor(R.color.duck_m3_surface_container_low)
-            androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply { isAppearanceLightStatusBars = false; isAppearanceLightNavigationBars = false }
+            window.setLayout(-1, -1)
         }
     }
 

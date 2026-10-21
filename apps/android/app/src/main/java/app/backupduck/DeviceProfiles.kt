@@ -95,36 +95,38 @@ internal class DevicePanels(private val activity:MainActivity,private val change
                             .put("id",peer.getJSONObject("profile").getString("id")).put("enabled",!enabled))
                     }}
                     dialog.busy(false)
-                    result.onSuccess {saved=true;dialog.dismiss();sheet.dismiss();refresh();changed();activity.duckAcknowledge(activity.getString(R.string.device_save),host)}
+                    result.onSuccess {saved=true;dialog.dismiss();sheet.dismiss();refresh();changed()}
                         .onFailure {dialog.showFailure(R.string.device_save_failed)}
                 }
             }
             confirmation.setOnDismissListener {if(!saved) sheet.show()}
         },LinearLayout.LayoutParams(-1,-2));sheet.show()
     }
-    internal fun rename():DuckSheet {
-        val sheet=DuckSheet(activity,activity.getString(R.string.duck_device_name))
-        val field=DuckField(activity,activity.getString(R.string.device_name),name ?: android.os.Build.MODEL,maxLength=80)
+    internal fun rename():DuckEditDialog {
+        val dialog = DuckEditDialog(activity, activity.getString(R.string.duck_device_name), activity.getString(R.string.device_name), name ?: android.os.Build.MODEL, maxLength = 80)
+        val field = dialog.field
         field.input.addTextChangedListener(object:android.text.TextWatcher {
             override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int)=Unit
             override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {field.box.error=null}
             override fun afterTextChanged(s:android.text.Editable?)=Unit
         })
-        sheet.body.addView(field.view)
-        val failure=activity.duckFailure(sheet.body,activity.getString(R.string.device_save_failed))
-        val cancel=sheet.addAction(activity.getString(R.string.device_cancel)) {sheet.dismiss()}
-        val save=sheet.addAction(activity.getString(R.string.device_save),true) {
+        val failure=activity.duckFailure(dialog.body,activity.getString(R.string.device_save_failed))
+        dialog.show()
+        dialog.save.tag="device.save"
+        dialog.save.setOnClickListener {
             val value=field.input.text.toString().trim();field.box.error=null
-            if(value.isBlank()||value.codePointCount(0,value.length)>40||value.any {Character.isISOControl(it)||it in '\u2028'..'\u202e'||it in '\u2066'..'\u2069'}) {field.box.error=activity.getString(R.string.device_name_invalid);return@addAction}
-            field.input.isEnabled=false;cancel.isEnabled=false;sheet.setCancelable(false);failure.visibility=View.GONE
-            sheet.footer.getChildAt(1).isEnabled=false
+            if(value.isBlank()||value.codePointCount(0,value.length)>40||value.any {Character.isISOControl(it)||it in '\u2028'..'\u202e'||it in '\u2066'..'\u2069'}) {
+                field.box.error=activity.getString(R.string.device_name_invalid)
+                return@setOnClickListener
+            }
+            dialog.busy(true);failure.visibility=View.GONE
             activity.lifecycleScope.launch {
                 val result=withContext(Dispatchers.IO) {runCatching {DeviceProfiles.read(activity,value)}}
-                field.input.isEnabled=true;cancel.isEnabled=true;sheet.footer.getChildAt(1).isEnabled=true;sheet.setCancelable(true)
-                result.onSuccess {render(it);sheet.dismiss();activity.duckAcknowledge(activity.getString(R.string.device_save))}
+                dialog.busy(false)
+                result.onSuccess {render(it);dialog.dismiss()}
                     .onFailure {if(it.message=="invalid_input") field.box.error=activity.getString(R.string.device_name_invalid) else failure.visibility=View.VISIBLE}
             }
         }
-        save.tag="device.save";sheet.show();return sheet
+        return dialog
     }
 }

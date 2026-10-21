@@ -1482,3 +1482,6 @@
 "notify_earlier_title" = "以前的照片都备份好了";
 "notify_earlier_body" = "以后拍的照片会自动送过去。";
 "menu_settings" = "设置…";
+
+"device_discard_title" = "放弃名称更改？";
+"device_discard" = "放弃更改";

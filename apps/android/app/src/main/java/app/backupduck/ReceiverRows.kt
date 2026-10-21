@@ -43,7 +43,7 @@ internal fun Context.receiverSelect(parent:LinearLayout,title:String,values:List
   contentDescription=title
   gravity=Gravity.END or Gravity.CENTER_VERTICAL
   adapter=object:android.widget.ArrayAdapter<String>(this@receiverSelect,android.R.layout.simple_spinner_dropdown_item,values) {
-   override fun getView(position:Int,convert:View?,host:android.view.ViewGroup):View = (super.getView(position,convert,host) as TextView).apply {textSize=16f;includeFontPadding=false;gravity=Gravity.END or Gravity.CENTER_VERTICAL;minimumHeight=dp(48);setPadding(0,0,dp(4),0)}
+   override fun getView(position:Int,convert:View?,host:android.view.ViewGroup):View = (super.getView(position,convert,host) as TextView).apply {setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge);includeFontPadding=false;gravity=Gravity.END or Gravity.CENTER_VERTICAL;minimumHeight=dp(48);setPadding(0,0,dp(4),0)}
   }
   setSelection(selected);minimumHeight=dp(48)
  }

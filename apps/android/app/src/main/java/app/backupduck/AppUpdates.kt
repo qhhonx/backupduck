@@ -128,7 +128,7 @@ internal object AppUpdates {
     }
 }
 
-class UpdatesActivity:AppCompatActivity() {
+class UpdatesActivity:BackupDuckActivity() {
     private var release:AppRelease?=null
     private var downloaded:File?=null
     private lateinit var feedback:LinearLayout

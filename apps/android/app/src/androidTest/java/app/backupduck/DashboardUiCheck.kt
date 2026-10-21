@@ -19,7 +19,7 @@ internal fun Instrumentation.checkDashboardCodeUI(): String {
     uiAutomation.executeShellCommand("input keyevent 224").close()
     uiAutomation.executeShellCommand("wm dismiss-keyguard").close()
     val activity = startActivitySync(Intent(targetContext, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
-    var sheet:DuckSheet?=null
+    var sheet:DuckEditDialog?=null
     var confirmation:DuckConfirmation?=null
     try {
         runOnMainSync {sheet=DashboardAccessUI(activity).code()}
@@ -27,7 +27,7 @@ internal fun Instrumentation.checkDashboardCodeUI(): String {
         runOnMainSync {
             val form=checkNotNull(sheet)
             views(form.body).filterIsInstance<TextInputEditText>().single().setText("0123456789")
-            form.footer.getChildAt(0).performClick()
+            form.save.performClick()
         }
         var saved=false
         repeat(50) {if(!saved) {saved=access().getString("code")=="0123456789";Thread.sleep(100)}}

@@ -37,7 +37,7 @@ struct DevicePage: View {
       } else {
         Section {
           DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
-            Button(action: connect) { Text("hub_connect").frame(maxWidth: .infinity) }.duckPrimaryButton()
+            Button("hub_connect", action: connect).duckPrimaryButton()
           }
         }
         .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)

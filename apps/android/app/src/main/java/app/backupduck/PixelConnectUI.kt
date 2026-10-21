@@ -253,12 +253,11 @@ internal class ConnectPage(private val activity: MainActivity, scan: ((String?) 
 
     init {
         val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(activity.getColor(R.color.duck_role_background)) }
-        root.addView(ImageButton(activity).apply {
-            setImageResource(R.drawable.ic_close); contentDescription = activity.getString(R.string.connect_close)
-            imageTintList = ColorStateList.valueOf(activity.getColor(R.color.duck_role_secondary_text))
-            val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, out, true)
-            setBackgroundResource(out.resourceId); setOnClickListener { dismiss() }
-        }, LinearLayout.LayoutParams(activity.dp(48), activity.dp(48)).apply { setMargins(activity.dp(4), activity.dp(4), 0, 0) })
+        root.addView(com.google.android.material.appbar.MaterialToolbar(activity).apply {
+            setNavigationIcon(R.drawable.ic_close)
+            setNavigationContentDescription(R.string.connect_close)
+            setNavigationOnClickListener { dismiss() }
+        }, LinearLayout.LayoutParams(-1, -2))
         root.addView(ScrollView(activity).apply { addView(content) }, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -273,7 +272,6 @@ internal class ConnectPage(private val activity: MainActivity, scan: ((String?) 
 
     override fun show() {
         super.show(); window?.setLayout(-1, -1)
-        window?.let { val background = activity.getColor(R.color.duck_role_background); it.statusBarColor = background; it.navigationBarColor = background }
     }
 }
 
@@ -296,11 +294,8 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
             if (!page.isShowing) return@launch
             val body = page.body; body.removeAllViews()
             result.onFailure {
-                StateCard(activity).also { card ->
-                    card.show(LookState(R.drawable.ic_alert, getColor(R.color.duck_state_attention), getString(R.string.devices_load_failed),
-                        action = getString(R.string.connect_try_again) to { reload() }))
-                    body.addView(card.view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
-                }
+                lookUnavailable(body, getString(R.string.pref_devices), getString(R.string.devices_load_failed),
+                    getString(R.string.connect_try_again) to { reload() })
             }.onSuccess { peers -> render(deviceGroups(peers)) }
         }
     }
@@ -318,12 +313,13 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
         body.addView(lookButton(getString(R.string.devices_connect), LookButton.FILLED, icon = R.drawable.ic_plus) { connect() },
             LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small); bottomMargin = token(R.dimen.duck_space_small) })
         if (groups.sending.isNotEmpty()) {
+            lookSection(body, getString(R.string.devices_sending))
             val group = lookGroup(body)
             groups.sending.forEach { peer -> lookRow(group, icon(peer), peer.name, lastConnected(this, peer)) { device(peer) } }
         }
         if (groups.stopped.isNotEmpty()) {
+            lookSection(body, getString(R.string.devices_stopped))
             val group = lookGroup(body)
-            (group.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_small) }
             groups.stopped.forEach { peer ->
                 lookRow(group, icon(peer), peer.name, listOfNotNull(getString(R.string.devices_stopped_row), lastConnected(this, peer)).joinToString(" · ")) { device(peer) }
             }
@@ -343,25 +339,51 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
         }
         body.addView(lookText(getString(if (peer.enabled) R.string.devices_stop_note else R.string.devices_stopped_note), M.style.TextAppearance_Material3_BodyMedium),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
-        val failure = lookText(getString(R.string.devices_save_failed), M.style.TextAppearance_Material3_BodyMedium, color = getColor(R.color.duck_state_failure)).apply {
-            visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
-        body.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
-        lateinit var button: View
-        button = lookButton(getString(if (peer.enabled) R.string.devices_stop else R.string.devices_resume), LookButton.TONAL) {
-            button.isEnabled = false; failure.visibility = View.GONE
+        val failure = duckFailure(body, getString(R.string.devices_save_failed))
+        var resumeButton: com.google.android.material.button.MaterialButton? = null
+        fun change(confirmation: DuckConfirmation? = null) {
+            failure.visibility = View.GONE
+            confirmation?.busy(true)
+            sheet.setCancelable(false)
             lifecycleScope.launch {
                 val result = withContext(Dispatchers.IO) { runCatching {
                     NativeBridge.request(JSONObject().put("op", "set_sender_enabled").put("root", "$filesDir/receiver/store").put("id", peer.id).put("enabled", !peer.enabled))
                 } }
-                button.isEnabled = true
+                confirmation?.busy(false);sheet.setCancelable(true);resumeButton?.isEnabled=true
                 result.onSuccess {
-                    sheet.dismiss(); reload(); changed()
-                    duckAcknowledge(getString(if (peer.enabled) R.string.devices_stopped_ack else R.string.devices_resumed_ack, peer.name), page.body)
-                }.onFailure { failure.visibility = View.VISIBLE }
+                    confirmation?.dismiss(); sheet.dismiss(); reload(); changed()
+                    if (peer.enabled) {
+                        com.google.android.material.snackbar.Snackbar.make(page.body, getString(R.string.devices_stopped_ack, peer.name),
+                            com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                            .setAction(R.string.action_undo) {
+                                lifecycleScope.launch {
+                                    val restored = withContext(Dispatchers.IO) { runCatching {
+                                        NativeBridge.request(JSONObject().put("op", "set_sender_enabled").put("root", "$filesDir/receiver/store").put("id", peer.id).put("enabled", true))
+                                    } }
+                                    restored.onSuccess { reload(); changed() }
+                                        .onFailure { duckProblem(page.body, getString(R.string.devices_save_failed)) }
+                                }
+                            }.show()
+                    }
+                }.onFailure {
+                    if (confirmation != null) confirmation.showFailure(R.string.devices_save_failed) else failure.visibility = View.VISIBLE
+                }
             }
         }
-        body.addView(button, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
+        if (peer.enabled) {
+            val toolbar = com.google.android.material.appbar.MaterialToolbar(this)
+            toolbar.menu.add(R.string.devices_stop).setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_NEVER)
+            toolbar.setOnMenuItemClickListener {
+                duckConfirm(R.string.devices_stop, R.string.devices_stop_note, R.string.devices_stop) { change(it) }
+                true
+            }
+            body.addView(toolbar, 0, LinearLayout.LayoutParams(-1, -2))
+        } else {
+            val resume = lookButton(getString(R.string.devices_resume), LookButton.TONAL) {}
+            resumeButton = resume
+            resume.setOnClickListener { resume.isEnabled=false;change() }
+            body.addView(resume, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
+        }
         sheet.show()
     }
 }

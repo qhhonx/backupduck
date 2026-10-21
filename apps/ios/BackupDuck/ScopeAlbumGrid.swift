@@ -222,21 +222,18 @@ struct ScopeAlbumBrowser: View {
     _library = StateObject(wrappedValue: PhotoLibraryModel(collection: album.id))
   }
   var body: some View {
-    VStack(spacing: 0) {
-      IOSPrototypeHeader(title: "\(album.name)", back: { dismiss() }) {
-        let chosen = store.rule.choosesAlbum(album.id)
-        Button { store.save(store.rule.toggling(album: album.id, name: album.name)) } label: {
-          Image(systemName: chosen ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
-            .frame(width: 44, height: 44).contentShape(Rectangle())
-        }.buttonStyle(.plain).foregroundStyle(DuckRole.accent)
-          .accessibilityLabel(Text(chosen ? "scope_album_deselect" : "scope_album_choose"))
+    content.frame(maxWidth: .infinity, maxHeight: .infinity)
+      .navigationTitle(album.name).navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          let chosen = store.rule.choosesAlbum(album.id)
+          Button { store.save(store.rule.toggling(album: album.id, name: album.name)) } label: {
+            Label(chosen ? "scope_album_deselect" : "scope_album_choose", systemImage: chosen ? "checkmark.circle.fill" : "circle")
+          }
           .accessibilityAddTraits(chosen ? .isSelected : [])
           .accessibilityIdentifier("backup.scope.album_browser.choose")
+        }
       }
-      content.frame(maxWidth: .infinity, maxHeight: .infinity)
-    }.background(DuckRole.background).foregroundStyle(Color.primary).tint(DuckRole.accent)
-      .toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
-      .background(IOSNativeEdgeBack().frame(width: 0, height: 0).allowsHitTesting(false))
       .background(IOSPreviewPresentation(item: preview, library: library) { preview = nil }.frame(width: 0, height: 0))
       .task { await library.open() }
       .onDisappear { library.thumbnails.clear() }
@@ -245,8 +242,12 @@ struct ScopeAlbumBrowser: View {
     switch library.placeholder {
     case .loading?: DuckLoadingState("library_loading")
     case .empty?:
-      Text("scope_album_no_photos").font(.body).foregroundStyle(Color.secondary)
-        .multilineTextAlignment(.center).padding(24).accessibilityIdentifier("backup.scope.album_browser.empty")
+      ContentUnavailableView {
+        DuckIllustration(pose: .empty, size: 112)
+        Text("library_empty_all")
+      } description: { Text("scope_album_no_photos") } actions: {
+        Button("mac_fidelity_back") { dismiss() }.buttonStyle(.bordered)
+      }.accessibilityIdentifier("backup.scope.album_browser.empty")
     case let placeholder?:
       LibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,
         requestAccess: { Task { await library.open(requestPermission: true) } })

@@ -63,7 +63,7 @@ struct IOSOnboarding: View {
     case .install:
       VStack(alignment: .leading, spacing: 16) {
         DuckStepMark(number: 1, scale: 1.25)
-        Text("onboarding_install_title").font(.title.weight(.bold))
+        Text("onboarding_install_title").font(.title2.bold())
         Text("onboarding_install_body").foregroundStyle(.secondary)
         VStack(spacing: 8) {
           DuckQRCode(text: Self.downloadPage).frame(width: 200, height: 200).padding(16)
@@ -74,7 +74,7 @@ struct IOSOnboarding: View {
     case .connect:
       VStack(alignment: .leading, spacing: 16) {
         DuckStepMark(number: 2, scale: 1.25)
-        Text("onboarding_connect_title").font(.title.weight(.bold))
+        Text("onboarding_connect_title").font(.title2.bold())
         Text("onboarding_connect_body").foregroundStyle(.secondary)
         IOSPixelScanner(model: model) { go(.connected) }
       }
@@ -82,13 +82,13 @@ struct IOSOnboarding: View {
       VStack(spacing: 16) {
         DuckIllustration(pose: .pairing, size: 160).padding(.top, 40)
         Text(String(format: NSLocalizedString("onboarding_connected_title", comment: ""),
-          model.peerDevice?.name ?? "Pixel")).font(.title.weight(.bold)).multilineTextAlignment(.center)
+          model.peerDevice?.name ?? "Pixel")).font(.title2.bold()).multilineTextAlignment(.center)
         Text("onboarding_connected_body").foregroundStyle(.secondary).multilineTextAlignment(.center)
       }.frame(maxWidth: .infinity)
     case .photos:
       VStack(alignment: .leading, spacing: 16) {
         DuckStepMark(number: 3, scale: 1.25)
-        Text("onboarding_photos_title").font(.title.weight(.bold))
+        Text("onboarding_photos_title").font(.title2.bold())
         VStack(alignment: .leading, spacing: 12) {
           Label("onboarding_photos_direct", systemImage: "arrow.right.circle")
           Label("onboarding_photos_private", systemImage: "lock")
@@ -97,7 +97,7 @@ struct IOSOnboarding: View {
       }
     case .choose:
       VStack(alignment: .leading, spacing: 16) {
-        Text("onboarding_choose_title").font(.title.weight(.bold))
+        Text("onboarding_choose_title").font(.title2.bold())
         VStack(alignment: .leading, spacing: 6) {
           Toggle("onboarding_choose_auto", isOn: $autoBackup).font(.headline)
           Text("onboarding_choose_auto_note").font(.footnote).foregroundStyle(.secondary)
@@ -125,7 +125,7 @@ struct IOSOnboarding: View {
           }
           if announced {
             VStack(spacing: 12) {
-              Text("onboarding_first_title").font(.title.weight(.bold)).multilineTextAlignment(.center)
+              Text("onboarding_first_title").font(.title2.bold()).multilineTextAlignment(.center)
               Text("onboarding_first_notify").foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 12)))

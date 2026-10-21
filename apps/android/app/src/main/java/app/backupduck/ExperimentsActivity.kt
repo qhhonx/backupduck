@@ -12,7 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.*
 
-class ExperimentsActivity:AppCompatActivity() {
+class ExperimentsActivity:BackupDuckActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
@@ -25,7 +25,7 @@ class ExperimentsActivity:AppCompatActivity() {
         FeatureDiscovery(this).acknowledge(FeatureDiscovery.PHOTOS_CLEANUP)
     }
 }
-class PhotosProbeActivity:AppCompatActivity() {
+class PhotosProbeActivity:BackupDuckActivity() {
     private val diagnostics get()=intent.getBooleanExtra("diagnostics",false)
     private val route get()=intent.getStringExtra("route") ?: if(diagnostics) "diagnostics" else "cleanup"
     private val cleanup get()=PhotosCleanup(this)

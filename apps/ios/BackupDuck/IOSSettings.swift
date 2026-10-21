@@ -151,7 +151,7 @@ private struct IOSAutoBackupSettings: View {
           .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
       } footer: {
         if let error = model.autoBackupError {
-          Text(error).foregroundStyle(DuckRole.failure)
+          DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
         } else if model.ready {
           Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
             : String(format: NSLocalizedString("settings_auto_footer", comment: ""), DuckSettingsValues(model: model).receiverName))
@@ -167,7 +167,7 @@ private struct IOSAutoBackupSettings: View {
       } header: {
         Text("settings_includes")
       } footer: {
-        if scope.loadFailed { Text("scope_load_failed").foregroundStyle(DuckRole.failure) } else { Text("settings_includes_footer") }
+        if scope.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure, symbol: "exclamationmark.circle") } else { Text("settings_includes_footer") }
       }
     }
     .navigationTitle("settings_auto_backup")
