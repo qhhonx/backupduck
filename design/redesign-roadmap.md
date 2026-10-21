@@ -6,7 +6,7 @@ it, commit, continue. Update this file in the same change as any milestone,
 decision or page status. Page detail lives in `page-register.md`; rules live in
 `constitution.md`, `visual-language.md` and `interaction.md`.
 
-Last updated: October 19, 2026.
+Last updated: October 21, 2026.
 
 ## Goal
 
@@ -56,13 +56,26 @@ in parallel sessions because they touch separate folders; shared Apple code
 ## Current step
 
 Step 6 is in effect on all three apps (the redesigned pages are the default).
+
+October 21, 2026: the owner approved `platform-expression.md` (which native
+container and control expresses each task; chrome is the system's, content is
+BackupDuck's) and the Mac Folders structure (`mac-folders.md`).
+
 Next, in order:
 
-1. iPhone notifications and the Live Activity (`flows.md` § Every day): none
-   exist yet. The Live Activity needs a widget extension target.
-2. Step 4: Mac Folders, the Pixel's experiments page, Mac menu bar status.
-3. Step 5: verification pass with Release motion recordings on device.
-4. Remove the earlier pages and the catalog comparison switch once the owner
+1. **Platform audit.** Check every reachable page and sheet in the three apps
+   against `platform-expression.md` A0–A11. Record each deviation with its item,
+   file and screenshot. Fix shared causes in the components first (for example
+   drawn capsule buttons become system button styles, A1), then page
+   compositions. Done when the three catalogs show no A0 violations and each
+   remaining deviation is fixed or listed under Known gaps.
+2. **Mac Folders** from `mac-folders.md`, with the core facts it lists; then
+   iPhone and Mac photo information as one viewer (A8).
+3. iPhone notifications and the Live Activity (`flows.md` § Every day): the
+   notifier is in progress (dbe8991); the Live Activity needs a widget target.
+4. Step 4 remainder: the Pixel's experiments page, Mac menu bar status.
+5. Step 5: verification pass with Release motion recordings on device.
+6. Remove the earlier pages and the catalog comparison switch once the owner
    has looked at the shipped redesign.
 
 Publishing waits for the owner.

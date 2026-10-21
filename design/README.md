@@ -7,6 +7,10 @@ request system permissions or prove native feature completion.
 
 ## Maintained reference
 
+- [Platform expression](platform-expression.md): which native container and
+  control expresses each recurring task on iPhone, Mac and Pixel. Chrome is the
+  system's; BackupDuck's character lives in content.
+
 - [Visual foundations](backupduck-v1/specification.md): semantic colors,
   typography, platform surfaces and state semantics.
 - [Component and content rules](ui-content-rules.md): layout ownership,

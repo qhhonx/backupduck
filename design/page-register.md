@@ -58,6 +58,13 @@ October 19; details are adjusted in native review.
 | Pixel connect and devices | Pixel | `pixel-connect.md` | Built behind the design switch: one connect flow shared by first run, the hub and Settings, a Mac direction, and a devices page (Stopped, never Remove). Once approved, `PairingUI` and the legacy device list stop being remnants |
 | Library backup views and marks | iPhone, Mac | `library.md` | iPhone views and tile marks built behind the design switch and checked on the iOS Simulator with a synthetic library; Mac has the views, legacy marks |
 
+## Approved October 21, not built
+
+| Page | Platforms | Contract | State |
+| --- | --- | --- | --- |
+| Folders, Settings › Folders, add folder, file rules, stop folder | Mac | `mac-folders.md` | Structure approved (F0–F9). The existing folder page in the app is legacy until rebuilt from this contract |
+| Photo information | iPhone, Mac, Pixel | `platform-expression.md` A8 | One viewer and one information layout per platform; backup history opens the same viewer instead of a separate detail sheet |
+
 ## Legacy
 
 Ordered by how often an ordinary user meets the page. Devices, Album chooser,
@@ -70,7 +77,6 @@ in step 4.
 | Devices | iPhone, Mac | Which Pixel do my photos go to, and is it there? (D3) |
 | Storage and auto cleanup | Pixel | Is this Pixel running out of space, and is freeing it safe? |
 | Album chooser | iPhone, Mac | Which photos are included? |
-| Folders | Mac | Which folders back up? |
 | Help center | All | Why is this happening and how do I fix it? |
 | Menu bar and status menu | Mac | Is a backup running right now? |
 | Notifications | All | Only when the user is needed (`flows.md` § Every day) |

@@ -13,7 +13,7 @@ Three positions on every platform (`navigation.md`):
 | --- | --- | --- | --- |
 | Positions | Tab bar: Photos, Backup, Settings | Sidebar: Photos (Photo Library, Folders), Backup (Overview, History), Settings | Navigation bar: Receive, Photos, Settings |
 | One level down | Push | Replace the main area; History has its own sidebar row | Push |
-| Detail, explanation, chooser | Sheet | Sheet or popover | Bottom sheet or full-screen dialog |
+| Detail, explanation, chooser | Per `platform-expression.md` (A4–A8) | Same | Same |
 | One photo | Zoom from the tile into a full-screen viewer | Its own dark window | Full-screen viewer |
 | Devices | Identity header in Settings and a Settings row (D3) | Same | Same |
 
@@ -48,9 +48,12 @@ up or receiving, caught up, empty (`flows.md` § Hub rules).
 
 ## I4 Actions
 
+- Which container and button style express an action on each platform is in
+  `platform-expression.md` (A1, A4, A5).
 - At most one primary action per context: a filled capsule, fixed at the
-  bottom in guided flows.
-- Actions inside a card are tinted capsules, never link text.
+  bottom in guided flows on iPhone and Pixel; on the Mac it is the default
+  button at the bottom trailing edge.
+- Actions inside a card are small system bordered buttons, never link text.
 - Switches apply at once; nothing needs Save.
 - Destructive actions live in menus with confirmation and precise words
   ("Stop receiving from this device", not "Delete").
@@ -62,7 +65,8 @@ up or receiving, caught up, empty (`flows.md` § Hub rules).
 - Every press responds within 80–120 ms; system controls keep their own.
 - Haptics: one success when a device connects and when the first photo is saved;
   a selection tick when a view changes; nothing for routine progress.
-- State changes replace content in place; no toasts. Notifications only when the
+- State changes replace content in place; no toasts (one exception: a Pixel
+  snackbar with Undo for an undoable action, `platform-expression.md` A9). Notifications only when the
   user is needed or a long task ends (`flows.md` § Every day).
 - Retrying never plays a completion animation.
 

@@ -14,8 +14,9 @@ See `docs/architecture.md` and `docs/sender-host-contract.md`.
 
 ## Design changes
 
-Read `design/README.md`, `design/visual-language.md`, `design/interaction.md`,
-`design/ui-content-rules.md` and `design/backupduck-v1/motion.md` before UI work.
+Read `design/README.md`, `design/platform-expression.md`,
+`design/visual-language.md`, `design/interaction.md`, `design/ui-content-rules.md`
+and `design/backupduck-v1/motion.md` before UI work.
 The redesign plan and its current step are in `design/redesign-roadmap.md`.
 Existing HTML prototypes are frozen historical references; do not create or
 maintain new ones. Use current component contracts, `motion.md` and the validated

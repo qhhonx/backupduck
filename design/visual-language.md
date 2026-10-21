@@ -66,7 +66,7 @@ else.
 | Section gap | 24 | 16 | 24 |
 | Card radius (`radius.card`, Mac `radius.cardCompact`) | 20 | 12 | 20 |
 | Sheet radius | System | System | 28 |
-| Primary and secondary buttons | Capsule | Capsule | Material buttons (full radius) |
+| Primary and secondary buttons | System button styles (capsule) | System push buttons | Material buttons (full radius) |
 
 Spacing values come from the `spacing` scale (4, 8, 12, 16, 24, 32, 48).
 Components own their padding and alignment; pages own section spacing. Photo
@@ -126,3 +126,6 @@ white space; working screens fit on one screen where they can.
   every flow on three platforms. Details are adjusted in native review. Defaults
   taken for the open points: no duck on problem states; Mac settings rows at
   41 pt; rounded numerals on hub counts only, as a trial.
+- **October 21, 2026:** buttons and every piece of chrome come from the system
+  (`platform-expression.md` A0, A1). The capsule look stays, drawn by the
+  system button styles rather than by BackupDuck.
