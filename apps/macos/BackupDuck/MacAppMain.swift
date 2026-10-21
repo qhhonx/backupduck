@@ -42,7 +42,7 @@ import SwiftUI
     MenuBarExtra {
       MacStatusMenu(model: model)
     } label: {
-      Image(nsImage: MacMenuBarIcon.image).renderingMode(.template).accessibilityLabel(Text("brand_name"))
+      Image(nsImage: MacMenuStatus(model: model).isBackingUp ? MacMenuBarIcon.activeImage : MacMenuBarIcon.image).renderingMode(.template).accessibilityLabel(Text("brand_name"))
     }.menuBarExtraStyle(.menu)
   }
 }

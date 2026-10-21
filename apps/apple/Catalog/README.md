@@ -8,6 +8,21 @@ they are never archived or distributed. See the design catalog section of
 
 ## How it works
 
+### Mac status menu (A0, A11)
+
+Choose the `menu.backing-up`, `menu.paused`, `menu.caught-up`, `menu.offline`
+or `menu.saving` scenario from the Mac catalog's Backup section. These inherit
+the hub fixtures; receipt is never described as saving to Photos. They also
+launch directly with `-scenario menu.backing-up`. To review another existing
+hub fixture's menu items, add `-status-menu items` to its launch arguments.
+The review page lists the production menu items and opens the same items in a
+system menu from the template-icon button. Open BackupDuck, Settings and Quit
+are inert in this review; Pause uses the synthetic core only. In the app,
+Settings and Command-comma navigate to Settings in the main window.
+Repeat with `-appearance light` / `dark` and `-AppleLanguages '(zh-Hans)'`.
+Check the disabled first line, the single Pause/Resume item, separators, shortcuts
+and the static activity symbol; the idle icon uses the exported duck template.
+
 ### One photo's information (A8)
 
 Launch `-scenario photo.info -photo-info panel` on iPhone, or

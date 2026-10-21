@@ -162,7 +162,9 @@ private struct MacScenarioRun: View {
 
   var body: some View {
     Group {
-      if scenario.step == "photoInformation" {
+      if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
+        MacStatusMenuCatalog(model: session.model)
+      } else if scenario.step == "photoInformation" {
         MacInformationCatalog(model: session.model, library: session.library)
       } else if scenario.page == "connect" {
         // The connect sheet on its own, for review (design/mac-connect.md).
@@ -175,6 +177,34 @@ private struct MacScenarioRun: View {
       }
     }
       .onDisappear { session.model.stop() }
+  }
+}
+
+/// Lists the production items and opens them in a real system menu. Navigation
+/// and Quit are inert here; Pause uses only the scenario's synthetic core.
+private struct MacStatusMenuCatalog: View {
+  @ObservedObject var model: BackupModel
+
+  private var items: some View {
+    MacStatusMenuItems(status: MacMenuStatus(model: model), paused: model.paused,
+      pauseEnabled: model.ready && model.pairing != nil && !model.changingPause,
+      togglePause: { Task { await model.setPaused(!model.paused) } },
+      openMain: {}, openSettings: {}, quit: {})
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: DuckSpacing.medium) {
+      Menu {
+        items
+      } label: {
+        Image(nsImage: MacMenuStatus(model: model).isBackingUp ? MacMenuBarIcon.activeImage : MacMenuBarIcon.image)
+          .renderingMode(.template)
+        Text("brand_name")
+      }.fixedSize()
+      Form { items }.formStyle(.grouped)
+    }
+    .padding(DuckSpacing.large)
+    .task { await model.open() }
   }
 }
 

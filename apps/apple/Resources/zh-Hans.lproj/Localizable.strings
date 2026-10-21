@@ -1602,3 +1602,8 @@
 "activity_attention_receiver" = "有照片需要你处理 · %@";
 
 "activity_saved_receiver" = "已存进 %@ 的相册";
+
+/* Standard Mac status menu. */
+"menu_backup_destination" = "%1$@ · 到 %2$@";
+"menu_pause_backup" = "暂停备份";
+"menu_problem_receiver_rejected" = "Pixel 不再识别这台 Mac";

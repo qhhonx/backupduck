@@ -1602,3 +1602,8 @@
 "activity_attention_receiver" = "Photos need you · %@";
 
 "activity_saved_receiver" = "Saved to Photos on %@";
+
+/* Standard Mac status menu. */
+"menu_backup_destination" = "%1$@ to %2$@";
+"menu_pause_backup" = "Pause Backup";
+"menu_problem_receiver_rejected" = "The Pixel no longer recognizes this Mac";

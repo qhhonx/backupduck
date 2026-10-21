@@ -1,0 +1,14 @@
+{
+  "id": "menu.paused",
+  "extends": "hub.paused",
+  "mac_only": true,
+  "page": "backup",
+  "step": "statusMenu",
+  "title": "Menu bar: paused",
+  "expect": [
+    "The first item is disabled and states one status sentence from the model.",
+    "The system menu has Pause/Resume Backup, Open BackupDuck, Settings (Command-comma), and Quit in that order.",
+    "Open BackupDuck, Settings and Quit are inert in the catalog; Pause uses only the synthetic core."
+  ],
+  "actions": []
+}
