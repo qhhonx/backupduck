@@ -1,6 +1,6 @@
 //! Read-only, host-local history. Browsing never verifies, renames or deletes blobs.
 use backupduck_core::{Asset, Error, Result};
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::Serialize;
 use std::{
     fs,
@@ -37,6 +37,30 @@ pub struct Catalog {
     conn: Option<Connection>,
 }
 impl Catalog {
+    /// Resolve a stable history ID without reconciling or modifying originals.
+    /// Returns the manifest, recorded receipt, and original-release flag.
+    pub fn preview_asset(&self, id: &str) -> Result<(Asset, bool, bool)> {
+        if !backupduck_core::valid_digest(id) {
+            return Err(Error::Invalid("asset id".into()));
+        }
+        let conn = self.conn.as_ref().ok_or(Error::NotFound)?;
+        let row: Option<(String, bool, bool)> = conn
+            .query_row(
+                "SELECT manifest,received,originals_released FROM assets WHERE id=?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()
+            .map_err(super::db)?;
+        let (manifest, received, released) = row.ok_or(Error::NotFound)?;
+        let asset: Asset = serde_json::from_str(&manifest)?;
+        asset.validate()?;
+        if asset.id()? != id {
+            return Err(Error::Integrity);
+        }
+        Ok((asset, received, released))
+    }
+
     pub fn open(root: &Path) -> Result<Self> {
         let path = root.join("receiver.sqlite3");
         let conn = if path.exists() {

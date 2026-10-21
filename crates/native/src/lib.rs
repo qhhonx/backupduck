@@ -12,6 +12,7 @@ mod dashboard_access;
 mod folders;
 mod maintenance;
 mod pairing;
+mod receiver_preview;
 mod receiver_storage;
 mod source_locations;
 pub use background::NativeRequest;
@@ -954,6 +955,11 @@ enum Command {
         before: Option<i64>,
         state: String,
         kind: String,
+    },
+    ReceiverPreview {
+        root: PathBuf,
+        cache_dir: PathBuf,
+        id: String,
     },
     RetryProcessing {
         id: Option<String>,
@@ -2089,6 +2095,11 @@ fn dispatch(command: Command) -> Result<Value> {
                 json!({"settings":current,"used_bytes":catalog.reserved_bytes()?,"counts":catalog.counts()?,"free_bytes":fs2::available_space(root)?}),
             )
         }
+        Command::ReceiverPreview {
+            root,
+            cache_dir,
+            id,
+        } => receiver_preview::preview(&root, &cache_dir, &id),
         Command::ReceiverHistory {
             root,
             sender_id,
@@ -2260,6 +2271,7 @@ pub extern "system" fn Java_app_backupduck_NativeBridge_call(
     _class: jni::objects::JClass,
     request: jni::objects::JString,
 ) -> jni::sys::jstring {
+    receiver_preview::android::remember_vm(&env);
     let response = match env.get_string(&request) {
         Ok(s) => call(&s.to_string_lossy()),
         Err(_) => return std::ptr::null_mut(),
