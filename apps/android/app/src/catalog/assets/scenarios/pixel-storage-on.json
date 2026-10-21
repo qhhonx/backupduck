@@ -9,7 +9,7 @@
     }
   },
   "expect": [
-    "Both switches on; own copies, all three categories and the freeable estimate are known zero and stay visible."
+    "Both switches on; BackupDuck and all three kept-file categories show known zero values. The free-space sentence is hidden because the reclaimable value is zero."
   ],
   "core": {
     "receiver_settings": {

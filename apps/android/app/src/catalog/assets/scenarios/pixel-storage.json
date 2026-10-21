@@ -4,9 +4,9 @@
   "title": "Storage",
   "extends": "base",
   "expect": [
-    "Free space and capacity from measured readings, with a bar and scoped legend for gallery files, own copies and other space.",
-    "Own copies: 734003200 bytes total, split into 314572800 converted motion originals, 104857600 still receiving or saving, and 314572800 other originals.",
-    "524288000 bytes could be freed (estimate), overlapping own copies; no cloud-backup claim or extra cleanup action.",
+    "Free space and capacity from measured readings, with a bar legend for Photos, BackupDuck and other space.",
+    "Kept by BackupDuck: 734003200 bytes total, split into 314572800 Live Photo original bytes with an explanation of the converted Photos copy, 104857600 bytes still arriving or being saved, and 314572800 other kept file bytes.",
+    "A sentence below the group says about 524 MB can be freed because Photos already has these files; this overlaps the categories and adds no cleanup action. The footer counts only files BackupDuck keeps, excluding photos in Photos.",
     "Two switches with their consequences: auto cleanup (off) and free up space after saving to Photos (off).",
     "Free up space now: one sentence on what Google Photos removes, then the tonal action."
   ],

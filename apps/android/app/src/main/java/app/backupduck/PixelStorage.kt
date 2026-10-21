@@ -50,12 +50,12 @@ private class ReceiverCopyStorage(private val data: JSONObject) {
 internal class StorageScreen(private val activity: MainActivity, private val root: String, private val openPhotos: () -> Unit,
     private val openCleanup: () -> Unit, private val changed: () -> Unit) {
     private val page = LookPage(activity, activity.getString(R.string.pref_storage))
-    private val free = activity.lookText("—", R.style.TextAppearance_BackupDuck_Display)
+    private val free = activity.lookText(activity.getString(R.string.storage_free_amount, "—"), R.style.TextAppearance_BackupDuck_Display)
     private val capacity = activity.lookText(activity.getString(R.string.storage_free_of, "—"), M.style.TextAppearance_Material3_BodyLarge, secondary = true)
     private val bar = UsageBar(activity)
     private val legend = FlowRow(activity, activity.token(R.dimen.duck_space_small))
     private val copyValues = mutableListOf<TextView>()
-    private lateinit var copyNote: TextView
+    private lateinit var reclaimableNote: TextView
     private lateinit var cleanup: MaterialSwitch
     private lateinit var relay: MaterialSwitch
     private lateinit var relaySupport: TextView
@@ -77,10 +77,15 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         lookSection(body, getString(R.string.storage_copies_on_pixel))
         val copies = lookGroup(body)
         listOf(R.string.storage_copies_converted, R.string.storage_copies_pending,
-            R.string.storage_copies_other, R.string.storage_copies_reclaimable).forEach { label ->
-            copyValues += lookRow(copies, null, getString(label), "—")
+            R.string.storage_copies_other).forEachIndexed { index, label ->
+            copyValues += lookRow(copies, null, getString(label), copySupporting(index, null))
         }
-        copyNote = lookText(getString(R.string.storage_copies_scope), M.style.TextAppearance_Material3_BodyMedium, secondary = true)
+        reclaimableNote = lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply { visibility = View.GONE }
+        body.addView(reclaimableNote, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = token(R.dimen.duck_space_small)
+            marginStart = token(R.dimen.duck_space_medium); marginEnd = token(R.dimen.duck_space_medium)
+        })
+        val copyNote = lookText(getString(R.string.storage_copies_scope), M.style.TextAppearance_Material3_BodyMedium, secondary = true)
         body.addView(copyNote, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = token(R.dimen.duck_space_small)
             marginStart = token(R.dimen.duck_space_medium); marginEnd = token(R.dimen.duck_space_medium)
@@ -127,15 +132,17 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             if (!page.isShowing) return@launch
             // A missing receiver root has no free-space reading; the host can still measure this device.
             val available = copies?.free ?: storage?.freeBytes
-            free.text = amount(available)
+            free.text = activity.getString(R.string.storage_free_amount, amount(available))
             capacity.text = activity.getString(R.string.storage_free_of, amount(storage?.totalBytes))
             val parts = StorageParts(storage?.totalBytes, available, photos, copies?.own)
             bar.render(parts); legend(parts)
-            listOf(copies?.converted, copies?.pending, copies?.other, copies?.reclaimable).forEachIndexed { index, bytes ->
-                copyValues[index].text = if (index == 3 && bytes != null) activity.getString(R.string.storage_copies_estimate, amount(bytes)) else amount(bytes)
+            listOf(copies?.converted, copies?.pending, copies?.other).forEachIndexed { index, bytes ->
+                copyValues[index].text = copySupporting(index, bytes)
             }
-            copyNote.text = activity.getString(R.string.storage_copies_scope) +
-                if (copies == null) " " + activity.getString(R.string.storage_copies_unavailable) else ""
+            val reclaimable = copies?.reclaimable
+            reclaimableNote.setSupporting(reclaimable?.takeIf { it > 0 }?.let {
+                activity.getString(R.string.storage_copies_reclaimable, amount(it))
+            })
         }
     }
 
@@ -166,6 +173,9 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             } else { relay.restore(relayOn == true); failure.visibility = View.VISIBLE }
         }
     }
+
+    private fun copySupporting(index: Int, bytes: Long?): String = amount(bytes) +
+        if (index == 0) "\n" + activity.getString(R.string.storage_copies_converted_note) else ""
 
     private fun size(bytes: Long) = Formatter.formatShortFileSize(activity, bytes)
     private fun amount(bytes: Long?) = bytes?.let(::size) ?: "—"
