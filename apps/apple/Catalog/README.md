@@ -8,6 +8,16 @@ they are never archived or distributed. See the design catalog section of
 
 ## How it works
 
+### One photo's information (A8)
+
+Launch `-scenario photo.info -photo-info panel` on iPhone, or
+`-scenario photo.info -photo-info inspector` on Mac. Both use the production
+viewer and information component with a catalog-only synthetic asset; PhotoKit
+access is unnecessary. `-photo-info fallback` opens the unavailable-source
+presentation. Use `photo.info-failed` for the single transfer Retry action, or
+`photo.info-unknown-times` to verify that missing event times stay absent.
+The Mac inspector's toolbar toggle and View → Show Info (⌘I) remain active.
+
 The sender model takes everything outside the app process from
 `BackupEnvironment` (`apps/apple/Shared/BackupEnvironment.swift`):
 

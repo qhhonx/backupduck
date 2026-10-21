@@ -159,12 +159,14 @@ struct DuckSectionHeader: View {
 /// equal tiles, never an empty cell.
 struct DuckPhotoMosaic: View {
   let sources: [String]
+  var frameChanged: ((String, CGRect) -> Void)? = nil
+  var open: ((String, CGRect) -> Void)? = nil
   var body: some View {
     Group {
       if sources.count >= 5 { mosaic } else { strip }
     }
     .clipShape(RoundedRectangle(cornerRadius: DuckLook.cardRadius, style: .continuous))
-    .accessibilityElement().accessibilityLabel(Text("hub_recent"))
+    .accessibilityElement(children: .contain).accessibilityLabel(Text("hub_recent"))
   }
 
   private var strip: some View {
@@ -172,7 +174,7 @@ struct DuckPhotoMosaic: View {
       let count = CGFloat(max(min(sources.count, 4), 1))
       let side = (geometry.size.width - DuckLook.photoGap * (count - 1)) / count
       HStack(spacing: DuckLook.photoGap) {
-        ForEach(sources.prefix(4), id: \.self) { AssetThumbnail(sourceID: $0, size: side, cornerRadius: 0) }
+        ForEach(sources.prefix(4), id: \.self) { source in DuckMosaicPhoto(source: source, side: side, frameChanged: frameChanged, open: open) }
       }
     }
     .aspectRatio(CGFloat(max(min(sources.count, 4), 1)), contentMode: .fit)
@@ -185,7 +187,7 @@ struct DuckPhotoMosaic: View {
       let small = (geometry.size.width - gap * 3) / 4
       let large = small * 2 + gap
       HStack(spacing: gap) {
-        AssetThumbnail(sourceID: sources[0], size: large, cornerRadius: 0)
+        DuckMosaicPhoto(source: sources[0], side: large, frameChanged: frameChanged, open: open)
         VStack(spacing: gap) {
           HStack(spacing: gap) { tile(1, small); tile(2, small) }
           HStack(spacing: gap) { tile(3, small); tile(4, small) }
@@ -196,6 +198,29 @@ struct DuckPhotoMosaic: View {
   }
 
   private func tile(_ index: Int, _ side: CGFloat) -> some View {
-    AssetThumbnail(sourceID: sources[index], size: side, cornerRadius: 0)
+    DuckMosaicPhoto(source: sources[index], side: side, frameChanged: frameChanged, open: open)
   }
+}
+
+
+private struct DuckMosaicPhoto: View {
+  let source: String
+  let side: CGFloat
+  let frameChanged: ((String, CGRect) -> Void)?
+  let open: ((String, CGRect) -> Void)?
+  @State private var frame = CGRect.zero
+  var body: some View {
+    Group {
+      if let open {
+        Button { open(source, frame) } label: { thumbnail }.buttonStyle(.plain)
+          .accessibilityLabel(Text("library_preview"))
+      } else { thumbnail }
+    }
+    .background(GeometryReader { proxy in
+      Color.clear.onAppear { update(proxy.frame(in: .global)) }
+        .onChange(of: proxy.frame(in: .global)) { _, value in update(value) }
+    })
+  }
+  private var thumbnail: some View { AssetThumbnail(sourceID: source, size: side, cornerRadius: 0) }
+  private func update(_ value: CGRect) { frame = value; frameChanged?(source, value) }
 }

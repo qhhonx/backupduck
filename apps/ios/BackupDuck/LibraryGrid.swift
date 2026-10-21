@@ -1025,6 +1025,7 @@ struct IOSPreviewItem: Identifiable {
 struct IOSPreviewPresentation: UIViewControllerRepresentable {
   let item: IOSPreviewItem?
   let library: PhotoLibraryModel
+  var collection: [PHAsset]? = nil
   let close: () -> Void
   func makeCoordinator() -> Coordinator { Coordinator() }
   func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
@@ -1034,7 +1035,7 @@ struct IOSPreviewPresentation: UIViewControllerRepresentable {
     DispatchQueue.main.async {
       guard host.view.window != nil, host.presentedViewController == nil, coordinator.active == nil else { return }
       coordinator.active = item.id
-      let viewer = UIHostingController(rootView: IOSPhotoPreview(item: item, library: library) {
+      let viewer = UIHostingController(rootView: IOSPhotoPreview(item: item, library: library, reviewAssets: collection) {
         host.dismiss(animated: false) { coordinator.active = nil; close() }
       })
       viewer.overrideUserInterfaceStyle = .dark
@@ -1151,12 +1152,22 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     strip.backgroundColor = .clear; strip.showsHorizontalScrollIndicator = false
     strip.dataSource = self; strip.delegate = self; strip.accessibilityIdentifier = "library.preview.filmstrip"
     strip.register(PreviewStripCell.self, forCellWithReuseIdentifier: "preview.strip"); footer.addSubview(strip)
-    information.backgroundColor = UIColor(DuckColors.surface); information.layer.cornerRadius = 20
+    // Resolve the panel surface in the same traits as its hosted semantic text.
+    // Converting a SwiftUI color outside that environment can freeze its light value.
+    information.backgroundColor = UIColor { traits in
+      var environment = EnvironmentValues()
+      environment.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
+      return UIColor(cgColor: DuckRole.elevatedSurface.resolve(in: environment).cgColor)
+    }
+    information.layer.cornerRadius = 20
     information.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]; information.clipsToBounds = true
     information.accessibilityIdentifier = "preview.info.drawer"; view.addSubview(information); information.addSubview(infoHeader)
     let handle = UIView(); handle.backgroundColor = .lightGray; handle.layer.cornerRadius = 2; handle.tag = 3; infoHeader.addSubview(handle)
-    let done = icon("xmark", label: "preview_hide_info", id: "preview.info.close") { [weak self] in self?.setInfo(false) }
-    done.tag = 4; done.tintColor = UIColor(DuckColors.action); infoHeader.addSubview(done)
+    let done = UIButton(type: .close)
+    done.accessibilityLabel = NSLocalizedString("preview_hide_info", comment: "")
+    done.accessibilityIdentifier = "preview.info.close"
+    done.addAction(UIAction { [weak self] _ in self?.setInfo(false) }, for: .touchUpInside)
+    done.tag = 4; infoHeader.addSubview(done)
     let handlePan = UIPanGestureRecognizer(target: self, action: #selector(dragInformation(_:))); handlePan.delegate = self
     infoHeader.addGestureRecognizer(handlePan)
     session.$current.receive(on: DispatchQueue.main).sink { [weak self] model in self?.currentChanged(model) }.store(in: &cancellables)
@@ -1409,12 +1420,14 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   }
   func ensureInformation() {
     guard review == nil, informationHost == nil else { return }
-    let host = UIHostingController(rootView: AnyView(ScrollView { PhotoMetadataPanel(preview: session.current).padding(.horizontal,20).padding(.bottom,24) }.preferredColorScheme(.dark)))
-    host.overrideUserInterfaceStyle = .dark
+    let host = UIHostingController(rootView: informationContent)
     addChild(host); information.addSubview(host.view); host.view.backgroundColor = .clear; host.didMove(toParent: self); informationHost = host
   }
   func refreshInformation() {
-    informationHost?.rootView = AnyView(ScrollView { PhotoMetadataPanel(preview: session.current).padding(.horizontal,20).padding(.bottom,24) }.preferredColorScheme(.dark))
+    informationHost?.rootView = informationContent
+  }
+  private var informationContent: AnyView {
+    AnyView(ScrollView { PhotoMetadataPanel(preview: session.current).padding(.horizontal,20).padding(.bottom,24) })
   }
   func setInfo(_ open: Bool) {
     guard review == nil, !flying && !closing else { return }

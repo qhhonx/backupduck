@@ -30,6 +30,14 @@ struct NativeMacVideo: NSViewRepresentable {
   init(defaults: UserDefaults = .standard) {}
 }
 
+/// Synthetic media adapters supply pixels and metadata without calling PhotoKit.
+/// Production assets continue through the native resource pipeline.
+protocol PreviewSample {
+  var previewImage: LibraryImage? { get }
+  var previewFilename: String { get }
+  var previewMetadata: [(String, String)] { get }
+}
+
 @MainActor final class MediaPreviewModel: ObservableObject {
   @Published private(set) var asset: PHAsset
   @Published private(set) var image: LibraryImage?
@@ -84,6 +92,7 @@ struct NativeMacVideo: NSViewRepresentable {
       : asset.mediaSubtypes.contains(.photoLive) ? "motion" : "photo"
   }
   var filename: String {
+    if let sample = asset as? any PreviewSample { return sample.previewFilename }
     let resources = PHAssetResource.assetResources(for: asset)
     return resources.first(where: { $0.type == .photo || $0.type == .video })?.originalFilename ?? resources.first?.originalFilename ?? ""
   }
@@ -91,6 +100,10 @@ struct NativeMacVideo: NSViewRepresentable {
     cancel()
     self.promptForCloud = promptForCloud
     if let next, next.localIdentifier != asset.localIdentifier { asset = next; image = nil }
+    if let sample = asset as? any PreviewSample {
+      image = sample.previewImage; loading = false; failure = image == nil
+      return
+    }
     if let burst = asset.burstIdentifier {
       let options = photoLibraryFetchOptions()
       options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
@@ -196,6 +209,10 @@ struct NativeMacVideo: NSViewRepresentable {
     metadataRequest = nil; metadataLoading = false
   }
   func loadMetadata() {
+    if let sample = asset as? any PreviewSample {
+      metadataRequested = true; metadata = sample.previewMetadata
+      return
+    }
     metadataRequested = true
     metadataGeneration = UUID()
     let expectedMetadata = metadataGeneration
@@ -344,76 +361,28 @@ struct BurstPreviewControls: View {
   }
 }
 struct PhotoMetadataPanel: View {
-  @Environment(\.dynamicTypeSize) private var textSize
-  @ObservedObject private var policy = PreviewNetworkPolicy.shared
   @ObservedObject var preview: MediaPreviewModel
-  private var cameraFields: [(String, String)] { preview.metadata.filter { ["preview_camera", "preview_lens", "preview_aperture", "preview_exposure", "preview_iso"].contains($0.0) } }
-  private var fileFields: [(String, String)] { preview.metadata.filter { !["preview_camera", "preview_lens", "preview_aperture", "preview_exposure", "preview_iso"].contains($0.0) } }
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text(preview.asset.creationDate?.formatted(date: .long, time: .omitted) ?? NSLocalizedString("design_capture_unknown", comment: ""))
-          .font(.title3.weight(.semibold))
-        if let date = preview.asset.creationDate { Text(date.formatted(date: .omitted, time: .shortened)).font(.subheadline).foregroundStyle(DuckColors.textSecondary) }
-      }
-      if DesignPreview.proposedDesign {
-        PhotoBackupInfo(sourceID: preview.asset.localIdentifier).duckCard()
-      }
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(spacing: 10) {
-          Image(systemName: LibraryFilter(rawValue: preview.kind)?.symbol ?? "photo").foregroundStyle(DuckColors.textSecondary)
-          Text(preview.filename.isEmpty ? NSLocalizedString("library_filter_" + preview.kind, comment: "") : preview.filename).font(.headline)
-            .lineLimit(2).textSelection(.enabled)
-        }
-        informationRow(("preview_resolution", "\(preview.asset.pixelWidth) × \(preview.asset.pixelHeight)"))
-          .accessibilityIdentifier("preview.info.dimensions")
-        if preview.asset.mediaType == .video {
-          // A labelled row like the resolution above, not an unexplained icon.
-          informationRow(("preview_video_duration", videoDurationLabel(preview.asset.duration)))
-            .accessibilityIdentifier("preview.info.duration")
-        }
-        ForEach(Array(fileFields.enumerated()), id: \.offset) { _, field in informationRow(field) }
-      }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(DuckColors.subtle, in: RoundedRectangle(cornerRadius: 14))
-      if !cameraFields.isEmpty {
-        VStack(alignment: .leading, spacing: 12) {
-          ForEach(Array(cameraFields.enumerated()), id: \.offset) { _, field in informationRow(field) }
-        }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(DuckColors.subtle, in: RoundedRectangle(cornerRadius: 14))
-      }
+    VStack(alignment: .leading, spacing: DuckSpacing.small) {
+      PhotoBackupInfo(sourceID: preview.asset.localIdentifier, takenAt: preview.asset.creationDate,
+        filename: preview.filename, fields: fields)
+      if preview.metadataLoading { ProgressView().controlSize(.small) }
+      if preview.metadataUnavailable { Text("preview_info_unavailable").font(.footnote).foregroundStyle(.secondary) }
       if let location = preview.asset.location {
-        VStack(alignment: .leading, spacing: 10) {
-          Label("preview_location", systemImage: "map").font(.subheadline).foregroundStyle(DuckColors.textSecondary)
-          Map(initialPosition: .region(MKCoordinateRegion(center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
-            Marker("preview_location", coordinate: location.coordinate).annotationTitles(.hidden)
-          }.mapStyle(.standard).frame(height: 160).clipShape(RoundedRectangle(cornerRadius: 14))
-            .allowsHitTesting(false).accessibilityLabel(Text("preview_location")).id(preview.asset.localIdentifier)
-        }
+        Map(initialPosition: .region(MKCoordinateRegion(center: location.coordinate,
+          span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
+          Marker("preview_location", coordinate: location.coordinate).annotationTitles(.hidden)
+        }.mapStyle(.standard).frame(height: 160)
+          .clipShape(RoundedRectangle(cornerRadius: DuckRadius.card))
+          .allowsHitTesting(false).accessibilityLabel(Text("preview_location")).id(preview.asset.localIdentifier)
       }
-      if preview.metadataLoading { DuckLoadingState("preview_loading_info").font(.footnote) }
-      if preview.metadataUnavailable {
-        Text("preview_info_unavailable").font(.footnote).foregroundStyle(DuckColors.textSecondary)
-        if policy.allowed {
-          Button("retry_task") { preview.loadMetadata() }.duckSecondaryAction()
-        }
-      }
-    }.textSelection(.enabled).foregroundStyle(DuckColors.text)
-      .task(id: preview.asset.localIdentifier) { preview.loadMetadata() }.onDisappear { preview.cancelMetadata() }
+    }
+    .task(id: preview.asset.localIdentifier) { preview.loadMetadata() }
+    .onDisappear { preview.cancelMetadata() }
   }
-  private func informationRow(_ field: (String, String)) -> some View {
-    Group {
-      if textSize.isAccessibilitySize {
-        VStack(alignment: .leading, spacing: 6) {
-          Text(LocalizedStringKey(field.0)).foregroundStyle(DuckColors.textSecondary)
-          Text(field.1).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
-        }.frame(maxWidth: .infinity, alignment: .leading)
-      } else {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
-          Text(LocalizedStringKey(field.0)).foregroundStyle(DuckColors.textSecondary)
-            .fixedSize(horizontal: true, vertical: false)
-          Spacer(minLength: 8)
-          Text(field.1).multilineTextAlignment(.trailing).lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
-    }.font(.subheadline)
+  private var fields: [(String, String)] {
+    var result = [("preview_resolution", "\(preview.asset.pixelWidth) × \(preview.asset.pixelHeight)")]
+    if preview.asset.mediaType == .video { result.append(("preview_video_duration", videoDurationLabel(preview.asset.duration))) }
+    return result + preview.metadata
   }
 }

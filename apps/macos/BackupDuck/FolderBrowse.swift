@@ -143,7 +143,7 @@ struct MacFolderCommands: Commands {
       Button("folders_by_folder") { actions?.view(true) }.disabled(actions == nil)
       Button("mac_library_all_photos") { actions?.view(false) }.disabled(actions == nil)
       Divider()
-      Button("folders_show_info") { MacFolderViewer.toggleInfo() }.keyboardShortcut("i", modifiers: .command)
+      Button("folders_show_info") { MacPhotoViewerWindow.toggleInfo(); MacFolderViewer.toggleInfo() }.keyboardShortcut("i", modifiers: .command)
       Divider()
       ForEach(LibraryBackupView.allCases) { view in
         Button(LocalizedStringKey(view.title)) { actions?.filter(view) }.disabled(actions == nil)

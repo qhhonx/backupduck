@@ -1,4 +1,6 @@
 import SwiftUI
+import Photos
+import UniformTypeIdentifiers
 
 /// Backup history as a photo timeline (design/records.md): problems grouped by
 /// cause, then every photo as a tile grouped by the day of its latest change.
@@ -21,6 +23,11 @@ struct HistoryPhoto: Identifiable, Equatable {
     } else if let preparation = item.preparation {
       job = nil; source = preparation.source; preparationError = preparation.error_code
     } else { return nil }
+  }
+
+  init(job: BackupJob) {
+    id = "job-\(job.id)"; cursor = job.id; sortValue = job.sortValue
+    source = job.asset.source_id; self.job = job; preparationError = nil
   }
 
   enum Mark: Equatable { case saved, sending, saving, needsYou }
@@ -167,7 +174,7 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
 struct BackupHistoryView: View {
   @ObservedObject var model: BackupModel
   @StateObject private var history = BackupHistoryModel()
-  @State private var selected: HistoryPhoto?
+  @StateObject private var photoRouter = BackupPhotoRouter()
   @State private var retrying: HistoryCause?
   @Environment(\.dynamicTypeSize) private var textSize
   #if os(iOS)
@@ -205,7 +212,7 @@ struct BackupHistoryView: View {
           Section {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumTile), spacing: spacing)], spacing: spacing) {
               ForEach(photos) { photo in
-                Button { selected = photo } label: { HistoryTile(photo: photo) }
+                BackupPhotoButton(photo: photo, collection: history.photos, router: photoRouter) { HistoryTile(photo: photo) }
                   .buttonStyle(.plain)
                   .accessibilityLabel(Text(tileLabel(photo)))
                   .onAppear { if photo.id == history.photos.last?.id { Task { await history.loadMore() } } }
@@ -230,10 +237,16 @@ struct BackupHistoryView: View {
     }
     .background(DuckRole.background)
     .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") { await reload() }
-    .sheet(item: $selected) { photo in PhotoBackupDetail(photo: photo, model: model) }
+    .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
   }
 
-  private func reload() async { await history.reload(receiver: model.pairing?.receiverID) }
+  private func reload() async {
+    #if os(iOS)
+    // Do not replace paged history membership under a presented photo.
+    guard photoRouter.preview == nil, photoRouter.fallback == nil else { return }
+    #endif
+    await history.reload(receiver: model.pairing?.receiverID)
+  }
 
   private var needsYou: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -265,7 +278,7 @@ struct BackupHistoryView: View {
         Text(cause.note).font(.footnote).foregroundStyle(.secondary)
         HStack(spacing: 6) {
           ForEach(photos.prefix(5)) { photo in
-            Button { selected = photo } label: { HistoryTile(photo: photo, showsMark: false).frame(width: 40, height: 40) }
+            BackupPhotoButton(photo: photo, collection: photos, router: photoRouter) { HistoryTile(photo: photo, showsMark: false).frame(width: 40, height: 40) }
               .buttonStyle(.plain)
           }
         }.padding(.top, 4)
@@ -359,8 +372,6 @@ struct PhotoBackupDetail: View {
   let photo: HistoryPhoto
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss
-  @State private var retrying = false
-
   private var receiverName: String {
     photo.job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel"
   }
@@ -374,29 +385,10 @@ struct PhotoBackupDetail: View {
           }
           .aspectRatio(1, contentMode: .fit)
           .clipShape(RoundedRectangle(cornerRadius: 14))
-          if let taken = photo.takenAt {
-            Text(String(format: NSLocalizedString("records_taken", comment: ""), taken.formatted(date: .long, time: .shortened)))
-              .font(.subheadline).foregroundStyle(.secondary)
-          }
-          PhotoBackupFacts(job: photo.job, receiverName: receiverName, needsYou: photo.mark == .needsYou)
-          if let cause = photo.cause {
-            VStack(alignment: .leading, spacing: 10) {
-              Text(cause.detailNote).font(.subheadline)
-              if cause.retries, let job = photo.job {
-                Button {
-                  retrying = true
-                  Task { _ = await model.retry(job.id); retrying = false; dismiss() }
-                } label: { Text("records_try_again").frame(maxWidth: .infinity) }
-                  .buttonStyle(.borderedProminent).controlSize(.large).disabled(retrying)
-              }
-            }
-            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-            .background(DuckRole.groupedSurface, in: RoundedRectangle(cornerRadius: 14))
-          }
-          if let job = photo.job, let file = job.asset.resources.first {
-            Text(verbatim: "\(file.filename) · \(ByteCountFormatter.string(fromByteCount: Int64(job.totalBytes), countStyle: .file)) · \(NSLocalizedString("library_filter_" + job.asset.kind, comment: ""))")
-              .font(.footnote).foregroundStyle(.secondary).textSelection(.enabled)
-          }
+          PhotoInformationLayout(takenAt: photo.takenAt, job: photo.job,
+            receiverName: receiverName, needsYou: photo.mark == .needsYou,
+            filename: photo.job?.asset.resources.first?.filename ?? "",
+            fields: PhotoInformationLayout.fileFields(for: photo.job), model: model)
         }
         .padding(20)
       }
@@ -405,7 +397,15 @@ struct PhotoBackupDetail: View {
       #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
       #endif
-      .toolbar { ToolbarItem(placement: .confirmationAction) { Button("records_done") { dismiss() } } }
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          #if os(iOS)
+          DuckSheetDismissButton { dismiss() }
+          #else
+          Button("records_done") { dismiss() }
+          #endif
+        }
+      }
     }
     #if os(iOS)
       .presentationDetents([.large])
@@ -436,7 +436,7 @@ struct PhotoBackupFacts: View {
     let name = receiverName
     if let job {
       switch job.state {
-      case "received": fact(.done, format("records_fact_sent", name), time: job.stateChangedAt)
+      case "received": fact(.done, format("records_fact_sent", name), symbol: "clock", time: job.receivedAt ?? job.stateChangedAt)
       case "failed": fact(.problem, format("records_fact_not_sent", name), status: errorText(job.errorCode))
       case "running": fact(.active, format("records_fact_sending", name))
       case "waiting": fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("state_waiting", comment: ""))
@@ -451,7 +451,7 @@ struct PhotoBackupFacts: View {
 
   @ViewBuilder private var photosFact: some View {
     switch (job?.state, job?.processing) {
-    case ("received", "complete"): fact(.done, NSLocalizedString("records_fact_saved", comment: ""))
+    case ("received", "complete"): fact(.done, NSLocalizedString("records_fact_saved", comment: ""), time: job?.publishedAt)
     case ("received", "failed"):
       fact(.problem, NSLocalizedString("records_fact_not_saved", comment: ""),
         status: NSLocalizedString(job?.processingError == "conversion_required" ? "state_conversion_required" : "records_fact_not_saved_note", comment: ""))
@@ -469,12 +469,12 @@ struct PhotoBackupFacts: View {
     return text == key ? NSLocalizedString("state_failed", comment: "") : text
   }
 
-  private func fact(_ state: FactState, _ title: String, status: String? = nil, time: Int64? = nil) -> some View {
+  private func fact(_ state: FactState, _ title: String, status: String? = nil, symbol: String? = nil, time: Int64? = nil) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 12) {
       Group {
         switch state {
-        case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(DuckRole.saved)
-        case .active: Image(systemName: "circle.dotted").foregroundStyle(DuckRole.accent)
+        case .done: Image(systemName: symbol ?? "checkmark.circle.fill").foregroundStyle(symbol == "clock" ? DuckRole.accent : DuckRole.saved)
+        case .active: Image(systemName: "clock").foregroundStyle(DuckRole.accent)
         case .problem: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(DuckRole.attention)
         case .unknown: Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
         }
@@ -491,35 +491,187 @@ struct PhotoBackupFacts: View {
   }
 }
 
-/// A photo's backup facts in the library viewer (design/library.md: the
-/// photo's detail answers "is this one backed up?"). Reads the latest job for
-/// the photo from the core; a photo without one is "not backed up yet".
-struct PhotoBackupInfo: View {
-  let sourceID: String
-  @State private var job: BackupJob?
-  @State private var loaded = false
+/// A8's content hierarchy, shared by the viewer panel, inspector and unavailable-source detail.
+struct PhotoInformationLayout: View {
+  let takenAt: Date?
+  let job: BackupJob?
+  let receiverName: String
+  var needsYou = false
+  var filename = ""
+  var fields: [(String, String)] = []
+  @ObservedObject var model: BackupModel
+  var loaded = true
+  var unavailable = false
+  var unpaired = false
+  @State private var retrying = false
+  @State private var retryFailure: String?
+  @State private var followsRetry = false
+
+  private var orderedFields: [(String, String)] {
+    let keys = ["preview_file_size", "preview_still_file_size", "preview_format", "preview_resolution",
+      "preview_video_duration", "preview_camera", "preview_lens", "preview_aperture", "preview_exposure", "preview_iso"]
+    return fields.enumerated().sorted {
+      let left = keys.firstIndex(of: $0.element.0) ?? keys.count
+      let right = keys.firstIndex(of: $1.element.0) ?? keys.count
+      return left == right ? $0.offset < $1.offset : left < right
+    }.map(\.element)
+  }
+
+  static func fileFields(for job: BackupJob?) -> [(String, String)] {
+    guard let job else { return [] }
+    var result = [("preview_file_size", ByteCountFormatter.string(fromByteCount: Int64(clamping: job.totalBytes), countStyle: .file))]
+    if let name = job.asset.resources.first?.filename,
+       let format = UTType(filenameExtension: (name as NSString).pathExtension)?.localizedDescription {
+      result.append(("preview_format", format))
+    }
+    let metadata = job.asset.metadata ?? [:]
+    for (key, label) in [("camera_model", "preview_camera"), ("lens_model", "preview_lens"),
+      ("aperture", "preview_aperture"), ("exposure", "preview_exposure"), ("iso", "preview_iso")] {
+      if let value = metadata[key], !value.isEmpty { result.append((label, value)) }
+    }
+    return result
+  }
 
   var body: some View {
-    let model = BackupEnvironment.activeModel()
-    VStack(alignment: .leading, spacing: 12) {
-      Text("records_detail_title").font(.headline)
-      if model.pairing == nil {
-        Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary)
-      } else if !loaded {
-        ProgressView().controlSize(.small)
-      } else if job == nil {
-        Label("library_info_not_backed_up", systemImage: "circle.dashed").foregroundStyle(.secondary)
-      } else {
-        PhotoBackupFacts(job: job, receiverName: job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel")
+    let job = job.map { original in
+      followsRetry ? model.jobs.first(where: { $0.id == original.id }) ?? original : original
+    }
+    VStack(alignment: .leading, spacing: DuckSpacing.large) {
+      VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
+        Text(takenAt?.formatted(date: .long, time: .omitted) ?? NSLocalizedString("design_capture_unknown", comment: ""))
+          .font(.title3.weight(.semibold))
+        if let takenAt { Text(takenAt.formatted(date: .omitted, time: .shortened)).font(.subheadline).foregroundStyle(.secondary) }
       }
+      if !loaded { ProgressView().controlSize(.small) }
+      else if unavailable { Text("records_load_failed").font(.subheadline).foregroundStyle(.secondary) }
+      else if unpaired { Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary) }
+      else if job != nil || needsYou { PhotoBackupFacts(job: job, receiverName: receiverName, needsYou: needsYou) }
+      else { Label("library_info_not_backed_up", systemImage: "circle.dashed").font(.subheadline).foregroundStyle(.secondary) }
+      if let job, job.state == "failed" {
+        Button("records_try_again") {
+          retrying = true; retryFailure = nil
+          Task {
+            if await model.retry(job.id) {
+              followsRetry = true
+            } else { retryFailure = model.message ?? NSLocalizedString("state_failed", comment: "") }
+            retrying = false
+          }
+        }.buttonStyle(.bordered).disabled(retrying)
+      }
+      if let retryFailure { Text(retryFailure).font(.subheadline).foregroundStyle(.secondary) }
+      VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+        if !filename.isEmpty { Text(verbatim: filename).textSelection(.enabled) }
+        ForEach(Array(orderedFields.enumerated()), id: \.offset) { _, field in
+          Text("\(Text(LocalizedStringKey(field.0))) · \(Text(verbatim: field.1))")
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }.font(.footnote).foregroundStyle(.secondary)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .task(id: sourceID) {
-      loaded = false
-      guard let receiver = model.pairing?.receiverID,
-        let data = try? await Bridge.call(["op": "source_job", "receiver_id": receiver, "source_id": sourceID]) else { loaded = true; return }
-      job = try? JSONDecoder().decode(BackupJob?.self, from: data)
-      loaded = true
+    .foregroundStyle(DuckRole.primaryText).textSelection(.enabled)
+    .onChange(of: self.job?.id) { _, _ in followsRetry = false; retryFailure = nil }
+  }
+}
+
+/// Load the current source observation without replacing a missing fact with an inferred one.
+struct PhotoBackupInfo: View {
+  let sourceID: String
+  var takenAt: Date?
+  var filename = ""
+  var fields: [(String, String)] = []
+  @State private var job: BackupJob?
+  @State private var loaded = false
+  @State private var unavailable = false
+  @ObservedObject private var model = BackupEnvironment.activeModel()
+
+  var body: some View {
+    PhotoInformationLayout(takenAt: takenAt, job: job,
+      receiverName: job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel",
+      filename: filename, fields: fields, model: model, loaded: loaded, unavailable: unavailable, unpaired: model.pairing == nil)
+      .task(id: "\(sourceID)|\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") {
+        job = nil; loaded = false; unavailable = false
+        guard let receiver = model.pairing?.receiverID else { loaded = true; return }
+        do {
+          let data = try await Bridge.call(["op": "source_job", "receiver_id": receiver, "source_id": sourceID])
+          let result = try JSONDecoder().decode(BackupJob?.self, from: data)
+          guard !Task.isCancelled else { return }
+          job = result
+        } catch { if !Task.isCancelled { unavailable = true } }
+        if !Task.isCancelled { loaded = true }
+      }
+  }
+}
+
+/// History keeps its lazy timeline mounted while the library viewer owns the media.
+@MainActor final class BackupPhotoRouter: ObservableObject {
+  let library = PhotoLibraryModel()
+  @Published var fallback: HistoryPhoto?
+  #if os(iOS)
+  @Published var preview: IOSPreviewItem?
+  var assets: [PHAsset] = []
+  #endif
+  var frames: [String: CGRect] = [:]
+
+  private func unavailable(_ photo: HistoryPhoto) {
+    #if os(iOS)
+    fallback = photo
+    #else
+    MacPhotoViewerWindow.openUnavailable(photo, model: BackupEnvironment.activeModel())
+    #endif
+  }
+
+  func open(_ photo: HistoryPhoto, collection: [HistoryPhoto], frame: CGRect) {
+    guard BackupEnvironment.usesPhotoLibrary else { unavailable(photo); return }
+    let sources = Array(Set(collection.map(\.source) + [photo.source]))
+    let fetched = PHAsset.fetchAssets(withLocalIdentifiers: sources, options: nil)
+    var byID: [String: PHAsset] = [:]
+    fetched.enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+    guard let asset = byID[photo.source] else { unavailable(photo); return }
+    var seen = Set<String>()
+    let context = (collection + [photo]).compactMap { byID[$0.source] }.filter { seen.insert($0.localIdentifier).inserted }
+    #if os(iOS)
+    assets = context.isEmpty ? [asset] : context
+    library.previewFrame = { [weak self] in self?.frames[$0] }
+    preview = IOSPreviewItem(asset: asset, frame: frame, poster: library.thumbnails.poster(for: asset))
+    #else
+    MacPhotoViewerWindow.open(asset: asset, library: library, collection: context.isEmpty ? [asset] : context)
+    #endif
+  }
+}
+
+struct BackupPhotoButton<Content: View>: View {
+  let photo: HistoryPhoto
+  let collection: [HistoryPhoto]
+  @ObservedObject var router: BackupPhotoRouter
+  @ViewBuilder var content: () -> Content
+  @State private var frame = CGRect.zero
+  var body: some View {
+    #if os(iOS)
+    Button { router.open(photo, collection: collection, frame: frame) } label: { content() }
+      .buttonStyle(.plain).background(geometry)
+    #else
+    content().contentShape(Rectangle()).onTapGesture(count: 2) { router.open(photo, collection: collection, frame: frame) }
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction { router.open(photo, collection: collection, frame: frame) }
+      .background(geometry)
+    #endif
+  }
+  private var geometry: some View {
+    GeometryReader { proxy in
+      Color.clear.onAppear { update(proxy.frame(in: .global)) }
+        .onChange(of: proxy.frame(in: .global)) { _, value in update(value) }
     }
+  }
+  private func update(_ value: CGRect) { frame = value; router.frames[photo.source] = value }
+}
+
+struct BackupPhotoPresentation: ViewModifier {
+  @ObservedObject var router: BackupPhotoRouter
+  let model: BackupModel
+  func body(content: Content) -> some View {
+    content.sheet(item: $router.fallback) { PhotoBackupDetail(photo: $0, model: model) }
+      #if os(iOS)
+      .background(IOSPreviewPresentation(item: router.preview, library: router.library, collection: router.assets) { router.preview = nil })
+      #endif
   }
 }

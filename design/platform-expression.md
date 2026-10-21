@@ -90,6 +90,12 @@ time, the backup facts with their times (`interaction.md` I2 Detail), at most
 one action, and a quiet file line. The trailing inspector follows the platform's
 convention for showing details of the current item next to it.
 
+History and recent-photo entry points retain their collection and scroll while
+the viewer is open. If the local asset is unavailable, recorded information
+remains accessible in the fallback detail. Event times are shown only when
+recorded; receipt does not supply a publication time. File name, size, format
+and available camera fields share the quiet secondary section.
+
 ## A9 Feedback after an action
 
 State changes replace content in place; there are no toasts (`interaction.md`

@@ -12,7 +12,7 @@
   "actions": [
     {
       "action": "Tap a tile",
-      "result": "Photo detail: the photo, when it was taken, then three facts (sent, in the Pixel's Photos, Google Photos unknown), and an action only when the user can act."
+      "result": "The same library viewer opens at this photo within the history collection. Information shows capture date, the two backup facts and recorded times, at most one action, and secondary file metadata. An unavailable local asset retains the fallback detail."
     },
     {
       "action": "Tap Try Again on a cause",

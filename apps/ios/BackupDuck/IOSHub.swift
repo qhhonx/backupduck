@@ -12,6 +12,7 @@ struct IOSHub: View {
   @Environment(\.openURL) private var openURL
   @State private var pairing = false
   @State private var offlineHelp = false
+  @StateObject private var photoRouter = BackupPhotoRouter()
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var records: String?
   @Binding private var notification: BackupNotifier.Route?
@@ -44,7 +45,15 @@ struct IOSHub: View {
           if connected, !recentSources.isEmpty {
             VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
               DuckSectionHeader(title: "hub_recent", link: "hub_see_all") { open(.recent, fallback: "all") }
-              DuckPhotoMosaic(sources: recentSources)
+              DuckPhotoMosaic(sources: recentSources, frameChanged: { source, frame in
+                photoRouter.frames[source] = frame
+              }) { source, frame in
+                let photos = recentPhotos
+                if let photo = photos.first(where: { $0.source == source }) {
+                  photoRouter.frames[source] = frame
+                  photoRouter.open(photo, collection: photos, frame: frame)
+                }
+              }
             }
           }
           if connected { summaryRows }
@@ -71,6 +80,7 @@ struct IOSHub: View {
       case .earlier: open(.recent, fallback: "saved")
       }
     }
+    .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
     .tint(DuckRole.accent)
   }
 
@@ -229,11 +239,13 @@ struct IOSHub: View {
   }
 
   /// Photos the Pixel has received, newest change first.
-  private var recentSources: [String] {
-    model.jobs.filter { $0.state == "received" }
+  private var recentPhotos: [HistoryPhoto] {
+    var seen = Set<String>()
+    return model.jobs.filter { $0.state == "received" }
       .sorted { ($0.stateChangedAt ?? 0) > ($1.stateChangedAt ?? 0) }
-      .prefix(5).map(\.asset.source_id)
+      .filter { seen.insert($0.asset.source_id).inserted }.prefix(5).map(HistoryPhoto.init(job:))
   }
+  private var recentSources: [String] { recentPhotos.map(\.source) }
 
   private var summaryRows: some View {
     VStack(spacing: 0) {

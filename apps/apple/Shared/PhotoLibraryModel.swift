@@ -1126,7 +1126,8 @@ enum LaunchTrace {
     "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))" as NSString
   }
   func poster(for asset: PHAsset) -> LibraryImage? {
-    posters.object(forKey:smallKey(asset)) ?? smallPosters.object(forKey: smallKey(asset))
+    if let sample = asset as? any PreviewSample { return sample.previewImage }
+    return posters.object(forKey:smallKey(asset)) ?? smallPosters.object(forKey: smallKey(asset))
   }
   /// The caller supplies already prepared 64-pixel fallback pixels.
   private func rememberSmall(_ image: LibraryImage, asset: PHAsset) {
@@ -1152,6 +1153,10 @@ enum LaunchTrace {
     _ asset: PHAsset, pixels: CGFloat, contentMode: PHImageContentMode = .aspectFill,
     priority: Priority = .visible, completion: @escaping (LibraryImage?, Bool) -> Void
   ) -> PHImageRequestID {
+    if let sample = asset as? any PreviewSample {
+      completion(sample.previewImage, false)
+      return PHInvalidImageRequestID
+    }
     let target = size(pixels)
     let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(Int(target.width))|\(contentMode.rawValue)" as NSString
     if let image = cache.object(forKey: key) {

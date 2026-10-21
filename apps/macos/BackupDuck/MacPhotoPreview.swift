@@ -16,11 +16,10 @@ struct MacPhotoPreview: View {
   private var information: Bool { navigation.viewerInfo }
   /// A click on the photo hides every control and turns the background black.
   private var immersive: Bool { navigation.viewerImmersive }
-  private let reviewing: Bool
   private let close: (PHAsset) -> Void
   init(asset: PHAsset, library: PhotoLibraryModel, navigation: MacLibraryNavigation, reviewAssets: [PHAsset]? = nil,
     close: @escaping (PHAsset) -> Void) {
-    self.library = library; self.navigation = navigation; self.close = close; reviewing = reviewAssets != nil
+    self.library = library; self.navigation = navigation; self.close = close
     _session = StateObject(wrappedValue: MediaPreviewSession(asset: asset, library: library,
       poster: library.previewPoster?(asset.localIdentifier), reviewAssets: reviewAssets))
   }
@@ -45,21 +44,20 @@ struct MacPhotoPreview: View {
           arrow("chevron.right", label: "preview_next", id: "library.preview.next", direction: -1)
             .keyboardShortcut(.rightArrow, modifiers: []).opacity(edge > 0 && !immersive ? 1 : 0)
         }.padding(.horizontal, 14).allowsHitTesting(edge != 0 && !immersive)
-        if information {
-          infoSheet(height: proxy.size.height)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
       }
       .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: immersive)
       .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: edge)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      // Black reaches up under the faded title bar but never behind the sidebar,
-      // whose material would turn dark.
-      .background((immersive ? Color.black : Color(nsColor: .windowBackgroundColor)).ignoresSafeArea(edges: .top)).tint(DuckColors.action)
+      // design-exception: A8's separate media window has a black viewing surface.
+      .background(Color.black.ignoresSafeArea(edges: .top)).tint(DuckRole.accent)
       .onContinuousHover { phase in
         guard case .active(let point) = phase else { edge = 0; return }
         edge = point.x < 90 ? -1 : point.x > proxy.size.width - 90 ? 1 : 0
       }
+    }
+    .inspector(isPresented: Binding(get: { navigation.viewerInfo }, set: { navigation.viewerInfo = $0 })) {
+      ScrollView { PhotoMetadataPanel(preview: session.current).padding(DuckSpacing.large) }
+        .inspectorColumnWidth(min: 240, ideal: 290, max: 380)
     }
     .background(MacMediaKeyHandler { event in
       if event.keyCode == 53 || event.charactersIgnoringModifiers == " " {
@@ -78,7 +76,7 @@ struct MacPhotoPreview: View {
     }
     .onDisappear {
       session.stop(); navigation.viewerCurrent = nil
-      navigation.viewerInfo = false; navigation.viewerImmersive = false
+      navigation.viewerImmersive = false
     }
     .onChange(of: session.current.asset.localIdentifier) { _, _ in playRequest = 0; describe() }
     .onChange(of: session.current.livePhoto != nil) { _, _ in describe() }
@@ -108,28 +106,6 @@ struct MacPhotoPreview: View {
     navigation.viewerSubtitle = parts.joined(separator: "  ·  ")
     navigation.viewerHasLive = session.current.livePhoto != nil
   }
-  /// Information rises from the bottom as a sheet with its own close button.
-  private func infoSheet(height: CGFloat) -> some View {
-    VStack(spacing: 0) {
-      Spacer(minLength: 0)
-      VStack(spacing: 0) {
-        HStack {
-          Text("apple_photo_detail").font(.headline)
-          Spacer()
-          Button { setInformation(false) } label: {
-            Image(systemName: "xmark.circle.fill").font(.system(size: 20)).foregroundStyle(.secondary)
-          }.buttonStyle(.plain).accessibilityLabel(Text("mac_library_back")).accessibilityIdentifier("library.preview.info.close")
-        }.padding(.horizontal, 20).padding(.vertical, 14)
-        Divider()
-        ScrollView { PhotoMetadataPanel(preview: session.current).padding(20) }
-      }
-      .frame(maxWidth: 560).frame(height: min(440, height * 0.6))
-      .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16))
-      .shadow(color: .black.opacity(0.18), radius: 16, y: -2)
-      .gesture(DragGesture(minimumDistance: 24).onEnded { if $0.translation.height > 60 { setInformation(false) } })
-    }
-    .frame(maxWidth: .infinity)
-  }
   private func arrow(_ symbol: String, label: String, id: String, direction: Int) -> some View {
     icon(symbol, label: label, id: id) { move(direction) }
       .disabled(session.adjacent(to: session.current.asset, direction: direction) == nil || session.paging || session.zoomed)
@@ -140,7 +116,7 @@ struct MacPhotoPreview: View {
   /// Dragging up reveals information; dragging down hides it, then leaves.
   private func pull(_ direction: Int) {
     if direction == -2 { if information { setInformation(false) }; return }
-    if direction > 0 { if !reviewing { setInformation(true) } }
+    if direction > 0 { setInformation(true) }
     else if information { setInformation(false) }
     else { close(session.current.asset) }
   }
@@ -543,5 +519,86 @@ private struct MacWindowProbe: NSViewRepresentable {
     } completionHandler: {
       Task { @MainActor in if hidden, bar.alphaValue < 0.01 { bar.isHidden = true } }
     }
+  }
+}
+
+
+/// Both library and history enter the same native photo window; the original collection stays mounted.
+@MainActor enum MacPhotoViewerWindow {
+  private static var controller: NSWindowController?
+  static func toggleInfo() {
+    guard controller?.window?.isKeyWindow == true else { return }
+    NotificationCenter.default.post(name: .init("BackupDuckPhotoViewerInfo"), object: nil)
+  }
+  static func open(asset: PHAsset, library: PhotoLibraryModel, collection: [PHAsset]? = nil) {
+    show(MacPhotoWindowContent(asset: asset, library: library, collection: collection))
+  }
+  static func openUnavailable(_ photo: HistoryPhoto, model: BackupModel) {
+    show(MacUnavailablePhotoWindow(photo: photo, model: model))
+  }
+  private static func show<Content: View>(_ content: Content) {
+    controller?.close()
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 720),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+    window.identifier = NSUserInterfaceItemIdentifier("photo.viewer")
+    window.title = NSLocalizedString("library_preview", comment: "")
+    let host = NSHostingController(rootView: NavigationStack { content }.preferredColorScheme(.dark))
+    // The media's flexible ideal size must not shrink the window to its toolbar.
+    host.sizingOptions = []
+    window.contentViewController = host
+    window.setContentSize(NSSize(width: 980, height: 720))
+    window.contentMinSize = NSSize(width: 640, height: 480)
+    window.isReleasedWhenClosed = false; window.center()
+    let made = NSWindowController(window: window)
+    controller = made; made.showWindow(nil)
+  }
+  static func close() { controller?.close() }
+}
+
+private struct MacPhotoWindowContent: View {
+  let asset: PHAsset
+  let library: PhotoLibraryModel
+  let collection: [PHAsset]?
+  @StateObject private var navigation = MacLibraryNavigation()
+  @AppStorage("macPhotoViewerInfo") private var information = true
+  var body: some View {
+    MacPhotoPreview(asset: asset, library: library, navigation: navigation, reviewAssets: collection) { _ in
+      MacPhotoViewerWindow.close()
+    }
+    .navigationTitle(navigation.viewerTitle)
+    .toolbar {
+      ToolbarItem {
+        Toggle(isOn: $information) { Label("folders_show_info", systemImage: "info.circle") }
+          .toggleStyle(.button).help(Text("folders_show_info")).accessibilityIdentifier("library.preview.info")
+      }
+    }
+    .onAppear { navigation.viewerOpen = true; navigation.viewerInfo = information }
+    .onChange(of: information) { _, value in navigation.viewerInfo = value }
+    .onChange(of: navigation.viewerInfo) { _, value in information = value }
+    .onReceive(NotificationCenter.default.publisher(for: .init("BackupDuckPhotoViewerInfo"))) { _ in information.toggle() }
+  }
+}
+
+/// A missing local original still has its recorded information in the viewer inspector.
+private struct MacUnavailablePhotoWindow: View {
+  let photo: HistoryPhoto
+  @ObservedObject var model: BackupModel
+  @AppStorage("macPhotoViewerInfo") private var information = true
+  var body: some View {
+    AssetThumbnail(sourceID: photo.source, size: 720, cornerRadius: 0)
+      // design-exception: A8's separate media window has a black viewing surface.
+      .scaledToFit().frame(maxWidth: .infinity, maxHeight: .infinity).background(.black)
+      .inspector(isPresented: $information) {
+        ScrollView {
+          PhotoInformationLayout(takenAt: photo.takenAt, job: photo.job,
+            receiverName: photo.job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel",
+            needsYou: photo.mark == .needsYou, filename: photo.job?.asset.resources.first?.filename ?? "",
+            fields: PhotoInformationLayout.fileFields(for: photo.job), model: model).padding(DuckSpacing.large)
+        }.inspectorColumnWidth(min: 240, ideal: 290, max: 380)
+      }
+      .toolbar {
+        ToolbarItem { Toggle(isOn: $information) { Label("folders_show_info", systemImage: "info.circle") }.toggleStyle(.button) }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: .init("BackupDuckPhotoViewerInfo"))) { _ in information.toggle() }
   }
 }

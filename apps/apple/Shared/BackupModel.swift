@@ -44,6 +44,8 @@ struct BackupJob: Decodable, Identifiable, Equatable {
   var attempts: Int? = nil
   var nextAttemptAt: Int64? = nil
   var stateChangedAt: Int64? = nil
+  var receivedAt: Int64? = nil
+  var publishedAt: Int64? = nil
   var sortValue: Int64? = nil
   // A task's historical destination. Never substitute the current pairing.
   var receiverID: String? = nil
@@ -52,6 +54,8 @@ struct BackupJob: Decodable, Identifiable, Equatable {
     case id, asset, state, attempts
     case nextAttemptAt = "next_attempt_at"
     case stateChangedAt = "state_changed_at_ms"
+    case receivedAt = "received_at_ms"
+    case publishedAt = "published_at_ms"
     case sortValue = "sort_value"
     case receiverID = "receiver_id"
     case confirmedBytes = "confirmed_bytes"

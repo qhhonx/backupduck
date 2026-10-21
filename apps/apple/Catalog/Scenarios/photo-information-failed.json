@@ -1,0 +1,73 @@
+{
+  "id": "photo.info-failed",
+  "page": "backup",
+  "step": "photoInformation",
+  "title": "One photo \u2014 failed",
+  "extends": "photo.info",
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 801,
+          "receiver_id": "catalog-pixel",
+          "state": "failed",
+          "confirmed_bytes": 4800000,
+          "processing": null,
+          "asset": {
+            "kind": "photo",
+            "source_id": "a8-synthetic-photo",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0801.HEIC",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "camera_model": "Synthetic camera",
+              "lens_model": "24 mm",
+              "aperture": "\u0192/1.8",
+              "exposure": "1/125 s",
+              "iso": "100"
+            }
+          },
+          "error_code": "integrity"
+        }
+      ]
+    },
+    "source_job": {
+      "value": {
+        "id": 801,
+        "receiver_id": "catalog-pixel",
+        "state": "failed",
+        "confirmed_bytes": 4800000,
+        "processing": null,
+        "asset": {
+          "kind": "photo",
+          "source_id": "a8-synthetic-photo",
+          "revision": "1",
+          "resources": [
+            {
+              "filename": "IMG_0801.HEIC",
+              "size": 4800000
+            }
+          ],
+          "metadata": {
+            "created_at_ms": "1792495800000",
+            "camera_model": "Synthetic camera",
+            "lens_model": "24 mm",
+            "aperture": "\u0192/1.8",
+            "exposure": "1/125 s",
+            "iso": "100"
+          }
+        },
+        "error_code": "integrity"
+      }
+    }
+  },
+  "expect": [
+    "No unrecorded event time is displayed.",
+    "At most one Retry action, for a retryable transfer failure."
+  ]
+}

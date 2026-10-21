@@ -458,8 +458,7 @@ struct MacWorkspace: View {
       clip: area, window: NSApp.keyWindow)
   }
   private func openMedia(_ asset: PHAsset) {
-    reviewAssets = nil
-    present(asset)
+    MacPhotoViewerWindow.open(asset: asset, library: library)
   }
   private func closeMedia(_ asset: PHAsset) {
     let token = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier

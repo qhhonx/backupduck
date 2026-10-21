@@ -162,7 +162,9 @@ private struct MacScenarioRun: View {
 
   var body: some View {
     Group {
-      if scenario.page == "connect" {
+      if scenario.step == "photoInformation" {
+        MacInformationCatalog(model: session.model, library: session.library)
+      } else if scenario.page == "connect" {
         // The connect sheet on its own, for review (design/mac-connect.md).
         MacConnectSheet(model: session.model).task { await session.model.open() }
       } else {
@@ -173,6 +175,30 @@ private struct MacScenarioRun: View {
       }
     }
       .onDisappear { session.model.stop() }
+  }
+}
+
+/// Observe the model itself: changes to a session's stored model do not publish
+/// through the session, and jobs arrive after opening its queue.
+private struct MacInformationCatalog: View {
+  @ObservedObject var model: BackupModel
+  let library: PhotoLibraryModel
+  @State private var opened = false
+
+  var body: some View {
+    ProgressView()
+      .task { await model.open() }
+      .onChange(of: model.jobs.first?.id, initial: true) { _, _ in
+        guard !opened, let job = model.jobs.first else { return }
+        opened = true
+        if MacCatalogLaunch.value("-photo-info") == "fallback" {
+          MacPhotoViewerWindow.openUnavailable(HistoryPhoto(job: job), model: model)
+        } else {
+          let asset = InformationSampleAsset(job: job)
+          UserDefaults.standard.set(true, forKey: "macPhotoViewerInfo")
+          MacPhotoViewerWindow.open(asset: asset, library: library, collection: [asset])
+        }
+      }
   }
 }
 
@@ -250,7 +276,13 @@ private struct MacScenarioInfo: View {
 /// are incomplete and must be judged in the live window.
 enum MacWindowSnapshot {
   @MainActor static func write(to url: URL) async throws {
-    guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.contentView != nil }) else {
+    let viewer = MacCatalogLaunch.value("-photo-info") == nil ? nil : NSApp.windows.first {
+      $0.isVisible && $0.identifier == NSUserInterfaceItemIdentifier("photo.viewer")
+    }
+    if MacCatalogLaunch.value("-photo-info") != nil, viewer == nil {
+      throw SnapshotError("The photo viewer is not visible.")
+    }
+    guard let window = viewer ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.contentView != nil }) else {
       throw SnapshotError("The catalog window is not visible (\(NSApp.windows.count) windows).")
     }
     let bitmap: NSBitmapImageRep

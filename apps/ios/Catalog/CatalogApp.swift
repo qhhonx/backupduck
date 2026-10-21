@@ -87,6 +87,7 @@ private struct ScenarioStage: View {
       .preferredColorScheme(scheme)
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
       .overlay(alignment: .bottomTrailing) {
+        if scenario.step != "photoInformation" {
         // Above the tab bar, clear of navigation bar items.
         Button { info = true } label: {
           Image(systemName: "info.circle.fill").font(.title2)
@@ -95,6 +96,7 @@ private struct ScenarioStage: View {
         .padding(.trailing, 12).padding(.bottom, 96)
         .accessibilityLabel("Scenario")
         .accessibilityIdentifier("catalog.info")
+        }
       }
       .sheet(isPresented: $info) {
         ScenarioInfo(scenario: scenario, scheme: $scheme, textSize: $textSize, proposed: $proposed,
@@ -128,7 +130,10 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.step == "liveActivity" {
+    if scenario.step == "photoInformation" {
+      IOSInformationCatalog(model: model)
+        .task { await model.open() }.onDisappear { model.stop() }
+    } else if scenario.step == "liveActivity" {
       LiveActivityCatalogPage(model: model, stale: scenario.id.hasSuffix(".stale"))
         .task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "connect" {
@@ -187,6 +192,47 @@ private struct ScenarioRun: View {
       ContentUnavailableView("Not in this scenario", systemImage: item.symbol,
         description: Text(scenario.id))
     }
+  }
+}
+
+private struct IOSInformationCatalog: View {
+  @ObservedObject var model: BackupModel
+  var body: some View {
+    if let job = model.jobs.first {
+      if ProcessInfo.processInfo.arguments.contains("fallback") {
+        PhotoBackupDetail(photo: HistoryPhoto(job: job), model: model)
+      } else { InformationViewerSample(job: job).ignoresSafeArea() }
+    } else { ProgressView() }
+  }
+}
+
+/// Opens the production viewer and its actual drawer; no replacement gestures.
+private struct InformationViewerSample: UIViewControllerRepresentable {
+  let job: BackupJob
+  func makeUIViewController(context: Context) -> NativeMediaViewer {
+    let asset = InformationSampleAsset(job: job)
+    let session = MediaPreviewSession(asset: asset, library: PhotoLibraryModel(), reviewAssets: [asset])
+    let item = IOSPreviewItem(asset: asset, frame: .zero, poster: asset.previewImage)
+    let viewer = NativeMediaViewer(item: item, session: session, close: {})
+    context.coordinator.open(viewer)
+    return viewer
+  }
+  func updateUIViewController(_ controller: NativeMediaViewer, context: Context) {}
+  func makeCoordinator() -> Coordinator { Coordinator() }
+  final class Coordinator {
+    var task: Task<Void, Never>?
+    func open(_ viewer: NativeMediaViewer) {
+      task = Task { @MainActor [weak viewer] in
+        while !Task.isCancelled {
+          try? await Task.sleep(for: .milliseconds(100))
+          guard let viewer else { return }
+          if viewer.viewIfLoaded?.window != nil, !viewer.flying {
+            viewer.setInfo(true); return
+          }
+        }
+      }
+    }
+    deinit { task?.cancel() }
   }
 }
 

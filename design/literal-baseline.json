@@ -118,8 +118,7 @@
       "text-size": 3
     },
     "apps/macos/BackupDuck/MacPhotoPreview.swift": {
-      "color": 2,
-      "text-size": 2
+      "text-size": 1
     },
     "apps/macos/BackupDuck/MacPreferenceMenu.swift": {
       "text-size": 3

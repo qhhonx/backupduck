@@ -1,0 +1,86 @@
+{
+  "id": "photo.info",
+  "page": "backup",
+  "step": "photoInformation",
+  "title": "One photo \u2014 viewer information",
+  "extends": "base-paired",
+  "core": {
+    "refresh_processing": { "value": null },
+    "reconcile_native": { "value": [] },
+    "prepare_native": { "value": null },
+    "record_event": { "value": null },
+    "jobs": {
+      "value": [
+        {
+          "id": 801,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "state_changed_at_ms": 1792534500000,
+          "received_at_ms": 1792534500000,
+          "published_at_ms": 1792534560000,
+          "processing": "complete",
+          "asset": {
+            "kind": "photo",
+            "source_id": "a8-synthetic-photo",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0801.HEIC",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "camera_model": "Synthetic camera",
+              "lens_model": "24 mm",
+              "aperture": "\u0192/1.8",
+              "exposure": "1/125 s",
+              "iso": "100"
+            }
+          }
+        }
+      ]
+    },
+    "source_job": {
+      "value": {
+        "id": 801,
+        "receiver_id": "catalog-pixel",
+        "state": "received",
+        "confirmed_bytes": 4800000,
+        "state_changed_at_ms": 1792534500000,
+        "received_at_ms": 1792534500000,
+        "published_at_ms": 1792534560000,
+        "processing": "complete",
+        "asset": {
+          "kind": "photo",
+          "source_id": "a8-synthetic-photo",
+          "revision": "1",
+          "resources": [
+            {
+              "filename": "IMG_0801.HEIC",
+              "size": 4800000
+            }
+          ],
+          "metadata": {
+            "created_at_ms": "1792495800000",
+            "camera_model": "Synthetic camera",
+            "lens_model": "24 mm",
+            "aperture": "\u0192/1.8",
+            "exposure": "1/125 s",
+            "iso": "100"
+          }
+        }
+      }
+    },
+    "retry": {
+      "value": null
+    }
+  },
+  "expect": [
+    "Open with -photo-info panel (iPhone), inspector (Mac), or fallback.",
+    "Date and time precede independent receipt and publication facts.",
+    "Receipt uses a clock, Photos publication a check, each with its recorded time.",
+    "File name and camera metadata remain secondary."
+  ]
+}

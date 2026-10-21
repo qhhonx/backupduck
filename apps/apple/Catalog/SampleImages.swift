@@ -2,6 +2,33 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import SwiftUI
+import Photos
+
+/// Catalog-only asset: no identifiers, resources or pixels from the person's library.
+final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable {
+  let job: BackupJob
+  init(job: BackupJob) { self.job = job; super.init() }
+  override var localIdentifier: String { job.asset.source_id }
+  override var creationDate: Date? { HistoryPhoto(job: job).takenAt }
+  override var modificationDate: Date? { creationDate }
+  override var mediaType: PHAssetMediaType { .image }
+  override var mediaSubtypes: PHAssetMediaSubtype { [] }
+  override var burstIdentifier: String? { nil }
+  override var location: CLLocation? { nil }
+  override var duration: TimeInterval { 0 }
+  override var pixelWidth: Int { 480 }
+  override var pixelHeight: Int { 480 }
+  var previewFilename: String { job.asset.resources.first?.filename ?? "" }
+  var previewMetadata: [(String, String)] { PhotoInformationLayout.fileFields(for: job) }
+  var previewImage: LibraryImage? {
+    guard let cg = SampleImages.cgImage(for: localIdentifier) else { return nil }
+    #if os(iOS)
+    return UIImage(cgImage: cg)
+    #else
+    return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+    #endif
+  }
+}
 
 /// Catalog-only local sample media, with procedural landscapes as fallback.
 /// Identifiers use the same fixed UTF-8 hash and manifest order on every platform.
