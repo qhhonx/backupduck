@@ -7,6 +7,7 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    BackupNotifier.shared.configure()
     BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.processingIdentifier, using: .main)
     { task in
       guard let task = task as? BGProcessingTask else {
@@ -17,10 +18,14 @@ import UIKit
         let work = Task {
           let model = BackupModel.shared
           await model.open()
+          BackupNotifier.shared.start(model)
+          BackupLiveActivity.shared.start(model)
           await BackgroundTransfer.shared.recordSnapshot("processing_wake")
           await model.recoverBackgroundReceiverRoute()
           await BackgroundTransfer.shared.kick(reconcile: true)
           await model.prepareInBackground()
+          await BackupLiveActivity.shared.synchronize(model)
+          await BackupNotifier.shared.evaluate(model)
           await BackgroundTransfer.shared.recordSnapshot("processing_finished")
           model.scheduleBackgroundWork()
           task.setTaskCompleted(success: !Task.isCancelled)
@@ -32,7 +37,12 @@ import UIKit
       }
     }
     BackgroundTransfer.shared.connect()
-    Task { await BackupModel.shared.open() }
+    Task {
+      let model = BackupModel.shared
+      await model.open()
+      BackupNotifier.shared.start(model)
+      BackupLiveActivity.shared.start(model)
+    }
     return true
   }
   func application(
@@ -47,6 +57,8 @@ import UIKit
     BackgroundTransfer.shared.connect()
     Task {
       await BackupModel.shared.open()
+      BackupNotifier.shared.start(BackupModel.shared)
+      BackupLiveActivity.shared.start(BackupModel.shared)
       await BackgroundTransfer.shared.recordSnapshot("background_session_wake")
     }
   }

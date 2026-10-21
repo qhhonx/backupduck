@@ -26,6 +26,7 @@ import SwiftUI
         }
     }.defaultSize(width: 1180, height: 800)
       .commands {
+        MacFolderCommands()
         CommandGroup(replacing: .appInfo) {
           Button("about_title") { MacAboutNavigation.open { openWindow(id: "main") } }
         }

@@ -16,13 +16,14 @@ import SwiftUI
     BackupEnvironment.discoversReceivers = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
-    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed")
+    let scenario = MacCatalogLaunch.value("-scenario") ?? ""
+    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.hasPrefix("folders.") || scenario.hasPrefix("settings.folder")
   }
 
   var body: some Scene {
     Window("Design catalog", id: "catalog") {
       MacCatalogRoot().frame(minWidth: 900, minHeight: 620)
-    }.defaultSize(width: 1180, height: 800)
+    }.defaultSize(width: 1180, height: 800).commands { MacFolderCommands() }
   }
 }
 
@@ -37,6 +38,11 @@ import SwiftUI
     let made = model
     BackupEnvironment.activeModel = { made }
     folders = FolderSources(backup: model)
+    // Catalog folders never open configuration files, bookmarks, watchers or native indexes.
+    folders.previewRows = []
+    if scenario.id.hasPrefix("folders.") || scenario.id.hasPrefix("settings.folder") {
+      FolderCatalog.install(scenario.id, folders: folders, sheet: MacCatalogLaunch.value("-sheet"))
+    }
   }
 }
 
@@ -66,6 +72,9 @@ private enum MacCatalogLaunch {
         try await MacWindowSnapshot.write(to: URL(fileURLWithPath: path))
         print("Catalog snapshot written: \(path)")
         NSApp.terminate(nil)
+        // AppKit can decline termination while a token field is editing in a
+        // sheet. Snapshot runs contain synthetic state and must always finish.
+        exit(EXIT_SUCCESS)
       } catch {
         fputs("Catalog snapshot failed: \(error.localizedDescription)\n", stderr)
         exit(EXIT_FAILURE)
@@ -116,7 +125,7 @@ private struct MacCatalogRoot: View {
   private var list: some View {
     List {
       if let failure { Text(failure).foregroundStyle(.red) }
-      ForEach(["receiver", "settings", "backup", "library"], id: \.self) { page in
+      ForEach(["receiver", "settings", "backup", "library", "sources"], id: \.self) { page in
         let items = scenarios.filter { $0.page == page }
         if !items.isEmpty {
           Section(page.capitalized) {
@@ -159,7 +168,7 @@ private struct MacScenarioRun: View {
       } else {
       MacWorkspace(model: session.model, library: session.library,
         // Records belong to the hub; the Mac lists them as their own sidebar position.
-        initialDestination: scenario.records != nil ? .transfers : MacDestination(rawValue: scenario.page) ?? .settings,
+        initialDestination: session.folders.initialSheet == "rules" ? .settings : scenario.records != nil ? .transfers : MacDestination(rawValue: scenario.page) ?? .settings,
         folderSources: session.folders, initialTransferFilter: scenario.records ?? "all")
       }
     }

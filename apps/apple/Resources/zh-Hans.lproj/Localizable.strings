@@ -1476,12 +1476,129 @@
 "notify_unreachable_title" = "一天没连上 %@";
 "notify_unreachable_body" = "新照片在按顺序排队。看看 Pixel 是否开着、连着 Wi‑Fi，并且打开了备份鸭。";
 "notify_full_title" = "Pixel 空间满了";
-"notify_full_body" = "备份已暂停。在 Pixel 上腾出空间后会自动继续。";
+"notify_full_body" = "照片正在等待。在 Pixel 上腾出空间后会自动继续。";
 "notify_convert_title" = "%@ 张实况照片需要你处理";
 "notify_convert_body" = "它们已经安全地存在 Pixel 上。打开备份鸭选择怎么处理。";
 "notify_earlier_title" = "以前的照片都备份好了";
-"notify_earlier_body" = "以后拍的照片会自动送过去。";
+"notify_earlier_body" = "它们已存进 Pixel 相册。打开备份鸭查看。";
 "menu_settings" = "设置…";
 
 "device_discard_title" = "放弃名称更改？";
 "device_discard" = "放弃更改";
+
+// Mac Folders photo browsing and preferences.
+"folders_empty_title" = "还没有文件夹";
+"folders_empty_note" = "相机导出的照片、SD 卡和外置硬盘里的照片，也能备份到你的 Pixel。";
+"folders_add" = "添加文件夹…";
+"folders_add_named" = "添加“%@”";
+"folders_add_confirm" = "添加";
+"folders_view" = "显示";
+"folders_show" = "显示方式";
+"folders_by_folder" = "按文件夹";
+"folders_search" = "搜索";
+"folders_clear_filter" = "清除筛选";
+"folders_counting" = "正在统计…";
+"folders_disconnected" = "硬盘未连接，已经备份的照片不受影响。重新连接硬盘后会继续备份。";
+"folders_needs_you" = "有 %llu 张照片需要你处理。";
+"folders_backing_up" = "正在备份 %llu 张照片（%@）。";
+"folders_not_backed_up" = "还有 %llu 张照片尚未备份。";
+"folders_saved" = "%llu 张照片已存进 Pixel 相册。";
+"folders_unsupported" = "%llu 个文件不会备份。";
+"folders_unsupported_info" = "为什么这些文件不会备份";
+"folders_unsupported_note" = "备份鸭无法把这些照片格式（包括 RAW）存进 Pixel 相册。文件仍保留在 Mac 上。";
+"folders_settings" = "文件夹设置…";
+"folders_back_up_remaining" = "备份剩余照片";
+"folders_back_up_selected" = "备份所选照片";
+"folders_stop_title" = "停止备份此文件夹…";
+"folders_stop" = "停止备份";
+"folders_stop_question" = "停止备份“%@”？";
+"folders_stop_note" = "此文件夹里的新照片将不再备份。Mac 上的文件和已存进 Pixel 相册的照片都不会删除。";
+"folders_count_size" = "%llu 张照片 · %@";
+"folders_add_decision" = "要备份哪些照片？";
+"folders_include_existing" = "文件夹里已有的照片和以后的新照片";
+"folders_only_new" = "只备份从现在起添加的照片";
+"folders_add_note" = "新照片会按“自动备份”的设置备份。Mac 上的文件保持原样。";
+"folders_settings_note" = "这些文件夹里的新照片会按“自动备份”的设置备份。停止备份文件夹，不会删除 Mac 上的文件或 Pixel 相册里的照片。";
+"folders_file_rules" = "文件规则";
+"folders_rules_hint" = "大多数人不需要设置。";
+"folders_skip" = "跳过这些";
+"folders_only" = "只备份这些（留空表示全部）";
+"folders_rules_note" = "规则会在下次查看文件夹时生效，已存进 Pixel 相册的照片不受影响。";
+"folders_rules_error" = "无法保存这些规则。检查输入后重试。";
+"folders_external_location" = "%@ 外置硬盘";
+"folders_show_info" = "显示信息";
+"folders_photo_saved" = "已存进 Pixel 相册";
+"folders_photo_saving" = "Pixel 已收到，正在存进相册。";
+"folders_photo_sending" = "正在传到 Pixel";
+"folders_photo_needs_you" = "这张照片需要你处理。";
+"folders_photo_not_backed_up" = "尚未备份";
+"folders_date_fallback" = "未找到拍摄日期，显示的是文件修改日期。";
+"folders_saved_confirmed" = "确认时间：%@";
+
+"notifications_title" = "重要提醒";
+
+"notifications_allow" = "允许通知";
+
+"notifications_settings" = "打开通知设置";
+
+"notifications_note" = "仅在 Pixel 需要你处理，或以前的照片全部存好时提醒。日常备份不打扰。";
+
+"notifications_permission_failed" = "未能请求通知权限，请重试。";
+
+"hub_earlier_preparation_progress" = "已查看 %1$@ 张 · 正在准备 %2$@ 张照片";
+
+"hub_problem_photos_need_you" = "%@ 张照片需要你处理";
+
+"hub_problem_photos_need_you_note" = "有些照片还没存好。打开查看原因和处理方法。";
+
+"activity_finding" = "正在查看以前的照片";
+
+"activity_preparing" = "正在准备照片";
+
+"activity_sending" = "正在备份照片";
+
+"activity_saving" = "正在存进 Pixel 相册";
+
+"activity_paused" = "发送已暂停";
+
+"activity_waiting" = "正在等待 Pixel";
+
+"activity_attention" = "有照片需要你处理";
+
+"activity_saved" = "照片已存好";
+
+"activity_remaining" = "还剩 %@ 张";
+
+"activity_stale" = "打开备份鸭查看当前状态";
+
+"activity_action_failed" = "未能更改备份状态，请打开备份鸭。";
+
+"activity_open" = "打开备份鸭";
+
+"activity_progress" = "这一批存进 Pixel 相册的进度";
+
+"activity_pause_intent" = "更改备份暂停状态";
+
+"activity_receiver_parameter" = "接收设备";
+
+"activity_session_parameter" = "实时活动";
+
+"activity_paused_parameter" = "暂停备份";
+
+"activity_known_remaining" = "目前有 %@ 张照片待备份";
+
+"activity_sending_receiver" = "正在备份到 %@";
+
+"activity_preparing_receiver" = "正在准备发往 %@ 的照片";
+
+"activity_saving_receiver" = "正在存进 %@ 的相册";
+
+"activity_paused_receiver" = "已暂停发送到 %@";
+
+"activity_waiting_receiver" = "等待连接 %@";
+
+"activity_finding_receiver" = "正在查看以前的照片 · %@";
+
+"activity_attention_receiver" = "有照片需要你处理 · %@";
+
+"activity_saved_receiver" = "已存进 %@ 的相册";

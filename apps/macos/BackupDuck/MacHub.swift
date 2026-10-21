@@ -121,6 +121,10 @@ struct MacHub: View {
       card(Text(String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())),
         note: "hub_problem_convert_note", symbol: "livephoto", tone: DuckRole.attention,
         action: "hub_problem_convert_action") { showTransfers("attention") }
+    case .photosNeedYou(let count):
+      card(Text(String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
+        note: "hub_problem_photos_need_you_note", symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention,
+        action: "hub_problem_convert_action") { showTransfers("attention") }
     }
   }
 

@@ -6,13 +6,21 @@ import SwiftUI
 /// reading any real photo library. Same identifier, same picture.
 enum SampleImages {
   nonisolated(unsafe) private static var cache: [String: Image] = [:]
+  nonisolated(unsafe) private static var bitmapCache: [String: CGImage] = [:]
 
   static func image(for id: String) -> Image? {
     if let cached = cache[id] { return cached }
-    guard let picture = draw(seed: id.utf8.reduce(UInt64(1469598103934665603)) { ($0 ^ UInt64($1)) &* 1099511628211 }) else { return nil }
+    guard let picture = cgImage(for: id) else { return nil }
     let image = Image(decorative: picture, scale: 1)
     cache[id] = image
     return image
+  }
+
+  static func cgImage(for id: String) -> CGImage? {
+    if let picture = bitmapCache[id] { return picture }
+    let picture = draw(seed: id.utf8.reduce(UInt64(1469598103934665603)) { ($0 ^ UInt64($1)) &* 1099511628211 })
+    bitmapCache[id] = picture
+    return picture
   }
 
   // Sky top, sky bottom, sun, far land, near land.

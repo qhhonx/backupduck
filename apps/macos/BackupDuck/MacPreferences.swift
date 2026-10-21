@@ -36,7 +36,6 @@ struct MacPreferences: View {
   @State private var renaming = false
   @AppStorage("macListThumbnails") private var thumbnails = true
   @ObservedObject private var feedback = TesterFeedback.shared
-  @AppStorage("macFolderListLayout") private var folderLayout = "flat"
   @AppStorage("duckAppearance") private var appearance = "system"
   @State private var languageOpenFailed = false
   @MainActor init(model: BackupModel, folders: FolderSources? = nil, showFolders: (() -> Void)? = nil,
@@ -136,11 +135,7 @@ struct MacPreferences: View {
         settingRow("mac_fidelity_thumbnail_title", note: "mac_fidelity_thumbnail_note", first: true) {
           Toggle("list_thumbnails", isOn: $thumbnails).labelsHidden().toggleStyle(.switch)
         }
-        settingRow("mac_fidelity_file_list_title", note: "mac_fidelity_file_list_note") {
-          MacPreferenceMenu(title: NSLocalizedString("folder_list_layout", comment: ""), selection: $folderLayout,
-            options: ["flat", "folders"], label: { NSLocalizedString($0 == "flat" ? "folder_list_flat" : "folder_list_tree", comment: "") },
-            identifier: "settings.folder_layout").frame(width: 130, height: DuckPreferenceMetrics.desktopControlHeight)
-        }
+
       }
     case .language:
       Text("mac_language_system_note").font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)

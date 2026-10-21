@@ -1,105 +1,234 @@
 import Combine
 import Foundation
+import SwiftUI
 import UserNotifications
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
-/// Notifications only when the user is needed or a long task ends
-/// (design/flows.md § Every day; interaction.md I5): earlier photos all backed
-/// up, the Pixel unreachable for a day, the Pixel out of space, and Live Photos
-/// that need a decision. Never routine "backed up" notices. Each says what
-/// happened and opens the app, whose hub shows the same state (P3).
-@MainActor final class BackupNotifier {
+/// Projects core facts onto system notifications; never schedules backup work.
+/// See design/apple-notifications.md for timing, permission and destination rules.
+@MainActor final class BackupNotifier: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
   static let shared = BackupNotifier()
+  enum Notice: String, CaseIterable, Codable { case unreachable, full, convert, earlier }
+  struct Route: Equatable {
+    let id = UUID()
+    let notice: Notice
+    let receiver: String
+  }
+  @Published var route: Route?
+  @Published private(set) var authorization: UNAuthorizationStatus = .notDetermined
+  @Published private(set) var permissionError: String?
   private var watching: AnyCancellable?
   private let defaults = UserDefaults.standard
   private let center = UNUserNotificationCenter.current()
+  private var evaluating = false
+  private var needsEvaluation = false
+  private let memoryKey = "notify.v2.memory"
 
-  /// What the notifier has already said, so a condition is announced once.
   struct Memory: Codable, Equatable {
-    var unreachable = false
+    var receiver: String?
+    var unreachableSince: Date?
+    var unreachableNotified = false
     var full = false
     var convert = 0
+    var run: Int64?
     var earlierDone: Bool?
-  }
 
-  enum Change: Equatable {
-    case post(id: String, after: TimeInterval?)
-    case withdraw(id: String)
+    mutating func retry(_ notice: Notice) {
+      switch notice {
+      case .unreachable: unreachableNotified = false
+      case .full: full = false
+      case .convert: convert = 0
+      case .earlier: earlierDone = false
+      }
+    }
   }
+  enum Change: Equatable { case post(Notice), withdraw(Notice) }
 
-  /// The pure decision: the changes for this state, and what to remember.
-  static func changes(status: BackupHubStatus, earlier: HistoricalImportStatus?, memory: inout Memory) -> [Change] {
+  /// A day-old observation alone is not enough: the host must observe the
+  /// problem again before posting. No unverified timer fires while suspended.
+  static func changes(status: BackupHubStatus, earlier: HistoricalImportStatus?, connection: ReceiverConnection,
+    now: Date, allowed: Bool, memory: inout Memory) -> [Change] {
     var result: [Change] = []
-    let unreachable = status == .problem(.receiverUnreachable)
-    if unreachable && !memory.unreachable { result.append(.post(id: "unreachable", after: 24 * 60 * 60)) }
-    if !unreachable && memory.unreachable { result.append(.withdraw(id: "unreachable")) }
-    memory.unreachable = unreachable
-
-    let full = status == .problem(.receiverFull)
-    if full && !memory.full { result.append(.post(id: "full", after: nil)) }
-    memory.full = full
-
-    if case .problem(.conversionNeeded(let count)) = status {
-      if count > memory.convert { result.append(.post(id: "convert", after: nil)) }
-      memory.convert = count
-    } else {
-      memory.convert = 0
+    if status == .problem(.receiverUnreachable) {
+      if memory.unreachableSince == nil { memory.unreachableSince = now }
+      if let since = memory.unreachableSince, now.timeIntervalSince(since) >= 86_400,
+        allowed, !memory.unreachableNotified {
+        result.append(.post(.unreachable)); memory.unreachableNotified = true
+      }
+    } else if connection == .ready || status == .paused || status == .notPaired {
+      if memory.unreachableSince != nil { result.append(.withdraw(.unreachable)) }
+      memory.unreachableSince = nil; memory.unreachableNotified = false
     }
 
+    if status == .problem(.receiverFull) {
+      if allowed && !memory.full { result.append(.post(.full)); memory.full = true }
+    } else if memory.full {
+      result.append(.withdraw(.full)); memory.full = false
+    }
+    if case .problem(.conversionNeeded(let count)) = status {
+      if allowed && count > memory.convert { result.append(.post(.convert)); memory.convert = count }
+    } else if memory.convert > 0 {
+      result.append(.withdraw(.convert)); memory.convert = 0
+    }
     if let earlier {
-      let done = earlier.state == "scanned" && earlier.pending == 0 && earlier.checked > 0
-      if done && memory.earlierDone == false { result.append(.post(id: "earlier", after: nil)) }
-      memory.earlierDone = done
+      if memory.run != earlier.run {
+        memory.run = earlier.run; memory.earlierDone = nil
+        result.append(.withdraw(.earlier))
+      }
+      // Unknown publication counts cannot establish completion. A first
+      // observation of an already completed scan stays quiet.
+      if earlier.state != "scanned" || earlier.published != nil {
+        let done = earlier.isSaved && earlier.checked > 0
+        if done && memory.earlierDone == false && allowed { result.append(.post(.earlier)) }
+        memory.earlierDone = done
+      }
     }
     return result
   }
 
-  /// Starts watching the model. Off in the design catalog.
+  func configure() {
+    center.delegate = self
+    // Remove the interrupted implementation's unverified scheduled reminders.
+    if !defaults.bool(forKey: "notify.v2.migrated") {
+      center.removePendingNotificationRequests(withIdentifiers: Notice.allCases.map(\.rawValue))
+      center.removeDeliveredNotifications(withIdentifiers: Notice.allCases.map(\.rawValue))
+      defaults.set(true, forKey: "notify.v2.migrated")
+    }
+  }
+
+  /// Starts at launch, including OS background wakes. Catalogs stay isolated.
   func start(_ model: BackupModel) {
     guard BackupEnvironment.usesPhotoLibrary, watching == nil else { return }
+    configure()
     watching = model.objectWillChange
-      .debounce(for: .seconds(1), scheduler: RunLoop.main)
-      .sink { [weak self, weak model] _ in if let model { self?.evaluate(model) } }
+      .throttle(for: .seconds(1), scheduler: RunLoop.main, latest: true)
+      .sink { [weak self, weak model] _ in
+        Task { @MainActor in if let model { await self?.evaluate(model) } }
+      }
+    Task { await evaluate(model) }
   }
 
-  func evaluate(_ model: BackupModel) {
-    guard model.ready, model.pairing != nil else { return }
-    var memory = (defaults.data(forKey: "notify.memory")).flatMap { try? JSONDecoder().decode(Memory.self, from: $0) } ?? Memory()
-    let status = model.hubStatus
-    let changes = Self.changes(status: status, earlier: model.historicalImport, memory: &memory)
-    defaults.set(try? JSONEncoder().encode(memory), forKey: "notify.memory")
-    let name = model.peerDevice?.name ?? "Pixel"
+  func refreshAuthorization() async {
+    let value = await center.notificationSettings().authorizationStatus
+    if authorization != value { authorization = value }
+  }
+  func requestPermission() async {
+    permissionError = nil
+    do { _ = try await center.requestAuthorization(options: [.alert, .sound]) }
+    catch { permissionError = NSLocalizedString("notifications_permission_failed", comment: "") }
+    await refreshAuthorization()
+  }
+
+  func evaluate(_ model: BackupModel) async {
+    needsEvaluation = true
+    guard !evaluating else { return }
+    evaluating = true
+    defer { evaluating = false }
+    repeat {
+      needsEvaluation = false
+      await evaluateCurrent(model)
+    } while needsEvaluation
+  }
+
+  private func evaluateCurrent(_ model: BackupModel) async {
+    await refreshAuthorization()
+    guard model.ready else { return }
+    var memory = defaults.data(forKey: memoryKey).flatMap { try? JSONDecoder().decode(Memory.self, from: $0) } ?? Memory()
+    let receiver = model.pairing?.receiverID
+    if memory.receiver != receiver {
+      withdraw(Notice.allCases)
+      memory = Memory(receiver: receiver)
+    }
+    guard let receiver else {
+      withdraw(Notice.allCases)
+      defaults.removeObject(forKey: memoryKey)
+      return
+    }
+    guard model.queueRevision >= 0 else { return }
+    let allowed = authorization == .authorized || authorization == .provisional
+    let changes = Self.changes(status: model.hubStatus, earlier: model.historicalImport,
+      connection: model.receiverConnection, now: Date(), allowed: allowed, memory: &memory)
     for change in changes {
       switch change {
-      case .withdraw(let id): center.removePendingNotificationRequests(withIdentifiers: [id])
-      case .post(let id, let after):
-        let title: String, body: String
-        switch id {
-        case "unreachable": title = format("notify_unreachable_title", name); body = localized("notify_unreachable_body")
-        case "full": title = localized("notify_full_title"); body = localized("notify_full_body")
-        case "convert": title = format("notify_convert_title", memory.convert.formatted()); body = localized("notify_convert_body")
-        default: title = localized("notify_earlier_title"); body = localized("notify_earlier_body")
+      case .withdraw(let notice): withdraw([notice])
+      case .post(let notice):
+        do {
+          try await center.add(request(notice, receiver: receiver,
+            name: model.peerDevice?.name ?? "Pixel", conversions: memory.convert))
+        } catch { memory.retry(notice) }
+        guard model.pairing?.receiverID == receiver else {
+          withdraw(Notice.allCases); needsEvaluation = true; return
         }
-        post(id, title: title, body: body, after: after)
       }
     }
+    defaults.set(try? JSONEncoder().encode(memory), forKey: memoryKey)
   }
 
-  private func post(_ id: String, title: String, body: String, after seconds: TimeInterval?) {
+  private func withdraw(_ notices: [Notice]) {
+    let ids = notices.map { "backupduck." + $0.rawValue }
+    center.removePendingNotificationRequests(withIdentifiers: ids)
+    center.removeDeliveredNotifications(withIdentifiers: ids)
+  }
+  private func request(_ notice: Notice, receiver: String, name: String, conversions: Int) -> UNNotificationRequest {
     let content = UNMutableNotificationContent()
-    content.title = title
-    content.body = body
-    content.sound = .default
-    let trigger = seconds.map { UNTimeIntervalNotificationTrigger(timeInterval: $0, repeats: false) }
-    let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-    let center = center
-    Task {
-      // People who skipped first run's question are asked when the first notice
-      // is due, which is a moment they need it; an earlier answer is kept.
-      _ = try? await center.requestAuthorization(options: [.alert, .sound])
-      try? await center.add(request)
+    let prefix = "notify_" + notice.rawValue
+    let title = NSLocalizedString(prefix + "_title", comment: "")
+    switch notice {
+    case .unreachable: content.title = String(format: title, name)
+    case .convert: content.title = String(format: title, conversions.formatted())
+    case .full, .earlier: content.title = title
     }
+    content.body = NSLocalizedString(prefix + "_body", comment: "")
+    content.sound = .default
+    content.userInfo = ["notice": notice.rawValue, "receiver": receiver]
+    return UNNotificationRequest(identifier: "backupduck." + notice.rawValue, content: content, trigger: nil)
   }
 
-  private func localized(_ key: String) -> String { NSLocalizedString(key, comment: "") }
-  private func format(_ key: String, _ value: String) -> String { String(format: localized(key), value) }
+  static func destination(notice: String?, receiver: String?, current: String?) -> Notice? {
+    guard let receiver, receiver == current, let notice else { return nil }
+    return Notice(rawValue: notice)
+  }
+  func takeRoute(receiver: String?) -> Notice? {
+    guard let route else { return nil }
+    self.route = nil
+    return Self.destination(notice: route.notice.rawValue, receiver: route.receiver, current: receiver)
+  }
+  nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+      let notice = response.notification.request.content.userInfo["notice"] as? String,
+      let receiver = response.notification.request.content.userInfo["receiver"] as? String,
+      let value = Notice(rawValue: notice) else { return }
+    await MainActor.run { route = Route(notice: value, receiver: receiver) }
+  }
+}
+
+/// One explicit system-owned setting, available after skipping first run.
+/// Passive notification evaluation never prompts for permission.
+struct BackupNotificationPreferences: View {
+  @ObservedObject private var notifier = BackupNotifier.shared
+  @Environment(\.openURL) private var openURL
+  var body: some View {
+    Section {
+      Button(notifier.authorization == .notDetermined ? "notifications_allow" : "notifications_settings") {
+        Task {
+          if notifier.authorization == .notDetermined { await notifier.requestPermission() }
+          else {
+            #if os(macOS)
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { openURL(url) }
+            #else
+            if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+            #endif
+          }
+        }
+      }
+    } header: { Text("notifications_title") }
+    footer: {
+      Text(notifier.permissionError ?? NSLocalizedString("notifications_note", comment: ""))
+    }
+    .task { await notifier.refreshAuthorization() }
+  }
 }

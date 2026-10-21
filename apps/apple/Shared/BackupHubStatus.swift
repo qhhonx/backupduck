@@ -10,6 +10,7 @@ enum BackupHubStatus: Equatable {
     case phoneFull
     case photoAccessDenied
     case conversionNeeded(Int)
+    case photosNeedYou(Int)
   }
   case notPaired
   case opening
@@ -44,18 +45,23 @@ enum BackupHubStatus: Equatable {
     if ["capacity", "low_space"].contains(input.summary.waiting_reason ?? "") { return .problem(.receiverFull) }
     if input.phoneSpaceShort { return .problem(.phoneFull) }
     if input.photoAccess == .denied { return .problem(.photoAccessDenied) }
-    let conversions = input.jobs.filter { $0.processingError == "conversion_required" }.count
+    let conversions = input.summary.conversion_required
+      ?? input.jobs.filter { $0.processingError == "conversion_required" }.count
     if conversions > 0 { return .problem(.conversionNeeded(conversions)) }
+    let attention = input.summary.attention
+      ?? (input.summary.failed + input.summary.publication_failed + (input.summary.preparation_failed ?? 0))
+    if attention > 0 { return .problem(.photosNeedYou(attention)) }
     let remaining = input.summary.queued + input.summary.running + input.summary.waiting
+      + input.summary.paused + (input.summary.preparation_waiting ?? 0)
     if remaining > 0 {
       let bytes = input.jobs.filter { ["queued", "running", "waiting"].contains($0.state) }
         .reduce(UInt64(0)) { $0 + ($1.totalBytes > $1.confirmedBytes ? $1.totalBytes - $1.confirmedBytes : 0) }
       return .backingUp(remaining: remaining, bytes: bytes)
     }
-    if input.summary.published > 0 {
-      let last = input.jobs.compactMap { $0.state == "received" ? $0.stateChangedAt : nil }.max()
+    if input.summary.received > 0 || input.summary.published > 0 {
       let saving = max(0, input.summary.received - input.summary.published - input.summary.publication_failed)
-      return .caughtUp(lastSaved: last.map { Date(timeIntervalSince1970: Double($0) / 1000) }, saving: saving)
+      // Job change times are receipt/activity times, not gallery save times.
+      return .caughtUp(lastSaved: nil, saving: saving)
     }
     return .empty
   }
@@ -71,14 +77,15 @@ extension BackupModel {
       paired: pairing != nil, ready: ready, paused: paused, connection: receiverConnection,
       receiverUnavailable: receiverUnavailable, summary: summary,
       phoneSpaceShort: storage?.reason == "local_free_space",
-      photoAccess: BackupEnvironment.photoAccess(), jobs: jobs))
+      photoAccess: BackupEnvironment.photoAccess(),
+      jobs: jobs.filter { $0.receiverID == nil || $0.receiverID == pairing?.receiverID }))
   }
 }
 
 extension BackupHubStatus {
   /// The hub's one-line answer, for surfaces that show only a line (the Mac
   /// menu bar, notifications). Same words as the hub card (P3).
-  func sentence(receiver: String, remainingBytes: UInt64 = 0) -> String {
+  func sentence(receiver: String) -> String {
     func text(_ key: String) -> String { NSLocalizedString(key, comment: "") }
     switch self {
     case .notPaired: return text("hub_not_paired")
@@ -86,8 +93,10 @@ extension BackupHubStatus {
     case .empty: return text("hub_empty")
     case .paused: return text("hub_paused")
     case .caughtUp(_, let saving): return text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up")
-    case .backingUp(let remaining, _):
-      return String(format: text("hub_backing_up_count"), remaining.formatted())
+    case .backingUp(let remaining, let bytes):
+      return bytes > 0
+        ? String(format: text("hub_backing_up"), remaining.formatted(), ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file))
+        : String(format: text("hub_backing_up_count"), remaining.formatted())
     case .problem(let problem):
       switch problem {
       case .receiverRejected: return text("hub_problem_rejected")
@@ -100,6 +109,7 @@ extension BackupHubStatus {
       #endif
       case .photoAccessDenied: return text("hub_problem_photos")
       case .conversionNeeded(let count): return String(format: text("hub_problem_convert"), count.formatted())
+      case .photosNeedYou(let count): return String(format: text("hub_problem_photos_need_you"), count.formatted())
       }
     }
   }

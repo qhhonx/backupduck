@@ -1,0 +1,12 @@
+{
+  "id": "settings.folders",
+  "page": "settings",
+  "title": "Folder preferences list",
+  "extends": "base-paired",
+  "expect": [
+    "Only synthetic folders and in-memory images.",
+    "Counts and states are scripted core facts."
+  ],
+  "actions": [],
+  "mac_only": true
+}

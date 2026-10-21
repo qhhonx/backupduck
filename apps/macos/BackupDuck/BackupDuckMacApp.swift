@@ -12,7 +12,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
     switch self {
     case .library: "photo.on.rectangle"
     case .sources: "folder"
-    case .backup: "checkmark.shield"
+    case .backup: "arrow.triangle.2.circlepath"
     case .transfers: "arrow.up.arrow.down"
     case .receiver: "externaldrive.badge.wifi"
     case .settings: "gearshape"
@@ -87,6 +87,7 @@ struct MacWorkspace: View {
         destination = .sources
       }
     }
+    .onChange(of: model.autoBackup) { _, enabled in folders.followAutoBackup(enabled) }
     .onChange(of: folders.selectedSourceID) { _, _ in columnVisibility = .all }
     .task { await model.open(); await folders.open() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
@@ -146,7 +147,10 @@ struct MacWorkspace: View {
           destination == .library
         ).accessibilityHidden(destination != .library)
         if destination == .sources {
-          FolderSourcesPage(folders: folders, backup: model)
+          FolderSourcesPage(folders: folders, backup: model, settings: { id in
+            folders.initialSettingsFolder = id; destination = .settings
+            NotificationCenter.default.post(name: Notification.Name("BackupDuckFolderSettings"), object: id)
+          })
         }
         if destination == .backup && DesignPreview.proposedDesign {
           MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
@@ -171,7 +175,7 @@ struct MacWorkspace: View {
         }
       }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       // The proposed hub states the backup once; the status footer would repeat it.
-      if destination != .settings && destination != .receiver && destination != .library
+      if destination != .settings && destination != .receiver && destination != .library && destination != .sources
         && !([.backup, .transfers].contains(destination) && DesignPreview.proposedDesign) {
         Divider()
         footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)

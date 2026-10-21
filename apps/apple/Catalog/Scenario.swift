@@ -54,10 +54,13 @@ struct Scenario: Identifiable {
       let object = try resolve(id, in: raw, seen: [])
       // Bases only supply shared answers; they are not reviewed on their own.
       guard object["page"] != nil else { return nil }
+      #if !os(macOS)
+        if object["mac_only"] as? Bool == true { return nil }
+      #endif
       #if os(macOS)
         // Library scenarios read the photo library. On a Mac that is the
         // reviewer's real library, so they run only on the iOS Simulator.
-        if object["library"] != nil { return nil }
+        if object["library"] != nil || object["step"] as? String == "liveActivity" { return nil }
       #endif
       return try Scenario(object)
     }
@@ -82,7 +85,7 @@ struct Scenario: Identifiable {
   private init(_ object: [String: Any]) throws {
     id = object["id"] as! String
     guard let page = object["page"] as? String,
-      ["library", "backup", "receiver", "settings", "onboarding", "connect"].contains(page) else {
+      ["library", "backup", "receiver", "settings", "onboarding", "connect", "sources"].contains(page) else {
       throw CatalogError("\(object["id"] ?? "?"): unknown page")
     }
     self.page = page

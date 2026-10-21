@@ -1,0 +1,35 @@
+{
+  "id": "activity.stale",
+  "page": "backup",
+  "step": "liveActivity",
+  "title": "Live Activity \u00b7 stale",
+  "extends": "base-paired",
+  "core": {
+    "jobs": {
+      "value": []
+    },
+    "backup_summary": {
+      "value": {
+        "total": 100,
+        "published": 40,
+        "received": 40,
+        "queued": 60,
+        "running": 0,
+        "waiting": 0,
+        "paused": 0,
+        "failed": 0,
+        "publication_failed": 0,
+        "active": 60,
+        "attention": 0,
+        "preparation_waiting": 0,
+        "preparation_failed": 0,
+        "confirmed_bytes": 0
+      }
+    }
+  },
+  "expect": [
+    "The production card reflects stale from synthetic whole-receiver counts.",
+    "No cloud status or estimated remaining time is shown.",
+    "Stale content asks to open the app and hides the old progress."
+  ]
+}

@@ -530,6 +530,9 @@ private struct ProcessingEventsResult: Decodable {
       }
       queueRevision = revision
       updateWaitingForNetwork()
+      // Publication can finish after preparation and receipt; refresh the
+      // frozen run's confirmed facts when the core observations change.
+      await refreshHistoricalImport()
     } catch { message = error.localizedDescription }
   }
   private func updateWaitingForNetwork() {
@@ -1027,6 +1030,7 @@ struct SenderSummary: Decodable {
   var received = 0
   var published = 0
   var publication_failed = 0
+  var conversion_required: Int? = nil
   var waiting = 0
   var failed = 0
   var queued = 0

@@ -6,7 +6,7 @@ import SwiftUI
 /// with values, help last, quiet footer) and a detail pane with a grouped form.
 /// Shown in the design catalog until migration step 6 replaces `MacPreferences`.
 struct MacSettings: View {
-  enum Page: Hashable { case devices, autoBackup, appearance, language, help, about, diagnostics, advanced }
+  enum Page: Hashable { case devices, folders, autoBackup, appearance, language, help, about, diagnostics, advanced }
 
   @ObservedObject var model: BackupModel
   @ObservedObject var folders: FolderSources
@@ -19,6 +19,11 @@ struct MacSettings: View {
   @State private var retrying = false
   @State private var connecting = false
   private var values: DuckSettingsValues { DuckSettingsValues(model: model) }
+
+  init(model: BackupModel, folders: FolderSources, showFolders: @escaping () -> Void) {
+    self.model = model; self.folders = folders; self.showFolders = showFolders
+    _page = State(initialValue: folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup)
+  }
 
   var body: some View {
     HStack(spacing: 0) {
@@ -34,6 +39,7 @@ struct MacSettings: View {
     .toggleStyle(DuckPreferenceToggleStyle())
     .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
     .task { await feedback.check() }
+    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckFolderSettings"))) { _ in page = .folders }
     .sheet(isPresented: $renaming) { DeviceNameEditor(model: model, name: model.deviceSnapshot?.device.name ?? "") }
   }
 
@@ -46,12 +52,8 @@ struct MacSettings: View {
         row(.devices, "settings_devices", "smartphone", DuckGlyph.green,
           model.peerDevice?.name ?? NSLocalizedString("settings_pair_first", comment: ""))
         row(.autoBackup, "settings_auto_backup", "arrow.triangle.2.circlepath", DuckGlyph.blue, values.autoBackup)
-        // Folders are edited in their own sidebar position; this row goes there.
-        Button(action: showFolders) {
-          LabeledContent {
-            Text(String(format: NSLocalizedString("settings_folders_value", comment: ""), folders.sources.count))
-          } label: { DuckSettingsLabel(title: "settings_folders", symbol: "folder", color: DuckGlyph.teal) }
-        }.buttonStyle(.plain).selectionDisabled()
+        row(.folders, "settings_folders", "folder", DuckGlyph.teal,
+          String(format: NSLocalizedString("settings_folders_value", comment: ""), folders.sources.count))
       }
       Section {
         row(.appearance, "apple_appearance", "circle.lefthalf.filled", DuckGlyph.indigo,
@@ -128,6 +130,7 @@ struct MacSettings: View {
 
   private var pageTitle: LocalizedStringKey {
     switch page {
+    case .folders: "settings_folders"
     case .devices: "settings_devices"
     case .autoBackup: "settings_auto_backup"
     case .appearance: "apple_appearance"
@@ -142,6 +145,7 @@ struct MacSettings: View {
 
   @ViewBuilder private var detailContent: some View {
     switch page {
+    case .folders: MacFolderSettings(folders: folders, backup: model, selectedID: folders.initialSettingsFolder)
     case .devices:
       DevicePage(model: model) { connecting = true }
         .sheet(isPresented: $connecting) { MacConnectSheet(model: model) }
@@ -200,7 +204,6 @@ private struct MacAutoBackupSettings: View {
 private struct MacAppearanceSettings: View {
   @AppStorage("duckAppearance") private var appearance = "system"
   @AppStorage("macListThumbnails") private var thumbnails = true
-  @AppStorage("macFolderListLayout") private var folderLayout = "flat"
   var body: some View {
     Form {
       Picker("apple_appearance", selection: $appearance) {
@@ -210,10 +213,7 @@ private struct MacAppearanceSettings: View {
       }.pickerStyle(.segmented)
       Section("mac_list_display_settings") {
         Toggle("mac_fidelity_thumbnail_title", isOn: $thumbnails).toggleStyle(.switch)
-        Picker("folder_list_layout", selection: $folderLayout) {
-          Text("folder_list_flat").tag("flat")
-          Text("folder_list_tree").tag("folders")
-        }
+
       }
     }
     .formStyle(.grouped)

@@ -483,6 +483,10 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
     schedule {
       await self.recordSnapshot("background_events_finished")
+      #if os(iOS)
+      await BackupLiveActivity.shared.synchronize(BackupModel.shared)
+      await BackupNotifier.shared.evaluate(BackupModel.shared)
+      #endif
       let completion = self.eventsCompletion
       self.eventsCompletion = nil
       completion?()

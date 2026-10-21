@@ -1476,12 +1476,129 @@
 "notify_unreachable_title" = "Can't reach %@ for a day";
 "notify_unreachable_body" = "New photos are waiting in order. Check that the Pixel is on, on Wi‑Fi, and BackupDuck is open on it.";
 "notify_full_title" = "The Pixel is out of space";
-"notify_full_body" = "Backup is paused. It continues once space is freed on the Pixel.";
+"notify_full_body" = "Photos are waiting. Backup continues once space is freed on the Pixel.";
 "notify_convert_title" = "%@ Live Photos need you";
 "notify_convert_body" = "They're kept safely on the Pixel. Open BackupDuck to choose what to do.";
 "notify_earlier_title" = "Earlier photos are all backed up";
-"notify_earlier_body" = "New photos keep going over by themselves.";
+"notify_earlier_body" = "They are in the Pixel’s Photos. Open BackupDuck to see them.";
 "menu_settings" = "Settings…";
 
 "device_discard_title" = "Discard name changes?";
 "device_discard" = "Discard Changes";
+
+// Mac Folders photo browsing and preferences.
+"folders_empty_title" = "No folders yet";
+"folders_empty_note" = "Photos from camera exports, SD cards and external drives can be backed up to your Pixel too.";
+"folders_add" = "Add Folder…";
+"folders_add_named" = "Add “%@”";
+"folders_add_confirm" = "Add";
+"folders_view" = "View";
+"folders_show" = "Show";
+"folders_by_folder" = "By Folder";
+"folders_search" = "Search";
+"folders_clear_filter" = "Clear filter";
+"folders_counting" = "Counting…";
+"folders_disconnected" = "Drive not connected. Photos already backed up are unaffected. Backup continues when the drive returns.";
+"folders_needs_you" = "%llu photos need you.";
+"folders_backing_up" = "Backing up %llu photos (%@).";
+"folders_not_backed_up" = "%llu photos are not backed up yet.";
+"folders_saved" = "%llu photos are in the Pixel’s Photos.";
+"folders_unsupported" = "%llu files won’t be backed up.";
+"folders_unsupported_info" = "Why these files won’t be backed up";
+"folders_unsupported_note" = "BackupDuck can’t save these photo formats, including RAW, to the Pixel’s Photos. The files stay on your Mac.";
+"folders_settings" = "Folder Settings…";
+"folders_back_up_remaining" = "Back Up Remaining Photos";
+"folders_back_up_selected" = "Back Up Selected";
+"folders_stop_title" = "Stop Backing Up This Folder…";
+"folders_stop" = "Stop Backing Up";
+"folders_stop_question" = "Stop backing up “%@”?";
+"folders_stop_note" = "New photos in this folder will no longer be backed up. Files on your Mac and photos already in the Pixel’s Photos won’t be deleted.";
+"folders_count_size" = "%llu photos · %@";
+"folders_add_decision" = "Which photos would you like to back up?";
+"folders_include_existing" = "Everything in this folder, including new photos";
+"folders_only_new" = "Only photos added from now on";
+"folders_add_note" = "New photos follow Auto Backup. Files on your Mac stay where they are.";
+"folders_settings_note" = "New photos in these folders follow Auto Backup. Stopping a folder deletes nothing on your Mac or in the Pixel’s Photos.";
+"folders_file_rules" = "File Rules";
+"folders_rules_hint" = "Most people don’t need this.";
+"folders_skip" = "Skip these";
+"folders_only" = "Only back up these (empty means everything)";
+"folders_rules_note" = "Rules apply to later checks. Photos already in the Pixel’s Photos are unaffected.";
+"folders_rules_error" = "These rules couldn’t be saved. Check the entries and try again.";
+"folders_external_location" = "%@ external drive";
+"folders_show_info" = "Show Info";
+"folders_photo_saved" = "In the Pixel’s Photos";
+"folders_photo_saving" = "Received by Pixel. Saving to Photos.";
+"folders_photo_sending" = "Sending to Pixel";
+"folders_photo_needs_you" = "This photo needs you.";
+"folders_photo_not_backed_up" = "Not backed up yet";
+"folders_date_fallback" = "No capture date was available. Showing the file’s modification date.";
+"folders_saved_confirmed" = "Confirmed %@";
+
+"notifications_title" = "Important notifications";
+
+"notifications_allow" = "Allow notifications";
+
+"notifications_settings" = "Open notification settings";
+
+"notifications_note" = "Only when the Pixel needs you or earlier photos finish saving. Routine backups stay quiet.";
+
+"notifications_permission_failed" = "Notification access could not be requested. Try again.";
+
+"hub_earlier_preparation_progress" = "%1$@ checked · preparing %2$@ photos";
+
+"hub_problem_photos_need_you" = "%@ photos need you";
+
+"hub_problem_photos_need_you_note" = "Some photos could not be saved. Open them to see the cause and what to do next.";
+
+"activity_finding" = "Finding earlier photos";
+
+"activity_preparing" = "Preparing photos";
+
+"activity_sending" = "Backing up photos";
+
+"activity_saving" = "Saving to the Pixel’s Photos";
+
+"activity_paused" = "Sending paused";
+
+"activity_waiting" = "Waiting for the Pixel";
+
+"activity_attention" = "Photos need you";
+
+"activity_saved" = "Photos saved";
+
+"activity_remaining" = "%@ photos left";
+
+"activity_stale" = "Open BackupDuck for the current status";
+
+"activity_action_failed" = "Could not change backup. Open BackupDuck.";
+
+"activity_open" = "Open BackupDuck";
+
+"activity_progress" = "This batch saved to the Pixel’s Photos";
+
+"activity_pause_intent" = "Change backup pause";
+
+"activity_receiver_parameter" = "Receiver";
+
+"activity_session_parameter" = "Activity session";
+
+"activity_paused_parameter" = "Pause backup";
+
+"activity_known_remaining" = "%@ photos waiting so far";
+
+"activity_sending_receiver" = "Backing up to %@";
+
+"activity_preparing_receiver" = "Preparing photos for %@";
+
+"activity_saving_receiver" = "Saving to Photos on %@";
+
+"activity_paused_receiver" = "Sending to %@ paused";
+
+"activity_waiting_receiver" = "Waiting to connect to %@";
+
+"activity_finding_receiver" = "Finding earlier photos · %@";
+
+"activity_attention_receiver" = "Photos need you · %@";
+
+"activity_saved_receiver" = "Saved to Photos on %@";

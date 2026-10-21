@@ -23,6 +23,10 @@ targets:
       - path: ../apple/Resources
       - path: BackupDuck
         excludes: [Info.plist]
+      - path: ActivityShared
+    dependencies:
+      - target: BackupDuckLiveActivity
+        embed: true
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -72,6 +76,8 @@ targets:
         excludes: [Info.plist, BackupDuckApp.swift]
       - path: Catalog
         excludes: [Info.plist]
+      - path: ActivityShared
+      - path: LiveActivity/BackupActivityView.swift
       - path: ../apple/Catalog
         excludes: [README.md, Scenarios]
       - path: ../apple/Catalog/Scenarios
@@ -87,6 +93,26 @@ targets:
         TARGETED_DEVICE_FAMILY: '1,2'
         OTHER_LDFLAGS: *native_link
     preBuildScripts: *native_engine
+  BackupDuckLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ActivityShared
+      - path: LiveActivity
+        excludes: [Info.plist]
+      - path: ../apple/Shared/DuckTokens.swift
+      - path: ../apple/Resources
+        includes: ["*.lproj/Localizable.strings"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.LiveActivity
+        INFOPLIST_FILE: LiveActivity/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: '1,2'
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_WIDGET
   BackupDuckTests:
     type: bundle.unit-test
     platform: iOS

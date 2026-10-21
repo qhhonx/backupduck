@@ -1,0 +1,12 @@
+{
+  "id": "folders.all-not-backed-up",
+  "page": "sources",
+  "title": "All photos not backed up",
+  "extends": "base-paired",
+  "expect": [
+    "Only synthetic folders and in-memory images.",
+    "Counts and states are scripted core facts."
+  ],
+  "actions": [],
+  "mac_only": true
+}

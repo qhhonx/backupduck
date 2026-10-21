@@ -128,7 +128,10 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.page == "connect" {
+    if scenario.step == "liveActivity" {
+      LiveActivityCatalogPage(model: model, stale: scenario.id.hasSuffix(".stale"))
+        .task { await model.open() }.onDisappear { model.stop() }
+    } else if scenario.page == "connect" {
       IOSConnectSheet(model: model).task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "onboarding" {
       IOSOnboarding(model: model, start: IOSOnboarding.Step(rawValue: scenario.step ?? "") ?? .welcome)

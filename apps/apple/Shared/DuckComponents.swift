@@ -511,6 +511,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   var desktopWidth: CGFloat = 560
   var desktopMinHeight: CGFloat = 360
   var desktopIdealHeight: CGFloat = 560
+  var desktopFitsContent = false
   var back: (() -> Void)? = nil
   var expandable = true
   var closeOnly = false
@@ -570,6 +571,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
           if let error { DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle") }
           content()
         }.formStyle(.grouped)
+          .fixedSize(horizontal: false, vertical: desktopFitsContent)
       } else { ScrollView { sheetContent } }
       HStack {
         Spacer(minLength: 0)
@@ -580,7 +582,8 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
       }.controlSize(.regular)
     }.padding(DuckSpacing.large)
       .frame(width: desktopWidth)
-      .frame(minHeight: desktopMinHeight, idealHeight: desktopIdealHeight, maxHeight: 760)
+      .frame(minHeight: desktopFitsContent ? nil : desktopMinHeight, idealHeight: desktopFitsContent ? nil : desktopIdealHeight, maxHeight: 760)
+      .fixedSize(horizontal: false, vertical: desktopFitsContent)
       .interactiveDismissDisabled(busy)
     #endif
   }

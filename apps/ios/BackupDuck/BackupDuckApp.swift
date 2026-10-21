@@ -17,8 +17,11 @@ import SwiftUI
   }
   @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @State private var selectedTab = 0
+  @State private var activityReceiver: String?
+  @State private var notification: BackupNotifier.Route?
   @StateObject private var model = BackupModel.shared
   @StateObject private var library = PhotoLibraryModel()
+  @StateObject private var notifier = BackupNotifier.shared
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
   @AppStorage("duckAppearance") private var appearance = "system"
@@ -45,7 +48,7 @@ import SwiftUI
       // Three positions (design/navigation.md): Photos, Backup, Settings.
       IOSLibraryPage(library: library, model: model).duckTabSurface()
         .tabItem { IOSAppTab.library.proposedLabel }.tag(IOSAppTab.library.rawValue)
-      IOSHub(model: model, showLibrary: { view in
+      IOSHub(model: model, notification: $notification, showLibrary: { view in
         selectedTab = IOSAppTab.library.rawValue
         Task { await library.changeBackupView(view) }
       }).duckTabSurface().tabItem { IOSAppTab.backup.proposedLabel }.tag(IOSAppTab.backup.rawValue)
@@ -74,8 +77,23 @@ import SwiftUI
           } else { DuckLoadingState("hub_opening") }
         }
       }
-        .onChange(of: model.ready) { _, ready in if ready && model.pairing != nil { firstRunDone = true } }
-        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task { await model.open(); BackupNotifier.shared.start(model) }
+        .onChange(of: model.ready) { _, ready in
+          if ready && model.pairing != nil { firstRunDone = true }
+          consumeNotification()
+          consumeActivityLink()
+        }
+        .onChange(of: notifier.route, initial: true) { _, _ in consumeNotification() }
+        .onOpenURL { url in
+          guard url.scheme == "backupduck", url.host == "backup",
+            let receiver = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "receiver" })?.value else { return }
+          activityReceiver = receiver
+          consumeActivityLink()
+        }
+        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task {
+          await model.open()
+          BackupNotifier.shared.start(model)
+          BackupLiveActivity.shared.start(model)
+        }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake
@@ -86,6 +104,7 @@ import SwiftUI
             BackgroundTransfer.shared.enteredForeground()
             Task { await library.open() }
             Task { await model.becameActive() }
+            Task { await BackupLiveActivity.shared.synchronize(model) }
           }
           if phase == .background {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -94,5 +113,18 @@ import SwiftUI
           }
         }
     }
+  }
+
+  private func consumeNotification() {
+    guard model.ready, let route = notifier.route else { return }
+    guard notifier.takeRoute(receiver: model.pairing?.receiverID) != nil else { return }
+    selectedTab = IOSAppTab.backup.rawValue
+    notification = route
+  }
+
+  private func consumeActivityLink() {
+    guard model.ready, let receiver = activityReceiver else { return }
+    activityReceiver = nil
+    if model.pairing?.receiverID == receiver { selectedTab = IOSAppTab.backup.rawValue }
   }
 }

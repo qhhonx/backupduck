@@ -286,7 +286,7 @@ private struct MacPreviewPage: View {
     }.frame(maxWidth: .infinity, maxHeight: .infinity).foregroundStyle(.primary)
   }
 }
-private struct MacMediaZoom: NSViewRepresentable {
+struct MacMediaZoom: NSViewRepresentable {
   let image: NSImage
   let livePhoto: PHLivePhoto?
   let playRequest: Int
@@ -308,7 +308,7 @@ private struct MacMediaZoom: NSViewRepresentable {
   }
   static func dismantleNSView(_ scroll: MacMediaScroll, coordinator: ()) { scroll.live.stopPlayback(); scroll.live.livePhoto = nil }
 }
-@MainActor private final class MacMediaScroll: NSScrollView {
+@MainActor final class MacMediaScroll: NSScrollView {
   let photo = NSImageView(), live = PHLivePhotoView()
   var playRequest = 0
   var fitRevision = 0
@@ -405,7 +405,7 @@ private struct MacMediaZoom: NSViewRepresentable {
 
 /// AVKit prepares below the retained poster. A ready player item alone is not
 /// proof that its first frame has reached the window.
-private struct MacVideoWithPoster: NSViewRepresentable {
+struct MacVideoWithPoster: NSViewRepresentable {
   let player: AVPlayer
   let image: NSImage?
   var onSwipe: (Int) -> Void = { _ in }
@@ -454,8 +454,8 @@ private struct MacVideoWithPoster: NSViewRepresentable {
     return false
   }
 }
-@MainActor private final class MacVideoSurface: NSView {
-  let video = MacPagingPlayerView()
+@MainActor final class MacVideoSurface: NSView {
+  private let video = MacPagingPlayerView()
   var onSwipe: ((Int) -> Void)?
   var onPull: ((Int) -> Void)?
   @objc private func drag(_ gesture: NSPanGestureRecognizer) {

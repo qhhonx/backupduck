@@ -69,7 +69,7 @@ Next, in order:
    drawn capsule buttons become system button styles, A1), then page
    compositions. Done when the three catalogs show no A0 violations and each
    remaining deviation is fixed or listed under Known gaps.
-2. **Mac Folders** from `mac-folders.md`, with the core facts it lists; then
+2. **Mac Folders** from `mac-folders.md`: native browser, core facts, Settings and synthetic catalog implemented; native visual/device acceptance remains open. Then
    iPhone and Mac photo information as one viewer (A8).
 3. iPhone notifications and the Live Activity (`flows.md` § Every day): the
    notifier is in progress (dbe8991); the Live Activity needs a widget target.

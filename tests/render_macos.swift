@@ -143,9 +143,9 @@ import SwiftUI
             folders.recoveringControls = state == "executing" ? [source.id] : []
             folders.phases[source.id] = "folder_settling"
             folders.actionMessages[source.id] = "folder_backup_requested"
-            let key = FolderSourcePresentation.status(source: source, phase: folders.phases[source.id],
-              action: folders.actionMessages[source.id], executing: state == "executing", paused: false, paired: true)
-            precondition(key == (state == "executing" ? "folder_starting" : state == "recovery" ? "mac_folder_operation_incomplete" : "folder_settling"))
+            folders.facts[source.id] = FolderFacts(supported: 1, in_flight: state == "recovery" ? 0 : 1,
+              in_flight_bytes: state == "recovery" ? 0 : 356000, needs_you: state == "recovery" ? 1 : 0, available: true)
+            precondition(!folderSentence(folders.facts[source.id]).isEmpty)
             for dark in [false, true] {
               try await capture("folder-feedback-" + state + (dark ? "-dark" : "-light"),
                 view: AnyView(FolderSourcesPage(folders: folders, backup: model)), output: output,
@@ -272,7 +272,7 @@ import SwiftUI
             try await capture("unified-help-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .help)), output: output, size: NSSize(width: 680, height: 620), dark: dark)
             try await capture("unified-backup-settings-" + suffix, view: AnyView(MacBackupPreferences(model: model)), output: output, size: NSSize(width: 560, height: 600), dark: dark)
             try await capture("unified-pairing-" + suffix, view: AnyView(MacPairingPresentation(model: model, image: qr, cancel: {}, regenerate: {})), output: output, size: NSSize(width: 560, height: 600), dark: dark)
-            try await capture("unified-add-folder-" + suffix, view: AnyView(AddFolderSheet(url: directory, folders: folders, close: {})), output: output, size: NSSize(width: 560, height: 560), dark: dark)
+            try await capture("unified-add-folder-" + suffix, view: AnyView(AddFolderSheet(url: directory, folders: folders, backup: model, close: {})), output: output, size: NSSize(width: 560, height: 560), dark: dark)
             for selecting in [false, true] {
               try await capture("unified-library-\(selecting)-" + suffix, view: AnyView(MacLibraryToolbar(total: 55120, selected: selecting ? 2 : 0, selecting: .constant(selecting), filter: .constant(.all), tileSize: .constant(140), canBackup: selecting, finish: {}, backup: {}).padding(28)), output: output, size: NSSize(width: 680, height: 100), dark: dark)
             }
@@ -543,15 +543,11 @@ import SwiftUI
               let variant = (dark ? "dark" : "light") + "-" + String(Int(width))
               let size = NSSize(width: width, height: 650)
               try await capture("replica-add-" + variant, view: AnyView(AddFolderSheet(url: mediaFolder,
-                folders: folders, close: {})), output: output, size: size, dark: dark)
+                folders: folders, backup: model, close: {})), output: output, size: size, dark: dark)
               try await capture("replica-rules-" + variant, view: AnyView(FolderRulesSheet(folders: folders,
                 source: source, close: {})), output: output, size: size, dark: dark)
-              try await capture("replica-issue-" + variant, view: AnyView(FolderIssueDetail(folders: folders,
-                backup: model, sourceID: source.id, path: longPath)), output: output, size: size, dark: dark)
-              let fileEntry = FolderEntry(relative: longPath, source_id: "fixture-source", revision: "1", size: 123456,
-                media_type: "image/jpeg", modified_ms: 0, state: nil)
-              try await capture("replica-file-detail-" + variant, view: AnyView(FolderFileDetail(folders: folders,
-                source: source, entry: fileEntry)), output: output, size: size, dark: dark)
+              try await capture("replica-folder-preferences-" + variant, view: AnyView(MacFolderSettings(folders: folders,
+                backup: model, selectedID: source.id)), output: output, size: size, dark: dark)
               try await capture("replica-selection-" + variant, view: AnyView(DuckSelectedBackup(count: 1200,
                 rebackup: .constant(false), confirm: { true })), output: output, size: size, dark: dark)
               try await capture("replica-receiver-" + variant, view: AnyView(ReceiverPage(model: model, pair: {})),
@@ -1083,10 +1079,10 @@ private struct ReplicaFlowFixture: View {
       Text("Submitted selections: \(selectedRequests)").accessibilityIdentifier("replica.selected_requests")
       MacBackupPage(model: model, folders: folders, pair: {}, library: {}, sources: { sheet = "add" }, showTransfers: { _ in })
     }.padding(24).sheet(isPresented: showing) {
-      if sheet == "add" { AddFolderSheet(url: folder, folders: folders) { sheet = nil } }
+      if sheet == "add" { AddFolderSheet(url: folder, folders: folders, backup: model) { sheet = nil } }
       if sheet == "rules" { FolderRulesSheet(folders: folders, source: folders.sources.first ?? source) { sheet = nil } }
       if sheet == "invalid-rules" { FolderRulesSheet(folders: folders, source: invalidSource) { sheet = nil } }
-      if sheet == "issue" { FolderIssueDetail(folders: folders, backup: model, sourceID: source.id, path: path) }
+      if sheet == "issue" { MacFolderSettings(folders: folders, backup: model, selectedID: source.id) }
       if sheet == "selection" {
         DuckSelectedBackup(count: 1200, rebackup: $rebackup) { selectedRequests += 1; return true }
       }

@@ -14,15 +14,17 @@ struct IOSHub: View {
   @State private var offlineHelp = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var records: String?
+  @Binding private var notification: BackupNotifier.Route?
 
   /// Opens a backup view of the library (design/library.md). When set, the
   /// hub's history and needs-you rows go to the library instead of a page.
   var showLibrary: ((LibraryBackupView) -> Void)?
 
-  init(model: BackupModel, records: String? = nil, showLibrary: ((LibraryBackupView) -> Void)? = nil) {
+  init(model: BackupModel, records: String? = nil, notification: Binding<BackupNotifier.Route?> = .constant(nil), showLibrary: ((LibraryBackupView) -> Void)? = nil) {
     self.model = model
     self.showLibrary = showLibrary
     _records = State(initialValue: records)
+    _notification = notification
   }
 
   func open(_ view: LibraryBackupView, fallback: String) {
@@ -60,6 +62,16 @@ struct IOSHub: View {
     .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: status == .problem(.receiverRejected)) }
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet.presentationDetents([.medium, .large]) }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
+    .onChange(of: notification, initial: true) { _, route in
+      guard let route, route.receiver == model.pairing?.receiverID else { return }
+      notification = nil
+      switch route.notice {
+      case .unreachable: offlineHelp = true
+      case .full: records = nil
+      case .convert: open(.needsYou, fallback: "attention")
+      case .earlier: open(.recent, fallback: "saved")
+      }
+    }
     .tint(DuckRole.accent)
   }
 
@@ -160,6 +172,10 @@ struct IOSHub: View {
       problem("livephoto", DuckRole.attention,
         Text(String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())), note: "hub_problem_convert_note",
         action: "hub_problem_convert_action") { open(.needsYou, fallback: "attention") }
+    case .photosNeedYou(let count):
+      problem("exclamationmark.triangle.fill", DuckRole.attention,
+        Text(String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
+        note: "hub_problem_photos_need_you_note", action: "hub_problem_convert_action") { open(.needsYou, fallback: "attention") }
     }
   }
 
@@ -195,13 +211,13 @@ struct IOSHub: View {
   // MARK: - Earlier photos, evidence and summaries
 
   private func earlierCard(_ history: HistoricalImportStatus) -> some View {
-    let done = history.state == "scanned" && history.pending == 0
+    let done = history.isSaved
     let paused = history.state == "paused"
     return DuckStateCard(symbol: done ? "checkmark.circle.fill" : "clock.arrow.circlepath", tone: done ? DuckRole.saved : DuckRole.accent,
       title: Text(done ? "hub_earlier_done" : "hub_earlier"),
-      note: done ? nil : Text(String(format: NSLocalizedString("hub_earlier_progress", comment: ""),
-        history.checked.formatted(), history.pending.formatted())), action: {
-      if !done {
+      note: done ? nil : Text(String(format: NSLocalizedString(history.published == nil ? "hub_earlier_preparation_progress" : "hub_earlier_progress", comment: ""),
+        history.checked.formatted(), (history.published.map { max(0, history.checked - $0) } ?? history.pending).formatted())), action: {
+      if !done && ["scanning", "paused"].contains(history.state) {
         DuckTintedButton(paused ? "hub_resume" : "hub_pause") {
           Task { await model.controlHistoricalImport(paused ? "resume" : "pause") }
         }.disabled(model.changingHistory)

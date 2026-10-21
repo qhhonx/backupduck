@@ -169,6 +169,7 @@ private struct IOSAutoBackupSettings: View {
       } footer: {
         if scope.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure, symbol: "exclamationmark.circle") } else { Text("settings_includes_footer") }
       }
+      BackupNotificationPreferences()
     }
     .navigationTitle("settings_auto_backup")
     .navigationBarTitleDisplayMode(.inline)

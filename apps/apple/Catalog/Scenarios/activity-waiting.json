@@ -1,0 +1,39 @@
+{
+  "id": "activity.waiting",
+  "page": "backup",
+  "step": "liveActivity",
+  "title": "Live Activity \u00b7 waiting",
+  "extends": "base-paired",
+  "core": {
+    "jobs": {
+      "value": []
+    },
+    "backup_summary": {
+      "value": {
+        "total": 100,
+        "published": 40,
+        "received": 40,
+        "queued": 0,
+        "running": 0,
+        "waiting": 60,
+        "paused": 0,
+        "failed": 0,
+        "publication_failed": 0,
+        "active": 60,
+        "attention": 0,
+        "preparation_waiting": 0,
+        "preparation_failed": 0,
+        "confirmed_bytes": 0,
+        "waiting_reason": "network"
+      }
+    },
+    "check_pairing": {
+      "error": "network"
+    }
+  },
+  "expect": [
+    "The production card reflects waiting from synthetic whole-receiver counts.",
+    "No cloud status or estimated remaining time is shown.",
+    "Stale content asks to open the app and hides the old progress."
+  ]
+}

@@ -9,6 +9,9 @@ struct HistoricalImportStatus: Decodable, Equatable {
   let checked: Int
   let pending: Int
   var snapshot_id: String? = nil
+  var published: Int? = nil
+  /// The core confirms publication for every frozen member, not just receipt.
+  var isSaved: Bool { state == "scanned" && pending == 0 && published == checked }
 }
 
 /// Frozen membership for one historical scan. PhotoKit's fetch result is not

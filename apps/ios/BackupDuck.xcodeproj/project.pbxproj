@@ -17,6 +17,7 @@
 		0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
+		156EE3F6047F2638470B0047 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */; };
 		222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
@@ -26,9 +27,11 @@
 		26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA4F7B4794F768E7D3071B /* BackupScope.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		306C79EE9085A6579BAC0EDB /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
+		32338024CB39A770E19632ED /* BackupActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B6C4F2284DEAD93FD4FBD9 /* BackupActivityView.swift */; };
 		332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
 		358ABB1546C3819108BD6BFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B879720B5A1DAB699000E2E /* Assets.xcassets */; };
 		3596354693362991FA4D9E63 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B879720B5A1DAB699000E2E /* Assets.xcassets */; };
+		37BEDDEE9A32572F3F194F82 /* BackupWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39C47C19DD887E5B79CF1EF /* BackupWidgetBundle.swift */; };
 		3B2C0F7A0931F23825434A1E /* BackgroundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E0025F00086FE962B3096D /* BackgroundTests.swift */; };
 		3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */ = {isa = PBXBuildFile; fileRef = 97B2FA3346C393306279C748 /* Scenarios */; };
 		3B86BCA72A3126C4EFBC0DCC /* TransferDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */; };
@@ -36,6 +39,7 @@
 		3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */; };
+		3EF159E37F38AD15B4BCB2FF /* BackupActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */; };
 		3F7A401A51B7FF461CB0368B /* NetworkProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25905E64746D40AC58CDEAF8 /* NetworkProgressTests.swift */; };
 		3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */; };
 		41AAB44E642F3269F1BE18D5 /* ScopeAlbumGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */; };
@@ -65,18 +69,21 @@
 		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
+		6DF1A3FEB66BB5590ABD570D /* BackupLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E510846D713909749C7E826 /* BackupLiveActivity.swift */; };
 		6F4B59F85B3C34527DB3962C /* BackupNotifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AE534194C44C2D90FBDB5E /* BackupNotifierTests.swift */; };
 		701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
 		714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
 		718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		74EAD3F448C3B740E415FEF2 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */; };
 		758665BE9929AF95902439D8 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
+		75AA113C0FA7DBA800D5D2D0 /* LiveActivityCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB73CC82991642CDD26D7E2 /* LiveActivityCatalog.swift */; };
 		779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
 		77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = FC24582406B7B42FD52AC817 /* InfoPlist.strings */; };
 		785D741FE5357F4F5D4CD333 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
 		787DAACB0FCA50EFF6F293A8 /* AppTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41EB33EF719860F9DC39522 /* AppTabs.swift */; };
 		7CB64490194DB59972D9AB47 /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
+		7CBEFD8A8DD7763F5D960774 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
 		7F543094142AE648AECCF7F9 /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
 		81AB90ED054886AABA0D581C /* BackupNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */; };
 		81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */; };
@@ -94,9 +101,12 @@
 		9523B09BB2EE875AB0F1314A /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		994F060A2FD375E01DFF8334 /* PhotoLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */; };
 		9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
+		9B9F793EF074BA92F213034B /* SetBackupPauseIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C99BFEA0089531B780E7B6 /* SetBackupPauseIntent.swift */; };
+		9D887268C7D06F38CDAE22C4 /* BackupDuckLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A069C49CB633E10F02DB9F3C /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */; };
 		A191EF4D9C43B6FD26D84C39 /* IOSOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */; };
 		A68938D2A00AC9978B35AF8C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
+		ABD53347772BC645EBDF41E0 /* BackupActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B6C4F2284DEAD93FD4FBD9 /* BackupActivityView.swift */; };
 		AC269BB78501B58AF1A523FB /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
 		AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		B0E62F0601171C8A7963164B /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
@@ -106,6 +116,7 @@
 		B5CDC65E8726DC36373D29FD /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
 		B9F56EADDB99697062A99110 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		BA114F060234BD9171C23F24 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
+		BB66616127002940EA2CAEBE /* BackupLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E510846D713909749C7E826 /* BackupLiveActivity.swift */; };
 		BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */; };
 		BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		C48A9F57D6004D4A628EE4C8 /* CalendarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63393D3E70EEF613D5806923 /* CalendarLibrary.swift */; };
@@ -116,6 +127,7 @@
 		C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		C84580505ED4197D543ED861 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
 		C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
+		CCDABBA64DC51B59A1B645D8 /* BackupActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */; };
 		CF147A1F2FAA23BC60045B52 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2952CF6A3A582257A66A4A /* BackupHistory.swift */; };
 		D013358111500775AE0C08C8 /* AppTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41EB33EF719860F9DC39522 /* AppTabs.swift */; };
 		D01A5A12BBEC8310ED188FDA /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
@@ -123,16 +135,20 @@
 		D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
 		D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		D39276A745BE767B3F33C721 /* SettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */; };
+		D6E78194CB84A18136D8892A /* BackupLiveActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686C340C683B91E66C51FAEE /* BackupLiveActivityTests.swift */; };
 		DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		E30A638B8FE3F262C9CAE9F5 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		E40D70B20FB7B82F9D189304 /* LibraryScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887AAC5805C34A2E272FCEF2 /* LibraryScenario.swift */; };
+		E460E0E4645FC1F093CCA0D7 /* SetBackupPauseIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C99BFEA0089531B780E7B6 /* SetBackupPauseIntent.swift */; };
 		E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84136452F1E989052208E2AB /* SettingsComponents.swift */; };
 		E66296A8B106DA4ACCBDE504 /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B2BBD178F50928C83270C3 /* MediaPreview.swift */; };
 		E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		E8250B6F0884D3CFE0F574A6 /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */; };
 		E92C4D383EFFD3F8A09FDAD2 /* CalendarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63393D3E70EEF613D5806923 /* CalendarLibrary.swift */; };
 		EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */; };
+		EBD915F39536F41260D24CFA /* SetBackupPauseIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C99BFEA0089531B780E7B6 /* SetBackupPauseIntent.swift */; };
 		EC71D3762A45B460A3B79DBA /* BackgroundLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */; };
+		EEDA8503897B9A6C429D030D /* BackupActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */; };
 		F067AE6BF18952343ADC3FA2 /* LibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */; };
 		F10EF15B88883D3D721D247A /* BackupHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */; };
 		F2BEEAB9407D8CFA18090452 /* CalendarGridController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A160B6BAB13F144F368454F2 /* CalendarGridController.swift */; };
@@ -147,6 +163,13 @@
 			remoteGlobalIDString = 4C12B6378330946494E34178;
 			remoteInfo = BackupDuck;
 		};
+		C954AD15E365EDB3B0C6BC98 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A6AC491E80E5EC54949903E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 82264A7BF318595CC8D5E254;
+			remoteInfo = BackupDuckLiveActivity;
+		};
 		F1222FA05F9EA07F56CF4A5E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A6AC491E80E5EC54949903E9 /* Project object */;
@@ -155,6 +178,20 @@
 			remoteInfo = BackupDuck;
 		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E0F69E45DEFD45629D65E29B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				9D887268C7D06F38CDAE22C4 /* BackupDuckLiveActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnostics.swift; sourceTree = "<group>"; };
@@ -173,6 +210,7 @@
 		318AEFF6C64EC209A4BCEA65 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
 		33E0025F00086FE962B3096D /* BackgroundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTests.swift; sourceTree = "<group>"; };
+		34C99BFEA0089531B780E7B6 /* SetBackupPauseIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetBackupPauseIntent.swift; sourceTree = "<group>"; };
 		34CBDBD2C2EF0A30ACEABBA8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		354FD796EC38268C550E83C1 /* IOSConnect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSConnect.swift; sourceTree = "<group>"; };
 		36B169D63C5CECC627CB1FA4 /* BackupDuckUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BackupDuckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -182,9 +220,12 @@
 		48543A6804607508613E2435 /* PairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
 		533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPhotoFlight.swift; sourceTree = "<group>"; };
 		5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistoryTests.swift; sourceTree = "<group>"; };
+		57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActivityAttributes.swift; sourceTree = "<group>"; };
 		59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridTests.swift; sourceTree = "<group>"; };
 		5CBA4F7B4794F768E7D3071B /* BackupScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupScope.swift; sourceTree = "<group>"; };
 		63393D3E70EEF613D5806923 /* CalendarLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarLibrary.swift; sourceTree = "<group>"; };
+		64B6C4F2284DEAD93FD4FBD9 /* BackupActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActivityView.swift; sourceTree = "<group>"; };
+		686C340C683B91E66C51FAEE /* BackupLiveActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupLiveActivityTests.swift; sourceTree = "<group>"; };
 		6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurstPhotos.swift; sourceTree = "<group>"; };
 		697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHubStatus.swift; sourceTree = "<group>"; };
 		6EA2148CAC472733E514F516 /* BrandComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandComponents.swift; sourceTree = "<group>"; };
@@ -201,6 +242,7 @@
 		8544D07DE28FC92FCC6C01EC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		887AAC5805C34A2E272FCEF2 /* LibraryScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScenario.swift; sourceTree = "<group>"; };
 		89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
+		8E510846D713909749C7E826 /* BackupLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupLiveActivity.swift; sourceTree = "<group>"; };
 		90B3868DBAEACC46DF1CAC96 /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
 		94C4B44B41B9AAD96A51E7E3 /* LibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTests.swift; sourceTree = "<group>"; };
 		97B2FA3346C393306279C748 /* Scenarios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Scenarios; path = ../apple/Catalog/Scenarios; sourceTree = SOURCE_ROOT; };
@@ -224,6 +266,7 @@
 		C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPicker.swift; sourceTree = "<group>"; };
 		C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalImport.swift; sourceTree = "<group>"; };
 		CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TesterFeedback.swift; sourceTree = "<group>"; };
+		CBB73CC82991642CDD26D7E2 /* LiveActivityCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityCatalog.swift; sourceTree = "<group>"; };
 		D39898A776B4A23AF72454A2 /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnosticsTests.swift; sourceTree = "<group>"; };
 		D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverPage.swift; sourceTree = "<group>"; };
@@ -231,7 +274,9 @@
 		D8AB253C7227DDBD8BE24778 /* BackupPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupPage.swift; sourceTree = "<group>"; };
 		DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConcurrencySettings.swift; sourceTree = "<group>"; };
 		E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = DuckMenuBar.pdf; sourceTree = "<group>"; };
+		E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BackupDuckLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
+		E39C47C19DD887E5B79CF1EF /* BackupWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupWidgetBundle.swift; sourceTree = "<group>"; };
 		E9DC3066EDAD759AC94A12F8 /* Scenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenario.swift; sourceTree = "<group>"; };
 		EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupNotifier.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
@@ -246,6 +291,7 @@
 			children = (
 				C2DDE6D0D49315701CCCE445 /* BackupDuck.app */,
 				F216BA9DB13FA7A6DAE85EC0 /* BackupDuckCatalog.app */,
+				E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */,
 				16B3C1C169CA7713E06B26B3 /* BackupDuckTests.xctest */,
 				36B169D63C5CECC627CB1FA4 /* BackupDuckUITests.xctest */,
 			);
@@ -256,6 +302,7 @@
 			isa = PBXGroup;
 			children = (
 				C348292D39827D604FC42566 /* CatalogApp.swift */,
+				CBB73CC82991642CDD26D7E2 /* LiveActivityCatalog.swift */,
 			);
 			path = Catalog;
 			sourceTree = "<group>";
@@ -267,6 +314,7 @@
 				0B879720B5A1DAB699000E2E /* Assets.xcassets */,
 				B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */,
 				74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */,
+				8E510846D713909749C7E826 /* BackupLiveActivity.swift */,
 				D8AB253C7227DDBD8BE24778 /* BackupPage.swift */,
 				A160B6BAB13F144F368454F2 /* CalendarGridController.swift */,
 				63393D3E70EEF613D5806923 /* CalendarLibrary.swift */,
@@ -297,10 +345,12 @@
 			isa = PBXGroup;
 			children = (
 				97B2FA3346C393306279C748 /* Scenarios */,
+				C6D8BE3F142427D14EBA2718 /* ActivityShared */,
 				50D50FBDBBB66E14BAC4F955 /* apple */,
 				33538B84AF814E9BBAD6BADE /* BackupDuck */,
 				2F41044B0F36D1918ED7F1CC /* Catalog */,
 				DCC6BE1769D03BE7D0F19B9F /* Catalog */,
+				F51DFEB7E8BB86488FC6AF3B /* LiveActivity */,
 				8B1BA4F931D5BD124606C855 /* Resources */,
 				E1F0E283D93E21E408019AB0 /* Shared */,
 				5E67F1A4BD40DFA9406E9C42 /* Tests */,
@@ -315,6 +365,7 @@
 				33E0025F00086FE962B3096D /* BackgroundTests.swift */,
 				5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */,
 				9B543E17890BB3FBE8FA4C4F /* BackupHubStatusTests.swift */,
+				686C340C683B91E66C51FAEE /* BackupLiveActivityTests.swift */,
 				71AE534194C44C2D90FBDB5E /* BackupNotifierTests.swift */,
 				59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */,
 				B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */,
@@ -337,6 +388,15 @@
 			);
 			name = Resources;
 			path = ../apple/Resources;
+			sourceTree = "<group>";
+		};
+		C6D8BE3F142427D14EBA2718 /* ActivityShared */ = {
+			isa = PBXGroup;
+			children = (
+				57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */,
+				34C99BFEA0089531B780E7B6 /* SetBackupPauseIntent.swift */,
+			);
+			path = ActivityShared;
 			sourceTree = "<group>";
 		};
 		DCC6BE1769D03BE7D0F19B9F /* Catalog */ = {
@@ -402,6 +462,15 @@
 			path = UITests;
 			sourceTree = "<group>";
 		};
+		F51DFEB7E8BB86488FC6AF3B /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				64B6C4F2284DEAD93FD4FBD9 /* BackupActivityView.swift */,
+				E39C47C19DD887E5B79CF1EF /* BackupWidgetBundle.swift */,
+			);
+			path = LiveActivity;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -412,10 +481,12 @@
 				70CB9A72A5EA6B656ADBE753 /* Build shared Rust engine */,
 				DBBB00B57177FF9E080CC8F5 /* Sources */,
 				3A949C4704DEAF471386275C /* Resources */,
+				E0F69E45DEFD45629D65E29B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				FC41C85C717585DB96086A8C /* PBXTargetDependency */,
 			);
 			name = BackupDuck;
 			packageProductDependencies = (
@@ -461,6 +532,24 @@
 			productReference = 16B3C1C169CA7713E06B26B3 /* BackupDuckTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		82264A7BF318595CC8D5E254 /* BackupDuckLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E5610CEF644FFAED4AA93BC2 /* Build configuration list for PBXNativeTarget "BackupDuckLiveActivity" */;
+			buildPhases = (
+				B86AD3225EBB688988662C9C /* Sources */,
+				CC8DE10482DE7E3A07B5394C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BackupDuckLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = BackupDuckLiveActivity;
+			productReference = E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		D401BFD42D81D88C547FAAE6 /* BackupDuckUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E303A627AC1C2B4A7DE93238 /* Build configuration list for PBXNativeTarget "BackupDuckUITests" */;
@@ -497,6 +586,9 @@
 					70D0830E89D6BCB35FF2DEEB = {
 						ProvisioningStyle = Automatic;
 					};
+					82264A7BF318595CC8D5E254 = {
+						ProvisioningStyle = Automatic;
+					};
 					D401BFD42D81D88C547FAAE6 = {
 						ProvisioningStyle = Automatic;
 						TestTargetID = 4C12B6378330946494E34178;
@@ -520,6 +612,7 @@
 			targets = (
 				4C12B6378330946494E34178 /* BackupDuck */,
 				5174466870F3026BCA358C53 /* BackupDuckCatalog */,
+				82264A7BF318595CC8D5E254 /* BackupDuckLiveActivity */,
 				70D0830E89D6BCB35FF2DEEB /* BackupDuckTests */,
 				D401BFD42D81D88C547FAAE6 /* BackupDuckUITests */,
 			);
@@ -550,6 +643,14 @@
 				5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC8DE10482DE7E3A07B5394C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7CBEFD8A8DD7763F5D960774 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,10 +705,13 @@
 				787DAACB0FCA50EFF6F293A8 /* AppTabs.swift in Sources */,
 				C794E31CBB327B21E8350212 /* BackgroundLifecycle.swift in Sources */,
 				64D267E777E6E4FAD390C020 /* BackgroundTransfer.swift in Sources */,
+				CCDABBA64DC51B59A1B645D8 /* BackupActivityAttributes.swift in Sources */,
+				ABD53347772BC645EBDF41E0 /* BackupActivityView.swift in Sources */,
 				D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */,
 				758665BE9929AF95902439D8 /* BackupHelp.swift in Sources */,
 				CF147A1F2FAA23BC60045B52 /* BackupHistory.swift in Sources */,
 				DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */,
+				BB66616127002940EA2CAEBE /* BackupLiveActivity.swift in Sources */,
 				B5CDC65E8726DC36373D29FD /* BackupModel.swift in Sources */,
 				B2C3DF8C6BBD010AD1349571 /* BackupNotifier.swift in Sources */,
 				0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */,
@@ -637,6 +741,7 @@
 				6784E6BFA763808AEC7A5628 /* LibraryRefreshScheduler.swift in Sources */,
 				E40D70B20FB7B82F9D189304 /* LibraryScenario.swift in Sources */,
 				6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */,
+				75AA113C0FA7DBA800D5D2D0 /* LiveActivityCatalog.swift in Sources */,
 				48F9514A642E13552542884B /* MediaPreview.swift in Sources */,
 				5672B041A1C40468F548D65C /* PairingScanner.swift in Sources */,
 				7CB64490194DB59972D9AB47 /* PhotoBackupOrder.swift in Sources */,
@@ -648,6 +753,7 @@
 				4ABE6EA6A021BEE3C4FC219D /* SampleImages.swift in Sources */,
 				850B8427BB4BF0DF4AF71B37 /* Scenario.swift in Sources */,
 				41AAB44E642F3269F1BE18D5 /* ScopeAlbumGrid.swift in Sources */,
+				9B9F793EF074BA92F213034B /* SetBackupPauseIntent.swift in Sources */,
 				E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */,
 				D39276A745BE767B3F33C721 /* SettingsPage.swift in Sources */,
 				100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */,
@@ -667,6 +773,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B86AD3225EBB688988662C9C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3EF159E37F38AD15B4BCB2FF /* BackupActivityAttributes.swift in Sources */,
+				32338024CB39A770E19632ED /* BackupActivityView.swift in Sources */,
+				37BEDDEE9A32572F3F194F82 /* BackupWidgetBundle.swift in Sources */,
+				156EE3F6047F2638470B0047 /* DuckTokens.swift in Sources */,
+				EBD915F39536F41260D24CFA /* SetBackupPauseIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D1528851511EF3226A451885 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -674,6 +792,7 @@
 				3B2C0F7A0931F23825434A1E /* BackgroundTests.swift in Sources */,
 				F10EF15B88883D3D721D247A /* BackupHistoryTests.swift in Sources */,
 				691B0845FB5DEF6C304B95BD /* BackupHubStatusTests.swift in Sources */,
+				D6E78194CB84A18136D8892A /* BackupLiveActivityTests.swift in Sources */,
 				6F4B59F85B3C34527DB3962C /* BackupNotifierTests.swift in Sources */,
 				3FB995F5C1B3091AC1CC0E17 /* CalendarGridTests.swift in Sources */,
 				4D365D4AAD7ACC05CDBC3FF9 /* GridZoomTests.swift in Sources */,
@@ -691,11 +810,13 @@
 				D013358111500775AE0C08C8 /* AppTabs.swift in Sources */,
 				EC71D3762A45B460A3B79DBA /* BackgroundLifecycle.swift in Sources */,
 				714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */,
+				EEDA8503897B9A6C429D030D /* BackupActivityAttributes.swift in Sources */,
 				07F5A5D3282BE243ED5451B7 /* BackupDuckApp.swift in Sources */,
 				3BD0C5D4F8BC13104E3197A7 /* BackupEnvironment.swift in Sources */,
 				6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */,
 				93C3AB83EF889D78A5C6E6B9 /* BackupHistory.swift in Sources */,
 				BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */,
+				6DF1A3FEB66BB5590ABD570D /* BackupLiveActivity.swift in Sources */,
 				332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */,
 				81AB90ED054886AABA0D581C /* BackupNotifier.swift in Sources */,
 				C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */,
@@ -732,6 +853,7 @@
 				9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */,
 				262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */,
 				3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */,
+				E460E0E4645FC1F093CCA0D7 /* SetBackupPauseIntent.swift in Sources */,
 				235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */,
 				0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
@@ -755,6 +877,11 @@
 			isa = PBXTargetDependency;
 			target = 4C12B6378330946494E34178 /* BackupDuck */;
 			targetProxy = A5F7558E846A3C68CB0960DF /* PBXContainerItemProxy */;
+		};
+		FC41C85C717585DB96086A8C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 82264A7BF318595CC8D5E254 /* BackupDuckLiveActivity */;
+			targetProxy = C954AD15E365EDB3B0C6BC98 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -797,6 +924,26 @@
 			};
 			name = Debug;
 		};
+		09B3C6D39344272617B8130B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiveActivity/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.LiveActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) BACKUPDUCK_WIDGET";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		1F4D0B7B8C616454A2EB46D6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -824,6 +971,26 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck;
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = ../../crates/native/include/backupduck.h;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		250A1DBBAE85AE9EAC949FC9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiveActivity/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.LiveActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) BACKUPDUCK_WIDGET";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -1137,6 +1304,15 @@
 			buildConfigurations = (
 				3FBA722E59B686D69C79F14F /* Debug */,
 				77B46A6D9C514E740D7FA6DB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E5610CEF644FFAED4AA93BC2 /* Build configuration list for PBXNativeTarget "BackupDuckLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				09B3C6D39344272617B8130B /* Debug */,
+				250A1DBBAE85AE9EAC949FC9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

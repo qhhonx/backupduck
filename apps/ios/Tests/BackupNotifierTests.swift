@@ -1,39 +1,81 @@
 import XCTest
 @testable import BackupDuck
 
-/// Notifications only when the user is needed (design/flows.md § Every day):
-/// each condition is announced once and withdrawn or rearmed when it clears.
 @MainActor final class BackupNotifierTests: XCTestCase {
-  private func history(_ state: String, pending: Int, checked: Int = 10) -> HistoricalImportStatus {
-    HistoricalImportStatus(run: 1, state: state, checked: checked, pending: pending)
+  private let now = Date(timeIntervalSince1970: 100_000)
+  private func changes(_ status: BackupHubStatus, _ memory: inout BackupNotifier.Memory,
+    after: TimeInterval = 0, allowed: Bool = true, connection: ReceiverConnection = .ready,
+    earlier: HistoricalImportStatus? = nil) -> [BackupNotifier.Change] {
+    BackupNotifier.changes(status: status, earlier: earlier, connection: connection,
+      now: now.addingTimeInterval(after), allowed: allowed, memory: &memory)
   }
-
-  func testUnreachableIsScheduledOnceAndWithdrawnWhenBack() {
+  func testOfflineNeedsADayAndAFreshObservationThenRecoveryWithdraws() {
     var memory = BackupNotifier.Memory()
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.receiverUnreachable), earlier: nil, memory: &memory),
-      [.post(id: "unreachable", after: 86_400)])
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.receiverUnreachable), earlier: nil, memory: &memory), [])
-    XCTAssertEqual(BackupNotifier.changes(status: .caughtUp(lastSaved: nil, saving: 0), earlier: nil, memory: &memory),
-      [.withdraw(id: "unreachable")])
+    let offline = BackupHubStatus.problem(.receiverUnreachable)
+    XCTAssertEqual(changes(offline, &memory, connection: .network), [])
+    XCTAssertEqual(changes(offline, &memory, after: 86_399, connection: .network), [])
+    XCTAssertEqual(changes(offline, &memory, after: 86_400, connection: .network), [.post(.unreachable)])
+    XCTAssertEqual(changes(offline, &memory, after: 86_500, connection: .network), [])
+    XCTAssertEqual(changes(.opening, &memory, connection: .unknown), [])
+    XCTAssertEqual(changes(.empty, &memory), [.withdraw(.unreachable)])
+    XCTAssertNil(memory.unreachableSince)
   }
-
-  func testFullAndConversionAnnounceOnlyNewProblems() {
+  func testPauseAndPermissionDoNotProduceStaleReminders() {
     var memory = BackupNotifier.Memory()
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.receiverFull), earlier: nil, memory: &memory), [.post(id: "full", after: nil)])
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.receiverFull), earlier: nil, memory: &memory), [])
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.conversionNeeded(2)), earlier: nil, memory: &memory), [.post(id: "convert", after: nil)])
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.conversionNeeded(2)), earlier: nil, memory: &memory), [])
-    XCTAssertEqual(BackupNotifier.changes(status: .problem(.conversionNeeded(3)), earlier: nil, memory: &memory), [.post(id: "convert", after: nil)])
+    let offline = BackupHubStatus.problem(.receiverUnreachable)
+    _ = changes(offline, &memory, connection: .network)
+    XCTAssertEqual(changes(offline, &memory, after: 90_000, allowed: false, connection: .network), [])
+    XCTAssertFalse(memory.unreachableNotified)
+    XCTAssertEqual(changes(.paused, &memory, connection: .network), [.withdraw(.unreachable)])
+    XCTAssertEqual(changes(offline, &memory, after: 100_000, connection: .network), [])
   }
-
-  func testEarlierPhotosAnnouncedOnlyWhenTheyFinishWhileWatched() {
+  func testFullAndConversionRecoverRearmAndRetryFailedDelivery() {
     var memory = BackupNotifier.Memory()
-    let calm = BackupHubStatus.caughtUp(lastSaved: nil, saving: 0)
-    // Already done when first seen: nothing to announce.
-    XCTAssertEqual(BackupNotifier.changes(status: calm, earlier: history("scanned", pending: 0), memory: &memory), [])
-    memory = BackupNotifier.Memory()
-    XCTAssertEqual(BackupNotifier.changes(status: calm, earlier: history("running", pending: 5), memory: &memory), [])
-    XCTAssertEqual(BackupNotifier.changes(status: calm, earlier: history("scanned", pending: 0), memory: &memory), [.post(id: "earlier", after: nil)])
-    XCTAssertEqual(BackupNotifier.changes(status: calm, earlier: history("scanned", pending: 0), memory: &memory), [])
+    XCTAssertEqual(changes(.problem(.receiverFull), &memory, allowed: false), [])
+    XCTAssertEqual(changes(.problem(.receiverFull), &memory), [.post(.full)])
+    XCTAssertEqual(changes(.problem(.receiverFull), &memory), [])
+    memory.retry(.full)
+    XCTAssertEqual(changes(.problem(.receiverFull), &memory), [.post(.full)])
+    XCTAssertEqual(changes(.problem(.conversionNeeded(2)), &memory), [.withdraw(.full), .post(.convert)])
+    XCTAssertEqual(changes(.problem(.conversionNeeded(2)), &memory), [])
+    XCTAssertEqual(changes(.problem(.conversionNeeded(3)), &memory), [.post(.convert)])
+    XCTAssertEqual(changes(.empty, &memory), [.withdraw(.convert)])
+  }
+  func testEarlierWaitsForPublicationAndTracksRunIdentity() {
+    var memory = BackupNotifier.Memory()
+    func history(_ run: Int64, _ published: Int?) -> HistoricalImportStatus {
+      HistoricalImportStatus(run: run, state: "scanned", checked: 10, pending: 0, published: published)
+    }
+    XCTAssertEqual(changes(.empty, &memory, earlier: history(1, 10)), [.withdraw(.earlier)])
+    // A different run re-arms; preparation and receipt never finish it.
+    XCTAssertEqual(changes(.empty, &memory, earlier: history(2, nil)), [.withdraw(.earlier)])
+    XCTAssertEqual(changes(.empty, &memory, earlier: history(2, 0)), [])
+    XCTAssertEqual(changes(.empty, &memory, earlier: history(2, 9)), [])
+    XCTAssertEqual(changes(.empty, &memory, earlier: history(2, 10)), [.post(.earlier)])
+    XCTAssertEqual(changes(.empty, &memory, earlier: history(2, 10)), [])
+    let data = try! JSONEncoder().encode(memory)
+    let resumed = try! JSONDecoder().decode(BackupNotifier.Memory.self, from: data)
+    XCTAssertEqual(resumed, memory)
+  }
+  func testNotificationNeverRedirectsToAnotherReceiver() {
+    XCTAssertEqual(BackupNotifier.destination(notice: "convert", receiver: "pixel-a", current: "pixel-a"), .convert)
+    XCTAssertNil(BackupNotifier.destination(notice: "full", receiver: "pixel-a", current: "pixel-b"))
+    XCTAssertNil(BackupNotifier.destination(notice: "full", receiver: "pixel-a", current: nil))
+    XCTAssertNil(BackupNotifier.destination(notice: "unknown", receiver: "pixel-a", current: "pixel-a"))
+  }
+  func testRoutineProgressAndUnconfirmedHistoryStayQuiet() {
+    var memory = BackupNotifier.Memory()
+    XCTAssertEqual(changes(.backingUp(remaining: 10, bytes: 100), &memory), [])
+    XCTAssertEqual(changes(.caughtUp(lastSaved: nil, saving: 10), &memory), [])
+    XCTAssertEqual(changes(.caughtUp(lastSaved: nil, saving: 0), &memory), [])
+    let preparing = HistoricalImportStatus(run: 7, state: "scanning", checked: 10, pending: 10)
+    let received = HistoricalImportStatus(run: 7, state: "scanned", checked: 10, pending: 0)
+    XCTAssertEqual(changes(.empty, &memory, earlier: preparing), [.withdraw(.earlier)])
+    XCTAssertEqual(changes(.empty, &memory, earlier: received), [])
+    XCTAssertFalse(received.isSaved)
+    let published = HistoricalImportStatus(run: 7, state: "scanned", checked: 10, pending: 0, published: 10)
+    XCTAssertEqual(changes(.empty, &memory, earlier: published), [.post(.earlier)])
+    memory.retry(.earlier)
+    XCTAssertEqual(changes(.empty, &memory, earlier: published), [.post(.earlier)])
   }
 }

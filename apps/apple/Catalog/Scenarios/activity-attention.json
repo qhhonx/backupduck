@@ -1,0 +1,35 @@
+{
+  "id": "activity.attention",
+  "page": "backup",
+  "step": "liveActivity",
+  "title": "Live Activity \u00b7 attention",
+  "extends": "base-paired",
+  "core": {
+    "jobs": {
+      "value": []
+    },
+    "backup_summary": {
+      "value": {
+        "total": 100,
+        "published": 40,
+        "received": 40,
+        "queued": 0,
+        "running": 0,
+        "waiting": 0,
+        "paused": 0,
+        "failed": 60,
+        "publication_failed": 0,
+        "active": 0,
+        "attention": 60,
+        "preparation_waiting": 0,
+        "preparation_failed": 0,
+        "confirmed_bytes": 0
+      }
+    }
+  },
+  "expect": [
+    "The production card reflects attention from synthetic whole-receiver counts.",
+    "No cloud status or estimated remaining time is shown.",
+    "Stale content asks to open the app and hides the old progress."
+  ]
+}

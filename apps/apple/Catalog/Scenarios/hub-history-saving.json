@@ -1,0 +1,21 @@
+{
+  "page": "backup",
+  "extends": "hub.saving",
+  "core": {
+    "history_status": {
+      "value": {
+        "run": 1,
+        "state": "scanned",
+        "checked": 1284,
+        "pending": 0,
+        "published": 1280
+      }
+    }
+  },
+  "id": "hub.history-saving",
+  "title": "Earlier photos received, still saving",
+  "expect": [
+    "Earlier photos says saved only when every frozen member has confirmed gallery publication.",
+    "Preparing and received photos never show a green completion check."
+  ]
+}

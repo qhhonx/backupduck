@@ -26,8 +26,14 @@ final class BackupHubStatusTests: XCTestCase {
 
   func testCaughtUpNeverClaimsPhotosStillBeingSaved() {
     XCTAssertEqual(BackupHubStatus.derive(inputs()), .caughtUp(lastSaved: nil, saving: 0))
-    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.published = 7; $0.summary.publication_failed = 1 }),
-      .caughtUp(lastSaved: nil, saving: 2))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.published = 7 }),
+      .caughtUp(lastSaved: nil, saving: 3))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.published = 0 }),
+      .caughtUp(lastSaved: nil, saving: 10))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.publication_failed = 1 }), .problem(.photosNeedYou(1)))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.preparation_waiting = 2 }), .backingUp(remaining: 2, bytes: 0))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.preparation_failed = 2 }), .problem(.photosNeedYou(2)))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.conversion_required = 201 }), .problem(.conversionNeeded(201)))
   }
 
   func testBackingUpCountsQueuedRunningAndWaiting() {

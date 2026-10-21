@@ -1363,6 +1363,7 @@ private final class MacMarqueeView: NSView {
       view.layer?.borderWidth = 0
       view.layer?.borderColor = NSColor.controlAccentColor.cgColor
       updateSelectionMark()
+      status.isHidden = (selectionVisible && isSelected) || status.symbol == nil
     }
   }
   func configure(_ asset: PHAsset, pipeline: ThumbnailPipeline, pixels: CGFloat, originalAspect: Bool = false, identifier: String? = nil) {
@@ -1416,6 +1417,32 @@ private final class MacMarqueeView: NSView {
       self.cloud.symbol = "icloud"
       self.cloud.isHidden = image != nil || !inCloud
     }
+  }
+  /// Folder browsing reuses the library cell, V5 marks, selection and cancellation.
+  func configureFolder(_ photo: FolderPhoto, source: FolderSource, pixels: CGFloat, synthetic: NSImage? = nil) {
+    let key = "folder|\(photo.id)|\(photo.revision)|\(pixels)"
+    if imageKey != key {
+      cancel(); imageKey = key; assetID = photo.source_id; presentationID = photo.id
+      fitted = false; displayedImage = nil; photoLayer.contents = nil
+      media.symbol = photo.media_type.hasPrefix("video/") ? "video.fill" : nil
+      media.isHidden = media.symbol == nil; cloud.isHidden = true
+      duration.isHidden = true; burstCount.isHidden = true
+      if let synthetic { retainDisplayedImage(synthetic) }
+      else {
+        let expected = token
+        FileThumbnailPipeline.shared.request(id: expected, source: source, relative: photo.relative, revision: photo.revision, size: pixels / 2) { [weak self] image in
+          guard let self, self.token == expected, let image else { return }
+          self.retainDisplayedImage(image)
+        }
+      }
+    }
+    setSelectionVisible(true)
+    setState(photo.backup == "sending" ? "running" : photo.backup == "saving" ? "saving" : photo.backup == "needs_you" ? "failed" : nil)
+    let statusKey = photo.backup == "saved" ? "folders_photo_saved" : photo.backup == "saving" ? "folders_photo_saving" : photo.backup == "sending" ? "folders_photo_sending" : photo.backup == "needs_you" ? "folders_photo_needs_you" : "folders_photo_not_backed_up"
+    statusTip = NSLocalizedString(statusKey, comment: ""); view.setAccessibilityValue(statusTip); updateTips()
+    view.alphaValue = 1
+    view.setAccessibilityLabel(photo.relative + ". " + photo.date.formatted(date: .abbreviated, time: .shortened))
+    view.needsLayout = true
   }
   private var fitted = false
   private var assetAspect: CGFloat = 1
@@ -1499,6 +1526,7 @@ private final class MacMarqueeView: NSView {
       // an arrow while it is on its way, an exclamation when it needs the user.
       switch state {
       // design-exception: tile marks are white glyphs with a shadow on photos (visual-language.md)
+      case "saving": status.symbol = "clock"; status.tint = .white  // design-exception: tile mark on a photo
       case "failed": status.symbol = "exclamationmark.triangle.fill"; status.tint = .white  // design-exception: tile mark on a photo
       case "preparing", "running", "queued", "waiting", "paused", "scheduled", "partial":
         status.symbol = "arrow.up"; status.tint = .white  // design-exception: tile mark on a photo
@@ -1508,7 +1536,7 @@ private final class MacMarqueeView: NSView {
     let detail = groupDescription + NSLocalizedString(
       state == "received" ? "state_received_detail" : state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
     view.setAccessibilityValue(detail)
-    status.isHidden = selectionVisible || state == nil || status.symbol == nil
+    status.isHidden = (selectionVisible && isSelected) || state == nil || status.symbol == nil
     statusTip = detail
     updateTips()
   }
@@ -1527,7 +1555,7 @@ private final class MacMarqueeView: NSView {
   func setSelectionVisible(_ value: Bool) {
     selectionVisible = value
     view.layer?.borderWidth = 0
-    status.isHidden = value || statusState == nil || status.symbol == nil
+    status.isHidden = (value && isSelected) || statusState == nil || status.symbol == nil
     updateTips()
     updateSelectionMark()
   }
@@ -1555,6 +1583,7 @@ private final class MacMarqueeView: NSView {
   }()
   func cancel() {
     pipeline?.cancel(request)
+    FileThumbnailPipeline.shared.cancel(token)
     request = PHInvalidImageRequestID
     token = UUID()
     imageKey = ""
