@@ -43,6 +43,12 @@ class MainActivity : BackupDuckActivity() {
     private val attentionHistory = HistoryModel()
     private val receiverRoot get() = "$filesDir/receiver"
     private var selectedPage = 1
+    private val rootBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { navigation.selectedItemId = 1 }
+    }
+    private fun updateRootBack() {
+        rootBack.isEnabled = supportFragmentManager.backStackEntryCount == 0 && selectedPage != 1
+    }
     private lateinit var navigation: BottomNavigationView
     private var experimentsDiscoveryDot: View? = null
     private var experimentsDiscoveryTitle: TextView? = null
@@ -154,6 +160,7 @@ class MainActivity : BackupDuckActivity() {
             navTitles.forEachIndexed { index, title -> if (!(proposed && index == 2)) menu.add(0, index + 1, index, title).setIcon(if (proposed && index == 1) R.drawable.ic_photo else icons[index]) }
             setOnItemSelectedListener { item ->
                 selectedPage = item.itemId
+                updateRootBack()
                 collapsing.title = getString(pageTitles[selectedPage - 1])
                 appBar.setExpanded(true, false)
                 toolbar.menu.findItem(100).apply {isVisible=selectedPage==2&&receivedPhotos==null;setIcon(R.drawable.ic_more);setTitle(R.string.duck_advanced_filters)}
@@ -166,15 +173,11 @@ class MainActivity : BackupDuckActivity() {
         setContentView(root)
         navigation.selectedItemId = selectedPage
         refreshDiscovery()
-        // A theme change or rotation recreates the activity; the connect screen or device page stays open.
-        when (savedInstanceState?.getString("connect.surface")) { "devices" -> openDevices(); "pairing" -> openConnect(); "connect-mac" -> openConnect(mac = true); "storage" -> openStorage() }
         handleDestination(intent)
         storagePage.refresh(force = true, includeDetails = selectedPage == 3)
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (selectedPage != 1) navigation.selectedItemId = 1 else finish()
-            }
-        })
+        onBackPressedDispatcher.addCallback(this, rootBack)
+        supportFragmentManager.addOnBackStackChangedListener { updateRootBack() }
+        updateRootBack()
         lifecycleScope.launch {
             val filtered = history.state.value.let { it.filter != "all" || it.kind != "all" || it.sender != null }
             if (history.state.value.items.isEmpty() || (receivedPhotos != null && filtered)) history.select(receiverRoot, filter = "all", kind = "all", sender = null)
@@ -252,6 +255,7 @@ class MainActivity : BackupDuckActivity() {
         next.removeExtra(ReceiverNotificationRoute.EXTRA)
         if (notificationRoute != null) {
             notificationWindows.dismiss()
+            supportFragmentManager.popBackStackImmediate(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
             navigation.selectedItemId = 1
             when (notificationRoute) {
                 ReceiverNotificationRoute.RECEIVE -> Unit
@@ -277,12 +281,14 @@ class MainActivity : BackupDuckActivity() {
             "retention"->storagePage.showRetention()
             "archive"->showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
             "report"->showReportExport(false)
+            "gallery-report"->showReportExport(true)
+            "advanced"->proposedAdvancedPage()
+            "diagnostics"->showDiagnostics()
         }
         next.removeExtra("surface");next.removeExtra("destination")
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("page", selectedPage)
-        outState.putString("connect.surface", when { connectPage?.isShowing == true -> connectPage?.flow?.surface; devicesPage?.isShowing == true -> "devices"; storageScreen?.isShowing == true -> "storage"; else -> null })
         super.onSaveInstanceState(outState)
     }
     private var updateFeedback: android.widget.TextView? = null
@@ -353,14 +359,23 @@ class MainActivity : BackupDuckActivity() {
     private fun choosePairing() {if(ReceiverEnvironment.proposedDesign) openConnect() else pairingUI.choose()}
     private var connectPage:ConnectPage?=null
     /** The one connect flow (design/pixel-connect.md) for the hub, the device page and the Received photos empty state. */
-    private fun openConnect(mac:Boolean=false) {
-        connectPage?.dismiss()
-        connectPage=ConnectPage(this,::scanCode,::beginReceiving) {connectPage=null;devicePanels.refresh();devicesPage?.reload()}.also {
-            it.show();if(mac) it.flow.showMac(null) else it.flow.showCode()
+    private fun createConnectPage(state: Bundle): ConnectPage {
+        lateinit var next: ConnectPage
+        next = ConnectPage(this, ::scanCode, ::beginReceiving, state) {
+            if (connectPage === next) connectPage = null
+            devicePanels.refresh(); devicesPage?.reload()
         }
+        connectPage = next
+        if (state.getBoolean("scan")) connectScan = next.flow::scanned
+        return next
+    }
+    private fun openConnect(mac:Boolean=false) {
+        if (connectPage?.isShowing == true) return
+        createConnectPage(Bundle().apply { putString("surface", if (mac) "connect-mac" else "pairing") }).show()
     }
     private var devicesPage:DevicesPage?=null
-    private fun openDevices() {devicesPage=DevicesPage(this,{openConnect()}) {devicePanels.refresh()}.also {it.show()}}
+    private fun createDevicesPage() = DevicesPage(this, { openConnect() }) { devicePanels.refresh() }.also { devicesPage = it }
+    private fun openDevices() { createDevicesPage().show() }
     private fun scanCode(done:(String?)->Unit) {
         ReceiverEnvironment.scanOverride?.let {it(done);return}
         connectScan=done
@@ -501,8 +516,9 @@ class MainActivity : BackupDuckActivity() {
         currentSettingValues+=status to {refresh();status.text.toString()}
     }
     /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
-    private fun proposedAdvancedPage() {
-        val page=LookPage(this,getString(R.string.pref_advanced))
+    private fun proposedAdvancedPage() { createAdvancedPage().show() }
+    private fun createAdvancedPage(): LookPage {
+        val page=LookPage(this,getString(R.string.pref_advanced), "advanced")
         val body=lookGroup(page.body)
         fun onOff(on:Boolean)=getString(if(on) R.string.pref_on else R.string.pref_off)
         lateinit var conversion:TextView
@@ -514,8 +530,8 @@ class MainActivity : BackupDuckActivity() {
             startActivity(Intent(this,BrowserManagementActivity::class.java))
         }
         lookRow(body,R.drawable.ic_receiver,getString(R.string.receiver_stop)) {page.dismiss();confirmStopReceiving()}
-        page.setOnShowListener {browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this)))}
-        page.show()
+        page.resumed = { browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this))) }
+        return page
     }
     private fun recordsAndExports(parent:LinearLayout, heading:Boolean=true) {
         val group=duckGroup(parent,if(heading)getString(R.string.receiver_records_exports) else null)
@@ -526,10 +542,11 @@ class MainActivity : BackupDuckActivity() {
             showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
         }
     }
-    internal fun showDiagnostics() {
-        val page=DuckPage(this,getString(R.string.receiver_records_exports))
+    internal fun showDiagnostics() { createDiagnosticsPage().show() }
+    private fun createDiagnosticsPage(): DuckPage {
+        val page=DuckPage(this,getString(R.string.receiver_records_exports), "diagnostics")
         recordsAndExports(page.body,false)
-        page.show()
+        return page
     }
     private fun confirmStopReceiving() {
         duckConfirm(R.string.receiver_stop,R.string.duck_stop_service_intro,R.string.receiver_stop,true,notice=R.string.duck_reset_unchanged) {dialog ->
@@ -542,16 +559,24 @@ class MainActivity : BackupDuckActivity() {
     private fun receiverDisplayVersion():String {
         return receiverVersionLabel()
     }
-    private fun showReportExport(gallery:Boolean) {
-        val page=DuckPage(this,getString(if(gallery)R.string.gallery_receipts_export else R.string.logs_export));reportPage=page;reportGallery=gallery
+    private fun showReportExport(gallery:Boolean) { createReportPage(gallery).show() }
+    private fun createReportPage(gallery:Boolean, restored: Bundle = Bundle()): DuckPage {
+        val page=DuckPage(this,getString(if(gallery)R.string.gallery_receipts_export else R.string.logs_export), if(gallery) "gallery-report" else "logs-report");reportPage=page;reportGallery=gallery
+        page.state.putAll(restored)
         page.body.addView(duckParagraph(getString(if(gallery)R.string.gallery_receipts_export_note else R.string.duck_report_logs)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(20)})
         page.body.addView(duckButton(getString(R.string.duck_choose_location),true) {
             if(gallery)exportGalleryReceipts.launch("BackupDuck-gallery-receipts.json") else exportLogs.launch("BackupDuck-diagnostics.json")
-        },LinearLayout.LayoutParams(-1,-2));page.show()
+        },LinearLayout.LayoutParams(-1,-2))
+        if (restored.containsKey("result")) renderReportResult(page, restored.getString("result") == "success")
+        return page
     }
-    private fun reportBusy() {reportPage?.takeIf {it.isShowing}?.body?.let {it.removeAllViews();duckNotice(it,getString(R.string.duck_exporting_report))}}
+    private fun reportBusy() {reportPage?.takeIf {it.isShowing}?.body?.let {reportPage?.state?.putString("result", "busy");it.removeAllViews();duckNotice(it,getString(R.string.duck_exporting_report))}}
     private fun reportResult(success:Boolean) {
         val page=reportPage?.takeIf {it.isShowing} ?: return
+        renderReportResult(page, success)
+    }
+    private fun renderReportResult(page: DuckPage, success: Boolean) {
+        page.state.putString("result", if(success) "success" else "failure")
         page.body.removeAllViews()
         if(success) {duckNotice(page.body,getString(R.string.duck_export_report_success))}
         else {
@@ -578,9 +603,23 @@ class MainActivity : BackupDuckActivity() {
     /** Storage is a tab in the current design and a page opened from Settings and the hub in the redesign. */
     internal fun openStorage() {
         if (!ReceiverEnvironment.proposedDesign) { navigation.selectedItemId = 3; return }
-        storageScreen = StorageScreen(this, receiverRoot, ::openPhotos, ::openCleanup) { proposedRefresh?.invoke() }.also { it.show() }
+        createStoragePage().show()
     }
+    private fun createStoragePage() = StorageScreen(this, receiverRoot, ::openPhotos, ::openCleanup) { proposedRefresh?.invoke() }.also { storageScreen = it }
     private var storageScreen: StorageScreen? = null
+    internal override fun restorePage(route: String, state: Bundle): PageDestination = when (route) {
+        "connect" -> createConnectPage(state)
+        "devices" -> createDevicesPage().page
+        "storage" -> createStoragePage().page
+        "advanced" -> createAdvancedPage()
+        "diagnostics" -> createDiagnosticsPage()
+        "logs-report" -> createReportPage(false, state)
+        "gallery-report" -> createReportPage(true, state)
+        "archive-export" -> createArchiveExportPage(android.net.Uri.parse(state.getString("uri")!!), interrupted = true)
+        "legacy-devices" -> devicePanels.showPeers(show = false)
+        "legacy-scan" -> pairingUI.scanning(show = false)
+        else -> super.restorePage(route, state)
+    }
     internal fun openCleanup() { startActivity(Intent(this, ExperimentsActivity::class.java)) }
     private fun showDashboardAccess() {DashboardAccessUI(this).access()}
     private fun openHelp(topic: ReceiverHelpTopic? = null) {

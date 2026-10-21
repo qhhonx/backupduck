@@ -49,7 +49,7 @@ private class ReceiverCopyStorage(private val data: JSONObject) {
  */
 internal class StorageScreen(private val activity: MainActivity, private val root: String, private val openPhotos: () -> Unit,
     private val openCleanup: () -> Unit, private val changed: () -> Unit) {
-    private val page = LookPage(activity, activity.getString(R.string.pref_storage))
+    val page = LookPage(activity, activity.getString(R.string.pref_storage), "storage")
     private val free = activity.lookText(activity.getString(R.string.storage_free_amount, "—"), R.style.TextAppearance_BackupDuck_Display)
     private val capacity = activity.lookText(activity.getString(R.string.storage_free_of, "—"), M.style.TextAppearance_Material3_BodyLarge, secondary = true)
     private val bar = UsageBar(activity)

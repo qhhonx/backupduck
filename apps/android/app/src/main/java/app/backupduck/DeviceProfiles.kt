@@ -45,8 +45,8 @@ internal class DevicePanels(private val activity:MainActivity,private val change
         if(previousName!=name||previousSenders!=hasSenders)changed()
         nameLabels.forEach {if(it.text.toString()!=name) it.text=name}
     }
-    fun showPeers():DuckPage {
-        val page=DuckPage(activity,activity.getString(R.string.device_known_senders));page.show()
+    fun showPeers(show: Boolean = true):DuckPage {
+        val page=DuckPage(activity,activity.getString(R.string.device_known_senders), "legacy-devices");if(show) page.show()
         fun load() {
             page.body.removeAllViews();activity.duckNotice(page.body,activity.getString(R.string.device_loading))
             activity.lifecycleScope.launch {
@@ -73,7 +73,7 @@ internal class DevicePanels(private val activity:MainActivity,private val change
                 }
             }
         }
-        load();return page
+        page.resumed = { load() };return page
     }
     private fun showPeer(peer:JSONObject,host:View,changed:()->Unit) {
         val sheet=DuckSheet(activity,peer.getJSONObject("profile").getString("name"))

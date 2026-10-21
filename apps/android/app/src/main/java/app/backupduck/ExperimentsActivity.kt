@@ -47,12 +47,14 @@ class PhotosProbeActivity:BackupDuckActivity() {
     private val export=registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain")) {uri ->
         if(uri!=null) lifecycleScope.launch {
             val page=reportPage?.takeIf {it.isShowing}
+            page?.state?.putString("result", "busy")
             page?.body?.let {it.removeAllViews();duckNotice(it,getString(R.string.duck_exporting_report))}
             val ok=withContext(Dispatchers.IO) {runCatching {
                 val snapshot=PhotosProbeService.state.value
                 val report="BackupDuck Google Photos diagnostics\nversion=${photosVersion()}\nobservation=${snapshot.observation}\nseen=${snapshot.seen.sorted().joinToString(",")}\ncleanup_enabled=${cleanup.enabled}\ncleanup_pending=${cleanup.pending}\ncleanup_result=${cleanup.reason}\naccount_bound=${cleanup.account.isNotEmpty()}\ncloud_backup_verified=false\n"
                 checkNotNull(contentResolver.openOutputStream(uri,"wt")).use {it.write(report.toByteArray())}
             }.isSuccess}
+            page?.state?.putString("result", if(ok) "success" else "failure")
             page?.body?.let {body ->
                 body.removeAllViews()
                 if(ok)duckNotice(body,getString(R.string.duck_export_report_success))
@@ -165,10 +167,20 @@ class PhotosProbeActivity:BackupDuckActivity() {
     private fun showUnavailable() {statePanel.removeAllViews();duckProblem(statePanel,getString(R.string.photos_probe_unavailable))}
     @Suppress("DEPRECATION") private fun photosVersion():String=runCatching {packageManager.getPackageInfo(PhotosProbeService.PHOTOS_PACKAGE,0).versionName ?: "—"}.getOrDefault(getString(R.string.photos_probe_missing))
     private fun launchReport() {export.launch("BackupDuck-photos-check.txt")}
-    private fun exportReport() {
-        val page=DuckPage(this,getString(R.string.photos_probe_export));reportPage=page
+    private fun exportReport() { createReportPage().show() }
+    internal override fun restorePage(route: String, state: Bundle): PageDestination =
+        if (route == "probe-report") createReportPage(state) else super.restorePage(route, state)
+    private fun createReportPage(restored: Bundle = Bundle()): DuckPage {
+        val page=DuckPage(this,getString(R.string.photos_probe_export), "probe-report");reportPage=page
+        page.state.putAll(restored)
         page.body.addView(duckParagraph(getString(R.string.duck_report_probe)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(20)})
-        page.body.addView(duckButton(getString(R.string.duck_choose_location),true) {launchReport()},LinearLayout.LayoutParams(-1,-2));page.show()
+        page.body.addView(duckButton(getString(R.string.duck_choose_location),true) {launchReport()},LinearLayout.LayoutParams(-1,-2))
+        if (restored.containsKey("result")) {
+            page.body.removeAllViews()
+            if (restored.getString("result") == "success") duckNotice(page.body,getString(R.string.duck_export_report_success))
+            else { duckProblem(page.body,getString(R.string.duck_export_report_failure));page.body.addView(duckButton(getString(R.string.duck_retry)) {launchReport()}) }
+        }
+        return page
     }
     private var lastStatus:String?=null
     private fun render(state:PhotosProbeState) {

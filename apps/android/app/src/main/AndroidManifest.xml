@@ -13,7 +13,7 @@
     <queries>
         <package android:name="com.google.android.apps.photos" />
     </queries>
-    <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:label="${appLabel}" android:theme="@style/AppTheme" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
+    <application android:enableOnBackInvokedCallback="true" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:label="${appLabel}" android:theme="@style/AppTheme" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
         <activity android:name=".ReceiverScanActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".CleanupUnlockActivity" android:exported="false" android:excludeFromRecents="true" android:taskAffinity="" />
         <activity android:name=".BrowserManagementActivity" android:exported="false" />

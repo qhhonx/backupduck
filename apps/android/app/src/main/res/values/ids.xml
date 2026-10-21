@@ -2,4 +2,6 @@
     <item name="receiver_history_list" type="id" />
     <item name="main_navigation" type="id" />
     <item name="receiver_photos_list" type="id" />
+    <item name="page_destinations" type="id" />
+    <item name="destination_scroll" type="id" />
 </resources>

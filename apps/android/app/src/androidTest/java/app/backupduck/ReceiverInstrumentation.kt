@@ -17,6 +17,12 @@ class ReceiverInstrumentation : Instrumentation() {
     private var arguments = Bundle()
     override fun onCreate(arguments: Bundle?) { this.arguments = arguments ?: Bundle(); super.onCreate(arguments); start() }
     override fun onStart() {
+        if (arguments.getString("mode") == "page_navigation") {
+            val result = runCatching { checkPageNavigation() }
+            finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,
+                Bundle().apply { putString("result", result.getOrElse { "FAIL: ${it.stackTraceToString()}" }) })
+            return
+        }
         if(arguments.getString("mode")=="history_live") {
             val result=runCatching {checkHistoryLive(arguments)}
             finish(if(result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED,Bundle().apply {putString("result",result.getOrElse {"FAIL: ${it.stackTraceToString()}"})});return

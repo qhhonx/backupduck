@@ -1,0 +1,11 @@
+{
+  "id": "pixel.nav-advanced",
+  "extends": "base",
+  "page": "settings",
+  "surface": "advanced",
+  "title": "Advanced settings navigation",
+  "expect": [
+    "Opens the production page directly as a Fragment destination with a small Material top app bar.",
+    "System Back and the toolbar arrow return to Settings. Recreating the activity keeps this destination."
+  ]
+}

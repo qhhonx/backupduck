@@ -72,7 +72,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
         check(main {views(root()).filterIsInstance<com.google.android.material.textfield.TextInputLayout>().single().error!=null})
         main {field.setText("UI Check Pixel")};shot("device-name");click(R.string.device_save);Thread.sleep(900)
         check(DeviceProfiles.read(targetContext).getJSONObject("device").getString("name")=="UI Check Pixel")
-        main {current=devices.showPeers()};settle();shot("devices");back()
+        main {devices.showPeers()};settle();main {check(activity.supportFragmentManager.backStackEntryCount==1)};shot("devices");back()
         val custom=JSONObject(oldConfig.toString()).put("receiver_budget_bytes",123456789L).put("min_free_bytes",456789L).put("receiver_relay",false)
         NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",settingsRoot).put("settings",custom))
         for(section in StorageSection.entries) {

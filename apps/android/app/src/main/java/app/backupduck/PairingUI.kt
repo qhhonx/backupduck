@@ -76,15 +76,15 @@ internal class PairingUI(private val activity:MainActivity,private val start:()-
         dialog.show();dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE);refresh()
     }
     private fun launchScan() {runCatching(scan).onFailure {scanned(null)}}
-    private fun scanning() {
+    internal fun scanning(show: Boolean = true): DuckPage {
         scanPage?.dismiss()
-        val page=DuckPage(activity,activity.getString(R.string.duck_scan_title));scanPage=page
+        val page=DuckPage(activity,activity.getString(R.string.duck_scan_title), "legacy-scan");scanPage=page
         val art=ImageView(activity).apply {setImageResource(R.drawable.ic_scan);imageTintList=android.content.res.ColorStateList.valueOf(activity.getColor(R.color.duck_action));background=activity.duckBackground(R.color.duck_subtle,16,false);setPadding(activity.dp(48),activity.dp(48),activity.dp(48),activity.dp(48))}
         page.body.addView(art,LinearLayout.LayoutParams(-1,activity.dp(200)))
         page.body.addView(activity.duckParagraph(activity.getString(R.string.duck_scan_instruction)),LinearLayout.LayoutParams(-1,-2).apply {topMargin=activity.dp(20)})
         activity.duckNotice(page.body,activity.getString(R.string.duck_scan_permission))
         page.body.addView(activity.duckButton(activity.getString(R.string.duck_scan_start),true,::launchScan),LinearLayout.LayoutParams(-1,-2))
-        page.setOnDismissListener {scanWork?.cancel();if(scanPage===page)scanPage=null};page.show();launchScan()
+        page.setOnDismissListener {scanWork?.cancel();if(scanPage===page)scanPage=null};if(show) { page.show();launchScan() };return page
     }
     fun scanned(contents:String?) {
         val page=scanPage?:return

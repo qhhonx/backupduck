@@ -221,27 +221,17 @@ internal fun View.duckMargins(top:Int=0,bottom:Int=0):View = apply {
 internal fun Context.duckParagraph(text:String):TextView=lookText(text, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium, secondary = true)
 
 /** Full native secondary page: toolbar, scrollable body and optional fixed action footer. */
-internal class DuckPage(val activity:androidx.appcompat.app.AppCompatActivity,title:String):androidx.appcompat.app.AppCompatDialog(activity,R.style.DuckFullPage) {
-    init { activity.trackNotificationWindow(this) }
-    val body=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setPadding(activity.dp(16),activity.dp(20),activity.dp(16),activity.dp(24))}
-    private val footer=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setPadding(activity.dp(16),activity.dp(12),activity.dp(16),activity.dp(20));visibility=View.GONE}
+internal class DuckPage(activity: BackupDuckActivity, title: String, route: String) : PageDestination(activity, route, title) {
     init {
-        val root=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setBackgroundColor(activity.getColor(R.color.duck_role_background))}
-        val toolbar=com.google.android.material.appbar.MaterialToolbar(activity).apply {
-            this.title=title
-            setNavigationIcon(R.drawable.ic_back)
-            setNavigationContentDescription(R.string.nav_back);setNavigationOnClickListener {dismiss()}
+        body.setPadding(activity.dp(16), activity.dp(20), activity.dp(16), activity.dp(24))
+        footer.setPadding(activity.dp(16), activity.dp(12), activity.dp(16), activity.dp(20))
+    }
+    fun addAction(label: String, primary: Boolean = false, action: () -> Unit): MaterialButton {
+        footer.visibility = View.VISIBLE
+        return activity.duckButton(label, primary, action).also {
+            footer.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.dp(8) })
         }
-        root.addView(toolbar,LinearLayout.LayoutParams(-1,-2))
-        root.addView(androidx.core.widget.NestedScrollView(activity).apply {addView(body)},LinearLayout.LayoutParams(-1,0,1f))
-        root.addView(footer,LinearLayout.LayoutParams(-1,-2));setContentView(root)
-        window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     }
-    fun addAction(label:String,primary:Boolean=false,action:()->Unit):MaterialButton {
-        footer.visibility=View.VISIBLE
-        return activity.duckButton(label,primary,action).also {footer.addView(it,LinearLayout.LayoutParams(-1,-2).apply {topMargin=activity.dp(8)})}
-    }
-    override fun show() {super.show();window?.setLayout(-1,-1)}
 }
 
 internal class DuckField(context:Context,label:String,value:String="",numeric:Boolean=false,maxLength:Int?=null) {

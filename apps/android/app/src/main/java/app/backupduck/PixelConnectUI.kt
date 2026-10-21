@@ -18,7 +18,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDialog
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.R as M
 import com.google.android.material.button.MaterialButton
@@ -68,10 +67,28 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     /** What the host shows above every screen of the flow, such as first run's step marks. */
     private val decorate: (LinearLayout) -> Unit = {}) {
     private var work: Job? = null
+    private var connectedName: String? = null
+    private var connectedMac = false
+    private var macMessage: Int? = null
+    var waitingForScan = false
+        private set
     /** Which direction is showing, so a recreated screen can reopen it. */
     var surface = "pairing"
         private set
 
+    fun snapshot() = android.os.Bundle().apply {
+        putString("surface", surface); putString("name", connectedName); putBoolean("mac", connectedMac)
+        macMessage?.let { putInt("message", it) }; putBoolean("scan", waitingForScan)
+    }
+    fun restore(state: android.os.Bundle) {
+        waitingForScan = state.getBoolean("scan")
+        when (state.getString("surface")) {
+            "connected" -> showConnected(state.getString("name"), state.getBoolean("mac"))
+            "connect-mac" -> showMac(state.getInt("message").takeIf { it != 0 })
+            "connecting" -> showMac(R.string.connect_mac_failed)
+            else -> showCode()
+        }
+    }
     fun stop() { work?.cancel(); work = null; secureWindow.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
 
     private fun reset() {
@@ -149,7 +166,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     }
 
     fun showMac(message: Int?): Unit = with(activity) {
-        reset(); surface = "connect-mac"
+        reset(); surface = "connect-mac"; macMessage = message
         content.addView(ImageView(this).apply {
             setImageResource(R.drawable.ic_scan); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             imageTintList = ColorStateList.valueOf(themeColor(M.attr.colorOnSecondaryContainer))
@@ -163,11 +180,12 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
         val cameraOff = message == R.string.connect_camera_off
         if (cameraOff) primary(R.string.connect_open_settings) {
             runCatching { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))) }
-        } else primary(if (message == null) R.string.connect_scan else R.string.connect_scan_again) { scan(::scanned) }
+        } else primary(if (message == null) R.string.connect_scan else R.string.connect_scan_again) { waitingForScan = true; scan(::scanned) }
         secondary(R.string.connect_iphone_instead) { showCode() }
     }
 
-    private fun scanned(contents: String?): Unit = with(activity) {
+    fun scanned(contents: String?): Unit = with(activity) {
+        waitingForScan = false
         when (macScan(contents)) {
             MacScan.CANCELLED -> {
                 val denied = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -179,7 +197,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     }
 
     private fun connectMac(invite: String): Unit = with(activity) {
-        reset()
+        reset(); surface = "connecting"
         content.addView(CircularProgressIndicator(this).apply { isIndeterminate = true }, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(48) })
         line(getString(R.string.connect_mac_connecting), M.style.TextAppearance_Material3_BodyLarge, center = true).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -202,7 +220,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     }
 
     fun showConnected(name: String?, mac: Boolean): Unit = with(activity) {
-        reset()
+        reset(); surface = "connected"; connectedName = name; connectedMac = mac
         content.addView(ImageView(this).apply { setImageResource(R.drawable.duck_pairing); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
             LinearLayout.LayoutParams(dp(150), dp(150)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = token(R.dimen.duck_space_xx_large); bottomMargin = token(R.dimen.duck_space_medium) })
         heading(if (mac || name.isNullOrBlank()) getString(if (mac) R.string.connect_connected_mac else R.string.connect_connected_device) else getString(R.string.connect_connected, name))
@@ -240,39 +258,27 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     }
 }
 
-/** The connect flow as a full screen over the app, closed with its close button or Back. */
-internal class ConnectPage(private val activity: MainActivity, scan: ((String?) -> Unit) -> Unit, startReceiving: () -> Unit,
-    private val closed: () -> Unit) : AppCompatDialog(activity, R.style.DuckFullPage) {
-    init { activity.trackNotificationWindow(this) }
-    private val content = LinearLayout(activity).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(activity.token(R.dimen.duck_space_large), 0, activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))
-    }
+/** The shared connect flow pushed onto the host's normal page stack. */
+internal class ConnectPage(activity: MainActivity, scan: ((String?) -> Unit) -> Unit, startReceiving: () -> Unit,
+    initialState: android.os.Bundle, closed: () -> Unit) :
+    PageDestination(activity, "connect", activity.getString(R.string.design_connect_device)) {
     private val primary = activity.lookButton("", LookButton.FILLED, large = true) {}
     private val secondary = activity.lookButton("", LookButton.TEXT, large = true) {}
     val flow: ConnectFlow
-
     init {
-        val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(activity.getColor(R.color.duck_role_background)) }
-        root.addView(com.google.android.material.appbar.MaterialToolbar(activity).apply {
-            setNavigationIcon(R.drawable.ic_close)
-            setNavigationContentDescription(R.string.connect_close)
-            setNavigationOnClickListener { dismiss() }
-        }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(ScrollView(activity).apply { addView(content) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        val actions = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_x_small), activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))
-        }
-        actions.addView(primary, LinearLayout.LayoutParams(-1, -2)); actions.addView(secondary, LinearLayout.LayoutParams(-1, -2))
-        root.addView(actions)
-        setContentView(root)
-        flow = ConnectFlow(activity, content, primary, secondary, window!!, scan, startReceiving, R.string.connect_done, { dismiss() })
+        body.setPadding(activity.token(R.dimen.duck_space_large), 0,
+            activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))
+        footer.visibility = View.VISIBLE
+        footer.setPadding(activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_x_small),
+            activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))
+        footer.addView(primary, LinearLayout.LayoutParams(-1, -2))
+        footer.addView(secondary, LinearLayout.LayoutParams(-1, -2))
+        flow = ConnectFlow(activity, body, primary, secondary, activity.window, scan, startReceiving,
+            R.string.connect_done, { dismiss() })
+        state.putAll(initialState)
+        flow.restore(initialState)
+        saveState = { flow.snapshot() }
         setOnDismissListener { flow.stop(); closed() }
-    }
-
-    override fun show() {
-        super.show(); window?.setLayout(-1, -1)
     }
 }
 
@@ -281,10 +287,14 @@ internal class ConnectPage(private val activity: MainActivity, scan: ((String?) 
  * button, then the devices that send here and, apart, the ones the user stopped.
  */
 internal class DevicesPage(private val activity: MainActivity, private val connect: () -> Unit, private val changed: () -> Unit) {
-    private val page = LookPage(activity, activity.getString(R.string.pref_devices))
+    val page = LookPage(activity, activity.getString(R.string.pref_devices), "devices")
     private var load: Job? = null
 
-    fun show() { page.setOnDismissListener { load?.cancel() }; page.show(); reload() }
+    init {
+        page.setOnDismissListener { load?.cancel() }
+        page.resumed = { reload() }
+    }
+    fun show() { page.show() }
     val isShowing: Boolean get() = page.isShowing
     fun dismiss() = page.dismiss()
 

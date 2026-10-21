@@ -75,24 +75,32 @@ internal object OriginalArchive {
 
 internal fun MainActivity.showArchiveIntro(choose:()->Unit):DuckConfirmation = duckConfirm(
     R.string.originals_export,R.string.originals_export_note,R.string.originals_choose,notice=R.string.duck_export_no_delete) {dialog->dialog.dismiss();choose()}
-internal fun MainActivity.exportOriginals(uri:Uri) {
-    val page=DuckPage(this,getString(R.string.originals_export));page.show()
+internal fun MainActivity.exportOriginals(uri:Uri) { createArchiveExportPage(uri).show() }
+internal fun MainActivity.createArchiveExportPage(uri: Uri, interrupted: Boolean = false): DuckPage {
+    val page=DuckPage(this,getString(R.string.originals_export), "archive-export")
+    page.state.putString("uri", uri.toString())
+    if (interrupted) {
+        duckProblem(page.body, getString(R.string.originals_export_failed))
+        page.body.addView(duckButton(getString(R.string.duck_retry)) { page.dismiss(); exportOriginals(uri) })
+        return page
+    }
     var job:Job?=null
     page.setOnDismissListener {job?.cancel()}
     val status=duckNotice(page.body,getString(R.string.originals_exporting),getString(R.string.originals_export_wait))
     val cancel=page.addAction(getString(R.string.duck_task_cancel)) {
         job?.cancel();page.body.removeAllViews();duckNotice(page.body,getString(R.string.duck_export_cancelled))
     }
-    job=lifecycleScope.launch {
+    page.resumed = {
+      if (job == null) job=lifecycleScope.launch {
         try {
             val ticket=withContext(Dispatchers.IO) {ReceiverState.mediaOperations.withLock {
-                OriginalArchive.export(this@exportOriginals,uri) {verifying,_ ->withContext(Dispatchers.Main) {
+                OriginalArchive.export(this@createArchiveExportPage,uri) {verifying,_ ->withContext(Dispatchers.Main) {
                     val words=(status as android.widget.LinearLayout).getChildAt(1) as android.widget.LinearLayout
                     (words.getChildAt(0) as android.widget.TextView).setText(if(verifying) R.string.duck_export_verifying else R.string.originals_exporting)
                 }}
             }}
             cancel.visibility=android.view.View.GONE;page.setOnDismissListener(null);page.dismiss()
-            val result=DuckSheet(this@exportOriginals,getString(R.string.originals_verified))
+            val result=DuckSheet(this@createArchiveExportPage,getString(R.string.originals_verified))
             duckNotice(result.body,getString(R.string.originals_verified),getString(R.string.originals_reclaim_confirmation,ticket.ids.size))
             result.body.addView(duckButton(getString(R.string.originals_keep)) {result.dismiss()},android.widget.LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(16)})
             result.body.addView(duckButton(getString(R.string.originals_reclaim)) {
@@ -102,7 +110,7 @@ internal fun MainActivity.exportOriginals(uri:Uri) {
                     dialog.busy(true)
                     lifecycleScope.launch {
                         val reclaimed=withContext(Dispatchers.IO) {runCatching {ReceiverState.mediaOperations.withLock {
-                            OriginalArchive.verify(this@exportOriginals,ticket)
+                            OriginalArchive.verify(this@createArchiveExportPage,ticket)
                             NativeBridge.request(JSONObject().put("op","release_archived").put("root",ticket.receiverRoot).put("ids",JSONArray(ticket.ids)).put("verified",JSONArray(ticket.resources.toList())))
                         }}}
                         dialog.busy(false)
@@ -119,4 +127,6 @@ internal fun MainActivity.exportOriginals(uri:Uri) {
             else {duckProblem(page.body,getString(R.string.originals_export_failed));page.body.addView(duckButton(getString(R.string.duck_retry)) {page.dismiss();exportOriginals(uri)})}
         } finally {cancel.visibility=android.view.View.GONE}
     }
+    }
+    return page
 }

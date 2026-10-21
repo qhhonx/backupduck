@@ -22,7 +22,6 @@ import android.widget.TextView
 import androidx.annotation.DimenRes
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDialog
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.R as M
 import com.google.android.material.appbar.MaterialToolbar
@@ -352,33 +351,10 @@ internal fun Context.selectableBackground(): Drawable? = TypedValue().let { valu
  * A page one level down (I1 push): a top app bar with Back and the title,
  * then a scrolling body with the page margin, on the page background.
  */
-internal class LookPage(activity: AppCompatActivity, title: String) : AppCompatDialog(activity, R.style.DuckFullPage) {
-    init { activity.trackNotificationWindow(this) }
-    val body = LinearLayout(activity).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_x_small),
-            activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_large))
-    }
-    private val canvas = activity.getColor(R.color.duck_role_background)
-    /** Called when the page is in front again, for example after a system screen it opened. */
-    var resumed: (() -> Unit)? = null
-
+internal class LookPage(activity: BackupDuckActivity, title: String, route: String) : PageDestination(activity, route, title) {
     init {
-        val root = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
-        root.addView(MaterialToolbar(activity).apply {
-            this.title = title
-            setNavigationIcon(R.drawable.ic_back)
-            setNavigationContentDescription(R.string.nav_back); setNavigationOnClickListener { dismiss() }
-        }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(NestedScrollView(activity).apply { isFillViewport = true; addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        setContentView(root)
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) resumed?.invoke() }
-
-    override fun show() {
-        super.show()
-        window?.setLayout(-1, -1)
+        body.setPadding(activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_x_small),
+            activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_large))
     }
 }
 
