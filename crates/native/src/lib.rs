@@ -1122,13 +1122,21 @@ fn dispatch(command: Command) -> Result<Value> {
             }
             Ok(serde_json::to_value(peer)?)
         }
-        Command::HistoryStatus { receiver_id } => Ok(serde_json::to_value(
-            sender()?
-                .maintenance
-                .lock()
-                .map_err(lock)?
-                .history_status(&receiver_id)?,
-        )?),
+        Command::HistoryStatus { receiver_id } => {
+            let host = sender()?;
+            let sender = host.sender.lock().map_err(lock)?;
+            let maintenance = host.maintenance.lock().map_err(lock)?;
+            let mut value = serde_json::to_value(maintenance.history_status(&receiver_id)?)?;
+            if !value.is_null() {
+                let db = host
+                    .request_root
+                    .parent()
+                    .ok_or(Error::NotFound)?
+                    .join("maintenance.sqlite3");
+                value["published"] = sender.history_published(&db, &receiver_id)?.into();
+            }
+            Ok(value)
+        }
         Command::HistoryControl {
             receiver_id,
             action,

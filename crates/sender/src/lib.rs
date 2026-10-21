@@ -497,12 +497,13 @@ impl Sender {
         }
         result["total"] = count.into();
         result["confirmed_bytes"] = bytes.into();
-        let (published, publication_failed): (i64, i64) = self.conn.query_row(
-            "SELECT COALESCE(SUM(CASE WHEN p.state='complete' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' THEN 1 ELSE 0 END),0) FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.state='received' AND (?2 IS NULL OR COALESCE(json_extract(j.manifest,'$.metadata.source_ref'),'library')=?2)",
-            params![receiver, source], |r| Ok((r.get(0)?, r.get(1)?)),
+        let (published, publication_failed, conversion_required): (i64, i64, i64) = self.conn.query_row(
+            "SELECT COALESCE(SUM(CASE WHEN p.state='complete' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' AND p.error='conversion_required' THEN 1 ELSE 0 END),0) FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.state='received' AND (?2 IS NULL OR COALESCE(json_extract(j.manifest,'$.metadata.source_ref'),'library')=?2)",
+            params![receiver, source], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         ).map_err(db)?;
         result["published"] = published.into();
         result["publication_failed"] = publication_failed.into();
+        result["conversion_required"] = conversion_required.into();
         let waiting: Option<(String,i64)> = self.conn.query_row("SELECT error_code,next_attempt_at FROM jobs WHERE receiver_id=?1 AND state='waiting' AND (?2 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?2) ORDER BY next_attempt_at,id LIMIT 1",params![receiver,source],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(db)?;
         result["waiting_reason"] = waiting
             .as_ref()

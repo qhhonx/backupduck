@@ -60,6 +60,19 @@ fn preparations_are_exhaustive_paged_and_handoff_keeps_identity_without_changing
             .is_none(),
         "presentation identity is not part of the protocol asset hash"
     );
+    assert!(call(json!({"op":"history_status","receiver_id":"target"})).is_null());
+    let history = call(json!({"op":"history_control","receiver_id":"target","action":"start"}));
+    assert_eq!(
+        call(json!({"op":"history_status","receiver_id":"target"}))["published"],
+        0
+    );
+    call(
+        json!({"op":"history_batch","receiver_id":"target","run":history["run"],"sources":[["one","1"]],"finished":true}),
+    );
+    let history_status = || call(json!({"op":"history_status","receiver_id":"target"}));
+    assert_eq!(history_status()["checked"], 1);
+    assert_eq!(history_status()["state"], "scanned");
+    assert_eq!(history_status()["published"], 0);
     let overlap = feed("all");
     assert_eq!(
         overlap["summary"]["total"], 3,
@@ -74,20 +87,48 @@ fn preparations_are_exhaustive_paged_and_handoff_keeps_identity_without_changing
     // claiming a network receipt or real Android gallery publication.
     let db = rusqlite::Connection::open(root.join("sender.sqlite3")).unwrap();
     let id = job["id"].as_i64().unwrap();
-    db.execute("UPDATE jobs SET state='received' WHERE id=?1", [id])
-        .unwrap();
-    assert_eq!(feed("active")["items"].as_array().unwrap().len(), 2);
     db.execute(
-        "INSERT INTO processing_observations(job_id,state) VALUES(?1,'failed')",
+        "INSERT INTO processing_observations(job_id,state) VALUES(?1,'complete')",
         [id],
     )
     .unwrap();
+    assert_eq!(history_status()["published"], 0, "Receipt is also required");
+    db.execute("DELETE FROM processing_observations WHERE job_id=?1", [id])
+        .unwrap();
+    db.execute("UPDATE jobs SET state='received' WHERE id=?1", [id])
+        .unwrap();
+    assert_eq!(
+        history_status()["published"],
+        0,
+        "Receipt alone is insufficient"
+    );
+    assert_eq!(feed("active")["items"].as_array().unwrap().len(), 2);
+    db.execute(
+        "INSERT INTO processing_observations(job_id,state,error) VALUES(?1,'failed','conversion_required')",
+        [id],
+    )
+    .unwrap();
+    assert_eq!(history_status()["published"], 0);
+    assert_eq!(feed("all")["summary"]["conversion_required"], 1);
+    assert_eq!(
+        call(json!({"op":"sender_summary","receiver_id":"target"}))["conversion_required"],
+        1
+    );
+    assert_eq!(
+        call(json!({"op":"backup_summary","receiver_id":"target"}))["conversion_required"],
+        1
+    );
     assert_eq!(feed("attention")["items"].as_array().unwrap().len(), 2);
     db.execute(
         "UPDATE processing_observations SET state='complete' WHERE job_id=?1",
         [id],
     )
     .unwrap();
+    assert_eq!(history_status()["published"], 1);
+    assert_eq!(history_status()["pending"], 0);
+    assert_eq!(history_status()["checked"], 1);
+    assert_eq!(feed("all")["summary"]["conversion_required"], 0);
+    assert!(call(json!({"op":"history_status","receiver_id":"other"})).is_null());
     assert_eq!(feed("saved")["items"].as_array().unwrap().len(), 1);
     let summary = feed("all")["summary"].clone();
     assert_eq!(

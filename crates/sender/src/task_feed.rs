@@ -2,12 +2,7 @@
 //! remains a different record type, not a fake transfer with invented bytes.
 use super::*;
 impl Sender {
-    pub fn backup_tasks(
-        &self,
-        maintenance_db: &Path,
-        query: JobQuery<'_>,
-        source_filter: Option<&str>,
-    ) -> Result<serde_json::Value> {
+    fn attach_preparations(&self, maintenance_db: &Path) -> Result<()> {
         let attached: bool = self
             .conn
             .query_row(
@@ -24,6 +19,35 @@ impl Sender {
                 )
                 .map_err(db)?;
         }
+        Ok(())
+    }
+
+    /// Count confirmed gallery publications for the frozen historical members.
+    /// Enumeration, original preparation and receipt are not publication. The
+    /// latest attempt for the exact source revision owns the observed result.
+    pub fn history_published(&self, maintenance_db: &Path, receiver: &str) -> Result<i64> {
+        self.attach_preparations(maintenance_db)?;
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM preparations.history_members h
+             JOIN jobs j ON j.id=(SELECT MAX(id) FROM jobs WHERE receiver_id=h.receiver
+               AND json_extract(manifest,'$.source_id')=h.source
+               AND json_extract(manifest,'$.revision')=h.revision)
+             JOIN processing_observations p ON p.job_id=j.id
+             WHERE h.receiver=?1 AND j.state='received' AND p.state='complete'",
+                [receiver],
+                |r| r.get(0),
+            )
+            .map_err(db)
+    }
+
+    pub fn backup_tasks(
+        &self,
+        maintenance_db: &Path,
+        query: JobQuery<'_>,
+        source_filter: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        self.attach_preparations(maintenance_db)?;
         let sort = match query.sort {
             "added" => "added",
             "capture" => "captured",

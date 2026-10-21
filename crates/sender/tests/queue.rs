@@ -729,3 +729,143 @@ fn historical_publication_without_a_date_stays_unknown_when_observed_again() {
     s.observe_processing(j.id, &receipt, 3).unwrap();
     assert_eq!(s.publication_time(j.id).unwrap(), None);
 }
+
+#[test]
+fn historical_completion_requires_gallery_for_exact_members_and_latest_attempt() {
+    let t = Temp::new();
+    let mut sender = Sender::open(&t.0).unwrap();
+    let maintenance_path = t.0.join("maintenance.sqlite3");
+    let maintenance = rusqlite::Connection::open(&maintenance_path).unwrap();
+    maintenance.execute_batch("CREATE TABLE history_members(receiver TEXT,source TEXT,revision TEXT);
+        INSERT INTO history_members VALUES('receiver-1','native:42','1'),('receiver-1','missing','1'),('receiver-2','native:42','1');").unwrap();
+    let job = add(&mut sender);
+    let published = |sender: &Sender| {
+        sender
+            .history_published(&maintenance_path, "receiver-1")
+            .unwrap()
+    };
+    assert_eq!(
+        published(&sender),
+        0,
+        "Prepared originals are not saved photos"
+    );
+    let running = sender.claim("receiver-1", 0).unwrap().unwrap();
+    let mut receipt = status(&running, true);
+    sender.acknowledge(&running.attempt(), &receipt).unwrap();
+    assert_eq!(published(&sender), 0, "Receipt is not gallery publication");
+    receipt.processing = ProcessingState::Pending;
+    sender.observe_processing(job.id, &receipt, 0).unwrap();
+    assert_eq!(published(&sender), 0);
+    receipt.processing = ProcessingState::Failed;
+    receipt.processing_error = Some("conversion_required".into());
+    sender.observe_processing(job.id, &receipt, 1).unwrap();
+    assert_eq!(published(&sender), 0);
+    assert_eq!(
+        sender.summary("receiver-1").unwrap()["conversion_required"],
+        1
+    );
+    assert_eq!(
+        sender.summary("receiver-2").unwrap()["conversion_required"],
+        0
+    );
+    receipt.processing = ProcessingState::Complete;
+    receipt.processing_error = None;
+    sender.observe_processing(job.id, &receipt, 2).unwrap();
+    assert_eq!(published(&sender), 1, "Unknown members remain unfinished");
+    assert_eq!(
+        sender
+            .history_published(&maintenance_path, "receiver-2")
+            .unwrap(),
+        0
+    );
+    maintenance
+        .execute(
+            "UPDATE history_members SET revision='2' WHERE source='native:42'",
+            [],
+        )
+        .unwrap();
+    assert_eq!(
+        published(&sender),
+        0,
+        "A previous revision cannot finish this snapshot"
+    );
+    maintenance
+        .execute(
+            "UPDATE history_members SET revision='1' WHERE source='native:42'",
+            [],
+        )
+        .unwrap();
+    let mut repeated = asset();
+    repeated
+        .metadata
+        .insert("backupduck_rebackup_id".into(), "repeat-history".into());
+    sender
+        .enqueue(
+            "receiver-1",
+            repeated,
+            BTreeMap::from([(digest(b"0123456789"), "fixture".into())]),
+        )
+        .unwrap();
+    assert_eq!(
+        published(&sender),
+        0,
+        "A previous attempt cannot finish the latest repeat"
+    );
+}
+
+#[test]
+fn conversion_summary_counts_all_observed_failures_with_receiver_and_source_scope() {
+    let t = Temp::new();
+    let mut sender = Sender::open(&t.0).unwrap();
+    let mut observe = |receiver: &str, source: &str, id: usize, processing: ProcessingState| {
+        let mut a = asset();
+        a.source_id = format!("photo-{id}");
+        a.metadata.insert("source_ref".into(), source.into());
+        sender
+            .enqueue(
+                receiver,
+                a,
+                BTreeMap::from([(digest(b"0123456789"), "fixture".into())]),
+            )
+            .unwrap();
+        let running = sender.claim(receiver, 0).unwrap().unwrap();
+        let mut receipt = status(&running, true);
+        receipt.processing = processing;
+        receipt.processing_error = Some("conversion_required".into());
+        sender.acknowledge(&running.attempt(), &receipt).unwrap();
+    };
+    for id in 0..205 {
+        observe("receiver-1", "library", id, ProcessingState::Failed);
+    }
+    observe("receiver-1", "folder", 205, ProcessingState::Failed);
+    observe("receiver-2", "library", 206, ProcessingState::Failed);
+    // An old error string does not turn a nonfailed observation into a failure.
+    observe("receiver-1", "library", 207, ProcessingState::Pending);
+    observe("receiver-1", "library", 208, ProcessingState::Complete);
+    observe("receiver-1", "library", 209, ProcessingState::NotRequested);
+    let summary = sender.summary("receiver-1").unwrap();
+    assert_eq!(summary["total"], 209);
+    assert_eq!(summary["received"], 209);
+    assert_eq!(summary["published"], 1);
+    assert_eq!(summary["publication_failed"], 206);
+    assert_eq!(summary["conversion_required"], 206);
+    assert_eq!(
+        sender
+            .summary_source("receiver-1", Some("library"))
+            .unwrap()["conversion_required"],
+        205,
+        "The aggregate is not bounded by a displayed page of jobs"
+    );
+    assert_eq!(
+        sender.summary_source("receiver-1", Some("folder")).unwrap()["conversion_required"],
+        1
+    );
+    assert_eq!(
+        sender.summary("receiver-2").unwrap()["conversion_required"],
+        1
+    );
+    assert_eq!(sender.summary("unknown").unwrap()["conversion_required"], 0);
+    drop(sender);
+    let sender = Sender::open(&t.0).unwrap();
+    assert_eq!(sender.summary("receiver-1").unwrap(), summary);
+}

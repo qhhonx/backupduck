@@ -45,6 +45,7 @@ fn stage(root: &Path, phase: &str) {
         assert_eq!(prior["state"], "paused");
         assert_eq!(prior["checked"], 1000);
         assert_eq!(prior["pending"], 998);
+        assert_eq!(prior["published"], 0);
         call(json!({"op":"history_control","receiver_id":"receiver-a","action":"resume"}));
         // Replayed batches after process death must not duplicate pending work
         // or download existing queued revisions.
@@ -60,6 +61,7 @@ fn stage(root: &Path, phase: &str) {
         assert_eq!(done["state"], "scanned");
         assert_eq!(done["checked"], 10000);
         assert_eq!(done["pending"], 9998);
+        assert_eq!(done["published"], 0);
         assert_eq!(
             call(json!({"op":"pending_sources","receiver_id":"receiver-a"}))["count"],
             9999
