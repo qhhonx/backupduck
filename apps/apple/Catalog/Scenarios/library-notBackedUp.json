@@ -8,9 +8,13 @@
     "gap_every": 9,
     "needs_you": 4,
     "recent": 30,
-    "view": "notBackedUp"
+    "view": "notBackedUp",
+    "saving": 4,
+    "publication_failed": 1,
+    "unknown": 1
   },
   "expect": [
-    "Only photos the Pixel has not received: the newest few still on their way, and the gaps."
+    "Only photos the Pixel has not received: the newest few still on their way, and the gaps.",
+    "Tile marks: sending arrow up, received and saving clock, needs you filled triangle; saved and unknown have no mark. Receipt-based Not Backed Up still excludes received photos."
   ]
 }

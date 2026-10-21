@@ -15,6 +15,7 @@
   "id": "hub.history-saving",
   "title": "Earlier photos received, still saving",
   "expect": [
+    "One hub state card; earlier photos is a summary row below recent photos, never a second state card.",
     "Earlier photos says saved only when every frozen member has confirmed gallery publication.",
     "Preparing and received photos never show a green completion check."
   ]

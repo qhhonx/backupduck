@@ -62,15 +62,11 @@ struct LibraryGroup: Sendable {
   func state(_ states: [String: String]) -> String? {
     guard complete, !sources.isEmpty else { return nil }
     let known = sources.compactMap { states[$0.id] }
-    // An active or failed member takes precedence over a completed cover photo.
-    for state in ["failed", "preparing", "running", "waiting", "paused", "queued", "scheduled"] {
+    // Unfinished members take precedence; incomplete evidence never means saved.
+    for state in ["needs_you", "sending", "saving"] {
       if known.contains(state) { return state }
     }
-    if known.count == sources.count && known.allSatisfy({ $0 == "received" }) { return "received" }
-    if known.count == sources.count && known.allSatisfy({ ["received", "received_previous"].contains($0) }) {
-      return "received_previous"
-    }
-    return known.contains(where: { ["received", "received_previous"].contains($0) }) ? "partial" : nil
+    return known.count == sources.count && known.allSatisfy { $0 == "saved" } ? "saved" : nil
   }
 }
 
@@ -99,22 +95,63 @@ extension LibraryPresentationIndex {
   }
 }
 
-@MainActor func librarySourceStates(_ groups: [String: LibraryGroup], receiver: String?) async -> [String: String]? {
-  guard let receiver else { return [:] }
-  var sources: [String: String] = [:]
-  for group in groups.values {
-    for source in group.sources { sources[source.id] = source.revision }
+/// V5: publication and receipt are different facts; unknown carries no mark.
+func libraryTileSymbol(_ state: String?) -> String? {
+  switch state {
+  case "sending": "arrow.up"
+  case "saving": "clock"
+  case "needs_you": "exclamationmark.triangle.fill"
+  default: nil
   }
-  let entries = sources.map { [$0.key, $0.value] }
+}
+func libraryTileAccessibilityKey(_ state: String?) -> String {
+  switch state {
+  case "sending": "state_running"
+  case "saving": "state_publication_pending"
+  case "saved": "state_published"
+  case "needs_you": "state_failed"
+  default: ""
+  }
+}
+
+struct LibrarySourceObservation: Decodable {
+  let revision: String?
+  let preparing: Bool
+  let tile_state: String
+
+  func currentState(for source: LibrarySource) -> String? {
+    guard revision == source.revision || (revision == nil && preparing),
+      ["sending", "saving", "saved", "needs_you"].contains(tile_state) else { return nil }
+    return tile_state
+  }
+}
+
+/// Presentation-only snapshot; Rust still owns all state decisions and work.
+@MainActor final class LibrarySourceStateCache {
+  var receiver: String?
+  var revision = ""
+  var observations: [String: LibrarySourceObservation]?
+}
+
+@MainActor func librarySourceStates(_ groups: [String: LibraryGroup], receiver: String?,
+  cache: LibrarySourceStateCache, revision: String) async -> [String: String]? {
+  guard let receiver else { return [:] }
+  guard !Task.isCancelled else { return nil }
+  // Fetch once per observed core/preparation revision, not once per scroll window.
+  if cache.receiver != receiver || cache.revision != revision || cache.observations == nil {
+    guard let data = try? await Bridge.call(["op": "library_source_states", "receiver_id": receiver]),
+      let observations = try? JSONDecoder().decode([String: LibrarySourceObservation].self, from: data),
+      !Task.isCancelled else { return nil }
+    cache.receiver = receiver
+    cache.revision = revision
+    cache.observations = observations
+  }
+  guard let observations = cache.observations else { return nil }
   var states: [String: String] = [:]
-  for start in stride(from: 0, to: entries.count, by: 400) {
-    guard !Task.isCancelled else { return nil }
-    let batch = Array(entries[start..<min(start + 400, entries.count)])
-    if let data = try? await Bridge.call(["op": "source_states", "include_pending": true,
-      "include_previous_receipts": true, "receiver_id": receiver, "sources": batch]),
-      let result = try? JSONDecoder().decode([String: String].self, from: data) {
-      states.merge(result, uniquingKeysWith: { _, new in new })
-    } else { return nil }
+  for group in groups.values {
+    for source in group.sources {
+      states[source.id] = observations[source.id]?.currentState(for: source)
+    }
   }
   return states
 }

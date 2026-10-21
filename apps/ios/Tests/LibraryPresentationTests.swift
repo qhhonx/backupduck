@@ -253,7 +253,7 @@ final class LibraryPresentationTests: XCTestCase {
       add(attachment)
       cells[0].setGroup(count: nil, state: nil)
       XCTAssertNil(cells[0].accessibilityHint)
-      XCTAssertEqual(cells[0].accessibilityValue, NSLocalizedString("state_not_queued", comment: ""))
+      XCTAssertEqual(cells[0].accessibilityValue, "")
       panel.removeFromSuperview()
     }
   }
@@ -261,16 +261,33 @@ final class LibraryPresentationTests: XCTestCase {
   func testWholeBurstStatusCannotBeInferredFromCoverReceipt() {
     let group = LibraryGroup(sources: (0..<3).map { LibrarySource(id: "\($0)", revision: "1") }, complete: true)
     XCTAssertNil(group.state([:]))
-    XCTAssertEqual(group.state(["0": "received"]), "partial")
-    XCTAssertEqual(group.state(["0": "received", "1": "running"]), "running")
-    XCTAssertEqual(group.state(["0": "received", "1": "failed", "2": "running"]), "failed")
-    XCTAssertEqual(group.state(["0": "received", "1": "received", "2": "received"]), "received")
-    XCTAssertEqual(group.state(["0": "received", "1": "received_previous", "2": "received"]), "received_previous")
-    XCTAssertEqual(group.state(["0": "received_previous"]), "partial")
-    XCTAssertEqual(group.state(["0": "received", "1": "received", "2": "waiting"]), "waiting")
-    XCTAssertNil(LibraryGroup(sources: group.sources, complete: false).state(["0": "received", "1": "received", "2": "received"]))
+    XCTAssertNil(group.state(["0": "saved"]))
+    XCTAssertEqual(group.state(["0": "saved", "1": "sending"]), "sending")
+    XCTAssertEqual(group.state(["0": "saved", "1": "needs_you", "2": "sending"]), "needs_you")
+    XCTAssertEqual(group.state(["0": "saved", "1": "saving", "2": "saved"]), "saving")
+    XCTAssertEqual(group.state(["0": "saved", "1": "saved", "2": "saved"]), "saved")
+    XCTAssertNil(group.state(["0": "saved", "1": "unknown", "2": "saved"]))
+    XCTAssertNil(LibraryGroup(sources: group.sources, complete: false).state(["0": "sending"]))
     XCTAssertNil(LibraryGroup(sources: [], complete: true).state([:]))
   }
+
+  func testLibraryTileObservationsRequireCurrentRevisionOrPreparation() throws {
+    let source = LibrarySource(id: "photo", revision: "2")
+    let decode = { (json: String) throws in
+      try JSONDecoder().decode(LibrarySourceObservation.self, from: Data(json.utf8))
+    }
+    XCTAssertNil(try decode(#"{"revision":"1","preparing":false,"tile_state":"saved"}"#).currentState(for: source))
+    XCTAssertEqual(try decode(#"{"revision":"2","preparing":false,"tile_state":"saving"}"#).currentState(for: source), "saving")
+    XCTAssertEqual(try decode(#"{"revision":null,"preparing":true,"tile_state":"sending"}"#).currentState(for: source), "sending")
+    XCTAssertNil(try decode(#"{"revision":null,"preparing":false,"tile_state":"saved"}"#).currentState(for: source))
+    XCTAssertNil(try decode(#"{"revision":"2","preparing":false,"tile_state":"unknown"}"#).currentState(for: source))
+    XCTAssertEqual(libraryTileSymbol("sending"), "arrow.up")
+    XCTAssertEqual(libraryTileSymbol("saving"), "clock")
+    XCTAssertEqual(libraryTileSymbol("needs_you"), "exclamationmark.triangle.fill")
+    XCTAssertNil(libraryTileSymbol("saved"))
+    XCTAssertNil(libraryTileSymbol("unknown"))
+  }
+
 }
 
 

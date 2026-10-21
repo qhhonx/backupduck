@@ -8,9 +8,13 @@
     "gap_every": 9,
     "needs_you": 4,
     "recent": 30,
-    "view": "needsYou"
+    "view": "needsYou",
+    "saving": 4,
+    "publication_failed": 1,
+    "unknown": 1
   },
   "expect": [
-    "Only the photos that need the user: an incomplete send and unavailable originals."
+    "Only photos that need the user: failed sends, unavailable originals, or failed publication in Photos.",
+    "Tile marks: sending arrow up, received and saving clock, needs you filled triangle; saved and unknown have no mark. Receipt-based Not Backed Up still excludes received photos."
   ]
 }

@@ -41,7 +41,6 @@ struct IOSHub: View {
         VStack(alignment: .leading, spacing: DuckSpacing.large) {
           if model.pairing != nil { devicePill }
           stateCard
-          if connected, let history = model.historicalImport, history.state != "idle" { earlierCard(history) }
           if connected, !recentSources.isEmpty {
             VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
               DuckSectionHeader(title: "hub_recent", link: "hub_see_all") { open(.recent, fallback: "all") }
@@ -210,19 +209,23 @@ struct IOSHub: View {
 
   // MARK: - Earlier photos, evidence and summaries
 
-  private func earlierCard(_ history: HistoricalImportStatus) -> some View {
+  private func earlierSummary(_ history: HistoricalImportStatus) -> some View {
     let done = history.isSaved
     let paused = history.state == "paused"
-    return DuckStateCard(symbol: done ? "checkmark.circle.fill" : "clock.arrow.circlepath", tone: done ? DuckRole.saved : DuckRole.accent,
-      title: Text(done ? "hub_earlier_done" : "hub_earlier"),
-      note: done ? nil : Text(String(format: NSLocalizedString(history.published == nil ? "hub_earlier_preparation_progress" : "hub_earlier_progress", comment: ""),
-        history.checked.formatted(), (history.published.map { max(0, history.checked - $0) } ?? history.pending).formatted())), action: {
+    return HStack(spacing: 0) {
+      summaryRow(Text(done ? "hub_earlier_done" : "hub_earlier"), value: nil,
+        symbol: done ? "checkmark.circle.fill" : "clock.arrow.circlepath", tone: done ? DuckRole.saved : DuckRole.accent,
+        note: done ? nil : Text(String(format: NSLocalizedString(history.published == nil ? "hub_earlier_preparation_progress" : "hub_earlier_progress", comment: ""),
+          history.checked.formatted(), (history.published.map { max(0, history.checked - $0) } ?? history.pending).formatted()))) {
+        open(.recent, fallback: "saved")
+      }
       if !done && ["scanning", "paused"].contains(history.state) {
         DuckTintedButton(paused ? "hub_resume" : "hub_pause") {
           Task { await model.controlHistoricalImport(paused ? "resume" : "pause") }
-        }.disabled(model.changingHistory)
+        }.disabled(model.changingHistory).padding(.trailing, DuckSpacing.medium)
       }
-    })
+    }
+    .accessibilityIdentifier("hub.earlier_summary")
   }
 
   /// Photos the Pixel has received, newest change first.
@@ -234,6 +237,10 @@ struct IOSHub: View {
 
   private var summaryRows: some View {
     VStack(spacing: 0) {
+      if let history = model.historicalImport, history.state != "idle" {
+        earlierSummary(history)
+        Divider().padding(.leading, DuckSpacing.medium)
+      }
       let attention = model.summary.count(for: "attention")
       if attention > 0 {
         summaryRow(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
@@ -246,11 +253,14 @@ struct IOSHub: View {
   }
 
   /// V7: a 52 pt navigation row inside a grouped card.
-  private func summaryRow(_ title: Text, value: String?, symbol: String?, tone: Color?, action: @escaping () -> Void) -> some View {
+  private func summaryRow(_ title: Text, value: String?, symbol: String?, tone: Color?, note: Text? = nil, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       HStack(spacing: DuckSpacing.small) {
         if let symbol { Image(systemName: symbol).foregroundStyle(tone ?? .secondary).accessibilityHidden(true) }
-        title.foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
+          title.foregroundStyle(.primary)
+          if let note { note.font(.subheadline).foregroundStyle(.secondary) }
+        }
         Spacer()
         if let value { Text(verbatim: value).foregroundStyle(.secondary) }
         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)

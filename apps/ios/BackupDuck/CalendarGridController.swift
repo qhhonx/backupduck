@@ -491,41 +491,18 @@ final class CalendarTileDecorations: UIView {
   }
   private static let opacityProbe = UIImageView()
   func backupState(_ state: String?, visible: Bool) {
-    if DesignPreview.proposedDesign { return proposedBackupMark(state, visible: visible) }
-    let symbol: String?
-    switch state {
-    case "received", "received_previous": symbol = "checkmark.circle.fill"
-    case "failed": symbol = "exclamationmark.circle.fill"
-    case "preparing", "running", "queued", "waiting", "paused", "scheduled":
-      symbol = "ellipsis.circle"
-    case "partial": symbol = "circle.lefthalf.filled"
-    default: symbol = nil
-    }
-    stateMark.image = visible ? symbol.flatMap { Style.symbol($0) } : nil
-    stateMark.tintColor =
-      state == "failed"
-      ? Style.failure
-      : state == "received" || state == "received_previous" ? Style.saved : .white
-    setNeedsLayout()
-  }
-  /// Proposed marks (design/records.md, design/library.md): nothing once the
-  /// Pixel has the photo, an arrow while it is on its way, an exclamation when
-  /// it needs the user. Photos outside the backup carry no mark; the library's
-  /// Not backed up view finds them. The window lookup does not yet say whether
-  /// a received photo is still being saved to the Pixel's Photos, so there is
-  /// no saving mark on tiles.
-  private func proposedBackupMark(_ state: String?, visible: Bool) {
-    let symbol: String?
-    switch state {
-    case "failed": symbol = "exclamationmark.triangle.fill"
-    case "preparing", "running", "queued", "waiting", "paused", "scheduled", "partial": symbol = "arrow.up"
-    default: symbol = nil
-    }
+    let symbol = libraryTileSymbol(state)
     stateMark.image = visible ? symbol.flatMap {
       UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold))
     } : nil
-    stateMark.tintColor = .white  // design-exception: tile marks are white glyphs with a shadow (library.md)
+    stateMark.tintColor = .white  // design-exception: V5 white media mark with shadow
     stateMark.contentMode = .center
+    stateMark.backgroundColor = .clear
+    stateMark.clipsToBounds = false
+    stateMark.layer.shadowColor = UIColor.black.cgColor  // design-exception: V5 legibility shadow on photos
+    stateMark.layer.shadowOpacity = 0.45
+    stateMark.layer.shadowRadius = 2
+    stateMark.layer.shadowOffset = CGSize(width: 0, height: 0.5)
     setNeedsLayout()
   }
 }
@@ -654,6 +631,7 @@ final class CalendarGridCell: UICollectionViewCell {
   }
   func backupState(_ state: String?, visible: Bool) {
     decorations.backupState(state, visible: visible)
+    accessibilityHint = visible && state != nil ? NSLocalizedString(libraryTileAccessibilityKey(state), comment: "") : nil
   }
   override func prepareForReuse() {
     super.prepareForReuse()
@@ -1004,57 +982,52 @@ final class CalendarSelectionControls: UIView {
       x: (bounds.width - width) / 2, y: 0, width: width, height: bounds.height)
   }
 }
-/// Follows native tab-bar minimization through the floating visual provider's
-/// `currentMorphTarget` (0 expanded, 2 minimized), verified in a standalone
-/// probe on iOS 26 and 27. UIKit reports it one or two frames before the morph
-/// begins. Every access is guarded: the ivar must hold an object that answers
-/// the getter, otherwise `available` stays false and the controller uses the
-/// pre-26 browsing chrome. Restricted selectors such as `_isMinimized` are not used.
+/// Observe public view geometry without accessing UIKit implementation objects.
+/// Unlike a predictive morph callback, geometry is available only after layout.
 final class CalendarNativeBarObserver: NSObject {
   weak var owner: CalendarGridController?
+  private weak var bar: UITabBar?
+  private var clock: CADisplayLink?
   private(set) var available = false
   private(set) var minimized = false
-  private var provider: NSObject?
-  private static let key = "currentMorphTarget"
-  private static let context = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
   init(owner: CalendarGridController) { self.owner = owner }
   @discardableResult func start(_ bar: UITabBar) -> Bool {
-    if let provider, provider === Self.provider(of: bar) { return true }
+    if self.bar === bar, clock != nil { return true }
     stop()
-    guard let object = Self.provider(of: bar) else { available = false; return false }
-    provider = object
+    self.bar = bar
     available = true
-    object.addObserver(self, forKeyPath: Self.key, options: [.initial, .new], context: Self.context)
+    let link = CADisplayLink(target: self, selector: #selector(sample))
+    link.add(to: .main, forMode: .common)
+    clock = link
+    sample()
     return true
   }
   func stop() {
-    provider?.removeObserver(self, forKeyPath: Self.key, context: Self.context)
-    provider = nil
+    clock?.invalidate()
+    clock = nil
+    bar = nil
+    available = false
     minimized = false
   }
-  private static func provider(of bar: UITabBar) -> NSObject? {
-    guard let ivar = class_getInstanceVariable(type(of: bar), "_visualProvider"),
-      ivar_getTypeEncoding(ivar)?.pointee == CChar(UInt8(ascii: "@")),
-      let object = object_getIvar(bar, ivar) as? NSObject,
-      object.responds(to: NSSelectorFromString(key))
-    else { return nil }
-    return object
+  /// The same public geometry drives detection and period placement. No class
+  /// names, selectors, ivars or keys from UIKit's implementation are consulted.
+  static func compactFrame(in view: UIView, relativeTo host: UIView) -> CGRect? {
+    guard !view.isHidden, view.alpha > 0.01 else { return nil }
+    if view is UIControl, (36...64).contains(view.bounds.width),
+      (36...64).contains(view.bounds.height), abs(view.bounds.width - view.bounds.height) < 10 {
+      return view.convert(view.bounds, to: host)
+    }
+    for child in view.subviews {
+      if let frame = compactFrame(in: child, relativeTo: host) { return frame }
+    }
+    return nil
   }
-  override func observeValue(
-    forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?,
-    context: UnsafeMutableRawPointer?
-  ) {
-    guard context == Self.context else {
-      super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
-      return
-    }
-    let next = (change?[.newKey] as? NSNumber)?.intValue == 2
-    let deliver = { [weak self] in
-      guard let self, self.provider != nil, self.minimized != next else { return }
-      self.minimized = next
-      self.owner?.nativeBarMorphed(minimized: next)
-    }
-    if Thread.isMainThread { deliver() } else { DispatchQueue.main.async(execute: deliver) }
+  @objc private func sample() {
+    guard let bar, !bar.isHidden, let host = bar.superview else { return }
+    let next = Self.compactFrame(in: bar, relativeTo: host) != nil
+    guard next != minimized else { return }
+    minimized = next
+    owner?.nativeBarMorphed(minimized: next)
   }
 }
 
@@ -1723,7 +1696,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var chrome: Chrome = .navigation, chromeMotion: UIViewPropertyAnimator?,
     expandedNavigation = false
   var filterItem: UIBarButtonItem!, selectItem: UIBarButtonItem!, closeItem: UIBarButtonItem!,
-    backupItem: UIBarButtonItem!
+    backupItem: UIBarButtonItem!, moreItem: UIBarButtonItem!
   var headerSelecting: Bool?
   weak var tabOwner: UITabBarController?
   weak var contentOwner: UIViewController?
@@ -1825,6 +1798,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       action: nil)
     filterItem.accessibilityIdentifier = "library.filter"
     filterItem.accessibilityLabel = NSLocalizedString("media_type", comment: "")
+    moreItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: nil)
+    moreItem.accessibilityIdentifier = "library.more"
+    moreItem.accessibilityLabel = NSLocalizedString("folder_more", comment: "")
     refreshMenu()
     updateHeader(animated: false)
     let appearance = UINavigationBarAppearance()
@@ -1860,8 +1836,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     selectedButton.addAction(
       UIAction { [weak self] _ in self?.reviewSelection() }, for: .touchUpInside)
     selectedButton.accessibilityIdentifier = "calendar.review_selected"
-    // A native item, so it has the same height as Select and Close and the bar
-    // morphs it in and out with the system animation.
+    // Retain the backup action's enabled state for the selection overflow menu.
     backupItem = UIBarButtonItem(
       title: NSLocalizedString("calendar_backup_short", comment: ""), style: .done, target: self, action: #selector(backUpSelected))
     if #available(iOS 26.0, *) { backupItem.style = .prominent }
@@ -1876,6 +1851,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     } else {
       normal = .bordered()
     }
+    selectedButton.configuration = normal
     normal.baseBackgroundColor = UIColor(DuckColors.surface)
     normal.cornerStyle = .capsule
     normal.baseForegroundColor = UIColor(DuckColors.text)
@@ -1885,7 +1861,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         for: .systemFont(ofSize: 17, weight: .semibold), maximumPointSize: 22)
       return result
     }
-    selectedButton.configuration = normal
     libraryButton.configuration = normal
     browsingControls.isHidden = true
     selectionControls.isHidden = true
@@ -1897,6 +1872,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   }
   func refreshMenu() {
     filterItem?.menu = displayMenu()
+    let backup = UIAction(title: NSLocalizedString("calendar_backup_action", comment: ""),
+      image: UIImage(systemName: "arrow.up"), attributes: canBackup && !selected.isEmpty ? [] : .disabled) { [weak self] _ in
+      self?.backUpSelected()
+    }
+    moreItem?.menu = UIMenu(children: [backup, displayMenu()])
   }
   func updateHeader(animated: Bool) {
     guard headerSelecting != selecting else { return }
@@ -1912,11 +1892,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     // The same item objects persist across the switch and the change is
     // animated, so the bar uses the system transition (a glass morph on iOS 26)
     // instead of replacing its groups at once.
-    var items: [UIBarButtonItem] = selecting ? [closeItem, backupItem, filterItem] : [selectItem, filterItem]
-    if #available(iOS 26.0, *) {
-      // A zero fixed space keeps each control in its own glass capsule.
-      items = Array(items.flatMap { [$0, UIBarButtonItem.fixedSpace(0)] }.dropLast())
-    }
+    let items: [UIBarButtonItem] = selecting ? [closeItem, moreItem] : [selectItem, filterItem]
     navigationItem.setRightBarButtonItems(items, animated: animated && !UIAccessibility.isReduceMotionEnabled)
   }
   override func viewDidAppear(_ animated: Bool) {
@@ -1929,7 +1905,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     contentOwner = tabBarController?.selectedViewController
     if #available(iOS 26.0, *), let tabs = tabBarController {
       if nativeBarObserver == nil { nativeBarObserver = CalendarNativeBarObserver(owner: self) }
-      // Without the morph signal, the pre-26 browsing chrome replaces minimization.
+      // Follow the native bar through public laid-out geometry.
       let native = nativeBarObserver?.start(tabs.tabBar) == true
       tabs.tabBarMinimizeBehavior = native ? .onScrollUp : .never
       contentOwner?.setContentScrollView(grid, for: .all)
@@ -3742,7 +3718,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       selected.isEmpty ? NSLocalizedString("calendar_select_items", comment: "") : String(format: NSLocalizedString("calendar_show_selected", comment: ""), selected.count),
       for: .normal)
     selectedButton.isEnabled = !selected.isEmpty
-    backupItem.isEnabled = canBackup && !selected.isEmpty
+    let backupEnabled = canBackup && !selected.isEmpty
+    if backupItem.isEnabled != backupEnabled {
+      backupItem.isEnabled = backupEnabled
+      refreshMenu()
+    }
     selectionControls.setNeedsLayout()
     updateHeader(animated: true)
     let next: Chrome =
@@ -3783,14 +3763,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if !decelerate { warmAdjacentScenes() }
   }
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { warmAdjacentScenes() }
-  /// Native minimization drives period controls only while the KVO observer
-  /// is available; otherwise the pre-26 browsing chrome owns them.
+  /// Native minimization uses public layout observation on supported systems.
   var usesNativeMinimization: Bool {
     if #available(iOS 26.0, *) { return nativeBarObserver?.available == true }
     return false
   }
   /// Time the bar last left its minimized state, so a compact-button tap
-  /// delivered after the KVO event still counts as an expansion.
+  /// delivered after the layout change still counts as an expansion.
   var nativeBarExpandedAt: CFTimeInterval = 0
   var nativeBarRecentlyCompact: Bool {
     nativeBarCompact || CACurrentMediaTime() - nativeBarExpandedAt < 0.35
@@ -3808,8 +3787,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard #available(iOS 26.0, *), usesNativeMinimization, let tabs = tabBarController else { return }
     setNativePeriod(nativeBarCompact && active && !selecting && !tabs.isTabBarHidden)
   }
-  /// Entry waits for the native platter to form its circle (about 130 ms after
-  /// the morph event), then materializes the glass and rises 14 pt on a 300 ms
+  /// Preserve the existing 130 ms entry delay after compact geometry appears,
+  /// then materialize the glass and rise 14 pt on a 300 ms
   /// spring without bounce. Exit dematerializes in place within 80 ms, before the
   /// expanding platter reaches the surface. A visual-effect change ignores
   /// animation delays, so entry waits explicitly and never begins from the
@@ -3876,23 +3855,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
   }
   /// The surface centers between the compact native button and its mirror
-  /// position. The button's model frame is already final when the morph starts.
+  /// position, using the same public laid-out geometry as the observer.
   func layoutNativePeriod(_ tabs: UITabBarController) {
     let bar = tabs.tabBar
-    func compactButton(_ view: UIView, visible: Bool) -> CGRect? {
-      let shown = visible && !view.isHidden && view.alpha > 0.01
-      if shown, view is UIControl, (36...64).contains(view.bounds.width),
-        (36...64).contains(view.bounds.height), abs(view.bounds.width - view.bounds.height) < 10
-      {
-        return view.convert(view.bounds, to: tabs.view)
-      }
-      for child in view.subviews {
-        if let rect = compactButton(child, visible: shown) { return rect }
-      }
-      return nil
-    }
     let frame = bar.convert(bar.bounds, to: tabs.view)
-    let icon = compactButton(bar, visible: true) ?? CGRect(x: 28, y: frame.minY + 7, width: 48, height: 48)
+    let icon = CalendarNativeBarObserver.compactFrame(in: bar, relativeTo: tabs.view) ?? CGRect(x: 28, y: frame.minY + 7, width: 48, height: 48)
     let width = tabs.view.bounds.width
     let reserve = min(icon.maxX, width - icon.minX) + 12
     periodSurface.bounds = CGRect(x: 0, y: 0, width: max(180, width - 2 * reserve), height: 48)

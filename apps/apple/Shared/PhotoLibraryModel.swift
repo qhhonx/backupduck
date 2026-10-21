@@ -109,6 +109,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   private var presentation = LibraryPresentationIndex()
   private var loadingPage = false
   private var cancelMetadata: (() -> Void)?
+  let tileStates = LibrarySourceStateCache()
   private var groups: [String: LibraryGroup] = [:]
   private var groupOrder: [String] = []
   private var requestGeneration = 0

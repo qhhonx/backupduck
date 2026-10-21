@@ -1047,7 +1047,8 @@ struct MacLibraryGrid: NSViewRepresentable {
         guard !dense else { return }
         let groups = await parent.library.visibleGroups(visible)
         guard !Task.isCancelled, generation == self.parent.library.generation else { return }
-        guard let states = await librarySourceStates(groups, receiver: receiverID) else { return }
+        guard let states = await librarySourceStates(groups, receiver: receiverID,
+          cache: parent.library.tileStates, revision: "\(generation)|\(revision)|\(preparation)") else { return }
         guard !Task.isCancelled, generation == self.parent.library.generation,
           receiverID == self.parent.receiverID, revision == self.parent.queueRevision,
           preparation == self.parent.preparationRevision else { return }
@@ -1519,22 +1520,14 @@ private final class MacMarqueeView: NSView {
   }
   func setState(_ state: String?) {
     statusState = state
-    status.symbol = state == nil ? nil : taskSymbol(state)
-    status.tint = state == "failed" ? .systemOrange : .white
-    if DesignPreview.proposedDesign {
-      // Proposed marks (design/library.md): none once the Pixel has the photo,
-      // an arrow while it is on its way, an exclamation when it needs the user.
-      switch state {
-      // design-exception: tile marks are white glyphs with a shadow on photos (visual-language.md)
-      case "saving": status.symbol = "clock"; status.tint = .white  // design-exception: tile mark on a photo
-      case "failed": status.symbol = "exclamationmark.triangle.fill"; status.tint = .white  // design-exception: tile mark on a photo
-      case "preparing", "running", "queued", "waiting", "paused", "scheduled", "partial":
-        status.symbol = "arrow.up"; status.tint = .white  // design-exception: tile mark on a photo
-      default: status.symbol = nil
-      }
-    }
-    let detail = groupDescription + NSLocalizedString(
-      state == "received" ? "state_received_detail" : state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
+    status.symbol = libraryTileSymbol(state)
+    status.tint = .white  // design-exception: V5 white media mark with shadow
+    status.backgroundColor = nil
+    status.shadowColor = NSColor.black.cgColor  // design-exception: V5 legibility shadow on photos
+    status.shadowOpacity = 0.45
+    status.shadowRadius = 2
+    status.shadowOffset = CGSize(width: 0, height: -0.5)
+    let detail = groupDescription + NSLocalizedString(libraryTileAccessibilityKey(state), comment: "")
     view.setAccessibilityValue(detail)
     status.isHidden = (selectionVisible && isSelected) || state == nil || status.symbol == nil
     statusTip = detail

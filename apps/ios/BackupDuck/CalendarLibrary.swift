@@ -399,10 +399,15 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       let photos = pairs.map { $0.1 }
       let library = parent.library
       let version = epoch
+      let queueRevision = parent.model.queueRevision
+      let preparation = "\(parent.model.pendingImports)|\(parent.model.importingSourceID ?? "")"
       refresh.schedule { [weak self, weak grid] in
         let groups = await library.visibleGroups(photos)
-        guard let states = await librarySourceStates(groups, receiver: receiver), let self,
-          self.epoch == version, let grid
+        guard let states = await librarySourceStates(groups, receiver: receiver,
+          cache: library.tileStates, revision: "\(library.generation)|\(queueRevision)|\(preparation)"), let self,
+          self.epoch == version, receiver == self.parent.model.pairing?.receiverID,
+          queueRevision == self.parent.model.queueRevision,
+          preparation == "\(self.parent.model.pendingImports)|\(self.parent.model.importingSourceID ?? "")", let grid
         else { return }
         for (id, photo) in pairs {
           if let group = groups[photo.localIdentifier] {

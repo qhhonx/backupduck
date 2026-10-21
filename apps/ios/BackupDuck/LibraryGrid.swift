@@ -533,7 +533,8 @@ struct IOSLibraryGrid: UIViewRepresentable {
         let groups = await parent.library.visibleGroups(visible)
         guard !Task.isCancelled, generation == self.parent.library.generation else { return }
         guard !Set(paths).isDisjoint(with: collection.indexPathsForVisibleItems) else { return }
-        guard let states = await librarySourceStates(groups, receiver: receiverID) else { return }
+        guard let states = await librarySourceStates(groups, receiver: receiverID,
+          cache: parent.library.tileStates, revision: "\(generation)|\(revision)|\(preparation)") else { return }
         guard !Task.isCancelled, generation == self.parent.library.generation,
           receiverID == self.parent.receiverID, revision == self.parent.queueRevision,
           preparation == self.parent.preparationRevision else { return }
@@ -705,11 +706,16 @@ struct IOSLibraryGrid: UIViewRepresentable {
     setState(state)
   }
   func setState(_ state: String?) {
-    status.image = state.map { UIImage(systemName: taskSymbol($0)) } ?? nil
+    status.image = libraryTileSymbol(state).flatMap { UIImage(systemName: $0) }
     status.isHidden = showsSelection || status.image == nil
-    status.tintColor = state == "failed" ? UIColor(DuckColors.failure) : .white
-    accessibilityValue = groupDescription + NSLocalizedString(
-      state == "received" ? "state_received_detail" : state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
+    status.tintColor = .white  // design-exception: V5 white media mark with shadow
+    status.backgroundColor = .clear
+    status.clipsToBounds = false
+    status.layer.shadowColor = UIColor.black.cgColor  // design-exception: V5 legibility shadow on photos
+    status.layer.shadowOpacity = 0.45
+    status.layer.shadowRadius = 2
+    status.layer.shadowOffset = CGSize(width: 0, height: 0.5)
+    accessibilityValue = groupDescription + NSLocalizedString(libraryTileAccessibilityKey(state), comment: "")
   }
   func cancel() {
     pipeline?.cancel(request)
@@ -838,7 +844,7 @@ private struct IOSLegacyLibraryPage: View {
               library.selection.insert(id); selecting = true
             }).frame(maxWidth: 640).duckLibraryViewport()
         }
-      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).symbolVariant(.none)
+      }.background(DuckColors.canvas).symbolVariant(.none)
       .navigationTitle(selecting ? String(format: NSLocalizedString("library_selection_title",comment: ""),library.selection.count) : NSLocalizedString("nav_library",comment: ""))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -849,7 +855,6 @@ private struct IOSLegacyLibraryPage: View {
           if selecting { selectionActions } else { typeMenu; viewMenu }
         }
       }
-      .toolbarBackground(DuckColors.surface,for: .navigationBar).toolbarBackground(.visible,for: .navigationBar)
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
@@ -870,18 +875,18 @@ private struct IOSLegacyLibraryPage: View {
       Text("nav_library").font(.headline).accessibilityIdentifier("page.header.title")
       if library.authorized {
         Text(String(format: NSLocalizedString("library_count_compact", comment: ""), library.total.formatted()))
-          .font(.caption).foregroundStyle(DuckColors.textSecondary).accessibilityIdentifier("library.count")
+          .font(.caption).accessibilityIdentifier("library.count")
       }
     }
   }
   private var selectionActions: some View {
     HStack(spacing: 8) {
       Button("settings_done") { selecting = false; library.selection.removeAll() }
-        .buttonStyle(.plain).foregroundStyle(DuckColors.action).frame(minWidth: 44, minHeight: 44)
+        .buttonStyle(.plain).frame(minWidth: 44, minHeight: 44)
         .accessibilityIdentifier("library.select_mode")
       Button("library_backup_action", action: showBackupConfirmation)
         .font(.body.weight(.semibold)).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.small)
-        .foregroundStyle(DuckColors.canvas).frame(minWidth: 60, minHeight: 44)
+        .frame(minWidth: 60, minHeight: 44)
         .disabled(library.selection.isEmpty || model.pairing == nil || model.importing)
         .accessibilityIdentifier("library.backup_selected_footer")
         .accessibilityValue(Text(String(format: NSLocalizedString("library_selected_count", comment: ""), library.selection.count)))
@@ -899,7 +904,7 @@ private struct IOSLegacyLibraryPage: View {
           .overlay(alignment: .topTrailing) {
             if library.filter != .all { Circle().fill(DuckColors.action).frame(width: 6,height: 6).padding(7) }
           }
-      }.buttonStyle(.plain).foregroundStyle(DuckColors.action).accessibilityIdentifier("library.filter")
+      }.buttonStyle(.plain).accessibilityIdentifier("library.filter")
         .accessibilityLabel(Text("media_type"))
         .accessibilityValue(Text(LocalizedStringKey(library.filter.title)))
     }
@@ -911,7 +916,7 @@ private struct IOSLegacyLibraryPage: View {
       }.pickerStyle(.inline)
     } label: {
       HStack(spacing: 4) { Text(LocalizedStringKey(library.viewMode.title)); Image(systemName: "chevron.down").font(.caption2) }.font(.callout).frame(minHeight: 44)
-    }.buttonStyle(.plain).foregroundStyle(DuckColors.action)
+    }.buttonStyle(.plain)
       .accessibilityLabel(Text("library_view_mode"))
       .accessibilityValue(Text(LocalizedStringKey(library.viewMode.title)))
       .accessibilityIdentifier("library.view_mode")

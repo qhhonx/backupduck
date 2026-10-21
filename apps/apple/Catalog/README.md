@@ -120,9 +120,10 @@ it needs no Sparkle framework. Its update settings show the store note.
 - **Library** (iPhone only) has `library.*` scenarios and `hub.library`. They
   set `library` (and optionally `view`: `notBackedUp`, `needsYou`, `recent`),
   which reads the Simulator's photo library and answers `received_sources`,
-  `source_states`, `backup_tasks`, `backup_summary` and `jobs` from its real
+  `source_states`, `library_source_states`, `backup_tasks`, `backup_summary` and `jobs` from its real
   photo identifiers (`LibraryScenario.swift`): the newest few still arriving,
-  most older ones received, a few needing the user, 30 received in the last
+  most older ones received (including pending, failed and unknown publication),
+  a few needing the user, 30 received in the last
   week. Run them on a Simulator that holds only a synthetic library: create one,
   add generated images with `xcrun simctl addmedia`, and grant photo access with
   `xcrun simctl privacy <device> grant photos app.backupduck.catalog`. The Mac

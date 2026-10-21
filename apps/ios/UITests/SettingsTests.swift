@@ -241,15 +241,18 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(grid.waitForExistence(timeout: 10))
     app.buttons["library.select_mode"].tap()
     recordWindow(app,"Selection toolbar — unavailable backup action")
-    let backup = app.buttons.matching(identifier: "calendar.backup_selected").firstMatch
+    let more = app.buttons["library.more"]
+    XCTAssertTrue(more.waitForExistence(timeout: 5)); more.tap()
+    let backup = app.buttons.matching(NSPredicate(format: "label IN %@", ["Back up selected", "备份所选"])).firstMatch
     XCTAssertTrue(backup.waitForExistence(timeout: 5)); XCTAssertFalse(backup.isEnabled)
     let count = app.buttons["calendar.review_selected"].label
     let anchor = grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.minY > 180 }
     let anchorFrame = anchor?.frame
     backup.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).tap()
+    if backup.exists { more.tap() }
     if let anchor, let anchorFrame { XCTAssertEqual(anchor.frame,anchorFrame,"An unavailable action must not trigger native scroll-to-top") }
     let belowButton = app.coordinate(withNormalizedOffset: .zero).withOffset(
-      CGVector(dx: backup.frame.midX,dy: backup.frame.maxY + 8))
+      CGVector(dx: more.frame.midX,dy: more.frame.maxY + 8))
     belowButton.tap()
     if let anchor, let anchorFrame { XCTAssertEqual(anchor.frame,anchorFrame,"Header taps must not move the photo grid") }
     XCTAssertEqual(app.buttons["calendar.review_selected"].label,count)
@@ -397,15 +400,15 @@ final class SettingsTests: XCTestCase {
     XCTAssertEqual(review.label, "Select Items")
     XCTAssertFalse(review.isEnabled)
     XCTAssertLessThan(review.frame.width, grid.frame.width * 0.75)
-    let upload = app.buttons["calendar.backup_selected"]
+    let upload = app.buttons["library.more"]
     XCTAssertTrue(upload.exists)
-    XCTAssertLessThan(upload.frame.midY, 220, "Backup belongs beside the filter in the native header")
+    XCTAssertLessThan(upload.frame.midY, 220, "Selection actions belong in the native header menu")
     let photo = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable && $0.frame.midY > 260 && $0.frame.midY < 600 })
     photo.tap()
     XCTAssertTrue(review.isEnabled)
     XCTAssertTrue(review.label.contains("1"))
     XCTAssertLessThan(review.frame.width, grid.frame.width * 0.85)
-    recordWindow(app, "Compact selected review with top backup action")
+    recordWindow(app, "Compact selected review with native actions menu")
   }
 
   @MainActor func testLibraryNativeChromeAndSelectionGroups() throws {
@@ -1605,8 +1608,8 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(app.buttons["library.select_mode"].waitForExistence(timeout: 5))
     XCTAssertGreaterThanOrEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 4)
     recordWindow(app,"Selection toolbar — unavailable backup action")
-    let backup = app.buttons.matching(identifier: "calendar.backup_selected").firstMatch
-    XCTAssertTrue(backup.exists);XCTAssertLessThan(backup.frame.maxY,220,"Backup stays beside the filter in the native header")
+    let more = app.buttons["library.more"]
+    XCTAssertTrue(more.exists);XCTAssertLessThan(more.frame.maxY,220,"Selection actions stay in the native header menu")
     let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Native continuous selection toolbar"; image.lifetime = .keepAlways; add(image)
     first.press(forDuration: 0.5, thenDragTo: fourth, withVelocity: .slow, thenHoldForDuration: 0)
     XCTAssertEqual(grid.cells.matching(NSPredicate(format: "selected == true")).count, 0, "Dragging from an already selected item removes that range")
@@ -1633,7 +1636,7 @@ final class SettingsTests: XCTestCase {
     }
     let mode = app.buttons["library.select_mode"]
     XCTAssertTrue(mode.isHittable,"Browsing offers an explicit Select action")
-    XCTAssertFalse(app.buttons["calendar.backup_selected"].exists, "Browsing must not show the selected-upload action")
+    XCTAssertFalse(app.buttons["library.more"].exists, "Browsing must not show the selected-upload action")
     let first = try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable })
     let photoID = first.identifier, position = first.frame.minY
     let browseImage = XCTAttachment(screenshot: app.screenshot())
@@ -1653,7 +1656,7 @@ final class SettingsTests: XCTestCase {
     try XCTUnwrap(grid.cells.allElementsBoundByIndex.first { $0.isHittable }).press(forDuration: 0.45)
     XCTAssertTrue(mode.waitForExistence(timeout: 10)); XCTAssertEqual(mode.label, "Done")
     XCTAssertFalse(app.buttons["library.preview.close"].exists, "Long press selects instead of also opening preview")
-    let upload = app.buttons["calendar.backup_selected"]
+    let upload = app.buttons["library.more"]
     XCTAssertTrue(upload.waitForExistence(timeout: 10))
     for _ in 0..<6 {
       grid.swipeUp()
@@ -1663,7 +1666,7 @@ final class SettingsTests: XCTestCase {
     let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Library selection — fixed footer after continuous scrolling"
     screenshot.lifetime = .keepAlways; add(screenshot)
     mode.tap();XCTAssertEqual(mode.label,"Select")
-    XCTAssertFalse(app.buttons["calendar.backup_selected"].exists)
+    XCTAssertFalse(app.buttons["library.more"].exists)
     XCTAssertFalse(app.buttons["calendar.review_selected"].exists)
     // The action may be disabled without pairing; no transmission is invoked.
   }
