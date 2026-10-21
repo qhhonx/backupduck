@@ -1,0 +1,20 @@
+{
+  "id": "settings.about-menu",
+  "page": "settings",
+  "mac_only": true,
+  "title": "Application menu \u00b7 About navigation",
+  "extends": "base-paired",
+  "expect": [
+    "Start in Auto Backup settings, then select a different category before invoking the application menu."
+  ],
+  "actions": [
+    {
+      "action": "Choose About BackupDuck from the application menu.",
+      "result": "Settings selects About and shows its actual content, even if another detail was already open."
+    },
+    {
+      "action": "Repeat from Backup and from another Settings category.",
+      "result": "About opens each time, including after Settings was removed from the view hierarchy."
+    }
+  ]
+}

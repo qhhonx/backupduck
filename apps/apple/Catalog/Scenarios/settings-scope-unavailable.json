@@ -1,0 +1,17 @@
+{
+  "id": "settings.scope.unavailable",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · unavailable",
+  "extends": "base-paired",
+  "expect": [
+    "The unavailable selected album remains a selected removable row.",
+    "Photo count is unavailable rather than guessed; the scope never widens."
+  ],
+  "actions": [
+    {
+      "action": "Remove Archived family photos.",
+      "result": "The other three choices persist; about 4,210 photos becomes available."
+    }
+  ]
+}

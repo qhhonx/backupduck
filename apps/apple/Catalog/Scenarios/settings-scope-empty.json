@@ -1,0 +1,16 @@
+{
+  "id": "settings.scope.empty",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · empty",
+  "extends": "base-paired",
+  "expect": [
+    "The restricted empty scope shows zero albums and zero photos with an actionable empty state."
+  ],
+  "actions": [
+    {
+      "action": "Turn All albums on.",
+      "result": "The scope changes immediately to all albums."
+    }
+  ]
+}

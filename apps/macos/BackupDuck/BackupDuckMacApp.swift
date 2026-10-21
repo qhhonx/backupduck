@@ -24,6 +24,11 @@ struct MacWorkspace: View {
   @ObservedObject var library: PhotoLibraryModel
   @State private var destination: MacDestination? = .backup
   private var initialSettingsRoute: MacSettingsRoute?
+  private var initialSettingsPage: MacSettings.Page?
+  private var scopeStore: BackupScopeStore
+  private var albumsModel: ScopeAlbumsModel
+  private var initialScopeDestination: BackupScopeDestination?
+  private var initialScopeSearch: String
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
   @State private var density = MacLibraryDensity.remembered
   @State private var pairSheet = false
@@ -43,10 +48,15 @@ struct MacWorkspace: View {
   @StateObject private var libraryNavigation = MacLibraryNavigation()
   @StateObject private var activeTransfers = TaskBrowserModel()
   @StateObject private var folders: FolderSources
-  init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialSettingsRoute: MacSettingsRoute? = nil, initialTransferFilter: String = "all") {
+  @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialSettingsRoute: MacSettingsRoute? = nil, initialTransferFilter: String = "all",
+    initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "") {
     self.model = model
     self.library = library
     self.initialSettingsRoute = initialSettingsRoute
+    self.initialSettingsPage = initialSettingsPage; self.scopeStore = scopeStore ?? .shared
+    self.albumsModel = albumsModel ?? .shared; self.initialScopeDestination = initialScopeDestination
+    self.initialScopeSearch = initialScopeSearch
     _destination = State(initialValue: initialDestination)
     _transferFilter = State(initialValue: initialTransferFilter)
     _folders = StateObject(wrappedValue: folderSources ?? .shared)
@@ -74,7 +84,7 @@ struct MacWorkspace: View {
       folders.selectedSourceID = nil; destination = .sources; columnVisibility = .all
     }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowAbout"))) { _ in
-      destination = .settings; settingsTitle = "about_title"
+      destination = .settings
     }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowSettings"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute")
@@ -165,7 +175,9 @@ struct MacWorkspace: View {
         }
         if destination == .settings {
           if DesignPreview.proposedDesign {
-            MacSettings(model: model, folders: folders, showFolders: { destination = .sources })
+            MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
+              initialPage: initialSettingsPage, scopeStore: scopeStore, albumsModel: albumsModel,
+              initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch)
           } else {
             MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
           }

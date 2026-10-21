@@ -1,0 +1,16 @@
+{
+  "id": "settings.scope.search",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · search",
+  "extends": "base-paired",
+  "expect": [
+    "Family is the initial search; the summary still describes all three selected albums."
+  ],
+  "actions": [
+    {
+      "action": "Clear search, select another album, browse it, then return.",
+      "result": "Search, selection and list position survive browsing."
+    }
+  ]
+}

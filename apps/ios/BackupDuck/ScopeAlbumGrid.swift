@@ -213,17 +213,19 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
 struct ScopeAlbumBrowser: View {
   let album: ScopeAlbum
   @StateObject private var library: PhotoLibraryModel
-  @ObservedObject private var store = BackupScopeStore.shared
+  @ObservedObject private var store: BackupScopeStore
   @ObservedObject private var model = BackupModel.shared
   @State private var preview: IOSPreviewItem?
   @Environment(\.dismiss) private var dismiss
-  init(album: ScopeAlbum) {
+  @MainActor init(album: ScopeAlbum, store: BackupScopeStore? = nil) {
     self.album = album
+    self.store = store ?? .shared
     _library = StateObject(wrappedValue: PhotoLibraryModel(collection: album.id))
   }
   var body: some View {
     content.frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle(album.name).navigationBarTitleDisplayMode(.inline)
+      .toolbar(.visible, for: .navigationBar)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           let chosen = store.rule.choosesAlbum(album.id)
@@ -235,7 +237,10 @@ struct ScopeAlbumBrowser: View {
         }
       }
       .background(IOSPreviewPresentation(item: preview, library: library) { preview = nil }.frame(width: 0, height: 0))
-      .task { await library.open() }
+      .task {
+        if BackupEnvironment.usesPhotoLibrary { await library.open() }
+        else { library.applyAuthorization(.denied) }
+      }
       .onDisappear { library.thumbnails.clear() }
   }
   @ViewBuilder private var content: some View {
@@ -250,7 +255,10 @@ struct ScopeAlbumBrowser: View {
       }.accessibilityIdentifier("backup.scope.album_browser.empty")
     case let placeholder?:
       LibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,
-        requestAccess: { Task { await library.open(requestPermission: true) } })
+        requestAccess: {
+          guard BackupEnvironment.usesPhotoLibrary else { return }
+          Task { await library.open(requestPermission: true) }
+        })
     case nil:
       IOSLibraryGrid(library: library,
         preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")",

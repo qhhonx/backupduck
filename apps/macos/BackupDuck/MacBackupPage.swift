@@ -85,12 +85,10 @@ struct MacBackupPreferences: View {
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss
   @State private var scopeDestination: BackupScopeDestination?
-  @State private var openedAlbum: ScopeAlbum?
   private var title: LocalizedStringKey {
-    if let openedAlbum { return "\(openedAlbum.name)" }
     return LocalizedStringKey(scopeDestination?.title ?? "backup_settings")
   }
-  private func back() { if openedAlbum != nil { openedAlbum = nil } else { scopeDestination = nil } }
+  private func back() { scopeDestination = nil }
   private var busy: Bool { model.changingHistory || model.changingAutoBackup || model.savingConcurrency }
   var body: some View {
     DuckSheetLayout(title: title, busy: busy,
@@ -98,7 +96,7 @@ struct MacBackupPreferences: View {
       desktopIdealHeight: scopeDestination == .types ? 392 : scopeDestination == .albums ? 640 : 560,
       back: scopeDestination == nil ? nil : back) {
       if let scopeDestination {
-        BackupScopeEditor(destination: scopeDestination, opened: $openedAlbum)
+        NavigationStack { BackupScopeEditor(destination: scopeDestination) }
       } else {
       MacPreferenceGroup(title: "source_system_library") { DuckLibrarySource(model: model, compactMac: true) }
       BackupScopeSettings(navigate: { scopeDestination = $0 })
@@ -120,27 +118,29 @@ struct MacScopeAlbumBrowser: View {
   let album: ScopeAlbum
   @StateObject private var library: PhotoLibraryModel
   @StateObject private var navigation = MacLibraryNavigation()
-  @ObservedObject private var store = BackupScopeStore.shared
+  @ObservedObject private var store: BackupScopeStore
   @ObservedObject private var model = BackupModel.shared
   @State private var columns = MacLibraryDensity.standard
-  init(album: ScopeAlbum) {
+  @MainActor init(album: ScopeAlbum, store: BackupScopeStore? = nil) {
     self.album = album
+    self.store = store ?? .shared
     _library = StateObject(wrappedValue: PhotoLibraryModel(collection: album.id))
   }
   var body: some View {
-    let chosen = store.rule.choosesAlbum(album.id)
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(spacing: 12) {
-        Text(albumItemCount(library.fetch == nil ? album.count : library.total))
-          .font(.callout).foregroundStyle(DuckColors.textSecondary)
-        Spacer(minLength: 12)
-        Button(chosen ? "scope_album_deselect" : "scope_album_choose") {
-          store.save(store.rule.toggling(album: album.id, name: album.name))
-        }.duckSecondaryAction().accessibilityIdentifier("backup.scope.album_browser.choose")
-      }.padding(.horizontal, 16).padding(.top, 12)
-      content.frame(maxWidth: .infinity, maxHeight: .infinity)
-    }.background(DuckColors.canvas)
-      .task { await library.open() }
+    content.frame(maxWidth: .infinity, maxHeight: .infinity)
+      .navigationTitle(album.name)
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          let chosen = store.rule.choosesAlbum(album.id)
+          Button(chosen ? "scope_album_deselect" : "scope_album_choose") {
+            store.save(store.rule.toggling(album: album.id, name: album.name))
+          }.accessibilityIdentifier("backup.scope.album_browser.choose")
+        }
+      }
+      .task {
+        if BackupEnvironment.usesPhotoLibrary { await library.open() }
+        else { library.applyAuthorization(.denied) }
+      }
       .onDisappear { library.thumbnails.clear() }
   }
   @ViewBuilder private var content: some View {
@@ -151,7 +151,10 @@ struct MacScopeAlbumBrowser: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityIdentifier("backup.scope.album_browser.empty")
     case let placeholder?:
       MacLibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,
-        requestAccess: { Task { await library.open(requestPermission: true) } }, clearFilter: {})
+        requestAccess: {
+          guard BackupEnvironment.usesPhotoLibrary else { return }
+          Task { await library.open(requestPermission: true) }
+        }, clearFilter: {})
     case nil:
       // The sheet's first pass proposes a near-zero width; a grid laid out then
       // showed one frame of 1 pt cells. Mount it once the page has its width.

@@ -1,0 +1,18 @@
+{
+  "id": "settings.updates.unavailable",
+  "page": "settings",
+  "step": "updates",
+  "mac_only": true,
+  "title": "About · direct updates unavailable",
+  "extends": "base-paired",
+  "expect": [
+    "Production About Form contains one native update section with version, standard Check for Updates… push button and trailing automatic-check switch.",
+    "Check is disabled while the updater cannot check."
+  ],
+  "actions": [
+    {
+      "action": "Toggle automatic checks.",
+      "result": "The switch changes immediately in isolated catalog state."
+    }
+  ]
+}

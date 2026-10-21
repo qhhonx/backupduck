@@ -1,0 +1,17 @@
+{
+  "id": "settings.scope.types",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · types",
+  "extends": "base-paired",
+  "expect": [
+    "Pushed native searchable list uses the library media type vocabulary, a selected-type summary and fixed-slot checkmarks.",
+    "Edits persist at once; no Save or Done."
+  ],
+  "actions": [
+    {
+      "action": "Toggle a media type, search for a localized type name, then use system Back and reopen.",
+      "result": "The edit persists and search never changes the underlying selection."
+    }
+  ]
+}

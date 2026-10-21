@@ -87,7 +87,7 @@ struct BackupScopeRule: Codable, Equatable {
       : NSLocalizedString("scope_all_albums", comment: ""))
   }
 }
-enum BackupScopeDestination: String, Identifiable {
+enum BackupScopeDestination: String, Identifiable, Hashable {
   case types, albums
   var id: String { rawValue }
   var title: String { self == .types ? "scope_media_types" : "scope_albums_title" }
@@ -125,11 +125,11 @@ struct BackupScopeSettings: View {
     #else
     VStack(alignment: .leading, spacing: 8) {
       IOSPreferenceSection(title: "scope_title") {
-        NavigationLink { IOSPrototypeDestination(title: "scope_media_types") { BackupScopeEditor(destination: .types) } } label: {
+        NavigationLink { BackupScopeEditor(destination: .types) } label: {
           IOSPreferenceRow(title: "scope_media_types") { IOSPreferenceValue(value: typesValue) }
         }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.types")
         Divider()
-        NavigationLink { IOSPrototypeDestination(title: "scope_albums_title") { BackupScopeEditor(destination: .albums) } } label: {
+        NavigationLink { BackupScopeEditor(destination: .albums) } label: {
           IOSPreferenceRow(title: "scope_albums_title") { IOSPreferenceValue(value: albumsValue) }
         }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.albums")
       }
@@ -157,8 +157,13 @@ struct ScopeAlbum: Identifiable, Hashable {
   private var loadedSelections = Set<String>()
   @Published var loading = false
   @Published var denied = false
-  override init() {
+  private let suppliedAlbums: Bool
+  init(albums: [ScopeAlbum]? = nil, denied: Bool = false) {
+    suppliedAlbums = albums != nil
     super.init()
+    self.albums = albums ?? []
+    self.denied = denied
+    guard !suppliedAlbums else { return }
     // Registering asks for photo access when it has not been decided yet.
     let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     if BackupEnvironment.usesPhotoLibrary, access == .authorized || access == .limited { PHPhotoLibrary.shared().register(self) }
@@ -167,7 +172,7 @@ struct ScopeAlbum: Identifiable, Hashable {
     Task { @MainActor [weak self] in self?.lastLoad = nil }
   }
   func load(requestPermission: Bool = false, selectedIDs: Set<String> = []) async {
-    guard !loading else { return }; loading = true
+    guard !suppliedAlbums, BackupEnvironment.usesPhotoLibrary, !loading else { return }; loading = true
     defer { loading = false }
     var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     if requestPermission, status == .notDetermined { status = await PHPhotoLibrary.requestAuthorization(for: .readWrite) }
@@ -193,59 +198,85 @@ struct ScopeAlbum: Identifiable, Hashable {
   }
 }
 
+/// A6: one searchable native list; edits persist immediately on both hosts.
 struct BackupScopeEditor: View {
   let destination: BackupScopeDestination
-  #if os(macOS)
-  /// The sheet owns the opened album so its title and Back follow it.
-  var opened: Binding<ScopeAlbum?> = .constant(nil)
-  #endif
-  @ObservedObject private var store = BackupScopeStore.shared
-  @StateObject private var model = ScopeAlbumsModel.shared
-  @State private var search = ""
-  #if os(iOS)
+  @ObservedObject private var store: BackupScopeStore
+  @StateObject private var model: ScopeAlbumsModel
+  @State private var search: String
   @State private var openedAlbum: ScopeAlbum?
-  #else
-  private var openedAlbum: ScopeAlbum? {
-    get { opened.wrappedValue }
-    nonmutating set { opened.wrappedValue = newValue }
-  }
-  #endif
-  var body: some View {
-    Group {
-      #if os(macOS)
-      NavigationStack { searchableContent }
-      #else
-      searchableContent
-      #endif
-    }
-    #if os(macOS)
-    .opacity(openedAlbum == nil ? 1 : 0).allowsHitTesting(openedAlbum == nil)
-    .accessibilityHidden(openedAlbum != nil)
-    .overlay { if let openedAlbum { MacScopeAlbumBrowser(album: openedAlbum) } }
-    #else
-    .navigationDestination(item: $openedAlbum) { album in ScopeAlbumBrowser(album: album) }
-    #endif
-    .task { if destination == .albums { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) } }
+
+  @MainActor init(destination: BackupScopeDestination, store: BackupScopeStore? = nil,
+    model: ScopeAlbumsModel? = nil, search: String = "") {
+    self.destination = destination
+    _store = ObservedObject(wrappedValue: store ?? .shared)
+    _model = StateObject(wrappedValue: model ?? .shared)
+    _search = State(initialValue: search)
   }
 
-  @ViewBuilder private var searchableContent: some View {
-    if destination == .albums {
-      scopeContent.searchable(text: $search, prompt: Text("scope_search_albums"))
-    } else { scopeContent }
+  var body: some View {
+    searchableContent
+      .task { if destination == .albums { await loadAlbums() } }
   }
+
+  private var searchableContent: some View {
+    Group {
+      #if os(macOS)
+      VStack(spacing: 0) {
+        TextField(LocalizedStringKey(searchPrompt), text: $search)
+          .textFieldStyle(.roundedBorder).padding(DuckSpacing.medium)
+          .accessibilityIdentifier("backup.scope.search")
+        scopeContent
+      }
+      #else
+      scopeContent.searchable(text: $search, prompt: Text(LocalizedStringKey(searchPrompt)))
+      #endif
+    }
+      .navigationTitle(LocalizedStringKey(destination.title))
+      #if os(iOS)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar(.visible, for: .navigationBar)
+      #endif
+      .navigationDestination(item: $openedAlbum) { album in
+        #if os(iOS)
+        ScopeAlbumBrowser(album: album, store: store)
+        #else
+        MacScopeAlbumBrowser(album: album, store: store)
+        #endif
+      }
+  }
+
+  private var searchPrompt: String { destination == .albums ? "scope_search_albums" : "scope_search_types" }
 
   @ViewBuilder private var scopeContent: some View {
     if destination == .types {
-      Form { Section { typeChoices } }.formStyle(.grouped)
+      List {
+        Section {
+          Text(String(format: NSLocalizedString("scope_types_selected", comment: ""), store.rule.types.count))
+            .foregroundStyle(.secondary).accessibilityIdentifier("backup.scope.type_count")
+        }
+        Section {
+          ForEach(BackupMediaKind.allCases.filter { matches(NSLocalizedString($0.title, comment: "")) }) { kind in
+            ScopeChoiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol,
+              selected: store.rule.types.contains(kind)) {
+              var next = store.rule
+              if next.types.contains(kind) { next.types.remove(kind) } else { next.types.insert(kind) }
+              store.save(next)
+            }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
+          }
+          if !search.isEmpty && !BackupMediaKind.allCases.contains(where: { matches(NSLocalizedString($0.title, comment: "")) }) {
+            ContentUnavailableView.search(text: search)
+          }
+        }
+      }
+      .scopeChoiceList()
     } else if model.denied {
       ContentUnavailableView {
         Label("photos_access_title", systemImage: "photo.badge.exclamationmark")
       } description: {
         Text("photos_permission_needed")
       } actions: {
-        Button("library_request_access") {
-          Task { await model.load(requestPermission: true, selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) }
-        }.duckPrimaryButton()
+        Button("library_request_access") { Task { await loadAlbums(requestPermission: true) } }.duckPrimaryButton()
       }
     } else {
       albumList
@@ -254,75 +285,72 @@ struct BackupScopeEditor: View {
 
   private var albumList: some View {
     let chosen = store.rule.usesSpecifiedAlbums ? store.rule.albums : []
-    let visible = model.albums.filter { (!$0.system || chosen.contains($0.id))
-      && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) }
+    let visible = model.albums.filter { (!$0.system || chosen.contains($0.id)) && matches($0.name) }
     return List {
       Section {
-        Toggle("scope_all_albums", isOn: allAlbums)
-          .accessibilityIdentifier("backup.scope.all_albums")
-      } footer: {
-        Text(store.rule.usesSpecifiedAlbums ? String(format: NSLocalizedString("scope_album_count", comment: ""), store.rule.albums.count)
-          : NSLocalizedString("scope_all_albums_summary", comment: ""))
+        Text(selectionSummary).foregroundStyle(.secondary)
           .accessibilityIdentifier("backup.scope.album_count")
+        Toggle("scope_all_albums", isOn: allAlbums)
+          .toggleStyle(.switch)
+          .frame(minHeight: DuckPreferenceMetrics.rowHeight)
+          .accessibilityIdentifier("backup.scope.all_albums")
       }
       Section {
         if visible.isEmpty && !model.loading {
-          ContentUnavailableView {
-            Label("scope_albums_empty", systemImage: search.isEmpty ? "rectangle.stack" : "magnifyingglass")
-          } description: { Text("scope_summary_note") } actions: {
-            if !search.isEmpty { Button("library_show_all") { search = "" }.buttonStyle(.bordered) }
-            else {
-              Button("retry_task") {
-                Task { await model.load(selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : []) }
-              }.buttonStyle(.bordered)
+          if !search.isEmpty { ContentUnavailableView.search(text: search) }
+          else {
+            ContentUnavailableView {
+              Label("scope_albums_empty", systemImage: "rectangle.stack")
+            } description: { Text("scope_summary_note") } actions: {
+              Button("retry_task") { Task { await loadAlbums() } }.buttonStyle(.bordered)
             }
           }
         }
         ForEach(visible) { album in
-          Button { selectAlbum(album) } label: {
-            HStack(spacing: DuckSpacing.small) {
-              ReadOnlyMediaThumbnail(asset: album.cover, width: 44, height: 44)
-              VStack(alignment: .leading) {
-                Text(album.name).font(.body).foregroundStyle(.primary)
-                Text(albumItemCount(album.count)).font(.caption).foregroundStyle(.secondary)
-              }
-              Spacer()
-              Image(systemName: "checkmark").foregroundStyle(DuckRole.accent)
-                .opacity(chosen.contains(album.id) ? 1 : 0).accessibilityHidden(true)
-            }.frame(minHeight: DuckPreferenceMetrics.rowHeight)
-          }
-          .buttonStyle(.borderless)
-          .contextMenu {
-            Button("scope_album_view") { openAlbum(album) }
-            Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
-          }
-          .accessibilityAction(named: Text("scope_album_view")) { openAlbum(album) }
-          .accessibilityIdentifier("backup.scope.album." + album.id)
-          .accessibilityAddTraits(chosen.contains(album.id) ? .isSelected : [])
+          ScopeChoiceRow(title: album.name, subtitle: albumItemCount(album.count),
+            selected: chosen.contains(album.id)) { selectAlbum(album) }
+            .contextMenu {
+              Button("scope_album_view") { openedAlbum = album }
+              Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+            }
+            .accessibilityAction(named: Text("scope_album_view")) { openedAlbum = album }
+            .accessibilityIdentifier("backup.scope.album." + album.id)
         }
       }
-      missingAlbums
-    }
-    #if os(iOS)
-    .listStyle(.insetGrouped)
-    #else
-    .listStyle(.inset)
-    #endif
-    .overlay { if model.loading { ProgressView("library_loading") } }
-    .accessibilityIdentifier("backup.scope.choices")
-  }
-  private var missingAlbums: some View {
-    let missing = store.rule.usesSpecifiedAlbums ? store.rule.albums.subtracting(Set(model.albums.map(\.id))) : []
-    return VStack(alignment: .leading, spacing: 8) {
       if !model.loading && !missing.isEmpty {
-        Text("scope_album_unavailable").font(.headline)
-        ForEach(missing.sorted(),id: \.self) { id in
-          choiceRow(title: store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable",comment: ""),symbol: "rectangle.slash",selected: store.rule.restrictAlbums) {
-            var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
+        Section("scope_album_unavailable") {
+          ForEach(missing.sorted().filter { matches(store.rule.albumNames[$0] ?? NSLocalizedString("scope_album_unavailable", comment: "")) }, id: \.self) { id in
+            let name = store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable", comment: "")
+            ScopeChoiceRow(title: name, subtitle: NSLocalizedString("scope_album_unavailable", comment: ""),
+                symbol: "rectangle.slash", selected: true) {
+                var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
+              }.accessibilityIdentifier("backup.scope.album." + id)
           }
         }
       }
     }
+    .scopeChoiceList()
+    .overlay { if model.loading { ProgressView("library_loading") } }
+  }
+
+  private var missing: Set<String> {
+    store.rule.usesSpecifiedAlbums ? store.rule.albums.subtracting(Set(model.albums.map(\.id))) : []
+  }
+  private var selectionSummary: String {
+    guard store.rule.usesSpecifiedAlbums else { return NSLocalizedString("scope_all_albums_summary", comment: "") }
+    let count = String(format: NSLocalizedString(store.rule.albums.count == 1 ? "scope_selection_album" : "scope_selection_albums", comment: ""),
+      store.rule.albums.count.formatted())
+    // Album totals can overlap; this is an estimate, never a unique asset count.
+    guard !model.loading, missing.isEmpty else {
+      return String(format: NSLocalizedString("scope_albums_unknown_count", comment: ""), count)
+    }
+    let photos = model.albums.filter { store.rule.albums.contains($0.id) }.reduce(0) { $0 + $1.count }
+    let photoCount = String(format: NSLocalizedString(photos == 1 ? "scope_selection_photo" : "scope_selection_photos", comment: ""), photos.formatted())
+    return String(format: NSLocalizedString("scope_albums_selection", comment: ""), count, photoCount)
+  }
+  private func matches(_ title: String) -> Bool { search.isEmpty || title.localizedStandardContains(search) }
+  private func loadAlbums(requestPermission: Bool = false) async {
+    await model.load(requestPermission: requestPermission, selectedIDs: store.rule.usesSpecifiedAlbums ? store.rule.albums : [])
   }
   private var allAlbums: Binding<Bool> {
     Binding(get: { !store.rule.restrictAlbums }, set: { enabled in
@@ -334,29 +362,39 @@ struct BackupScopeEditor: View {
   private func selectAlbum(_ album: ScopeAlbum) {
     store.save(store.rule.toggling(album: album.id, name: album.name))
   }
-  /// Browsing reads the album only: it changes neither the scope nor any work.
-  private func openAlbum(_ album: ScopeAlbum) {
-    openedAlbum = album
-  }
-  private var typeChoices: some View {
-    ForEach(BackupMediaKind.allCases) { kind in
-      choiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol, selected: store.rule.types.contains(kind)) {
-        var next = store.rule
-        if next.types.contains(kind) { next.types.remove(kind) } else { next.types.insert(kind) }
-        store.save(next)
-      }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
-    }
-  }
-  private func choiceRow(title: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
+}
+
+/// A fixed trailing checkmark slot keeps choices aligned without repainting the row.
+private struct ScopeChoiceRow: View {
+  let title: String
+  var subtitle: String? = nil
+  var symbol: String? = nil
+  let selected: Bool
+  var action: () -> Void
+  var body: some View {
     Button(action: action) {
       HStack(spacing: DuckSpacing.small) {
-        Label(title, systemImage: symbol).foregroundStyle(.primary)
-        Spacer()
+        if let symbol { Image(systemName: symbol).foregroundStyle(DuckRole.secondaryText).accessibilityHidden(true) }
+        VStack(alignment: .leading) {
+          Text(title).foregroundStyle(DuckRole.primaryText)
+          if let subtitle { Text(subtitle).font(.caption).foregroundStyle(DuckRole.secondaryText) }
+        }
+        Spacer(minLength: DuckSpacing.small)
         Image(systemName: "checkmark").foregroundStyle(DuckRole.accent)
           .opacity(selected ? 1 : 0).accessibilityHidden(true)
       }.font(.body).frame(minHeight: DuckPreferenceMetrics.rowHeight).contentShape(Rectangle())
     }.buttonStyle(.borderless).transaction { $0.animation = nil }
       .accessibilityAddTraits(selected ? .isSelected : [])
+  }
+}
+
+private extension View {
+  func scopeChoiceList() -> some View {
+    #if os(iOS)
+    self.listStyle(.insetGrouped).accessibilityIdentifier("backup.scope.choices")
+    #else
+    self.listStyle(.inset).accessibilityIdentifier("backup.scope.choices")
+    #endif
   }
 }
 

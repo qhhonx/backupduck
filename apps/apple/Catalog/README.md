@@ -221,3 +221,30 @@ procedural images. Pool paths must stay within the supplied directory.
 The stock photos are CC0; local license records live in `build/promo-040/licenses`.
 Keep the pool, manifest and license records local and ignored. Never add them to
 tracked resources or bundle them in an app.
+
+### Backup scope and Mac updates (A2, A6)
+
+`settings.scope.types`, `settings.scope.albums`, `settings.scope.search`,
+`settings.scope.empty`, `settings.scope.unavailable`, `settings.scope.denied`
+and `settings.scope.browser` use the production editor with isolated preferences
+and 500 synthetic album records. Scope scenarios start in the redesigned pages.
+Types use library vocabulary; both lists apply edits immediately. The album
+summary estimates the sum of selected album sizes (albums may overlap), remains
+independent of search, and withholds the photo estimate for unavailable choices.
+iPhone pushes a searchable system list; Mac uses the settings detail and its
+native search field. From a row's context menu or accessibility action, View
+Album opens the production browser with system title/back navigation. Return
+must preserve search, selection and position. These fixtures do not read Photos;
+the browser shows the native no-access state. Review the actual grid separately
+on a synthetic Photos library with access granted.
+
+`settings.about` opens About directly, including the store note in the Mac
+catalog's store configuration. `settings.about-menu` starts at another detail;
+use the application's About command, then repeat from another category or
+workspace destination. This uses the production About navigation handler.
+`settings.updates.ready` and `settings.updates.unavailable` are Mac-only previews
+of the direct-distribution section in the production About Form. Their isolated
+switch applies immediately; Check disables through a synthetic driver without
+starting Sparkle, a network request or an installation. The real updater retains
+its existing native windows and action executor. Repeat with light/dark, narrow
+windows and Chinese; iPhone also supports the catalog's large-text controls.

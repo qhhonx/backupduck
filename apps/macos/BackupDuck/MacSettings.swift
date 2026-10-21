@@ -11,6 +11,10 @@ struct MacSettings: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var folders: FolderSources
   var showFolders: () -> Void
+  var scopeStore: BackupScopeStore
+  var albumsModel: ScopeAlbumsModel
+  var initialScopeDestination: BackupScopeDestination?
+  var initialScopeSearch: String
   /// Devices live in the identity header (design/navigation.md, D3).
   @ObservedObject private var feedback = TesterFeedback.shared
   @AppStorage("duckAppearance") private var appearance = "system"
@@ -20,9 +24,13 @@ struct MacSettings: View {
   @State private var connecting = false
   private var values: DuckSettingsValues { DuckSettingsValues(model: model) }
 
-  init(model: BackupModel, folders: FolderSources, showFolders: @escaping () -> Void) {
+  @MainActor init(model: BackupModel, folders: FolderSources, showFolders: @escaping () -> Void,
+    initialPage: Page? = nil, scopeStore: BackupScopeStore? = nil,
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "") {
     self.model = model; self.folders = folders; self.showFolders = showFolders
-    _page = State(initialValue: folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup)
+    self.scopeStore = scopeStore ?? .shared; self.albumsModel = albumsModel ?? .shared
+    self.initialScopeDestination = initialScopeDestination; self.initialScopeSearch = initialScopeSearch
+    _page = State(initialValue: initialPage ?? (folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup))
   }
 
   var body: some View {
@@ -39,8 +47,19 @@ struct MacSettings: View {
     .toggleStyle(DuckPreferenceToggleStyle())
     .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
     .task { await feedback.check() }
+    .onAppear { consumeAboutRequest() }
+    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowAbout"))) { _ in
+      page = .about
+      UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute")
+    }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckFolderSettings"))) { _ in page = .folders }
     .sheet(isPresented: $renaming) { DeviceNameEditor(model: model, name: model.deviceSnapshot?.device.name ?? "") }
+  }
+
+  private func consumeAboutRequest() {
+    guard UserDefaults.standard.string(forKey: "macRequestedSettingsRoute") == "about" else { return }
+    page = .about
+    UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute")
   }
 
   private var list: some View {
@@ -149,7 +168,8 @@ struct MacSettings: View {
     case .devices:
       DevicePage(model: model) { connecting = true }
         .sheet(isPresented: $connecting) { MacConnectSheet(model: model) }
-    case .autoBackup: MacAutoBackupSettings(model: model)
+    case .autoBackup:
+      MacAutoBackupSettings(model: model, scope: scopeStore, albums: albumsModel, initialDestination: initialScopeDestination, initialSearch: initialScopeSearch)
     case .appearance: MacAppearanceSettings()
     case .language: MacLanguageSettings(languageName: languageName)
     case .help: NavigationStack { HelpCenter() }
@@ -167,35 +187,45 @@ struct MacSettings: View {
 
 private struct MacAutoBackupSettings: View {
   @ObservedObject var model: BackupModel
-  @ObservedObject private var scope = BackupScopeStore.shared
-  @State private var editing: BackupScopeDestination?
+  @ObservedObject var scope: BackupScopeStore
+  var albums: ScopeAlbumsModel
+  var initialSearch: String
+  @State private var path: [BackupScopeDestination]
+  init(model: BackupModel, scope: BackupScopeStore, albums: ScopeAlbumsModel,
+    initialDestination: BackupScopeDestination? = nil, initialSearch: String = "") {
+    self.model = model; self.scope = scope; self.albums = albums; self.initialSearch = initialSearch
+    _path = State(initialValue: initialDestination.map { [$0] } ?? [])
+  }
   var body: some View {
-    Form {
-      Section {
-        Toggle("settings_auto_switch", isOn: Binding(get: { model.autoBackup }, set: { value in Task { await model.setAutoBackup(value) } }))
-          .toggleStyle(.switch)
-          .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
-      } footer: {
-        if let error = model.autoBackupError {
-          DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
-        } else if model.ready {
-          Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
-            : String(format: NSLocalizedString("settings_auto_footer_mac", comment: ""), DuckSettingsValues(model: model).receiverName))
-            .foregroundStyle(.secondary)
+    NavigationStack(path: $path) {
+      Form {
+        Section {
+          Toggle("settings_auto_switch", isOn: Binding(get: { model.autoBackup }, set: { value in Task { await model.setAutoBackup(value) } }))
+            .toggleStyle(.switch)
+            .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
+        } footer: {
+          if let error = model.autoBackupError {
+            DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
+          } else if model.ready {
+            Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
+              : String(format: NSLocalizedString("settings_auto_footer_mac", comment: ""), DuckSettingsValues(model: model).receiverName))
+              .foregroundStyle(.secondary)
+          }
+        }
+        Section("settings_includes") {
+          NavigationLink(value: BackupScopeDestination.types) {
+            LabeledContent("settings_media_types", value: scope.typesSummary)
+          }.accessibilityIdentifier("backup.scope.types")
+          NavigationLink(value: BackupScopeDestination.albums) {
+            LabeledContent("settings_specific_albums", value: scope.albumsSummary)
+          }.accessibilityIdentifier("backup.scope.albums")
         }
       }
-      Section("settings_includes") {
-        LabeledContent("settings_media_types") {
-          Button(scope.typesSummary) { editing = .types }.buttonStyle(.link)
-        }
-        LabeledContent("settings_albums") {
-          Button(scope.albumsSummary) { editing = .albums }.buttonStyle(.link)
-        }
+      .formStyle(.grouped)
+      .navigationTitle("settings_auto_backup")
+      .navigationDestination(for: BackupScopeDestination.self) { destination in
+        BackupScopeEditor(destination: destination, store: scope, model: albums, search: destination == .albums ? initialSearch : "")
       }
-    }
-    .formStyle(.grouped)
-    .sheet(item: $editing) { destination in
-      MacScopeEditorSheet(destination: destination)
     }
   }
 }
@@ -238,11 +268,11 @@ private struct MacLanguageSettings: View {
   }
 }
 
-private struct MacAboutSettings: View {
+struct MacAboutSettings: View {
+  var updateSection: MacUpdateSection? = nil
   var body: some View {
     Form {
-      LabeledContent("settings_version", value: DuckSettingsValues.version)
-      Section("updates_title") { UpdateSettings() }
+      if let updateSection { updateSection } else { UpdateSettings() }
       Link("official_website", destination: URL(string: "https://backupduck.app")!)
     }
     .formStyle(.grouped)
@@ -278,18 +308,5 @@ private struct MacAdvancedSettings: View {
     }
     .formStyle(.grouped)
     .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
-  }
-}
-
-/// A6: task-owned album choices keep immediate persistence and system Done.
-private struct MacScopeEditorSheet: View {
-  let destination: BackupScopeDestination
-  @Environment(\.dismiss) private var dismiss
-  var body: some View {
-    DuckSheetLayout(title: destination == .types ? "settings_media_types" : "settings_albums") {
-      BackupScopeEditor(destination: destination).frame(minHeight: 440)
-    } actions: {
-      Button("settings_done") { dismiss() }.duckPrimaryAction()
-    }
   }
 }

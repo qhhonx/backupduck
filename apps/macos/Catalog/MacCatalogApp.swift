@@ -17,13 +17,18 @@ import SwiftUI
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
     let scenario = MacCatalogLaunch.value("-scenario") ?? ""
-    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.hasPrefix("folders.") || scenario.hasPrefix("settings.folder")
+    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.hasPrefix("folders.") || scenario.hasPrefix("settings.folder") || scenario.hasPrefix("settings.scope.") || scenario.hasPrefix("settings.updates") || scenario.hasPrefix("settings.about")
   }
 
   var body: some Scene {
     Window("Design catalog", id: "catalog") {
       MacCatalogRoot().frame(minWidth: 900, minHeight: 620)
-    }.defaultSize(width: 1180, height: 800).commands { MacFolderCommands() }
+    }.defaultSize(width: 1180, height: 800).commands {
+      MacFolderCommands()
+      CommandGroup(replacing: .appInfo) {
+        Button("about_title") { MacAboutNavigation.open {} }
+      }
+    }
   }
 }
 
@@ -33,7 +38,9 @@ import SwiftUI
   let model: BackupModel
   let library = PhotoLibraryModel()
   let folders: FolderSources
+  let scope: ScopeCatalogFixture?
   init(_ scenario: Scenario) {
+    scope = scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil
     model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
     let made = model
     BackupEnvironment.activeModel = { made }
@@ -154,6 +161,8 @@ private struct MacCatalogRoot: View {
 private struct MacScenarioRun: View {
   let scenario: Scenario
   @StateObject private var session: MacScenarioSession
+  @State private var automaticChecks = true
+  @State private var checkingUpdates = false
 
   init(scenario: Scenario) {
     self.scenario = scenario
@@ -162,7 +171,12 @@ private struct MacScenarioRun: View {
 
   var body: some View {
     Group {
-      if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
+      if scenario.step == "updates" {
+        MacAboutSettings(updateSection: MacUpdateSection(canCheck: !checkingUpdates && !scenario.id.hasSuffix("unavailable"),
+          automaticChecks: $automaticChecks, check: { checkingUpdates = true }))
+          .labeledContentStyle(DuckPreferenceRowStyle())
+          .navigationTitle("about_title")
+      } else if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
         MacStatusMenuCatalog(model: session.model)
       } else if scenario.step == "photoInformation" {
         MacInformationCatalog(model: session.model, library: session.library)
@@ -173,7 +187,10 @@ private struct MacScenarioRun: View {
       MacWorkspace(model: session.model, library: session.library,
         // Records belong to the hub; the Mac lists them as their own sidebar position.
         initialDestination: session.folders.initialSheet == "rules" ? .settings : scenario.records != nil ? .transfers : MacDestination(rawValue: scenario.page) ?? .settings,
-        folderSources: session.folders, initialTransferFilter: scenario.records ?? "all")
+        folderSources: session.folders, initialTransferFilter: scenario.records ?? "all",
+        initialSettingsPage: scenario.step == "about" ? .about : nil,
+        scopeStore: session.scope?.store ?? .shared, albumsModel: session.scope?.albums ?? .shared,
+        initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "")
       }
     }
       .onDisappear { session.model.stop() }

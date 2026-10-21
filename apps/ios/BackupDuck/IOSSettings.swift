@@ -158,10 +158,10 @@ private struct IOSAutoBackupSettings: View {
         }
       }
       Section {
-        NavigationLink { BackupScopeEditor(destination: .types).navigationTitle("settings_media_types").navigationBarTitleDisplayMode(.inline) } label: {
+        NavigationLink { BackupScopeEditor(destination: .types) } label: {
           LabeledContent("settings_media_types", value: scope.typesSummary)
         }
-        NavigationLink { BackupScopeEditor(destination: .albums).navigationTitle("settings_albums").navigationBarTitleDisplayMode(.inline) } label: {
+        NavigationLink { BackupScopeEditor(destination: .albums) } label: {
           LabeledContent("settings_specific_albums", value: scope.albumsSummary)
         }
       } header: {

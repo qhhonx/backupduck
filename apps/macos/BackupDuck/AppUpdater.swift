@@ -8,10 +8,9 @@ import SwiftUI
 }
 
 struct UpdateSettings: View {
-  var body: some View {
-    Text("updates_store_note").font(.caption).foregroundStyle(DuckColors.textSecondary)
-  }
+  var body: some View { MacUpdateSection(storeBuild: true) }
 }
+
 #else
 import Sparkle
 
@@ -67,16 +66,34 @@ import Sparkle
 struct UpdateSettings: View {
   @ObservedObject private var updater = AppUpdater.shared
   var body: some View {
-    Form {
-      MacPreferenceGroup {
-        MacPreferenceRow(title: "updates_automatic") {
-          Toggle("updates_automatic", isOn: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks)).labelsHidden().toggleStyle(.switch)
-        }
-      }
-      Text("updates_mac_note").font(.caption).foregroundStyle(DuckColors.textSecondary)
-      Button("updates_check", action: updater.check).duckPrimaryAction().disabled(!updater.canCheck)
-    }.formStyle(.grouped)
+    MacUpdateSection(canCheck: updater.canCheck,
+      automaticChecks: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks),
+      check: updater.check)
   }
 }
 
 #endif
+
+/// A native section shared by About and the updater's synthetic catalog states.
+struct MacUpdateSection: View {
+  var storeBuild = false
+  var canCheck = true
+  var automaticChecks: Binding<Bool> = .constant(true)
+  var check: () -> Void = {}
+  var body: some View {
+    Section {
+      LabeledContent("settings_version", value: DuckSettingsValues.version)
+      if !storeBuild {
+        LabeledContent("updates_title") {
+          Button("updates_check", action: check).buttonStyle(.bordered).disabled(!canCheck)
+            .accessibilityIdentifier("settings.updates.check")
+        }
+        Toggle("updates_automatic", isOn: automaticChecks)
+          .toggleStyle(DuckPreferenceToggleStyle())
+          .accessibilityIdentifier("settings.updates.automatic")
+      }
+    } footer: {
+      Text(storeBuild ? "updates_store_note" : "updates_mac_note").foregroundStyle(.secondary)
+    }
+  }
+}

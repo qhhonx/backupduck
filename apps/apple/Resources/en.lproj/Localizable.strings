@@ -305,7 +305,7 @@
 
 "updates_title" = "App updates";
 "updates_automatic" = "Automatically check for updates";
-"updates_check" = "Check for Updates";
+"updates_check" = "Check for Updates…";
 "updates_mac_note" = "Updates are verified before installation. This beta is not notarized by Apple.";
 "official_website" = "Official website";
 
@@ -1607,3 +1607,13 @@
 "menu_backup_destination" = "%1$@ to %2$@";
 "menu_pause_backup" = "Pause Backup";
 "menu_problem_receiver_rejected" = "The Pixel no longer recognizes this Mac";
+
+"scope_search_types" = "Search Media Types";
+"scope_types_selected" = "Media types selected: %d";
+"scope_albums_selection" = "%@ · about %@";
+"scope_albums_unknown_count" = "%@ · photo count unavailable";
+
+"scope_selection_album" = "%@ album";
+"scope_selection_albums" = "%@ albums";
+"scope_selection_photo" = "%@ photo";
+"scope_selection_photos" = "%@ photos";

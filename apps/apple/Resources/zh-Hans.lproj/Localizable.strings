@@ -305,7 +305,7 @@
 
 "updates_title" = "应用更新";
 "updates_automatic" = "自动检查更新";
-"updates_check" = "检查更新";
+"updates_check" = "检查更新…";
 "updates_mac_note" = "安装前会校验更新签名。此测试版尚未经过 Apple 公证。";
 "official_website" = "官方网站";
 
@@ -1607,3 +1607,13 @@
 "menu_backup_destination" = "%1$@ · 到 %2$@";
 "menu_pause_backup" = "暂停备份";
 "menu_problem_receiver_rejected" = "Pixel 不再识别这台 Mac";
+
+"scope_search_types" = "搜索媒体类型";
+"scope_types_selected" = "已选择 %d 种媒体类型";
+"scope_albums_selection" = "%@ · 约 %@";
+"scope_albums_unknown_count" = "%@ · 照片数量暂不可用";
+
+"scope_selection_album" = "%@ 个相簿";
+"scope_selection_albums" = "%@ 个相簿";
+"scope_selection_photo" = "%@ 张照片";
+"scope_selection_photos" = "%@ 张照片";

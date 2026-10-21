@@ -79,7 +79,11 @@ private struct ScenarioStage: View {
   @State private var scheme: ColorScheme?
   @State private var textSize: DynamicTypeSize?
   /// Current production page or the proposed redesign, for side-by-side review.
-  @State private var proposed = ProcessInfo.processInfo.arguments.contains("-proposed")
+  @State private var proposed: Bool
+  init(scenario: Scenario) {
+    self.scenario = scenario
+    _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope."))
+  }
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -115,10 +119,12 @@ private struct ScenarioRun: View {
   @StateObject private var model: BackupModel
   @StateObject private var library = PhotoLibraryModel()
   @State private var tab: IOSAppTab
+  @State private var scopeFixture: ScopeCatalogFixture?
 
   init(scenario: Scenario, proposed: Bool) {
     self.scenario = scenario
     self.proposed = proposed
+    _scopeFixture = State(initialValue: scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil)
     // Shared code (library menu, tile marks) reads the same switch as the Mac catalog.
     DesignPreview.proposedDesign = proposed
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
@@ -184,7 +190,9 @@ private struct ScenarioRun: View {
         })
       } else { IOSBackupPage(model: model) }
     case .settings where "\(item)" == scenario.page:
-      if proposed, let detail = scenario.step {
+      if let scopeFixture {
+        IOSScopeCatalog(fixture: scopeFixture)
+      } else if proposed, let detail = scenario.step {
         // A settings sub-page opened directly, as if pushed from Settings.
         NavigationStack { IOSSettingsDetail(name: detail, model: model) }
       } else if proposed { IOSSettings(model: model) } else { IOSSettingsPage(model: model) }
@@ -298,5 +306,28 @@ private struct ScenarioInfo: View {
     }
     .onAppear { unscripted = CatalogApp.core.unscripted }
     .presentationDetents([.medium, .large])
+  }
+}
+
+/// A real push into the production editor, so system Back and search restoration
+/// can be reviewed as part of the scenario rather than at a root-only endpoint.
+private struct IOSScopeCatalog: View {
+  let fixture: ScopeCatalogFixture
+  @State private var path: [BackupScopeDestination]
+  init(fixture: ScopeCatalogFixture) {
+    self.fixture = fixture
+    _path = State(initialValue: [fixture.destination])
+  }
+  var body: some View {
+    NavigationStack(path: $path) {
+      List {
+        NavigationLink("scope_media_types", value: BackupScopeDestination.types)
+        NavigationLink("scope_albums_title", value: BackupScopeDestination.albums)
+      }.navigationTitle("settings_auto_backup")
+        .navigationDestination(for: BackupScopeDestination.self) { destination in
+          BackupScopeEditor(destination: destination, store: fixture.store, model: fixture.albums,
+            search: destination == .albums ? fixture.search : "")
+        }
+    }
   }
 }

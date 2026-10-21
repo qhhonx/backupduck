@@ -1,0 +1,11 @@
+{
+  "id": "settings.scope.denied",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · denied",
+  "extends": "base-paired",
+  "expect": [
+    "Photo access is distinct from empty albums and offers the system permission action."
+  ],
+  "actions": []
+}

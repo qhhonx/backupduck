@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import os
 
@@ -245,4 +246,33 @@ final class ScenarioCredentials: CredentialStore, @unchecked Sendable {
   func load(_ scenario: Scenario?) { lock.withLock { data = scenario?.pairing } }
   func read() throws -> Data? { lock.withLock { data } }
   func save(_ data: Data) throws { lock.withLock { self.data = data } }
+}
+
+/// Isolated scope preferences and 500 synthetic albums; no PhotoKit or app defaults.
+@MainActor final class ScopeCatalogFixture: ObservableObject {
+  let store: BackupScopeStore
+  let albums: ScopeAlbumsModel
+  let destination: BackupScopeDestination
+  let search: String
+
+  init(id: String) {
+    destination = id.hasSuffix("types") ? .types : .albums
+    search = id.hasSuffix("search") ? "Family" : ""
+    let defaults = UserDefaults(suiteName: "catalog.scope." + UUID().uuidString)!
+    store = BackupScopeStore(defaults: defaults)
+    var rule = BackupScopeRule(types: [.photo, .motion, .video], restrictAlbums: true,
+      albums: ["album.0", "album.1", "album.2"])
+    let names = ["Trips", "Family", "Favorites"]
+    var rows = (0..<500).map { index in
+      ScopeAlbum(id: "album.\(index)", name: index < names.count ? names[index] : "Album \(index.formatted())",
+        count: index < 3 ? [2000, 1210, 1000][index] : index * 3, system: false, cover: nil)
+    }
+    if id.hasSuffix("empty") { rows = []; rule.albums = [] }
+    if id.hasSuffix("unavailable") {
+      rule.albums.insert("album.unavailable")
+      rule.albumNames["album.unavailable"] = "Archived family photos"
+    }
+    store.save(rule)
+    albums = ScopeAlbumsModel(albums: rows, denied: id.hasSuffix("denied"))
+  }
 }

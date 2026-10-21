@@ -2,7 +2,10 @@
   "id": "settings.about",
   "page": "settings",
   "step": "about",
-  "title": "Settings › about",
+  "title": "Settings \u203a about",
   "extends": "base-paired",
-  "expect": ["The about page in the redesigned settings, built from the shared components."]
+  "expect": [
+    "The production About page is selected directly on both platforms.",
+    "Mac App Store builds show the version and store-update note in a native grouped section; no Sparkle controls."
+  ]
 }

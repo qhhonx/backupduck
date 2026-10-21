@@ -1,0 +1,18 @@
+{
+  "id": "settings.scope.browser",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · browser",
+  "extends": "base-paired",
+  "expect": [
+    "Open View Album from an album context menu or accessibility action.",
+    "The read-only browser uses a native navigation title, system Back and the production library grid when photos are accessible.",
+    "Catalogs without PhotoKit access show the production permission state."
+  ],
+  "actions": [
+    {
+      "action": "Search for Family, open View Album, then use system Back.",
+      "result": "Return restores Family search, selection and list position; browsing registers no work."
+    }
+  ]
+}

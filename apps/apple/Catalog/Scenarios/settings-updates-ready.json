@@ -1,0 +1,22 @@
+{
+  "id": "settings.updates.ready",
+  "page": "settings",
+  "step": "updates",
+  "mac_only": true,
+  "title": "About · direct updates ready",
+  "extends": "base-paired",
+  "expect": [
+    "Production About Form contains one native update section with version, standard Check for Updates… push button and trailing automatic-check switch.",
+    "Check is enabled."
+  ],
+  "actions": [
+    {
+      "action": "Toggle automatic checks.",
+      "result": "The switch changes immediately in isolated catalog state."
+    },
+    {
+      "action": "Press Check for Updates….",
+      "result": "The synthetic driver disables the button; no network or installation occurs."
+    }
+  ]
+}

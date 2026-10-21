@@ -1,0 +1,21 @@
+{
+  "id": "settings.scope.albums",
+  "page": "settings",
+  "step": "scope",
+  "title": "Backup scope · albums",
+  "extends": "base-paired",
+  "expect": [
+    "Native searchable virtualized list contains 500 albums; 3 albums · about 4,210 photos is independent of search.",
+    "Mac opens the list in Settings detail, without a sheet or Save."
+  ],
+  "actions": [
+    {
+      "action": "Deselect all three albums.",
+      "result": "All albums stays off and the summary becomes zero."
+    },
+    {
+      "action": "Turn All albums on, then choose one album.",
+      "result": "The first explicit choice restricts the scope to that album."
+    }
+  ]
+}
