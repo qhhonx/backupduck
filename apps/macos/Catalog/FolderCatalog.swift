@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Entirely synthetic inventory and rendered images. No bookmarks or real media access.
+/// Synthetic inventory with optional local sample photos. No bookmarks or library access.
 @MainActor enum FolderCatalog {
   static func install(_ id: String, folders: FolderSources, sheet: String?) {
     DesignPreview.proposedDesign = true
@@ -23,10 +23,14 @@ import SwiftUI
     var photos: [FolderPhoto] = []
     for folder in 0..<3 {
       for index in 0..<[18, 24, 48][folder] {
-        let date = UInt64(Date().timeIntervalSince1970 * 1000) - UInt64(folder * 86400_000 + index * 3600_000)
-        photos.append(FolderPhoto(relative: "\(index < 4 ? "Coast" : "Mountains")/IMG_\(1000 + folder * 100 + index).jpg", source_id: "fixture-photo-\(folder)-\(index)", revision: "fixture-v1", size: 8_000_000, media_type: "image/jpeg", modified_ms: date,
+        let sourceID = "fixture-photo-\(folder)-\(index)"
+        let fallback = Date().addingTimeInterval(-Double(folder * 86400 + index * 3600))
+        let capture = SampleImages.takenDate(for: sourceID) ?? fallback
+        let date = UInt64(max(0, capture.timeIntervalSince1970 * 1000))
+        let saved = UInt64(max(0, fallback.timeIntervalSince1970 * 1000)) + 60_000
+        photos.append(FolderPhoto(relative: "\(index < 4 ? "Coast" : "Mountains")/IMG_\(1000 + folder * 100 + index).jpg", source_id: sourceID, revision: "fixture-v1", size: 8_000_000, media_type: "image/jpeg", modified_ms: date,
           folder_id: "fixture-\(folder)", capture_ms: date, date_source: "embedded",
-          backup: folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? "saved" : folder == 1 ? "sending" : "not_backed_up", saved_at_ms: folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? date + 60_000 : nil))
+          backup: folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? "saved" : folder == 1 ? "sending" : "not_backed_up", saved_at_ms: folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? saved : nil))
       }
     }
     folders.previewRows = photos
@@ -35,7 +39,21 @@ import SwiftUI
     if id == "settings.folder-detail" || sheet == "rules" || sheet == "stop" { folders.initialSettingsFolder = "fixture-0" }
   }
   private static func image(_ id: String) -> NSImage? {
-    guard let picture = SampleImages.cgImage(for: id) else { return nil }
-    return NSImage(cgImage: picture, size: NSSize(width: picture.width, height: picture.height))
+    // The UI row key includes the folder; mapping uses the photo's source ID.
+    let sourceID = String(id.split(separator: "|", maxSplits: 1).last ?? Substring(id))
+    guard let picture = SampleImages.cgImage(for: sourceID) else { return nil }
+    let size = NSSize(width: picture.width, height: picture.height)
+    // The same provider serves native cells and the zoomable viewer. Draw at the
+    // destination's pixel size so cells stay small and detail can resolve to 2048px.
+    let image = NSImage(size: size, flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext else { return false }
+      let pixels = rect.applying(context.ctm)
+      let edge = Int(ceil(min(2048, max(abs(pixels.width), abs(pixels.height)))))
+      guard let bitmap = SampleImages.cgImage(for: sourceID, maxPixelSize: edge) else { return false }
+      context.draw(bitmap, in: rect)
+      return true
+    }
+    image.cacheMode = .never
+    return image
   }
 }

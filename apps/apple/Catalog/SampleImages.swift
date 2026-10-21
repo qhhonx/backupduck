@@ -1,26 +1,133 @@
 import CoreGraphics
+import Foundation
+import ImageIO
 import SwiftUI
 
-/// Synthetic "photos" for catalog scenarios: simple landscapes drawn from the
-/// photo identifier, so pages that frame photos (P1) can be reviewed without
-/// reading any real photo library. Same identifier, same picture.
+/// Catalog-only local sample media, with procedural landscapes as fallback.
+/// Identifiers use the same fixed UTF-8 hash and manifest order on every platform.
 enum SampleImages {
-  nonisolated(unsafe) private static var cache: [String: Image] = [:]
-  nonisolated(unsafe) private static var bitmapCache: [String: CGImage] = [:]
+  private struct Manifest: Decodable {
+    let photos: [Photo]
+    struct Photo: Decodable { let file: String; let taken: String? }
+  }
+  private struct Photo {
+    let url: URL
+    let taken: Date?
+  }
+  private final class Pool: @unchecked Sendable {
+    let photos: [Photo]
+    init(_ photos: [Photo]) { self.photos = photos }
+    func photo(for id: String) -> Photo { photos[Int(stableHash(id) % UInt64(photos.count))] }
+  }
+  // The providers are synchronous. Serialize cache misses to avoid duplicate decodes;
+  // cache by pool file rather than scenario ID, and never decode an original at full size.
+  private final class Bitmaps: @unchecked Sendable {
+    let lock = NSLock()
+    let thumbnails = NSCache<NSString, CGImage>()
+    let details = NSCache<NSString, CGImage>()
+    let synthetic = NSCache<NSString, CGImage>()
+    init() {
+      thumbnails.totalCostLimit = 16 * 1024 * 1024
+      details.totalCostLimit = 32 * 1024 * 1024
+      synthetic.totalCostLimit = 4 * 1024 * 1024
+    }
+  }
+  private static let bitmaps = Bitmaps()
+  private static let pool: Pool? = loadPool()
 
-  static func image(for id: String) -> Image? {
-    if let cached = cache[id] { return cached }
-    guard let picture = cgImage(for: id) else { return nil }
-    let image = Image(decorative: picture, scale: 1)
-    cache[id] = image
-    return image
+  static func stableHash(_ id: String) -> UInt64 {
+    id.utf8.reduce(UInt64(1469598103934665603)) { ($0 ^ UInt64($1)) &* 1099511628211 }
   }
 
-  static func cgImage(for id: String) -> CGImage? {
-    if let picture = bitmapCache[id] { return picture }
-    let picture = draw(seed: id.utf8.reduce(UInt64(1469598103934665603)) { ($0 ^ UInt64($1)) &* 1099511628211 })
-    bitmapCache[id] = picture
-    return picture
+  private static func loadPool() -> Pool? {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let flag = arguments.firstIndex(of: "-mediaDir"), arguments.indices.contains(flag + 1),
+      (arguments[flag + 1] as NSString).isAbsolutePath else { return nil }
+    let root = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
+    do {
+      let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: root.appendingPathComponent("manifest.json")))
+      let photos = try manifest.photos.map { row -> Photo in
+        let url = root.appendingPathComponent(row.file).resolvingSymlinksInPath().standardizedFileURL
+        guard !(row.file as NSString).isAbsolutePath, !row.file.isEmpty,
+          url.path.hasPrefix(root.path + "/") else { throw CocoaError(.fileReadCorruptFile) }
+        return Photo(url: url, taken: row.taken.flatMap(parseDate))
+      }
+      guard !photos.isEmpty else { return nil }
+      print("Catalog media: \(photos.count) pool entries; synthetic fallback enabled")
+      return Pool(photos)
+    } catch {
+      print("Catalog media manifest unavailable; using synthetic photos")
+      return nil
+    }
+  }
+
+  private static func parseDate(_ text: String) -> Date? {
+    let iso = ISO8601DateFormatter()
+    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = iso.date(from: text) { return date }
+    iso.formatOptions = [.withInternetDateTime]
+    if let date = iso.date(from: text) { return date }
+    let local = DateFormatter()
+    local.locale = Locale(identifier: "en_US_POSIX")
+    local.calendar = Calendar(identifier: .gregorian)
+    local.timeZone = .current
+    local.isLenient = false
+    for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"] {
+      local.dateFormat = format
+      if let date = local.date(from: text) { return date }
+    }
+    return nil
+  }
+
+  static func takenDate(for id: String) -> Date? { pool?.photo(for: id).taken }
+
+  /// Fill only missing capture metadata, after the scenario's relative-time shift.
+  /// Receipt, publication and other event timestamps keep their scripted values.
+  static func fillingDates(_ value: Any?) -> Any? {
+    guard pool != nil else { return value }
+    if let list = value as? [Any] { return list.map { fillingDates($0) ?? NSNull() } }
+    guard let object = value as? [String: Any] else { return value }
+    var result = object.mapValues { fillingDates($0) ?? NSNull() }
+    if let id = object["source_id"] as? String, object["resources"] != nil,
+      let date = takenDate(for: id) {
+      var metadata = object["metadata"] as? [String: Any] ?? [:]
+      let existing = metadata["created_at_ms"].flatMap { Double("\($0)") } ?? 0
+      if existing <= 0 {
+        metadata["created_at_ms"] = String(Int64(date.timeIntervalSince1970 * 1000))
+        result["metadata"] = metadata
+      }
+    }
+    return result
+  }
+
+  static func image(for id: String) -> Image? {
+    cgImage(for: id).map { Image(decorative: $0, scale: 1) }
+  }
+
+  static func cgImage(for id: String, maxPixelSize: Int = 480) -> CGImage? {
+    let edge = ((min(2048, max(1, maxPixelSize)) + 63) / 64) * 64
+    return bitmaps.lock.withLock {
+      if let photo = pool?.photo(for: id) {
+        let key = "\(photo.url.path)|\(edge)" as NSString
+        let cache = edge <= 512 ? bitmaps.thumbnails : bitmaps.details
+        if let picture = cache.object(forKey: key) { return picture }
+        if let source = CGImageSourceCreateWithURL(photo.url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+          let picture = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: edge
+          ] as CFDictionary) {
+          cache.setObject(picture, forKey: key, cost: picture.bytesPerRow * picture.height)
+          return picture
+        }
+      }
+      let key = id as NSString
+      if let picture = bitmaps.synthetic.object(forKey: key) { return picture }
+      guard let picture = draw(seed: stableHash(id)) else { return nil }
+      bitmaps.synthetic.setObject(picture, forKey: key, cost: picture.bytesPerRow * picture.height)
+      return picture
+    }
   }
 
   // Sky top, sky bottom, sun, far land, near land.

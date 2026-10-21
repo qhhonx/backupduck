@@ -109,7 +109,9 @@ struct Scenario: Identifiable {
     // in a scenario stays today whenever it is reviewed.
     let shift = (object["now_ms"] as? NSNumber).map { Int64(Date().timeIntervalSince1970 * 1000) - $0.int64Value } ?? 0
     library = object["library"] as? [String: Any]
-    core = (Scenario.shifted(object["core"], by: shift) as? [String: Any] ?? [:]).mapValues { entry in
+    let shiftedCore = Scenario.shifted(object["core"], by: shift)
+    let mediaCore = library == nil ? SampleImages.fillingDates(shiftedCore) : shiftedCore
+    core = (mediaCore as? [String: Any] ?? [:]).mapValues { entry in
       (entry as? [Any] ?? [entry]).map { item in
         let answer = item as? [String: Any] ?? [:]
         return Response(value: answer["value"], error: answer["error"] as? String,
