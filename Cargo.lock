@@ -242,8 +242,11 @@ name = "backupduck-pixel"
 version = "0.4.1"
 dependencies = [
  "backupduck-core",
+ "backupduck-store",
+ "fs2",
  "little_exif",
  "quick-xml 0.38.4",
+ "rusqlite",
  "serde",
  "serde_json",
 ]

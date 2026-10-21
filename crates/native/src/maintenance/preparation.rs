@@ -15,6 +15,64 @@ pub struct PreparationRegistration {
     pub error: Option<String>,
 }
 impl Maintenance {
+    /// Whole-library pending preparation facts, including source-only legacy
+    /// intents. A pending export is not evidence of transfer receipt.
+    pub fn library_preparation_states(
+        &self,
+        receiver: &str,
+        handed_off: &std::collections::BTreeSet<String>,
+    ) -> Result<std::collections::BTreeMap<String, backupduck_sender::LibrarySourceState>> {
+        use backupduck_sender::{LibrarySourceState, LibraryTileState};
+        let mut query = self
+            .conn
+            .prepare(
+                "SELECT COALESCE(r.source_ref,p.source),r.revision,p.error_code,p.source
+             FROM pending_sources p LEFT JOIN source_preparations r
+             ON r.receiver=p.receiver AND r.request=p.source
+             WHERE p.receiver=?1 ORDER BY p.rowid",
+            )
+            .map_err(database)?;
+        let rows = query
+            .query_map([receiver], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(database)?;
+        let mut result = std::collections::BTreeMap::new();
+        for row in rows {
+            let (source, revision, error_code, request) = row.map_err(database)?;
+            if handed_off.contains(&request) {
+                continue;
+            }
+            let attention = error_code
+                .as_deref()
+                .is_some_and(|e| !matches!(e, "local_cache_budget" | "local_free_space"));
+            result.insert(
+                source,
+                LibrarySourceState {
+                    job_id: None,
+                    revision,
+                    transfer_state: None,
+                    received: None,
+                    preparing: true,
+                    processing: None,
+                    error_code,
+                    processing_error: None,
+                    tile_state: if attention {
+                        LibraryTileState::NeedsYou
+                    } else {
+                        LibraryTileState::Sending
+                    },
+                },
+            );
+        }
+        Ok(result)
+    }
+
     pub(super) fn migrate_preparations(conn: &Connection) -> Result<()> {
         conn.execute_batch("CREATE TABLE IF NOT EXISTS source_preparations(
             receiver TEXT NOT NULL, request TEXT NOT NULL, source_ref TEXT NOT NULL,

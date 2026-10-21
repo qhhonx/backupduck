@@ -243,6 +243,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 /** The connect flow as a full screen over the app, closed with its close button or Back. */
 internal class ConnectPage(private val activity: MainActivity, scan: ((String?) -> Unit) -> Unit, startReceiving: () -> Unit,
     private val closed: () -> Unit) : AppCompatDialog(activity, R.style.DuckFullPage) {
+    init { activity.trackNotificationWindow(this) }
     private val content = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(activity.token(R.dimen.duck_space_large), 0, activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_medium))

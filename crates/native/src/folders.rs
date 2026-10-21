@@ -1,10 +1,57 @@
 //! Optional desktop boundary. Source files are never owned caches.
 use super::*;
-use backupduck_folder_source::{resolve, revision, Index, PageSort};
+use backupduck_folder_source::{resolve, revision, BrowseFilter, Index, Observation, PageSort};
+static PREVIEW_INDEX: Mutex<Option<Index>> = Mutex::new(None);
 static INDEX: Mutex<Option<Index>> = Mutex::new(None);
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Command {
+    PreviewBegin {
+        root: PathBuf,
+    },
+    PreviewStep,
+    PreviewCancel,
+    Facts {
+        source: String,
+        receiver: String,
+    },
+    Availability {
+        source: String,
+        available: bool,
+    },
+    Browse {
+        #[serde(default)]
+        source: Option<String>,
+        receiver: String,
+        #[serde(default)]
+        search: String,
+        #[serde(default)]
+        filter: BrowseFilter,
+        offset: usize,
+    },
+    Undated {
+        source: String,
+    },
+    RecordDate {
+        source: String,
+        relative: String,
+        revision: String,
+        capture_ms: u64,
+        embedded: bool,
+    },
+    RequestSelected {
+        source: String,
+        receiver: String,
+        selections: Vec<(String, String)>,
+    },
+    SelectedPending {
+        source: String,
+        receiver: String,
+    },
+    SelectedCandidates {
+        source: String,
+        receiver: String,
+    },
     Begin {
         source: String,
         root: PathBuf,
@@ -119,6 +166,27 @@ pub enum Command {
     },
 }
 pub fn call(command: Command) -> Result<Value> {
+    match &command {
+        Command::PreviewBegin { root } => {
+            let mut index = Index::open(Path::new(":memory:"))?;
+            index.begin("preview", root, 1)?;
+            *PREVIEW_INDEX.lock().map_err(lock)? = Some(index);
+            return Ok(json!({}));
+        }
+        Command::PreviewStep => {
+            let mut guard = PREVIEW_INDEX.lock().map_err(lock)?;
+            let index = guard.as_mut().ok_or(Error::NotFound)?;
+            return Ok(serde_json::to_value(index.step(
+                backupduck_folder_source::millis(SystemTime::now()),
+                500,
+            )?)?);
+        }
+        Command::PreviewCancel => {
+            *PREVIEW_INDEX.lock().map_err(lock)? = None;
+            return Ok(json!({}));
+        }
+        _ => {}
+    }
     let host = sender()?;
     let mut guard = INDEX.lock().map_err(lock)?;
     if guard.is_none() {
@@ -132,6 +200,79 @@ pub fn call(command: Command) -> Result<Value> {
     }
     let index = guard.as_mut().unwrap();
     match command {
+        Command::PreviewBegin { .. } | Command::PreviewStep | Command::PreviewCancel => {
+            unreachable!()
+        }
+        Command::Availability { source, available } => {
+            index.set_available(&source, available)?;
+            Ok(json!({}))
+        }
+        Command::Undated { source } => Ok(serde_json::to_value(index.undated(&source)?)?),
+        Command::RecordDate {
+            source,
+            relative,
+            revision,
+            capture_ms,
+            embedded,
+        } => {
+            index.record_date(&source, &relative, &revision, capture_ms, embedded)?;
+            Ok(json!({}))
+        }
+        Command::RequestSelected {
+            source,
+            receiver,
+            selections,
+        } => {
+            index.request_selected(&source, &receiver, &selections)?;
+            for (relative, revision) in &selections {
+                if let Some(id) = index
+                    .job_id(&source, relative, &receiver)?
+                    .filter(|id| *id > 0)
+                {
+                    host.retry(id)?;
+                    index.mark(&source, relative, &receiver, revision, id)?;
+                }
+            }
+            Ok(json!({}))
+        }
+        Command::SelectedPending { source, receiver } => {
+            Ok(json!(index.selected_pending(&source, &receiver)?))
+        }
+        Command::SelectedCandidates { source, receiver } => {
+            Ok(serde_json::to_value(index.selected_candidates(
+                &source,
+                &receiver,
+                backupduck_folder_source::millis(SystemTime::now()),
+            )?)?)
+        }
+        Command::Facts { source, receiver } => {
+            let queue = host.sender.lock().map_err(lock)?;
+            Ok(serde_json::to_value(index.facts(
+                &source,
+                &receiver,
+                |id| folder_observation(&queue, id),
+            )?)?)
+        }
+        Command::Browse {
+            source,
+            receiver,
+            search,
+            filter,
+            offset,
+        } => {
+            let queue = host.sender.lock().map_err(lock)?;
+            let since = backupduck_folder_source::millis(SystemTime::now())
+                .saturating_sub(7 * 24 * 60 * 60 * 1000);
+            Ok(serde_json::to_value(index.browse(
+                source.as_deref(),
+                &receiver,
+                &search,
+                filter,
+                offset,
+                since,
+                |id| folder_observation(&queue, id),
+            )?)?)
+        }
         Command::ValidateRules { include, exclude } => {
             match backupduck_folder_source::validate_rules(&include, &exclude) {
                 Ok(()) => Ok(json!({"error":null})),
@@ -478,4 +619,30 @@ pub fn call(command: Command) -> Result<Value> {
             Ok(json!({}))
         }
     }
+}
+
+/// A verified receipt is still saving until the receiver confirms Photos publication.
+fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Observation> {
+    let job = match queue.job(id) {
+        Ok(job) => job,
+        Err(Error::NotFound) => return Ok(Observation::default()),
+        Err(error) => return Err(error),
+    };
+    let state = if job.state == backupduck_sender::JobState::Failed
+        || job.processing == Some(ProcessingState::Failed)
+    {
+        "needs_you"
+    } else if job.state == backupduck_sender::JobState::Received
+        && job.processing == Some(ProcessingState::Complete)
+    {
+        "saved"
+    } else if job.state == backupduck_sender::JobState::Received {
+        "saving"
+    } else {
+        "sending"
+    };
+    Ok(Observation {
+        state: state.into(),
+        saved_at_ms: queue.publication_time(id)?,
+    })
 }

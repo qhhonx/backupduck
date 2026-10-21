@@ -4,10 +4,26 @@
   "title": "Storage",
   "extends": "base",
   "expect": [
-    "6.2 GB free of 64 GB, a bar and legend: saved to Photos by BackupDuck 40 GB, BackupDuck's own copies 700 MB, other.",
+    "Free space and capacity from measured readings, with a bar and scoped legend for gallery files, own copies and other space.",
+    "Own copies: 734003200 bytes total, split into 314572800 converted motion originals, 104857600 still receiving or saving, and 314572800 other originals.",
+    "524288000 bytes could be freed (estimate), overlapping own copies; no cloud-backup claim or extra cleanup action.",
     "Two switches with their consequences: auto cleanup (off) and free up space after saving to Photos (off).",
     "Free up space now: one sentence on what Google Photos removes, then the tonal action."
   ],
+  "core": {
+    "receiver_storage_breakdown": {
+      "value": {
+        "own_copy_bytes": 734003200,
+        "ready_bytes": 629145600,
+        "partial_bytes": 104857600,
+        "converted_original_bytes": 314572800,
+        "pending_bytes": 104857600,
+        "other_original_bytes": 314572800,
+        "reclaimable_bytes": 524288000,
+        "free_bytes": 6657199308
+      }
+    }
+  },
   "storage": {
     "total_bytes": 68719476736,
     "free_bytes": 6657199308,

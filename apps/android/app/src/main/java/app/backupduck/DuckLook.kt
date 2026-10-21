@@ -353,6 +353,7 @@ internal fun Context.selectableBackground(): Drawable? = TypedValue().let { valu
  * then a scrolling body with the page margin, on the page background.
  */
 internal class LookPage(activity: AppCompatActivity, title: String) : AppCompatDialog(activity, R.style.DuckFullPage) {
+    init { activity.trackNotificationWindow(this) }
     val body = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(activity.token(R.dimen.duck_space_medium), activity.token(R.dimen.duck_space_x_small),
@@ -383,6 +384,7 @@ internal class LookPage(activity: AppCompatActivity, title: String) : AppCompatD
 
 /** A Material 3 modal bottom sheet (I1 detail and chooser) with a drag handle, the sheet radius and a scrolling body. */
 internal class LookSheet(context: Context) : BottomSheetDialog(context) {
+    init { context.trackNotificationWindow(this) }
     val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, context.token(R.dimen.duck_space_medium)) }
     init {
         val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }

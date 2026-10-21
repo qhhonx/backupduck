@@ -346,10 +346,11 @@ internal class TransferAdapter(private val activity: MainActivity, private val o
         val stages=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setPadding(0,activity.dp(20),0,0)}
         sheet.body.addView(stages)
         activity.duckTimeline(stages,activity.getString(if(item.receipt=="received") R.string.duck_received_short else R.string.duck_receiving),
-            item.receivedAtMs?.let {java.text.DateFormat.getDateTimeInstance().format(java.util.Date(it))} ?: activity.getString(R.string.duck_time_unknown),item.receipt=="received")
+            item.receivedAtMs?.let {java.text.DateFormat.getDateTimeInstance().format(java.util.Date(it))} ?: activity.getString(R.string.duck_time_unknown),item.receipt=="received",color=R.color.duck_state_received,glyph=R.drawable.ic_clock)
         val reason=item.processingError?.let {activity.getString(when(it) {"conversion_required" -> R.string.receiver_item_conversion_required;"unsupported" -> R.string.receiver_item_failed_unsupported;else -> R.string.receiver_item_failed})+" ("+it+")"}
         activity.duckTimeline(stages,activity.getString(if(item.processing=="complete") R.string.duck_saved else if(item.processing=="failed") R.string.duck_gallery_failed else R.string.duck_gallery_wait),
-            item.publishedAtMs?.let {java.text.DateFormat.getDateTimeInstance().format(java.util.Date(it))} ?: reason ?: activity.getString(R.string.duck_time_unknown),item.processing=="complete"||item.processing=="failed",if(item.processing=="failed") R.color.duck_failure else R.color.duck_saved)
+            item.publishedAtMs?.let {java.text.DateFormat.getDateTimeInstance().format(java.util.Date(it))} ?: reason ?: activity.getString(R.string.duck_time_unknown),item.processing=="complete"||item.processing=="failed",if(item.processing=="failed") R.color.duck_failure else R.color.duck_saved,
+            glyph=if(item.processing=="complete") R.drawable.ic_check else if(item.processing=="failed") R.drawable.ic_alert else R.drawable.ic_clock)
         activity.duckTimeline(stages,activity.getString(R.string.duck_cloud_title),activity.getString(R.string.duck_cloud_unknown),false,last=true)
         val previewNotice=activity.duckText("",13,true).apply {visibility=View.GONE;tag="receiver.detail.preview-status"}
         sheet.body.addView(previewNotice,LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=activity.dp(12)})

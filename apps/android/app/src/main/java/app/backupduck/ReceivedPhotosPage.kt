@@ -61,11 +61,15 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
     }
     private var history = HistoryState()
     private var attention = HistoryState()
+    private var needsYouRequested = false
 
     val view: RecyclerView = RecyclerView(activity).apply {
         id = R.id.receiver_photos_list; layoutManager = layout; adapter = this@ReceivedPhotosPage.adapter; itemAnimator = null
         clipToPadding = false; setPadding(0, 0, 0, activity.dp(24))
         addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) needsYouRequested = false
+            }
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 if (dy > 0 && layout.findLastVisibleItemPosition() >= this@ReceivedPhotosPage.adapter.itemCount - span * 4) actions.more()
             }
@@ -76,6 +80,12 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
     fun attention(state: HistoryState) { attention = state; rebuild() }
     fun progress(values: Map<String, ReceiverByteProgress>) = adapter.progress(view, values)
     fun scrollToTop() = layout.scrollToPositionWithOffset(0, 0)
+
+    fun openNeedsYou() {
+        needsYouRequested = true
+        scrollToTop()
+        rebuild()
+    }
 
     /** The index in the loaded history of the first photo on screen, for refreshing the visible page. */
     fun firstVisible(): Int {
@@ -90,7 +100,18 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         adapter.scope = photoScope(history.counts, history.items, history.total, activity.devicePanels.senderNames)
         adapter.hasSenders = activity.hasKnownSenders != false
         adapter.submitList(photoRows(history.items, causes, ReceiverEnvironment.now(), ZoneId.systemDefault(),
-            history.loading, history.failed, history.nextCursor != null))
+            history.loading, history.failed, history.nextCursor != null)) {
+            if (needsYouRequested) {
+                val section = adapter.currentList.indexOf(PhotoRow.NeedsHeader)
+                if (section >= 0) {
+                    layout.scrollToPositionWithOffset(section, 0)
+                    needsYouRequested = false
+                } else if (attention.filter == "failed" && !attention.loading && causes.isEmpty()) {
+                    // The notification may outlive the problem; stay at the current Photos page.
+                    needsYouRequested = false
+                }
+            }
+        }
     }
 
     private fun cardAction(group: CauseGroup, button: View) = when (group.cause) {
@@ -342,6 +363,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
     fun show(item: HistoryItem): Unit = with(activity) {
         val dark = darkLook()
         val page = androidx.appcompat.app.AppCompatDialog(dark, R.style.DuckFullPage)
+        trackNotificationWindow(page)
         val canvas = dark.getColor(R.color.duck_role_background)
         val root = LinearLayout(dark).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         root.addView(android.widget.ImageButton(dark).apply {
@@ -376,7 +398,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
         val facts = dark.lookGroup(panel)
         (facts.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_small) }
         val sender = item.senders.joinToString(getString(R.string.photos_list_separator)).ifEmpty { null }
-        if (item.receipt == "received") fact(dark, facts, R.drawable.ic_receiver, dark.getColor(R.color.duck_state_received),
+        if (item.receipt == "received") fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_state_received),
             sender?.let { getString(R.string.photos_received_from, it) } ?: getString(R.string.photos_received), item.receivedAtMs?.let { shortTime(this, it) })
         else fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_role_accent),
             sender?.let { getString(R.string.photos_receiving_from, it) } ?: getString(R.string.photos_receiving),

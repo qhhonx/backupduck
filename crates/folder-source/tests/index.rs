@@ -637,3 +637,174 @@ fn user_dismissal_survives_rescan_restart_and_bulk_retry_but_not_file_change() {
     scan(&mut i, "a", &t.root(), now + 37000);
     assert_eq!(i.page("a", 0, "r").unwrap().len(), 1);
 }
+
+#[test]
+fn unsupported_media_counts_survive_restart_and_scoped_checks() {
+    let t = Temp::new();
+    for name in [
+        "a.CR2",
+        "b.cr3",
+        "c.nef",
+        "d.arw",
+        "e.raf",
+        "f.orf",
+        "g.rw2",
+        "h.dng",
+        "note.pdf",
+        "readme.txt",
+    ] {
+        fs::write(t.root().join(name), b"fixture").unwrap();
+    }
+    fs::write(t.root().join("nested/other.NEF"), b"raw").unwrap();
+    let mut i = t.index();
+    scan(&mut i, "a", &t.root(), 1);
+    assert_eq!(i.summary("a", 0).unwrap().unsupported, 9);
+    assert_eq!(i.unsupported("a").unwrap()["nef"], 2);
+    drop(i);
+    let mut i = t.index();
+    assert_eq!(i.summary("a", 0).unwrap().unsupported, 9);
+    fs::remove_file(t.root().join("nested/other.NEF")).unwrap();
+    i.begin_scoped("a", &t.root(), 2, &["nested".into()])
+        .unwrap();
+    while i.step(2, 2).unwrap().scanning {}
+    assert_eq!(i.summary("a", 0).unwrap().unsupported, 8);
+    // A cancelled scan cannot erase retained unsupported inventory.
+    i.begin("a", &t.root(), 3).unwrap();
+    i.cancel();
+    assert_eq!(i.summary("a", 0).unwrap().unsupported, 8);
+    i.set_available("a", false).unwrap();
+    let facts = i.facts("a", "r", |_| unreachable!()).unwrap();
+    assert_eq!(facts.available, Some(false));
+    assert_eq!(facts.unsupported_by_kind.len(), 8);
+    i.set_rules("a", &[], &["**/*.dng".into()]).unwrap();
+    scan(&mut i, "a", &t.root(), 4);
+    assert_eq!(i.summary("a", 0).unwrap().unsupported, 7);
+}
+#[test]
+fn browse_facts_filters_search_dates_and_receiver_isolation() {
+    let t = Temp::new();
+    for n in 0..107 {
+        fs::write(t.root().join(format!("nested/IMG_{n:03}.jpg")), b"photo").unwrap();
+    }
+    let mut i = t.index();
+    scan(&mut i, "a", &t.root(), 1);
+    let a = i.entry("a", "nested/IMG_000.jpg").unwrap();
+    i.mark("a", &a.relative, "r", &a.revision, 1).unwrap();
+    let b = i.entry("a", "nested/IMG_001.jpg").unwrap();
+    i.mark("a", &b.relative, "r", &b.revision, 2).unwrap();
+    let c = i.entry("a", "nested/IMG_002.jpg").unwrap();
+    i.ignore("a", &c.relative, &c.revision).unwrap();
+    let observe = |id| {
+        Ok(Observation {
+            state: if id == 1 { "saved" } else { "saving" }.into(),
+            saved_at_ms: if id == 1 { Some(100) } else { None },
+        })
+    };
+    let f = i.facts("a", "r", observe).unwrap();
+    assert_eq!(
+        (
+            f.supported,
+            f.saved,
+            f.in_flight,
+            f.in_flight_bytes,
+            f.needs_you,
+            f.not_backed_up
+        ),
+        (107, 1, 1, 5, 1, 104)
+    );
+    assert_eq!(i.facts("a", "other", |_| unreachable!()).unwrap().saved, 0);
+    let page = i
+        .browse(
+            None,
+            "r",
+            "nested",
+            BrowseFilter::NotBackedUp,
+            0,
+            0,
+            observe,
+        )
+        .unwrap();
+    assert_eq!(page.rows.len(), 100);
+    assert!(page.has_more);
+    assert_eq!(
+        i.browse(
+            None,
+            "r",
+            "nested",
+            BrowseFilter::NotBackedUp,
+            100,
+            0,
+            observe
+        )
+        .unwrap()
+        .rows
+        .len(),
+        4
+    );
+    assert_eq!(
+        i.browse(None, "r", "IMG_001", BrowseFilter::All, 0, 0, observe)
+            .unwrap()
+            .rows[0]
+            .backup,
+        "saving"
+    );
+    assert!(i
+        .browse(None, "r", "", BrowseFilter::Recent, 0, 101, observe)
+        .unwrap()
+        .rows
+        .is_empty());
+    assert_eq!(
+        i.browse(None, "r", "", BrowseFilter::NeedsYou, 0, 0, observe)
+            .unwrap()
+            .rows
+            .len(),
+        1
+    );
+    i.record_date("a", &a.relative, &a.revision, u64::MAX / 2, true)
+        .unwrap();
+    assert_eq!(
+        i.browse(None, "r", "", BrowseFilter::All, 0, 0, observe)
+            .unwrap()
+            .rows[0]
+            .entry
+            .relative,
+        a.relative
+    );
+    assert!(i.record_date("a", &a.relative, "stale", 1, true).is_err());
+}
+#[test]
+fn selected_intent_is_durable_bounded_and_does_not_include_other_baseline_photos() {
+    let t = Temp::new();
+    for name in ["a.jpg", "b.jpg"] {
+        fs::write(t.root().join(name), b"photo").unwrap();
+    }
+    let mut i = t.index();
+    scan(&mut i, "a", &t.root(), 1);
+    i.baseline("a", "@baseline").unwrap();
+    let a = i.entry("a", "a.jpg").unwrap();
+    i.request_selected("a", "r", &[(a.relative.clone(), a.revision.clone())])
+        .unwrap();
+    let facts = i.facts("a", "r", |_| unreachable!()).unwrap();
+    assert_eq!(facts.in_flight, 1);
+    assert_eq!(facts.not_backed_up, 1);
+    drop(i);
+    let i = t.index();
+    assert!(i.selected_pending("a", "r").unwrap());
+    assert!(!i.selected_pending("a", "other").unwrap());
+    let selected = i.selected_candidates("a", "r", 20000).unwrap();
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].relative, "a.jpg");
+    i.mark("a", "a.jpg", "r", &a.revision, 1).unwrap();
+    assert!(!i.selected_pending("a", "r").unwrap());
+    assert!(i.candidates("a", "r", 20000, 10).unwrap().is_empty());
+}
+
+#[test]
+fn directory_rule_tokens_skip_descendants() {
+    let t = Temp::new();
+    fs::write(t.root().join("nested/a.jpg"), b"photo").unwrap();
+    let mut i = t.index();
+    i.set_rules("a", &[], &["nested/".into()]).unwrap();
+    scan(&mut i, "a", &t.root(), 1);
+    assert_eq!(i.summary("a", 0).unwrap().files, 0);
+}

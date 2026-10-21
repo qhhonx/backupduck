@@ -293,6 +293,21 @@ pub struct SenderHost {
     maintenance: Mutex<maintenance::Maintenance>,
 }
 impl SenderHost {
+    fn library_source_states(
+        &self,
+        receiver: &str,
+    ) -> Result<BTreeMap<String, backupduck_sender::LibrarySourceState>> {
+        // Match enqueue's lock order across preparation-to-job handoff.
+        let sender = self.sender.lock().map_err(lock)?;
+        let maintenance = self.maintenance.lock().map_err(lock)?;
+        let mut states = sender.library_source_states(receiver)?;
+        let handed_off = sender.handed_off_preparations(receiver)?;
+        // A new export intent supersedes the previous job's tile; receipt of
+        // this intent is unknown until it becomes a transfer job.
+        states.extend(maintenance.library_preparation_states(receiver, &handed_off)?);
+        Ok(states)
+    }
+
     pub fn open(root: &Path) -> Result<Self> {
         let request_root = root.join("requests");
         fs::create_dir_all(&request_root)?;
@@ -745,6 +760,9 @@ enum Command {
     ReceivedSources {
         receiver_id: String,
     },
+    LibrarySourceStates {
+        receiver_id: String,
+    },
     SourceJob {
         receiver_id: String,
         source_id: String,
@@ -921,6 +939,9 @@ enum Command {
         ids: Vec<String>,
     },
     ReceiverStorageUsage {
+        root: PathBuf,
+    },
+    ReceiverStorageBreakdown {
         root: PathBuf,
     },
     ReceiverSettings {
@@ -1492,6 +1513,9 @@ fn dispatch(command: Command) -> Result<Value> {
                 .map_err(lock)?
                 .latest_source_job(&receiver_id, &source_id)?,
         )?),
+        Command::LibrarySourceStates { receiver_id } => Ok(serde_json::to_value(
+            sender()?.library_source_states(&receiver_id)?,
+        )?),
         Command::ReceivedSources { receiver_id } => Ok(serde_json::to_value(
             sender()?
                 .sender
@@ -2023,6 +2047,9 @@ fn dispatch(command: Command) -> Result<Value> {
             maintenance.log("relay_originals_reclaimed", None, Some(bytes))?;
             Ok(json!({"bytes":bytes}))
         }),
+        Command::ReceiverStorageBreakdown { root } => Ok(serde_json::to_value(
+            backupduck_pixel::storage::breakdown(&root)?,
+        )?),
         Command::ReceiverStorageUsage { root } => Ok(serde_json::to_value(
             backupduck_store::usage::original_usage(&root.join("store"))?,
         )?),
@@ -2239,6 +2266,9 @@ mod receiver_identity_tests;
 
 #[cfg(test)]
 mod enqueue_commit_tests;
+
+#[cfg(test)]
+mod library_state_tests;
 
 #[cfg(test)]
 mod burst_error_tests {

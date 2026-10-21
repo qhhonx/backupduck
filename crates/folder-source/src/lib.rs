@@ -1,7 +1,9 @@
 //! Bounded, metadata-only folder indexing. No PhotoKit, UI or receiver knowledge.
 //! Sources are read-only; missing files never imply remote deletion.
+mod browse;
 mod rules;
 use backupduck_core::{digest, Error, Result};
+pub use browse::*;
 use rules::Rules;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
@@ -62,6 +64,10 @@ impl Index {
           CREATE TABLE IF NOT EXISTS submitted(source TEXT NOT NULL,identity TEXT NOT NULL,receiver TEXT NOT NULL,revision TEXT NOT NULL,job INTEGER NOT NULL,PRIMARY KEY(source,identity,receiver));
           CREATE INDEX IF NOT EXISTS folder_job ON submitted(source,job);
           CREATE TABLE IF NOT EXISTS source_rules(source TEXT PRIMARY KEY,include TEXT NOT NULL,exclude TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS unsupported_media(source TEXT NOT NULL,relative TEXT NOT NULL,kind TEXT NOT NULL,generation INTEGER NOT NULL,present INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(source,relative));
+          CREATE TABLE IF NOT EXISTS folder_availability(source TEXT PRIMARY KEY,available INTEGER NOT NULL);
+          CREATE TABLE IF NOT EXISTS media_dates(source TEXT NOT NULL,relative TEXT NOT NULL,revision TEXT NOT NULL,capture_ms INTEGER NOT NULL,date_source TEXT NOT NULL,PRIMARY KEY(source,relative));
+          CREATE TABLE IF NOT EXISTS selected_requests(source TEXT NOT NULL,relative TEXT NOT NULL,revision TEXT NOT NULL,receiver TEXT NOT NULL,PRIMARY KEY(source,relative,receiver));
           CREATE TABLE IF NOT EXISTS dismissed(source TEXT NOT NULL,relative TEXT NOT NULL,revision TEXT NOT NULL,PRIMARY KEY(source,relative));").map_err(db)?;
         let has_created = {
             let mut columns = conn.prepare("PRAGMA table_info(files)").map_err(db)?;
@@ -148,6 +154,7 @@ impl Index {
                     .map_err(db)?;
             }
         }
+        self.set_available(source, true)?;
         self.scan = Some(Scan {
             source: source.into(),
             root: canonical,
@@ -194,6 +201,9 @@ impl Index {
                 let Some(dir) = dir else {
                     for prefix in &scan.scopes {
                         self.conn.execute("UPDATE files SET present=0 WHERE source=?1 AND generation<>?2 AND (?3='' OR substr(relative,1,length(?3)+1)=?3||'/')",params![scan.source,scan.generation as i64,prefix]).map_err(db)?;
+                    }
+                    for prefix in &scan.scopes {
+                        self.conn.execute("UPDATE unsupported_media SET present=0 WHERE source=?1 AND generation<>?2 AND (?3='' OR substr(relative,1,length(?3)+1)=?3||'/')",params![scan.source,scan.generation as i64,prefix]).map_err(db)?;
                     }
                     let source = scan.source.clone();
                     let unsupported = scan.unsupported;
@@ -260,7 +270,12 @@ impl Index {
                 continue;
             }
             let Some(mime) = media_type(&path) else {
-                scan.unsupported += 1;
+                if let Some(kind) = unsupported_kind(&path) {
+                    if scan.rules.allows(&relative) {
+                        self.conn.execute("INSERT INTO unsupported_media(source,relative,kind,generation,present) VALUES(?1,?2,?3,?4,1) ON CONFLICT(source,relative) DO UPDATE SET kind=excluded.kind,generation=excluded.generation,present=1",params![scan.source,relative,kind,scan.generation as i64]).map_err(db)?;
+                        scan.unsupported += 1;
+                    }
+                }
                 continue;
             };
             if !scan.rules.allows(&relative) {
@@ -301,7 +316,7 @@ impl Index {
             scanning: true,
         })
     }
-    pub fn summary(&self, source: &str, unsupported: u64) -> Result<Summary> {
+    pub fn summary(&self, source: &str, _unsupported: u64) -> Result<Summary> {
         let (files, bytes) = self
             .conn
             .query_row(
@@ -313,7 +328,7 @@ impl Index {
         Ok(Summary {
             files,
             bytes,
-            unsupported,
+            unsupported: self.unsupported(source)?.values().sum(),
             scanning: self.scan.as_ref().is_some_and(|s| s.source == source),
         })
     }
@@ -345,7 +360,7 @@ impl Index {
         relative: Option<&str>,
         max_created: Option<u64>,
     ) -> Result<Vec<Entry>> {
-        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND (?7 IS NULL OR created<=?7) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source AND d.relative=f.relative AND d.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
+        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND (?7 IS NULL OR created<=?7 OR EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2)) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source AND d.relative=f.relative AND d.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR (s.receiver='@baseline' AND NOT EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2))) AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
         let rows = stmt
             .query_map(
                 params![
@@ -403,6 +418,7 @@ impl Index {
         if changed == 0 {
             return Err(Error::Conflict("folder file changed".into()));
         }
+        self.conn.execute("DELETE FROM selected_requests WHERE source=?1 AND relative=?2 AND revision=?3 AND receiver=?4", params![source,relative,revision,receiver]).map_err(db)?;
         Ok(())
     }
 }
@@ -513,6 +529,16 @@ impl Index {
         rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db)
     }
     pub fn forget(&self, source: &str) -> Result<()> {
+        for table in [
+            "unsupported_media",
+            "media_dates",
+            "folder_availability",
+            "selected_requests",
+        ] {
+            self.conn
+                .execute(&format!("DELETE FROM {table} WHERE source=?1"), [source])
+                .map_err(db)?;
+        }
         self.conn
             .execute("DELETE FROM source_rules WHERE source=?1", [source])
             .map_err(db)?;
@@ -553,6 +579,12 @@ impl Index {
     }
     pub fn ignore(&self, source: &str, relative: &str, revision: &str) -> Result<()> {
         self.conn.execute("INSERT INTO ignored(source,relative,revision) VALUES(?1,?2,?3) ON CONFLICT(source,relative) DO UPDATE SET revision=excluded.revision,until_ms=0",params![source,relative,revision]).map_err(db)?;
+        self.conn
+            .execute(
+                "DELETE FROM selected_requests WHERE source=?1 AND relative=?2 AND revision=?3",
+                params![source, relative, revision],
+            )
+            .map_err(db)?;
         Ok(())
     }
     pub fn retry_entry(&self, source: &str, relative: &str) -> Result<()> {
@@ -769,6 +801,11 @@ impl Index {
         }
         let tx = self.conn.transaction().map_err(db)?;
         tx.execute("INSERT INTO source_rules(source,include,exclude) VALUES(?1,?2,?3) ON CONFLICT(source) DO UPDATE SET include=excluded.include,exclude=excluded.exclude", params![source,include,exclude]).map_err(db)?;
+        tx.execute(
+            "UPDATE unsupported_media SET present=0 WHERE source=?1",
+            [source],
+        )
+        .map_err(db)?;
         // Hide the previous inventory until the requested full scan applies the new rules.
         tx.execute("UPDATE files SET present=0 WHERE source=?1", [source])
             .map_err(db)?;

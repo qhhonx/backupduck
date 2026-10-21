@@ -8,6 +8,7 @@ mod photo_date;
 pub use photo_date::write_photo_date;
 pub mod photos_cleanup;
 pub mod photos_probe;
+pub mod storage;
 use backupduck_core::{
     Asset, AssetKind, BurstMetadata, Error, Result, TargetPlan, TargetProcessor,
 };

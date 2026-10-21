@@ -686,3 +686,46 @@ fn four_user_categories_cover_pending_gallery_before_pagination() {
     let sender = Sender::open(&t.0).unwrap();
     assert_eq!(sender.browse(continuation).unwrap()[0].id, received_ids[0]);
 }
+
+#[test]
+fn publication_time_is_real_persisted_and_not_a_receipt_date() {
+    let t = Temp::new();
+    let mut s = Sender::open(&t.0).unwrap();
+    let j = add(&mut s);
+    let running = s.claim("receiver-1", 0).unwrap().unwrap();
+    let mut receipt = status(&running, true);
+    receipt.processing = ProcessingState::Pending;
+    s.acknowledge(&running.attempt(), &receipt).unwrap();
+    assert_eq!(s.publication_time(j.id).unwrap(), None);
+    receipt.processing = ProcessingState::Complete;
+    s.observe_processing(j.id, &receipt, 2).unwrap();
+    let observed = s.publication_time(j.id).unwrap().unwrap();
+    assert!(observed > 0);
+    s.observe_processing(j.id, &receipt, 3).unwrap();
+    assert_eq!(s.publication_time(j.id).unwrap(), Some(observed));
+    drop(s);
+    assert_eq!(
+        Sender::open(&t.0).unwrap().publication_time(j.id).unwrap(),
+        Some(observed)
+    );
+}
+
+#[test]
+fn historical_publication_without_a_date_stays_unknown_when_observed_again() {
+    let t = Temp::new();
+    let mut s = Sender::open(&t.0).unwrap();
+    let j = add(&mut s);
+    let running = s.claim("receiver-1", 0).unwrap().unwrap();
+    let mut receipt = status(&running, true);
+    receipt.processing = ProcessingState::Complete;
+    s.acknowledge(&running.attempt(), &receipt).unwrap();
+    drop(s);
+    // Simulate a complete observation recorded by a version without dates.
+    let conn = rusqlite::Connection::open(t.0.join("sender.sqlite3")).unwrap();
+    conn.execute("DELETE FROM publication_times", []).unwrap();
+    drop(conn);
+    let mut s = Sender::open(&t.0).unwrap();
+    assert_eq!(s.publication_time(j.id).unwrap(), None);
+    s.observe_processing(j.id, &receipt, 3).unwrap();
+    assert_eq!(s.publication_time(j.id).unwrap(), None);
+}

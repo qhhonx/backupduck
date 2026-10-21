@@ -10,28 +10,22 @@ import androidx.core.app.NotificationCompat
 internal object ReceiverNotifications {
     data class Content(val title: String, val body: String)
 
-    fun content(context: Context, state: ReceiverSnapshot): Content {
-        val (title, body) = when {
-            state.thermalHeld -> R.string.notification_cooling to R.string.notification_cooling_body
-            ReceiverPreferences.paused(context) -> R.string.notification_paused to R.string.notification_paused_body
-            state.phase == "starting" -> R.string.notification_starting to R.string.notification_starting_body
-            state.phase == "waiting" -> R.string.notification_recovering to R.string.notification_recovering_body
-            state.phase != "ready" -> R.string.notification_stopped to R.string.receiver_resume_notice
-            state.error in listOf("processing_low_space", "low_space", "capacity") ->
-                R.string.notification_space to R.string.notification_space_body
-            state.recent.any { it.receipt == "receiving" } ->
-                R.string.notification_receiving to R.string.notification_receiving_body
-            state.processingName != null || state.received > state.published + state.failed ->
-                R.string.notification_saving to R.string.notification_saving_body
-            state.failed > 0 -> R.string.notification_attention to R.string.notification_attention_body
-            else -> R.string.notification_ready to R.string.notification_ready_body
-        }
-        return Content(context.getString(title), context.getString(body))
-    }
+    fun content(context: Context, state: ReceiverSnapshot): Content =
+        content(context, receiverNotificationState(state, ReceiverPreferences.paused(context)))
+
+    private fun content(context: Context, state: ReceiverNotificationState) =
+        Content(context.getString(state.title), context.getString(state.body))
+
+    private fun open(context: Context, route: ReceiverNotificationRoute, requestCode: Int): PendingIntent =
+        PendingIntent.getActivity(context, requestCode, Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(ReceiverNotificationRoute.EXTRA, route.value),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     fun build(context: Context, state: ReceiverSnapshot): Notification {
-        val content = content(context, state)
-        val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val presentation = receiverNotificationState(state, ReceiverPreferences.paused(context))
+        val content = content(context, presentation)
+        val open = open(context, presentation.route, 1)
         return NotificationCompat.Builder(context, "receiver")
             .setContentTitle(content.title)
             .setContentText(content.body)
@@ -46,7 +40,7 @@ internal object ReceiverNotifications {
     }
 
     fun resume(context: Context): Notification {
-        val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val open = open(context, ReceiverNotificationRoute.RECEIVE, 2)
         return NotificationCompat.Builder(context, "receiver")
             .setSmallIcon(R.drawable.ic_notification_duck)
             .setContentTitle(context.getString(R.string.notification_stopped))

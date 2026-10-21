@@ -10,6 +10,9 @@ little_exif = "=0.6.23"
 backupduck-core.workspace = true
 quick-xml = "0.38"
 serde.workspace = true
+rusqlite.workspace = true
+fs2.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+backupduck-store.workspace = true

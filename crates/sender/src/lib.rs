@@ -10,8 +10,10 @@ use std::{
     path::Path,
 };
 
+mod library;
 mod sorting;
 mod task_feed;
+pub use library::{LibrarySourceState, LibraryTileState};
 pub use sorting::JobQuery;
 
 /// Shared supported concurrency range, independent of the native executor.
@@ -142,6 +144,15 @@ impl Sender {
             CREATE TRIGGER IF NOT EXISTS jobs_insert_revision AFTER INSERT ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
             CREATE TRIGGER IF NOT EXISTS jobs_update_revision AFTER UPDATE ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
             CREATE INDEX IF NOT EXISTS jobs_source_revision ON jobs(receiver_id,json_extract(manifest,'$.source_id'),json_extract(manifest,'$.revision'));").map_err(db)?;
+        // Guard before insertion: a writer's outer conflict policy can override
+        // a trigger's OR IGNORE and replace the first observed publication time.
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS publication_times(job_id INTEGER PRIMARY KEY,observed_ms INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS publication_legacy(job_id INTEGER PRIMARY KEY);
+            INSERT OR IGNORE INTO publication_legacy SELECT job_id FROM processing_observations WHERE state='complete' AND job_id NOT IN (SELECT job_id FROM publication_times);
+            DROP TRIGGER IF EXISTS publication_insert;
+            DROP TRIGGER IF EXISTS publication_update;
+            CREATE TRIGGER IF NOT EXISTS publication_insert_once AFTER INSERT ON processing_observations WHEN NEW.state='complete' AND NOT EXISTS(SELECT 1 FROM publication_legacy WHERE job_id=NEW.job_id) AND NOT EXISTS(SELECT 1 FROM publication_times WHERE job_id=NEW.job_id) BEGIN INSERT INTO publication_times VALUES(NEW.job_id,CAST(unixepoch('subsec')*1000 AS INTEGER)); END;
+            CREATE TRIGGER IF NOT EXISTS publication_update_once AFTER UPDATE ON processing_observations WHEN NEW.state='complete' AND NOT EXISTS(SELECT 1 FROM publication_legacy WHERE job_id=NEW.job_id) AND NOT EXISTS(SELECT 1 FROM publication_times WHERE job_id=NEW.job_id) BEGIN INSERT INTO publication_times VALUES(NEW.job_id,CAST(unixepoch('subsec')*1000 AS INTEGER)); END;").map_err(db)?;
         sorting::migrate(&conn)?;
         // Rust foreground tasks cannot survive a process exit. OS tasks can and must
         // be reconciled explicitly after the native scheduler has enumerated them.
@@ -724,6 +735,17 @@ impl Sender {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db)?;
         Ok(items)
+    }
+    /// First observed Photos publication. Older observations remain undated.
+    pub fn publication_time(&self, id: i64) -> Result<Option<u64>> {
+        self.conn
+            .query_row(
+                "SELECT observed_ms FROM publication_times WHERE job_id=?1",
+                [id],
+                |r| r.get::<_, i64>(0).map(|t| t as u64),
+            )
+            .optional()
+            .map_err(db)
     }
     pub fn observe_processing(&mut self, id: i64, status: &AssetStatus, now: i64) -> Result<()> {
         let job = self.job(id)?;

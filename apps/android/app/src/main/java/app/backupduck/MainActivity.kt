@@ -33,6 +33,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 
 class MainActivity : BackupDuckActivity() {
+    internal val notificationWindows = ReceiverNotificationWindows()
     private val currentSettingValues=mutableListOf<Pair<TextView,()->String>>()
     private lateinit var pairingUI:PairingUI
 
@@ -165,9 +166,9 @@ class MainActivity : BackupDuckActivity() {
         setContentView(root)
         navigation.selectedItemId = selectedPage
         refreshDiscovery()
-        handleDestination(intent)
         // A theme change or rotation recreates the activity; the connect screen or device page stays open.
         when (savedInstanceState?.getString("connect.surface")) { "devices" -> openDevices(); "pairing" -> openConnect(); "connect-mac" -> openConnect(mac = true); "storage" -> openStorage() }
+        handleDestination(intent)
         storagePage.refresh(force = true, includeDetails = selectedPage == 3)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -247,6 +248,21 @@ class MainActivity : BackupDuckActivity() {
         } else navigation.removeBadge(4)
     }
     private fun handleDestination(next:Intent) {
+        val notificationRoute = ReceiverNotificationRoute.parse(next.getStringExtra(ReceiverNotificationRoute.EXTRA))
+        next.removeExtra(ReceiverNotificationRoute.EXTRA)
+        if (notificationRoute != null) {
+            notificationWindows.dismiss()
+            navigation.selectedItemId = 1
+            when (notificationRoute) {
+                ReceiverNotificationRoute.RECEIVE -> Unit
+                ReceiverNotificationRoute.NEEDS_YOU -> {
+                    openTransfers(failed = true)
+                    receivedPhotos?.openNeedsYou()
+                }
+                ReceiverNotificationRoute.STORAGE -> openStorage()
+            }
+            return
+        }
         when(next.getStringExtra("destination")) {
             "receive"->navigation.selectedItemId=1
             "transfers"->navigation.selectedItemId=2
@@ -414,7 +430,7 @@ class MainActivity : BackupDuckActivity() {
             .setTitle(R.string.settings_appearance)
             .setSingleChoiceItems(labels.map {getString(it)}.toTypedArray(), modes.indexOf(delegate.localNightMode)) { dialog, index ->
                 dialog.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putInt("mode",modes[index]).apply();delegate.localNightMode=modes[index]
-            }.setNegativeButton(R.string.device_cancel, null).show()
+            }.setNegativeButton(R.string.device_cancel, null).show().also { trackNotificationWindow(it) }
     }
     private fun chooseLanguage() {
         val language=currentLanguageTag()
@@ -426,7 +442,7 @@ class MainActivity : BackupDuckActivity() {
                 val tag=tags[index]
                 dialog.dismiss();getSharedPreferences("appearance",MODE_PRIVATE).edit().putString("language",tag).apply()
                 AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tag))
-            }.setNegativeButton(R.string.device_cancel, null).show()
+            }.setNegativeButton(R.string.device_cancel, null).show().also { trackNotificationWindow(it) }
     }
     /** Settings per design/settings.md in Material 3, built from the shared components; shown by the design catalog until migration step 6. */
     private fun proposedDesignPage(): View = scrollPage { panel ->

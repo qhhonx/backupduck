@@ -19,6 +19,8 @@ class PixelStorageTest {
     fun otherStaysUnknownUntilEveryPartIsRead() {
         assertNull(StorageParts(64 * gb, 6 * gb, photos = null, copies = gb).other)
         assertNull(StorageParts(64 * gb, 6 * gb, photos = 40 * gb, copies = null).other)
+        assertNull(StorageParts(null, 6 * gb, photos = 40 * gb, copies = gb).other)
+        assertNull(StorageParts(64 * gb, null, photos = 40 * gb, copies = gb).other)
     }
 
     @Test

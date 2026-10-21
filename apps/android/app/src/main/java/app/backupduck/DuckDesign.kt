@@ -2,6 +2,7 @@ package app.backupduck
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -136,6 +137,7 @@ internal class DuckReadings(private val context: Context, labels: List<String>) 
     fun render(vararg readings: String) { values.forEachIndexed { index, text -> if(text.text.toString()!=readings[index])text.text = readings[index] } }
 }
 internal class DuckSheet(context: Context, title: String) : BottomSheetDialog(context) {
+    init { context.trackNotificationWindow(this) }
     val body = LinearLayout(this.context).apply {
         orientation = LinearLayout.VERTICAL
         val padding = context.token(R.dimen.duck_space_medium)
@@ -191,9 +193,15 @@ internal fun Context.duckDefinition(parent:LinearLayout,label:String,value:Strin
     val content=duckText(value,13)
     row.addView(content,LinearLayout.LayoutParams(0,-2,1f));parent.addView(row);return content
 }
-internal fun Context.duckTimeline(parent:LinearLayout,title:String,note:String,confirmed:Boolean,color:Int=R.color.duck_saved,last:Boolean=false) {
+internal fun Context.duckTimeline(parent:LinearLayout,title:String,note:String,confirmed:Boolean,color:Int=R.color.duck_saved,last:Boolean=false,glyph:Int?=null) {
     val row=LinearLayout(this).apply {minimumHeight=dp(60);gravity=Gravity.TOP}
-    row.addView(object:View(this) {
+    if (glyph != null) row.addView(ImageView(this).apply {
+        setImageResource(glyph)
+        imageTintList = ColorStateList.valueOf(getColor(if (confirmed) color else R.color.duck_text_secondary))
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        setPadding(0, 0, token(R.dimen.duck_space_x_small), 0)
+    }, LinearLayout.LayoutParams(dp(24), dp(24)))
+    else row.addView(object:View(this) {
         private val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         override fun onDraw(canvas:android.graphics.Canvas) {
             if(!last) {paint.color=getColor(R.color.duck_border);paint.strokeWidth=dp(1).toFloat();canvas.drawLine(dp(5).toFloat(),dp(16).toFloat(),dp(5).toFloat(),height.toFloat(),paint)}
@@ -214,6 +222,7 @@ internal fun Context.duckParagraph(text:String):TextView=lookText(text, com.goog
 
 /** Full native secondary page: toolbar, scrollable body and optional fixed action footer. */
 internal class DuckPage(val activity:androidx.appcompat.app.AppCompatActivity,title:String):androidx.appcompat.app.AppCompatDialog(activity,R.style.DuckFullPage) {
+    init { activity.trackNotificationWindow(this) }
     val body=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setPadding(activity.dp(16),activity.dp(20),activity.dp(16),activity.dp(24))}
     private val footer=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setPadding(activity.dp(16),activity.dp(12),activity.dp(16),activity.dp(20));visibility=View.GONE}
     init {

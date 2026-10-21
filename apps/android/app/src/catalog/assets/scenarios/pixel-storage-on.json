@@ -9,7 +9,7 @@
     }
   },
   "expect": [
-    "Both switches on; BackupDuck's own copies drop out of the legend when they are 0."
+    "Both switches on; own copies, all three categories and the freeable estimate are known zero and stay visible."
   ],
   "core": {
     "receiver_settings": {
@@ -27,10 +27,16 @@
         "free_bytes": 6657199308
       }
     },
-    "receiver_storage_usage": {
+    "receiver_storage_breakdown": {
       "value": {
+        "own_copy_bytes": 0,
         "ready_bytes": 0,
-        "partial_bytes": 0
+        "partial_bytes": 0,
+        "converted_original_bytes": 0,
+        "pending_bytes": 0,
+        "other_original_bytes": 0,
+        "reclaimable_bytes": 0,
+        "free_bytes": 6657199308
       }
     }
   }

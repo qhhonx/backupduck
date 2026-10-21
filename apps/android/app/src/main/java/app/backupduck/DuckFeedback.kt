@@ -26,7 +26,7 @@ internal class DuckConfirmation(private val activity:AppCompatActivity,title:Int
     private val dialog = MaterialAlertDialogBuilder(activity)
         .setTitle(title).setMessage(explanation)
         .setNegativeButton(R.string.device_cancel, null)
-        .setPositiveButton(positive, null).create()
+        .setPositiveButton(positive, null).create().also { activity.trackNotificationWindow(it) }
     val confirm get() = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
     val window get() = dialog.window
     val isShowing get() = dialog.isShowing
@@ -62,6 +62,7 @@ internal class DuckEditDialog(context: Context, title: String, label: String, va
     }
     private val dialog = MaterialAlertDialogBuilder(context).setTitle(title).setView(body)
         .setNegativeButton(R.string.device_cancel, null).setPositiveButton(R.string.device_save, null).create()
+        .also { context.trackNotificationWindow(it) }
     val save get() = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
     val cancel get() = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
     val window get() = dialog.window

@@ -20,7 +20,13 @@ impl Rules {
                 {
                     return Err(Error::Invalid(format!("invalid folder pattern: {pattern}")));
                 }
-                let glob = GlobBuilder::new(pattern)
+                // A folder token such as Drafts/ includes its descendants.
+                let expanded = if pattern.ends_with('/') {
+                    format!("{pattern}**")
+                } else {
+                    pattern.clone()
+                };
+                let glob = GlobBuilder::new(&expanded)
                     .literal_separator(true)
                     .backslash_escape(true)
                     .build()

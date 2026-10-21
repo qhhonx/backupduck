@@ -90,6 +90,18 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
     drop(index);
     folder(prepare.clone());
     folder(prepare.clone());
+    let facts = folder(json!({"action":"facts","source":"source","receiver":receiver}));
+    assert_eq!(facts["saved"], 0);
+    assert_eq!(facts["in_flight"], 2);
+    assert_eq!(facts["in_flight_bytes"], photo.size + video.size);
+    let browse =
+        folder(json!({"action":"browse","receiver":receiver,"search":"original","offset":0}));
+    assert_eq!(browse["rows"].as_array().unwrap().len(), 2);
+    assert_eq!(browse["rows"][0]["backup"], "sending");
+    assert_eq!(
+        folder(json!({"action":"facts","source":"source","receiver":"other"}))["not_backed_up"],
+        2
+    );
     let jobs = ok(json!({"op":"jobs","receiver_id":receiver}));
     assert_eq!(jobs.as_array().unwrap().len(), 1);
     assert_eq!(
@@ -121,6 +133,29 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
     let result = ok(json!({"op":"run_sender","pairing":pairing}));
     assert_eq!(result["state"], "received");
     folder(prepare);
+    // Receipt alone is never projected as saved to Photos.
+    let received_facts = folder(json!({"action":"facts","source":"source","receiver":receiver}));
+    assert_eq!(received_facts["saved"], 0);
+    assert_eq!(received_facts["in_flight"], 2);
+    assert!(
+        folder(json!({"action":"browse","receiver":receiver,"filter":"recent","offset":0}))["rows"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    folder(json!({"action":"availability","source":"source","available":false}));
+    assert_eq!(
+        folder(json!({"action":"facts","source":"source","receiver":receiver}))["available"],
+        false
+    );
+    folder(json!({"action":"preview_begin","root":source}));
+    while folder(json!({"action":"preview_step"}))["scanning"] == true {}
+    folder(json!({"action":"preview_cancel"}));
+    // Preview counting cannot modify production inventory or availability.
+    assert_eq!(
+        folder(json!({"action":"facts","source":"source","receiver":receiver}))["available"],
+        false
+    );
     let page = folder(json!({"action":"page","source":"source","receiver":receiver,"offset":0}));
     assert!(page
         .as_array()
