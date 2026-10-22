@@ -60,9 +60,9 @@ protocol PreviewSample {
   private var generation = UUID()
   private var cloudPoster = false
   private var promptForCloud = true
-  private let manager: PHImageManager
-  init(asset: PHAsset, poster: LibraryImage? = nil, manager: PHImageManager = .default()) {
-    self.asset = asset; image = poster; self.manager = manager
+  private let manager: PHImageManager?
+  init(asset: PHAsset, poster: LibraryImage? = nil, manager: PHImageManager? = nil) {
+    self.asset = asset; image = poster; self.manager = BackupEnvironment.usesPhotoLibrary ? (manager ?? .default()) : nil
   }
   private func adoptPoster(_ incoming: LibraryImage) {
     if let current = image {
@@ -93,6 +93,7 @@ protocol PreviewSample {
   }
   var filename: String {
     if let sample = asset as? any PreviewSample { return sample.previewFilename }
+    guard BackupEnvironment.usesPhotoLibrary else { return "" }
     let resources = PHAssetResource.assetResources(for: asset)
     return resources.first(where: { $0.type == .photo || $0.type == .video })?.originalFilename ?? resources.first?.originalFilename ?? ""
   }
@@ -104,6 +105,7 @@ protocol PreviewSample {
       image = sample.previewImage; loading = false; failure = image == nil
       return
     }
+    guard BackupEnvironment.usesPhotoLibrary, let manager else { loading = false; failure = true; return }
     if let burst = asset.burstIdentifier {
       let options = photoLibraryFetchOptions()
       options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
@@ -198,7 +200,7 @@ protocol PreviewSample {
   func cancel() {
     generation = UUID()
     metadataGeneration = UUID()
-    requests.forEach { manager.cancelImageRequest($0) }; requests = []
+    requests.forEach { manager?.cancelImageRequest($0) }; requests = []
     if let metadataRequest { PHAssetResourceManager.default().cancelDataRequest(metadataRequest) }; metadataRequest = nil
     player?.pause(); loading = false; metadataLoading = false
   }
@@ -213,6 +215,7 @@ protocol PreviewSample {
       metadataRequested = true; metadata = sample.previewMetadata
       return
     }
+    guard BackupEnvironment.usesPhotoLibrary else { return }
     metadataRequested = true
     metadataGeneration = UUID()
     let expectedMetadata = metadataGeneration

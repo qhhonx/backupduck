@@ -31,6 +31,7 @@ struct BackupScopeRule: Codable, Equatable {
   }
   /// PhotoKit owns library membership. Capture only matching IDs, never media bytes.
   func selectedIDs(from identifiers: Set<String>? = nil) -> Set<String> {
+    guard BackupEnvironment.usesPhotoLibrary else { return [] }
     var albumMembers: Set<String> = []
     if usesSpecifiedAlbums {
       let collections = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: Array(albums), options: nil)
@@ -163,7 +164,7 @@ struct ScopeAlbum: Identifiable, Hashable {
     super.init()
     self.albums = albums ?? []
     self.denied = denied
-    guard !suppliedAlbums else { return }
+    guard !suppliedAlbums, BackupEnvironment.usesPhotoLibrary else { return }
     // Registering asks for photo access when it has not been decided yet.
     let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     if BackupEnvironment.usesPhotoLibrary, access == .authorized || access == .limited { PHPhotoLibrary.shared().register(self) }

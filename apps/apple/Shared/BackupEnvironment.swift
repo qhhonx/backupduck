@@ -34,11 +34,13 @@ enum BackupEnvironment {
   nonisolated(unsafe) static var sampleThumbnail: ((String) -> Image?)? = nil
   /// Asks for photo access (the system prompt when undecided); true for full or limited access.
   nonisolated(unsafe) static var requestPhotoAccess: @MainActor () async -> Bool = {
+    guard usesPhotoLibrary else { return false }
     let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
     return access == .authorized || access == .limited
   }
   /// The current photo access, without asking.
   nonisolated(unsafe) static var photoAccess: @MainActor () -> PhotoAccess = {
+    guard usesPhotoLibrary else { return .undetermined }
     switch PHPhotoLibrary.authorizationStatus(for: .readWrite) {
     case .authorized: return .full
     case .limited: return .limited
@@ -48,6 +50,7 @@ enum BackupEnvironment {
   }
   /// How many photos and videos the library holds, or nil before access is granted.
   nonisolated(unsafe) static var libraryCount: @MainActor () -> Int? = {
+    guard usesPhotoLibrary else { return nil }
     let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     guard access == .authorized || access == .limited else { return nil }
     return PHAsset.fetchAssets(with: nil).count

@@ -43,6 +43,7 @@ struct LibraryScenario {
 
   init(options: Options, receiver: String) {
     self.receiver = receiver
+    guard BackupEnvironment.usesPhotoLibrary else { return }
     let fetchOptions = PHFetchOptions()
     fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
     let assets = PHAsset.fetchAssets(with: fetchOptions)

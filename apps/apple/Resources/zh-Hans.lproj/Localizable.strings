@@ -1673,3 +1673,5 @@
 
 "photo_viewer_info" = "信息";
 "photo_viewer_info_state" = "信息，%@";
+
+"mac_viewer_position" = "第 %d 项，共 %d 项";

@@ -28,7 +28,8 @@ import CryptoKit
   private var observing = false
   init(root: URL,
     captureToken: @escaping () throws -> Data = {
-      try NSKeyedArchiver.archivedData(withRootObject: PHPhotoLibrary.shared().currentChangeToken, requiringSecureCoding: true)
+      guard BackupEnvironment.usesPhotoLibrary else { return Data() }
+      return try NSKeyedArchiver.archivedData(withRootObject: PHPhotoLibrary.shared().currentChangeToken, requiringSecureCoding: true)
     },
     readChanges: @escaping (Data, Data?) async throws -> (Data?, Set<String>, Set<String>) = { saved, cutoff in
       try await Task.detached(priority: .utility) { try PhotoLibraryChanges.changes(since: saved, through: cutoff) }.value
@@ -117,6 +118,7 @@ import CryptoKit
   nonisolated static func changes(since saved: Data, through ending: Data? = nil)
     throws -> (Data?, Set<String>, Set<String>)
   {
+    guard BackupEnvironment.usesPhotoLibrary else { throw Bridge.Failure(code: "history_unavailable") }
     guard let start = try NSKeyedUnarchiver.unarchivedObject(
       ofClass: PHPersistentChangeToken.self, from: saved)
     else { throw Bridge.Failure(code: "history_unavailable") }
@@ -139,7 +141,8 @@ import CryptoKit
     }
     if let cutoff, latest != cutoff { throw Bridge.Failure(code: "history_unavailable") }
     return (try latest.map {
-      try NSKeyedArchiver.archivedData(withRootObject: $0, requiringSecureCoding: true)
+      guard BackupEnvironment.usesPhotoLibrary else { return Data() }
+      return try NSKeyedArchiver.archivedData(withRootObject: $0, requiringSecureCoding: true)
     }, inserted, deleted)
   }
   private func reconcileClosingWindow() async throws {
@@ -171,7 +174,7 @@ import CryptoKit
     Task { @MainActor in await BackupModel.shared.discoverPhotos() }
   }
   func discoverAndQueue(using model: BackupModel) async {
-    guard (state.enabled || state.closingToken != nil || !state.pending.isEmpty),
+    guard BackupEnvironment.usesPhotoLibrary, (state.enabled || state.closingToken != nil || !state.pending.isEmpty),
       !scanning, !model.paused,
       model.pairing?.receiverID == state.receiverID
     else { return }

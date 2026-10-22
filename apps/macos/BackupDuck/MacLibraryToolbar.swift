@@ -75,7 +75,10 @@ struct MacLibrarySubtitle: NSViewRepresentable {
   @Published var viewerTitle = ""
   @Published var viewerSubtitle = ""
   @Published var viewerInfo = false
-  @Published var viewerImmersive = false
+  @Published var viewerState = "photo_viewer_loading"
+  @Published var viewerProgress: Double?
+  var viewerShare: (() -> Void)?
+  var viewerBack: (() -> Void)?
   @Published var viewerHasLive = false
   @Published var viewerLiveRequest = 0
   var viewerCurrent: (() -> PHAsset?)?

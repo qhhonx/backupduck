@@ -55,6 +55,7 @@ struct HistoricalImportStatus: Decodable, Equatable {
   /// Capture identifiers at the button press. Insertions during enumeration
   /// are removed using the persistent change token captured beforehand.
   @discardableResult static func capture(root: URL, receiver: String) async throws -> String {
+    guard BackupEnvironment.usesPhotoLibrary else { throw Bridge.Failure(code: "source_unavailable") }
     let rule = BackupScopeStore.shared.rule
     let ids = try await Task.detached(priority: .utility) { () throws -> [String] in
       let token = try NSKeyedArchiver.archivedData(
@@ -150,7 +151,7 @@ extension BackupModel {
     } catch { historyError = NSLocalizedString("history_operation_failed", comment: "") }
   }
   func scanHistoricalImport() async {
-    guard ready, !importing, !scanningHistory, !changingHistory, let target = pairing else { return }
+    guard BackupEnvironment.usesPhotoLibrary, ready, !importing, !scanningHistory, !changingHistory, let target = pairing else { return }
     scanningHistory = true
     defer { scanningHistory = false }
     await refreshHistoricalImport()
@@ -454,7 +455,7 @@ struct SourceBrowserItem: Decodable, Identifiable, Equatable {
     loading = true; failed = false
     defer { if generation == expected { loading = false } }
     do {
-      if sort == "capture" {
+      if BackupEnvironment.usesPhotoLibrary, sort == "capture" {
         // Metadata only, in bounded batches off the main actor. Keep missing
         // PhotoKit dates as 0 so they remain unknown rather than using revision.
         while !Task.isCancelled {
@@ -612,6 +613,7 @@ struct SourceBrowserRow: View {
     #endif
     }
       .task(id: item.source) {
+        guard BackupEnvironment.usesPhotoLibrary else { return }
         let source = item.source
         let details = await Task.detached(priority: .utility) { () -> (String, String, Date?)? in
           guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [source], options: photoLibraryFetchOptions()).firstObject else { return nil }

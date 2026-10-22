@@ -587,7 +587,7 @@ private struct ProcessingEventsResult: Decodable {
     requestAuthorization: Bool = true, rebackupReceived: Bool = false,
     repeatSources: Set<String>? = nil) async -> Bool
   {
-    guard !identifiers.isEmpty, let target = pairing else {
+    guard BackupEnvironment.usesPhotoLibrary, !identifiers.isEmpty, let target = pairing else {
       message = NSLocalizedString("apple_selected_receiver_needed", comment: "")
       return false
     }
@@ -646,7 +646,7 @@ private struct ProcessingEventsResult: Decodable {
     rebackupReceived: Bool = false, preparation: SourcePreparation? = nil)
     async -> Bool
   {
-    guard selectedImportAllowed(rebackupReceived: rebackupReceived), let target = pairing else { return false }
+    guard BackupEnvironment.usesPhotoLibrary, selectedImportAllowed(rebackupReceived: rebackupReceived), let target = pairing else { return false }
     message = nil
     var succeeded = true
     var preparationFailure: String?
@@ -897,7 +897,7 @@ private struct ProcessingEventsResult: Decodable {
   }
   private var orderingPendingSources = false
   func processPendingImports() async {
-    guard ready, !importing, !orderingPendingSources, let pairing else { return }
+    guard BackupEnvironment.usesPhotoLibrary, ready, !importing, !orderingPendingSources, let pairing else { return }
     orderingPendingSources = true
     defer { orderingPendingSources = false }
     do {

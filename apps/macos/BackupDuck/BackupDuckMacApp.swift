@@ -35,10 +35,12 @@ struct MacWorkspace: View {
   @State private var selectedPhotoDetails: PHAsset?
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var transferFilter = "all"
+  @State private var historyFocus: HistoryPhoto?
   @State private var settingsTitle = "nav_settings"
   @State private var librarySelecting = false
   @State private var previewAsset: PHAsset?
   @State private var reviewAssets: [PHAsset]?
+  @State private var externalViewer: MacViewerRequest?
   @State private var previewExpanded = false
   @State private var gridFrame = CGRect.zero
   @State private var previewMediaVisible = false
@@ -49,8 +51,11 @@ struct MacWorkspace: View {
   @StateObject private var folders: FolderSources
   @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialSettingsRoute: MacSettingsRoute? = nil, initialTransferFilter: String = "all",
     initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
-    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "") {
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false) {
     self.model = model
+    _externalViewer = State(initialValue: initialViewer)
+    let navigation = MacLibraryNavigation(); navigation.viewerInfo = initialViewerInfo
+    _libraryNavigation = StateObject(wrappedValue: navigation)
     self.library = library
     self.initialSettingsRoute = initialSettingsRoute
     self.initialSettingsPage = initialSettingsPage; self.scopeStore = scopeStore ?? .shared
@@ -73,6 +78,12 @@ struct MacWorkspace: View {
         .background(MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: subtitleOverride))
         .toolbar { workspaceToolbar }
     }
+    .environment(\.macViewerPresentation, { request in externalViewer = request })
+    .environment(\.macViewerHistory, { photo in
+      closeViewer(); historyFocus = photo; destination = .transfers
+    })
+    .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
+      info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
     .tint(DuckColors.action)
     .background(DuckRole.background)
     .background(MacSheetInitialFocus())
@@ -155,7 +166,7 @@ struct MacWorkspace: View {
           destination == .library
         ).accessibilityHidden(destination != .library)
         if destination == .sources {
-          FolderSourcesPage(folders: folders, backup: model, settings: { id in
+          FolderSourcesPage(folders: folders, backup: model, viewerOpen: hasViewer, settings: { id in
             folders.initialSettingsFolder = id; destination = .settings
             NotificationCenter.default.post(name: Notification.Name("BackupDuckFolderSettings"), object: id)
           })
@@ -167,7 +178,7 @@ struct MacWorkspace: View {
             library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
         }
         if destination == .transfers && DesignPreview.proposedDesign {
-          BackupHistoryView(model: model)
+          BackupHistoryView(model: model, initialFocus: historyFocus).id(historyFocus?.id)
         } else if destination == .transfers {
           MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
         }
@@ -196,9 +207,34 @@ struct MacWorkspace: View {
           }
       }
     }
+    .allowsHitTesting(externalViewer == nil)
+    .accessibilityHidden(externalViewer != nil)
+    .overlay {
+      if let externalViewer {
+        switch externalViewer {
+        case let .photo(asset, collection, recorded):
+          if let asset {
+            MacPhotoPreview(asset: asset, library: library, navigation: libraryNavigation, reviewAssets: collection, recorded: recorded) { _ in self.externalViewer = nil }
+              .id(asset.localIdentifier)
+          } else if let recorded {
+            MacRecordedPhotoPreview(photo: recorded, model: model, navigation: libraryNavigation, close: { self.externalViewer = nil })
+          }
+        case let .folder(photo, context, sources, returnTo):
+          FolderViewer(photo: photo, context: context, folders: sources, navigation: libraryNavigation, close: { current in
+            returnTo?(current); self.externalViewer = nil
+          })
+        }
+      }
+    }
+  }
+  private var hasViewer: Bool { externalViewer != nil || (destination == .library && previewAsset != nil && libraryNavigation.viewerOpen) }
+  private func closeViewer() {
+    if let back = libraryNavigation.viewerBack { back() }
+    else if externalViewer != nil { externalViewer = nil }
+    else if let asset = libraryNavigation.viewerCurrent?() { closeMedia(asset) }
   }
   private var windowTitle: Text {
-    if destination == .library && previewAsset != nil && libraryNavigation.viewerOpen { return Text(verbatim: "") }
+    if hasViewer { return Text(verbatim: "") }
     if destination == .transfers && DesignPreview.proposedDesign { return Text("records_title") }
     if destination == .library && DesignPreview.proposedDesign { return Text("mac_nav_photo_library") }
     return Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title))
@@ -206,43 +242,16 @@ struct MacWorkspace: View {
   /// A subtitle replacing the visible range: empty outside the library and in
   /// the viewer, the selection count while photos are selected.
   private var subtitleOverride: String? {
+    if hasViewer { return "" }
     guard destination == .library && library.authorized else { return "" }
     if previewAsset != nil && libraryNavigation.viewerOpen { return "" }
     return librarySubtitle
   }
   @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
-  // The open viewer uses the window toolbar instead of a second bar in
-  // the content: back, then information and Live playback.
-  if destination == .library, previewAsset != nil, libraryNavigation.viewerOpen {
-    ToolbarItem(placement: .navigation) {
-      Button { if let asset = libraryNavigation.viewerCurrent?() { closeMedia(asset) } } label: {
-        Label("mac_library_back", systemImage: "chevron.backward")
-      }.keyboardShortcut(.cancelAction).help(Text("mac_library_back"))
-        .accessibilityIdentifier("library.preview.close")
-    }
-    // The title is centred, as in Photos: the date, then time and position.
-    // Plain text, not a control: no shared glass background behind it.
-    #if compiler(>=6.2)
-    if #available(macOS 26.0, *) {
-      ToolbarItem(placement: .principal) { viewerTitle }.sharedBackgroundVisibility(.hidden)
-    } else {
-      ToolbarItem(placement: .principal) { viewerTitle }
-    }
-    #else
-    // Xcode 16's SDK cannot resolve this modifier, even behind #available.
-    ToolbarItem(placement: .principal) { viewerTitle }
-    #endif
-    // Live playback lives on the photo's own badge; no second control here.
-    ToolbarItemGroup(placement: .primaryAction) {
-      Toggle(isOn: Binding(get: { libraryNavigation.viewerInfo }, set: { value in
-        withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26)) { libraryNavigation.viewerInfo = value }
-      })) { Label("apple_photo_detail", systemImage: "info.circle") }
-        .toggleStyle(.button).keyboardShortcut("i", modifiers: .command)
-        .help(Text("apple_photo_detail")).accessibilityIdentifier("library.preview.info")
-    }
-  }
-  if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
-    ToolbarItem(placement: .principal) {
+  if hasViewer {
+    MacViewerToolbar(navigation: libraryNavigation, back: closeViewer)
+  } else if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
+    ToolbarItem(id: "library.viewMode", placement: .principal) {
       Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level },set: changeLibraryLevel)) {
         ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
       }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
@@ -293,8 +302,8 @@ struct MacWorkspace: View {
         .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
     }
   }
-  ToolbarItemGroup(placement: .primaryAction) {
-    if destination == .transfers {
+  if !hasViewer, destination == .transfers {
+    ToolbarItem(id: "history.pause", placement: .primaryAction) {
       Button {
         Task { await model.setPaused(!model.paused) }
       } label: {
@@ -374,14 +383,9 @@ struct MacWorkspace: View {
       startFlight(from: old, to: next)
     }
     .onChange(of: destination) { _, next in
+      externalViewer = nil
       if next != .library { previewAsset = nil; reviewAssets = nil }
     }
-  }
-  private var viewerTitle: some View {
-    VStack(spacing: 1) {
-      Text(libraryNavigation.viewerTitle).font(.headline).lineLimit(1)
-      Text(libraryNavigation.viewerSubtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-    }.fixedSize().accessibilityElement(children: .combine).accessibilityIdentifier("library.preview.title")
   }
   /// The selection count, or nil for the visible range.
   private var librarySubtitle: String? {
@@ -460,13 +464,12 @@ struct MacWorkspace: View {
       clip: area, window: NSApp.keyWindow)
   }
   private func openMedia(_ asset: PHAsset) {
-    MacPhotoViewerWindow.open(asset: asset, library: library)
+    present(asset)
   }
   private func closeMedia(_ asset: PHAsset) {
     let token = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
     let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     let start = reduce ? nil : viewerTarget(asset, image: library.thumbnails.poster(for: asset), clip: .zero)
-    libraryNavigation.viewerImmersive = false
     libraryNavigation.viewerOpen = false
     previewMediaVisible = false
     previewExpanded = false

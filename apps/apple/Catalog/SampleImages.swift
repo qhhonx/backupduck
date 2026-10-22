@@ -15,6 +15,7 @@ final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable 
   override var mediaType: PHAssetMediaType { .image }
   override var mediaSubtypes: PHAssetMediaSubtype { [] }
   override var burstIdentifier: String? { nil }
+  override var representsBurst: Bool { false }
   override var location: CLLocation? { nil }
   override var duration: TimeInterval { 0 }
   override var pixelWidth: Int { 480 }
@@ -221,3 +222,28 @@ enum SampleImages {
     return context.makeImage()
   }
 }
+
+#if os(macOS)
+/// In-memory PhotoKit-shaped collection; no PhotoKit fetch or service connection.
+final class CatalogAssetCollection: PHFetchResult<PHAsset>, @unchecked Sendable {
+  let assets: [PHAsset]
+  init(_ assets: [PHAsset]) { self.assets = assets; super.init() }
+  override var count: Int { assets.count }
+  override func countOfAssets(with mediaType: PHAssetMediaType) -> Int { assets.filter { $0.mediaType == mediaType }.count }
+  override var firstObject: PHAsset? { assets.first }
+  override var lastObject: PHAsset? { assets.last }
+  override func object(at index: Int) -> PHAsset { assets[index] }
+  override func objects(at indexes: IndexSet) -> [PHAsset] { indexes.map { assets[$0] } }
+  override func index(of object: PHAsset) -> Int {
+    assets.firstIndex { $0.localIdentifier == object.localIdentifier } ?? NSNotFound
+  }
+  override func enumerateObjects(_ block: @escaping (PHAsset, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    enumerateObjects(at: IndexSet(assets.indices), options: [], using: block)
+  }
+  override func enumerateObjects(at indexes: IndexSet, options: NSEnumerationOptions,
+    using block: @escaping (PHAsset, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    var stop: ObjCBool = false
+    for index in indexes { block(assets[index], index, &stop); if stop.boolValue { break } }
+  }
+}
+#endif

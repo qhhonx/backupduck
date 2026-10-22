@@ -98,7 +98,7 @@ enum MacThumbnailTables {
   /// first, in the background. Nothing is downloaded and nothing is requested
   /// for assets already stored.
   @MainActor static func prefill(_ fetch: PHFetchResult<PHAsset>?) {
-    guard enabled, let fetch, prefilled != ObjectIdentifier(fetch), overview.available else { return }
+    guard BackupEnvironment.usesPhotoLibrary, enabled, let fetch, prefilled != ObjectIdentifier(fetch), overview.available else { return }
     prefilled = ObjectIdentifier(fetch)
     prefillTask?.cancel()
     prefillTask = Task.detached(priority: .utility) {

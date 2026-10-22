@@ -1,0 +1,12 @@
+{
+  "id": "folders.viewer",
+  "page": "sources",
+  "title": "Folder viewer toolbar and search continuity",
+  "extends": "folders.sections",
+  "mac_only": true,
+  "expect": [
+    "Browse keeps the Mountains query and selected unsaved photo.",
+    "Opening a photo replaces every browsing toolbar item.",
+    "Back restores the query, selection and browsing toolbar."
+  ]
+}

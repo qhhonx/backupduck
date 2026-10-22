@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Native virtualization and selection. Each view/filter owns its retained scroll offset.
 struct MacFolderGrid: NSViewRepresentable {
+  @Environment(\.macViewerPresentation) private var present
   @ObservedObject var folders: FolderSources
   @ObservedObject var browser: FolderBrowser
   var settings: (String) -> Void
@@ -150,7 +151,16 @@ struct MacFolderGrid: NSViewRepresentable {
     }
     func open(_ path: IndexPath) {
       guard let row = photo(path) else { return }
-      MacFolderViewer.open(row, context: sections.flatMap(\.photos), folders: parent.folders)
+      if let present = parent.present { present(.folder(row, sections.flatMap(\.photos), parent.folders, { [weak self] current in
+        guard let self, let collection = self.collection else { return }
+        for (section, group) in self.sections.enumerated() {
+          if let item = group.photos.firstIndex(where: { $0.id == current.id }) {
+            collection.scrollToItems(at: [IndexPath(item: item, section: section)], scrollPosition: .centeredVertically)
+            break
+          }
+        }
+      })) }
+      else { MacFolderViewer.open(row, context: sections.flatMap(\.photos), folders: parent.folders) }
     }
   }
 }

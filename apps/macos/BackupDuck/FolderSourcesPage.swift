@@ -7,8 +7,9 @@ struct FolderSourcesPage: View {
   @ObservedObject var backup: BackupModel
   var settings: (String) -> Void = { _ in }
   @ObservedObject private var browser: FolderBrowser
-  init(folders: FolderSources, backup: BackupModel, settings: @escaping (String) -> Void = { _ in }) {
-    self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser
+  private var viewerOpen: Bool
+  init(folders: FolderSources, backup: BackupModel, viewerOpen: Bool = false, settings: @escaping (String) -> Void = { _ in }) {
+    self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser; self.viewerOpen = viewerOpen
   }
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var adding: URL?
@@ -48,29 +49,38 @@ struct FolderSourcesPage: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .toolbar {
-      ToolbarItemGroup(placement: .primaryAction) {
-        FolderViewMenu(browser: browser)
-        if browser.filter != .all {
-          Button { browser.filter = .all } label: { Image(systemName: "xmark") }
-            .help("folders_clear_filter").accessibilityLabel(Text("folders_clear_filter"))
+      // Named items keep AppKit's search-field host out of the viewer's
+      // anonymous action group. The browser owns the query across removal.
+      if !viewerOpen {
+        ToolbarItem(id: "folders.view", placement: .navigation) {
+          FolderViewMenu(browser: browser)
         }
-      }
-      ToolbarItemGroup(placement: .primaryAction) {
-        Button(action: choose) { Label("folders_add", systemImage: "folder.badge.plus") }
-          .disabled(!backup.ready || folders.loadFailed)
-        FolderSearchField(text: $browser.search, focus: $searching)
-          .frame(idealWidth: 180, maxWidth: 220)
-        if !browser.selected.isEmpty || backupAction.added || backupAction.busy {
-          Button(action: backUpSelected) {
-            Text(backupAction.title.isEmpty
-              ? String(format: NSLocalizedString("selection_backup_count", comment: ""), browser.selected.count)
-              : backupAction.title)
-          }.buttonStyle(.borderedProminent).disabled(backupAction.busy || backupAction.added)
-            .accessibilityIdentifier("folders.backup_selected")
+        if browser.filter != .all {
+          ToolbarItem(id: "folders.clearFilter", placement: .navigation) {
+            Button { browser.filter = .all } label: { Image(systemName: "xmark") }
+              .help("folders_clear_filter").accessibilityLabel(Text("folders_clear_filter"))
+          }
+        }
+        ToolbarItem(id: "folders.add", placement: .primaryAction) {
+          Button(action: choose) { Label("folders_add", systemImage: "folder.badge.plus") }
+            .labelStyle(.iconOnly)
+            .help("folders_add")
+            .disabled(!backup.ready || folders.loadFailed)
+        }
+        if !browser.selected.isEmpty {
+          ToolbarItem(id: "folders.backupSelected", placement: .primaryAction) {
+            Button(action: backUpSelected) {
+              Text(backupAction.title.isEmpty
+                ? NSLocalizedString("folders_back_up_selected", comment: "")
+                : backupAction.title)
+            }.buttonStyle(.borderedProminent).disabled(backupAction.busy || backupAction.added)
+              .accessibilityIdentifier("folders.backup_selected")
+          }
         }
       }
     }
-    .focusedSceneValue(\.folderCommands, FolderCommandActions(add: choose, search: { searching = true }, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
+    .modifier(FolderBrowsingSearch(browser: browser, searching: $searching, viewerOpen: viewerOpen))
+    .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: { searching = true }, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
     .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
       Button("settings_done") { backupAction.error = nil }
@@ -309,5 +319,16 @@ struct AddFolderSheet: View {
       }
     } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     _ = try? await Bridge.call(["op": "folder", "command": ["action": "preview_cancel"]])
+  }
+}
+
+/// Keep the system search item separate from action buttons and remove it in the viewer.
+private struct FolderBrowsingSearch: ViewModifier {
+  @ObservedObject var browser: FolderBrowser
+  @Binding var searching: Bool
+  let viewerOpen: Bool
+  func body(content: Content) -> some View {
+    if viewerOpen { content }
+    else { content.searchable(text: $browser.search, isPresented: $searching, placement: .toolbar, prompt: Text("folders_search")) }
   }
 }

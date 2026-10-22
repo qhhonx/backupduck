@@ -1,0 +1,14 @@
+{
+  "id": "mac.viewer-light",
+  "page": "library",
+  "step": "macViewer",
+  "title": "Mac viewer \u00b7 light",
+  "extends": "photo.viewer-light",
+  "ios_only": false,
+  "mac_only": true,
+  "expect": [
+    "The production workspace retains its sidebar and system window canvas.",
+    "One native toolbar: back, centered date/time/position, Share and Info.",
+    "Info toggles the trailing A8 inspector; only recorded partial bytes establish a progress ring."
+  ]
+}

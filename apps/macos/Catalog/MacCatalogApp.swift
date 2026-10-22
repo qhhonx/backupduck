@@ -1,6 +1,7 @@
 import AppKit
 import ScreenCaptureKit
 import SwiftUI
+import Photos
 
 /// Mac design catalog: the production workspace window driven by scenario data
 /// instead of the Rust core, the keychain and the network. It never ships; see
@@ -22,7 +23,7 @@ import SwiftUI
 
   var body: some Scene {
     Window("Design catalog", id: "catalog") {
-      MacCatalogRoot().frame(minWidth: 900, minHeight: 620)
+      MacCatalogRoot().frame(minWidth: min(900, max(640, Double(MacCatalogLaunch.value("-window-width") ?? "") ?? 900)), minHeight: 620)
     }.defaultSize(width: 1180, height: 800).commands {
       MacFolderCommands()
       CommandGroup(replacing: .appInfo) {
@@ -42,6 +43,17 @@ import SwiftUI
   init(_ scenario: Scenario) {
     scope = scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil
     model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
+    if scenario.id == "library.synthetic" {
+      let assets: [PHAsset] = (0..<90).map { index in
+        let job = BackupJob(id: Int64(9000 + index),
+          asset: .init(metadata: ["created_at_ms": String(1792495800000 - Int64(index) * 3_600_000)],
+            kind: "photo", source_id: "catalog-library-\(index)", revision: "1",
+            resources: [.init(filename: "IMG_\(9000 + index).JPG", size: 4800000)]),
+          state: "waiting", confirmedBytes: 0, errorCode: nil)
+        return InformationSampleAsset(job: job)
+      }
+      library.installSyntheticAssets(CatalogAssetCollection(assets))
+    }
     let made = model
     BackupEnvironment.activeModel = { made }
     folders = FolderSources(backup: model)
@@ -65,6 +77,22 @@ private enum MacCatalogLaunch {
 
 @MainActor private final class MacCatalogLifecycle: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
+    Task { @MainActor in
+      for _ in 0..<40 {
+        Self.sizeWindow()
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+    }
+    if MacCatalogLaunch.value("-snapshot-mode") != "manual" { Self.capture() }
+  }
+  @discardableResult private static func sizeWindow() -> Bool {
+    guard let width = MacCatalogLaunch.value("-window-width").flatMap(Double.init),
+      let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { return false }
+    let size = NSSize(width: max(640, width), height: 740)
+    if window.contentView?.frame.size != size { window.setContentSize(size) }
+    return true
+  }
+  static func capture() {
     guard let path = MacCatalogLaunch.value("-snapshot") else { return }
     Task { @MainActor in
       do {
@@ -74,8 +102,12 @@ private enum MacCatalogLaunch {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = false
         _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        Self.sizeWindow()
         let delay = max(0, Double(MacCatalogLaunch.value("-snapshot-delay") ?? "") ?? 9)
         try await Task.sleep(for: .seconds(delay))
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
+        try await Task.sleep(for: .milliseconds(150))
         try await MacWindowSnapshot.write(to: URL(fileURLWithPath: path))
         print("Catalog snapshot written: \(path)")
         NSApp.terminate(nil)
@@ -185,6 +217,8 @@ private struct MacScenarioRun: View {
           .navigationTitle("about_title")
       } else if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
         MacStatusMenuCatalog(model: session.model)
+      } else if scenario.step == "macViewer" {
+        MacViewerCatalog(model: session.model, library: session.library, scenario: scenario.id)
       } else if scenario.step == "photoInformation" {
         MacInformationCatalog(model: session.model, library: session.library)
       } else if scenario.page == "connect" {
@@ -198,12 +232,44 @@ private struct MacScenarioRun: View {
         initialSettingsPage: scenario.step == "about" ? .about : nil,
         scopeStore: session.scope?.store ?? .shared, albumsModel: session.scope?.albums ?? .shared,
         initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "")
+        .background {
+          if scenario.id == "folders.viewer", MacCatalogLaunch.value("-folder-viewer-state") != "browse" {
+            FolderViewerCatalogOpening()
+          }
+        }
       }
     }
       .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
       .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
       .onDisappear { session.model.stop() }
   }
+}
+
+/// Opens through the mounted production grid after its browsing toolbar exists.
+/// This synthetic scenario never sends pointer or keyboard input.
+private struct FolderViewerCatalogOpening: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    Task { @MainActor [weak view] in
+      for _ in 0..<30 {
+        try? await Task.sleep(for: .milliseconds(50))
+        guard let root = view?.window?.contentView else { continue }
+        @MainActor func grid(in view: NSView) -> MacFolderGrid.Coordinator? {
+          if let collection = view as? NSCollectionView,
+            let coordinator = collection.delegate as? MacFolderGrid.Coordinator,
+            !coordinator.sections.isEmpty { return coordinator }
+          return view.subviews.lazy.compactMap { grid(in: $0) }.first
+        }
+        if let coordinator = grid(in: root), coordinator.photo(IndexPath(item: 0, section: 0)) != nil {
+          // Let AppKit finish installing the browsing search field first.
+          try? await Task.sleep(for: .milliseconds(500))
+          coordinator.open(IndexPath(item: 0, section: 0)); return
+        }
+      }
+    }
+    return view
+  }
+  func updateNSView(_ view: NSView, context: Context) {}
 }
 
 /// Lists the production items and opens them in a real system menu. Navigation
@@ -234,6 +300,34 @@ private struct MacStatusMenuCatalog: View {
   }
 }
 
+/// Synthetic assets use the production workspace, pager, facts and toolbar.
+private struct MacViewerCatalog: View {
+  @ObservedObject var model: BackupModel
+  let library: PhotoLibraryModel
+  let scenario: String
+  @State private var request: MacViewerRequest?
+  var body: some View {
+    Group {
+      if let request {
+        MacWorkspace(model: model, library: library,
+          initialDestination: MacCatalogLaunch.value("-viewer-entry") == "history" ? .transfers : .library,
+          initialViewer: request,
+          initialViewerInfo: scenario == "mac.viewer-inspector" || scenario == "mac.viewer-failed")
+      } else { ProgressView().task { await open() } }
+    }
+  }
+  private func open() async {
+    await model.open()
+    let sample = model.jobs.first ?? BackupJob(id: 801,
+      asset: .init(metadata: ["created_at_ms": "1792495800000"], kind: "photo", source_id: "a8-synthetic-photo", revision: "1",
+        resources: [.init(filename: "IMG_0801.HEIC", size: 4800000)]),
+      state: "waiting", confirmedBytes: 0, errorCode: nil)
+    let current = InformationSampleAsset(job: sample)
+    let collection: [PHAsset] = (0..<13).map { $0 == 6 ? current : InformationSampleAsset(job: sample, identifier: "mac-viewer-\($0)") }
+    request = MacCatalogLaunch.value("-viewer-entry") == "history" ? .photo(nil, [], HistoryPhoto(job: sample)) : .photo(current, collection, nil)
+  }
+}
+
 /// Observe the model itself: changes to a session's stored model do not publish
 /// through the session, and jobs arrive after opening its queue.
 private struct MacInformationCatalog: View {
@@ -251,7 +345,6 @@ private struct MacInformationCatalog: View {
           MacPhotoViewerWindow.openUnavailable(HistoryPhoto(job: job), model: model)
         } else {
           let asset = InformationSampleAsset(job: job)
-          UserDefaults.standard.set(true, forKey: "macPhotoViewerInfo")
           MacPhotoViewerWindow.open(asset: asset, library: library, collection: [asset])
         }
       }
@@ -274,6 +367,10 @@ private struct MacScenarioControls: View {
         }
       Button("Restart", action: restart)
       Button("Scenarios", action: close)
+      if MacCatalogLaunch.value("-snapshot-mode") == "manual" {
+        Button("Snapshot") { MacCatalogLifecycle.capture() }
+          .accessibilityIdentifier("catalog.snapshot")
+      }
     }
     .controlSize(.small)
     .padding(8)

@@ -520,6 +520,7 @@ struct PhotoInformationLayout: View {
   var actionBusy = false
   var performAction: (() -> Void)? = nil
   var actionFailure: String? = nil
+  var backupFacts: AnyView? = nil
   @State private var retrying = false
   @State private var retryFailure: String?
   @State private var followsRetry = false
@@ -564,6 +565,7 @@ struct PhotoInformationLayout: View {
         if !loaded { ProgressView().controlSize(.small) }
         else if unavailable { Text("records_load_failed").font(.subheadline).foregroundStyle(.secondary) }
         else if unpaired { Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary) }
+        else if let backupFacts { backupFacts }
         else if job != nil || needsYou || preparing { PhotoBackupFacts(job: job, receiverName: receiverName, needsYou: needsYou) }
         else { Label("library_info_not_backed_up", systemImage: "circle.dashed").font(.subheadline).foregroundStyle(.secondary) }
         if let actionKey, let performAction {
@@ -659,12 +661,16 @@ struct PhotoBackupInfo: View {
   var assets: [PHAsset] = []
   #endif
   var frames: [String: CGRect] = [:]
+  #if os(macOS)
+  var macPresent: ((MacViewerRequest) -> Void)?
+  #endif
 
   private func unavailable(_ photo: HistoryPhoto) {
     #if os(iOS)
     fallback = photo
     #else
-    MacPhotoViewerWindow.openUnavailable(photo, model: BackupEnvironment.activeModel())
+    if let macPresent { macPresent(.photo(nil, [], photo)) }
+    else { MacPhotoViewerWindow.openUnavailable(photo, model: BackupEnvironment.activeModel()) }
     #endif
   }
 
@@ -682,12 +688,17 @@ struct PhotoBackupInfo: View {
     library.previewFrame = { [weak self] in self?.frames[$0] }
     preview = IOSPreviewItem(asset: asset, frame: frame, poster: library.thumbnails.poster(for: asset))
     #else
-    MacPhotoViewerWindow.open(asset: asset, library: library, collection: context.isEmpty ? [asset] : context)
+    if let macPresent { macPresent(.photo(asset, context.isEmpty ? [asset] : context, photo)) }
+    else { MacPhotoViewerWindow.open(asset: asset, library: library, collection: context.isEmpty ? [asset] : context) }
     #endif
   }
 }
 
 struct BackupPhotoButton<Content: View>: View {
+  #if os(macOS)
+  @Environment(\.macViewerPresentation) private var macPresent
+  private func openMacPhoto() { router.macPresent = macPresent; router.open(photo, collection: collection, frame: frame) }
+  #endif
   let photo: HistoryPhoto
   let collection: [HistoryPhoto]
   @ObservedObject var router: BackupPhotoRouter
@@ -698,9 +709,9 @@ struct BackupPhotoButton<Content: View>: View {
     Button { router.open(photo, collection: collection, frame: frame) } label: { content() }
       .buttonStyle(.plain).background(geometry)
     #else
-    content().contentShape(Rectangle()).onTapGesture(count: 2) { router.open(photo, collection: collection, frame: frame) }
+    content().contentShape(Rectangle()).onTapGesture(count: 2, perform: openMacPhoto)
       .accessibilityAddTraits(.isButton)
-      .accessibilityAction { router.open(photo, collection: collection, frame: frame) }
+      .accessibilityAction { openMacPhoto() }
       .background(geometry)
     #endif
   }

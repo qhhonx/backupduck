@@ -1673,3 +1673,5 @@
 
 "photo_viewer_info" = "Info";
 "photo_viewer_info_state" = "Info, %@";
+
+"mac_viewer_position" = "%d of %d";

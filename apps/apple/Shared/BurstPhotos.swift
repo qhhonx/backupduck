@@ -5,6 +5,7 @@ extension BackupModel {
   /// Every preparation path expands accessible siblings without an existing task.
   /// Existing failed tasks stay visible for retry and are not recursively re-added.
   func scheduleBurstSiblings(of assets: PHFetchResult<PHAsset>, receiver: String) async throws {
+    guard BackupEnvironment.usesPhotoLibrary else { return }
     let groups = await Task.detached(priority: .utility) {
       Set((0..<assets.count).compactMap { assets.object(at: $0).burstIdentifier })
     }.value

@@ -1726,6 +1726,13 @@ struct MacCalendarGrid: NSViewRepresentable {
   fileprivate static func rawPosition(_ token: String, in fetch: PHFetchResult<PHAsset>?) -> Int? {
     guard let fetch else { return nil }
     let result: PHFetchResult<PHAsset>
+    guard BackupEnvironment.usesPhotoLibrary else {
+      var position: Int?
+      fetch.enumerateObjects { asset, index, stop in
+        if asset.localIdentifier == token { position = index; stop.pointee = true }
+      }
+      return position
+    }
     if token.hasPrefix("burst:") { result = PHAsset.fetchAssets(withBurstIdentifier: String(token.dropFirst(6)), options: photoLibraryFetchOptions()) }
     else { result = PHAsset.fetchAssets(withLocalIdentifiers: [token], options: photoLibraryFetchOptions()) }
     guard let asset = result.firstObject else { return nil }
@@ -1999,6 +2006,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     options.isNetworkAccessAllowed = false
     options.deliveryMode = .fastFormat
     let expected = token
+    guard BackupEnvironment.usesPhotoLibrary else { return }
     videoRequest = PHImageManager.default().requestPlayerItem(forVideo: coverAssets[index], options: options) { [weak self] item, _ in
       DispatchQueue.main.async {
         MainActor.assumeIsolated {

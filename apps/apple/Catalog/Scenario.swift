@@ -152,11 +152,19 @@ extension Scenario {
     credentials.load(self)
     let access = photoAccess
     BackupEnvironment.photoAccess = { access }
-    // Library scenarios read the (synthetic) photo library; all others never touch it.
+    #if os(macOS)
+    // A Mac catalog can only use in-memory synthetic assets, including direct launches.
+    BackupEnvironment.usesPhotoLibrary = false
+    BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
+    BackupEnvironment.requestPhotoAccess = { false }
+    core.library = nil
+    #else
+    // iOS library comparisons use the simulator's existing synthetic library.
     BackupEnvironment.usesPhotoLibrary = library != nil
     BackupEnvironment.sampleThumbnail = library == nil ? SampleImages.image(for:) : nil
     let receiverID = pairing.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["receiver_id"] as? String ?? ""
     core.library = library.map { LibraryScenario(options: .init($0), receiver: receiverID) }
+    #endif
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("catalog/\(id)-\(UUID().uuidString)", isDirectory: true)
     let model = BackupModel(root: root)

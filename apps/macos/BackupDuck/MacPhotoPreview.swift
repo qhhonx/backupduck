@@ -11,52 +11,60 @@ struct MacPhotoPreview: View {
   @ObservedObject private var navigation: MacLibraryNavigation
   @State private var playRequest = 0
   @State private var edge = 0
-  @State private var windowProbe: NSView?
   @State private var pageAnimated = false
   private var information: Bool { navigation.viewerInfo }
-  /// A click on the photo hides every control and turns the background black.
-  private var immersive: Bool { navigation.viewerImmersive }
+  @ObservedObject private var model = BackupEnvironment.activeModel()
+  @StateObject private var facts = MacViewerFacts()
+  @StateObject private var backupAction = SelectionBackupAction()
+  @State private var history = false
+  @State private var shareFailure = false
+  @Environment(\.macViewerHistory) private var openHistory
+  private var recorded: HistoryPhoto?
+  private let collectionCount: Int?
   private let close: (PHAsset) -> Void
-  init(asset: PHAsset, library: PhotoLibraryModel, navigation: MacLibraryNavigation, reviewAssets: [PHAsset]? = nil,
+  init(asset: PHAsset, library: PhotoLibraryModel, navigation: MacLibraryNavigation, reviewAssets: [PHAsset]? = nil, recorded: HistoryPhoto? = nil,
     close: @escaping (PHAsset) -> Void) {
-    self.library = library; self.navigation = navigation; self.close = close
+    self.library = library; self.navigation = navigation; self.close = close; self.recorded = recorded; self.collectionCount = reviewAssets?.count
     _session = StateObject(wrappedValue: MediaPreviewSession(asset: asset, library: library,
       poster: library.previewPoster?(asset.localIdentifier), reviewAssets: reviewAssets))
   }
   var body: some View {
     GeometryReader { proxy in
       ZStack {
-        MacMediaPager(session: session, playRequest: playRequest, animated: pageAnimated, onSwipe: { move($0, animated: true) }, onPull: pull, onTap: toggleImmersive)
+        MacMediaPager(session: session, playRequest: playRequest, animated: pageAnimated, onSwipe: { move($0, animated: true) }, onPull: pull)
           // The media stays inside the visible area: under the toolbar or the
           // sidebar it would be covered, and the opening flight lands on it.
           .background(MacAreaProbe { area in navigation.viewerArea = area })
-          .background(MacWindowProbe { windowProbe = $0 })
+          .padding(DuckSpacing.large)
         VStack(spacing: 0) {
           Spacer(minLength: 0)
           BurstPreviewControls(preview: session.current, select: session.activate)
         }
-        .opacity(immersive ? 0 : 1).allowsHitTesting(!immersive)
         // Arrows stay out of the way until the pointer nears an edge.
         HStack {
           arrow("chevron.left", label: "preview_previous", id: "library.preview.previous", direction: 1)
-            .keyboardShortcut(.leftArrow, modifiers: []).opacity(edge < 0 && !immersive ? 1 : 0)
+            .keyboardShortcut(.leftArrow, modifiers: []).opacity(edge < 0 ? 1 : 0)
           Spacer()
           arrow("chevron.right", label: "preview_next", id: "library.preview.next", direction: -1)
-            .keyboardShortcut(.rightArrow, modifiers: []).opacity(edge > 0 && !immersive ? 1 : 0)
-        }.padding(.horizontal, 14).allowsHitTesting(edge != 0 && !immersive)
+            .keyboardShortcut(.rightArrow, modifiers: []).opacity(edge > 0 ? 1 : 0)
+        }.padding(.horizontal, 14).allowsHitTesting(edge != 0)
       }
-      .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: immersive)
       .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: edge)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      // design-exception: A8's separate media window has a black viewing surface.
-      .background(Color.black.ignoresSafeArea(edges: .top)).tint(DuckRole.accent)
+      .background(DuckRole.background).tint(DuckRole.accent)
       .onContinuousHover { phase in
         guard case .active(let point) = phase else { edge = 0; return }
         edge = point.x < 90 ? -1 : point.x > proxy.size.width - 90 ? 1 : 0
       }
     }
     .inspector(isPresented: Binding(get: { navigation.viewerInfo }, set: { navigation.viewerInfo = $0 })) {
-      ScrollView { PhotoMetadataPanel(preview: session.current).padding(DuckSpacing.large) }
+      ScrollView {
+        PhotoMetadataPanel(preview: session.current, backupInfo: { fields in
+          AnyView(facts.information(takenAt: session.current.asset.creationDate, filename: session.current.filename,
+            fields: fields, model: model, action: actionKey, busy: backupAction.busy || facts.working,
+            perform: requestBackup, history: showHistory))
+        }).padding(DuckSpacing.large)
+      }
         .inspectorColumnWidth(min: 240, ideal: 290, max: 380)
     }
     .background(MacMediaKeyHandler { event in
@@ -73,37 +81,78 @@ struct MacPhotoPreview: View {
     .onAppear {
       session.start(); describe()
       navigation.viewerCurrent = { [weak session] in session?.current.asset }
+      navigation.viewerBack = { close(session.current.asset) }
+      navigation.viewerShare = { MacViewerSharing.show(asset: session.current.asset) { shareFailure = true } }
     }
     .onDisappear {
-      session.stop(); navigation.viewerCurrent = nil
-      navigation.viewerImmersive = false
+      session.stop(); navigation.viewerCurrent = nil; navigation.viewerShare = nil; navigation.viewerBack = nil
     }
     .onChange(of: session.current.asset.localIdentifier) { _, _ in playRequest = 0; describe() }
     .onChange(of: session.current.livePhoto != nil) { _, _ in describe() }
     .onChange(of: navigation.viewerLiveRequest) { _, _ in playRequest += 1 }
-    .onChange(of: navigation.viewerImmersive) { _, value in
-      // Immersive viewing fades the title bar away instead of removing the
-      // toolbar: removing it changed the safe area and the photo jumped.
-      MacTitlebarFade.set(hidden: value, in: windowProbe?.window)
+    .task(id: "\(session.current.asset.localIdentifier)|\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(model.pendingImports)") {
+      await loadFacts()
+      updateMark()
     }
-    .onDisappear { MacTitlebarFade.set(hidden: false, in: windowProbe?.window) }
+    .onChange(of: facts.stateKey) { _, _ in updateMark() }
+    .onChange(of: facts.job) { _, _ in updateMark() }
+    .confirmationDialog("selection_backup_repeat_title", isPresented: $backupAction.confirmingRepeat, titleVisibility: .visible) {
+      Button("selection_backup_repeat_action") { Task { await backupAction.confirm(library: library, model: model) } }
+      Button("cancel", role: .cancel) { backupAction.cancel() }
+    } message: { Text("selection_backup_repeat_note") }
+    .alert("library_context_share", isPresented: $shareFailure) { Button("settings_done") {} } message: { Text("library_preview_unavailable") }
+    .sheet(isPresented: $history) {
+      NavigationStack {
+        BackupHistoryView(model: model, initialFocus: facts.job.map(HistoryPhoto.init)).navigationTitle("records_title")
+          .toolbar { ToolbarItem(placement: .confirmationAction) { Button("records_done") { history = false } } }
+      }.frame(minWidth: 640, minHeight: 480).environment(\.macViewerPresentation, nil)
+    }
   }
-  private func toggleImmersive() {
-    if information { setInformation(false); return }
-    // The background cross-fades with the title bar instead of cutting.
-    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { navigation.viewerImmersive.toggle() }
+  private var actionKey: String? {
+    guard facts.loaded, !facts.unavailable, model.pairing != nil else { return nil }
+    if facts.stateKey == "photo_viewer_failed" { return "retry_task" }
+    return facts.stateKey == "photo_viewer_not_backed_up" ? "library_context_backup" : nil
+  }
+  private func showHistory() {
+    guard let job = facts.job else { return }
+    if let openHistory { openHistory(HistoryPhoto(job: job)) } else { history = true }
+  }
+  private func loadFacts() async {
+    let asset = session.current.asset
+    let original = recorded?.source == asset.localIdentifier ? recorded?.job : nil
+    await facts.load(source: asset.localIdentifier, revision: original == nil ? PhotoLibraryModel.revision(asset) : nil,
+      model: model, library: original == nil ? library : nil, recorded: original)
+  }
+  private func requestBackup() {
+    guard !facts.working, !backupAction.busy else { return }
+    let source = session.current.asset.localIdentifier, receiver = model.pairing?.receiverID, job = facts.job
+    Task {
+      facts.working = true
+      let failure: String?
+      if let job, job.state == "failed" || job.processing == "failed" {
+        failure = await model.retry(job.id) ? nil : model.message
+      } else {
+        await backupAction.request(library: library, model: model, sources: [source])
+        failure = backupAction.error
+      }
+      guard session.current.asset.localIdentifier == source, model.pairing?.receiverID == receiver else { return }
+      facts.working = false; facts.error = failure
+      await loadFacts(); updateMark()
+    }
+  }
+  private func updateMark() {
+    navigation.viewerState = facts.stateKey; navigation.viewerProgress = facts.progress
   }
   /// Title, subtitle and controls of the window toolbar follow the current photo.
   private func describe() {
     let asset = session.current.asset
-    navigation.viewerTitle = asset.creationDate?.formatted(date: .long, time: .omitted)
-      ?? NSLocalizedString("library_preview", comment: "")
-    var parts: [String] = []
-    if let date = asset.creationDate { parts.append(date.formatted(date: .omitted, time: .standard)) }
-    if let index = library.previewIndex(of: asset), let total = library.fetch?.count, total > 0 {
-      parts.append("\((total - index).formatted())/\(total.formatted())")
-    }
-    navigation.viewerSubtitle = parts.joined(separator: "  ·  ")
+    navigation.viewerTitle = MacViewerTitle.date(asset.creationDate)
+    let total = collectionCount ?? library.fetch?.count ?? session.count
+    let index: Int?
+    if collectionCount == nil, let fetch = library.fetch {
+      let raw = fetch.index(of: asset); index = raw == NSNotFound ? nil : total - raw
+    } else { index = session.index(of: asset).map { total - $0 } }
+    navigation.viewerSubtitle = MacViewerTitle.subtitle(asset.creationDate, index: index, total: total)
     navigation.viewerHasLive = session.current.livePhoto != nil
   }
   private func arrow(_ symbol: String, label: String, id: String, direction: Int) -> some View {
@@ -128,10 +177,7 @@ struct MacPhotoPreview: View {
     session.activate(asset)
   }
   private func icon(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol).font(.system(size: 17)).frame(width: 32, height: 32)
-        .background(.quaternary, in: Circle())
-    }.buttonStyle(.plain).accessibilityLabel(Text(LocalizedStringKey(label)))
+    Button(action: action) { Image(systemName: symbol) }.buttonStyle(.borderless).accessibilityLabel(Text(LocalizedStringKey(label)))
       .help(Text(LocalizedStringKey(label))).accessibilityIdentifier(id)
   }
 }
@@ -304,8 +350,7 @@ struct MacMediaZoom: NSViewRepresentable {
     documentView = media; media.addSubview(photo); media.addSubview(live)
     photo.imageScaling = .scaleProportionallyUpOrDown; live.contentMode = .aspectFit
     let double = NSClickGestureRecognizer(target: self, action: #selector(doubleClick(_:))); double.numberOfClicksRequired = 2; addGestureRecognizer(double)
-    // One click toggles the immersive (black, controls hidden) state; it waits
-    // briefly so a double click can zoom instead.
+    // A single click has no chrome action; keep double-click zoom ownership.
     let single = NSClickGestureRecognizer(target: self, action: #selector(singleClick(_:))); single.numberOfClicksRequired = 1; addGestureRecognizer(single)
     // A mouse drag pages sideways and pulls up for information or down to leave.
     let drag = NSPanGestureRecognizer(target: self, action: #selector(drag(_:))); drag.buttonMask = 1; addGestureRecognizer(drag)
@@ -476,13 +521,13 @@ struct MacVideoWithPoster: NSViewRepresentable {
 
 /// The hidden grid must not retain ownership of Escape/Space while the viewer
 /// is active. Install once per viewer and remove on every dismissal path.
-private struct MacMediaKeyHandler: NSViewRepresentable {
+struct MacMediaKeyHandler: NSViewRepresentable {
   var handle: (NSEvent) -> Bool
   func makeNSView(context: Context) -> MacMediaKeyView { MacMediaKeyView() }
   func updateNSView(_ view: MacMediaKeyView, context: Context) { view.handle = handle }
   static func dismantleNSView(_ view: MacMediaKeyView, coordinator: ()) { view.stop() }
 }
-@MainActor private final class MacMediaKeyView: NSView {
+@MainActor final class MacMediaKeyView: NSView {
   var handle: ((NSEvent) -> Bool)?
   private var monitor: Any?
   override func viewDidMoveToWindow() {
@@ -496,109 +541,296 @@ private struct MacMediaKeyHandler: NSViewRepresentable {
   func stop() { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
 }
 
-/// Gives SwiftUI a view whose window AppKit code can reach.
-private struct MacWindowProbe: NSViewRepresentable {
-  let found: (NSView) -> Void
-  func makeNSView(context: Context) -> NSView {
-    let view = NSView()
-    DispatchQueue.main.async { found(view) }
-    return view
-  }
-  func updateNSView(_ view: NSView, context: Context) {}
-}
-
-/// Fades the window's title bar (traffic lights and toolbar) without changing
-/// the content layout.
-@MainActor enum MacTitlebarFade {
-  static func set(hidden: Bool, in window: NSWindow?) {
-    guard let bar = window?.standardWindowButton(.closeButton)?.superview?.superview else { return }
-    if !hidden { bar.isHidden = false }
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 0.2
-      bar.animator().alphaValue = hidden ? 0 : 1
-    } completionHandler: {
-      Task { @MainActor in if hidden, bar.alphaValue < 0.01 { bar.isHidden = true } }
-    }
-  }
-}
-
-
-/// Both library and history enter the same native photo window; the original collection stays mounted.
+/// Fallback for an entry point without a workspace environment; it still hosts the same sidebar and chrome.
 @MainActor enum MacPhotoViewerWindow {
   private static var controller: NSWindowController?
-  static func toggleInfo() {
-    guard controller?.window?.isKeyWindow == true else { return }
-    NotificationCenter.default.post(name: .init("BackupDuckPhotoViewerInfo"), object: nil)
-  }
   static func open(asset: PHAsset, library: PhotoLibraryModel, collection: [PHAsset]? = nil) {
-    show(MacPhotoWindowContent(asset: asset, library: library, collection: collection))
+    show(.photo(asset, collection ?? [asset], nil), library: library)
   }
   static func openUnavailable(_ photo: HistoryPhoto, model: BackupModel) {
-    show(MacUnavailablePhotoWindow(photo: photo, model: model))
+    show(.photo(nil, [], photo), library: PhotoLibraryModel())
   }
-  private static func show<Content: View>(_ content: Content) {
+  static func openFolder(_ photo: FolderPhoto, context: [FolderPhoto], folders: FolderSources) {
+    show(.folder(photo, context, folders, nil), library: PhotoLibraryModel())
+  }
+  private static func show(_ request: MacViewerRequest, library: PhotoLibraryModel) {
     controller?.close()
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 720),
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 800),
       styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
     window.identifier = NSUserInterfaceItemIdentifier("photo.viewer")
-    window.title = NSLocalizedString("library_preview", comment: "")
-    let host = NSHostingController(rootView: NavigationStack { content }.preferredColorScheme(.dark))
-    // The media's flexible ideal size must not shrink the window to its toolbar.
-    host.sizingOptions = []
-    window.contentViewController = host
-    window.setContentSize(NSSize(width: 980, height: 720))
-    window.contentMinSize = NSSize(width: 640, height: 480)
+    let host = NSHostingController(rootView: MacWorkspace(model: BackupEnvironment.activeModel(), library: library,
+      initialDestination: .transfers, initialViewer: request))
+    host.sizingOptions = []; window.contentViewController = host
+    window.setContentSize(NSSize(width: 1180, height: 800)); window.contentMinSize = NSSize(width: 900, height: 620)
     window.isReleasedWhenClosed = false; window.center()
-    let made = NSWindowController(window: window)
-    controller = made; made.showWindow(nil)
-  }
-  static func close() { controller?.close() }
-}
-
-private struct MacPhotoWindowContent: View {
-  let asset: PHAsset
-  let library: PhotoLibraryModel
-  let collection: [PHAsset]?
-  @StateObject private var navigation = MacLibraryNavigation()
-  @AppStorage("macPhotoViewerInfo") private var information = true
-  var body: some View {
-    MacPhotoPreview(asset: asset, library: library, navigation: navigation, reviewAssets: collection) { _ in
-      MacPhotoViewerWindow.close()
-    }
-    .navigationTitle(navigation.viewerTitle)
-    .toolbar {
-      ToolbarItem {
-        Toggle(isOn: $information) { Label("folders_show_info", systemImage: "info.circle") }
-          .toggleStyle(.button).help(Text("folders_show_info")).accessibilityIdentifier("library.preview.info")
-      }
-    }
-    .onAppear { navigation.viewerOpen = true; navigation.viewerInfo = information }
-    .onChange(of: information) { _, value in navigation.viewerInfo = value }
-    .onChange(of: navigation.viewerInfo) { _, value in information = value }
-    .onReceive(NotificationCenter.default.publisher(for: .init("BackupDuckPhotoViewerInfo"))) { _ in information.toggle() }
+    let made = NSWindowController(window: window); controller = made; made.showWindow(nil)
   }
 }
 
-/// A missing local original still has its recorded information in the viewer inspector.
-private struct MacUnavailablePhotoWindow: View {
+/// Missing originals retain their recorded facts, using the same inspector and toolbar state.
+struct MacRecordedPhotoPreview: View {
   let photo: HistoryPhoto
   @ObservedObject var model: BackupModel
-  @AppStorage("macPhotoViewerInfo") private var information = true
+  @ObservedObject var navigation: MacLibraryNavigation
+  var close: () -> Void
+  @StateObject private var facts = MacViewerFacts()
+  @Environment(\.macViewerHistory) private var openHistory
+  @State private var history = false
   var body: some View {
-    AssetThumbnail(sourceID: photo.source, size: 720, cornerRadius: 0)
-      // design-exception: A8's separate media window has a black viewing surface.
-      .scaledToFit().frame(maxWidth: .infinity, maxHeight: .infinity).background(.black)
-      .inspector(isPresented: $information) {
+    GeometryReader { proxy in
+      let side = max(1, min(proxy.size.width, proxy.size.height))
+      AssetThumbnail(sourceID: photo.source, size: side, cornerRadius: 0)
+        .frame(width: proxy.size.width, height: proxy.size.height)
+    }.padding(DuckSpacing.large).background(DuckRole.background)
+      .inspector(isPresented: $navigation.viewerInfo) {
         ScrollView {
-          PhotoInformationLayout(takenAt: photo.takenAt, job: photo.job,
-            receiverName: photo.job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel",
-            needsYou: photo.mark == .needsYou, filename: photo.job?.asset.resources.first?.filename ?? "",
-            fields: PhotoInformationLayout.fileFields(for: photo.job), model: model).padding(DuckSpacing.large)
+          facts.information(takenAt: photo.takenAt, filename: photo.job?.asset.resources.first?.filename ?? "",
+            fields: PhotoInformationLayout.fileFields(for: photo.job), model: model,
+            action: facts.stateKey == "photo_viewer_failed" && facts.job != nil ? "retry_task" : nil,
+            busy: facts.working, perform: retry, history: {
+              if let job = facts.job, let openHistory { openHistory(HistoryPhoto(job: job)) } else { history = true }
+            }).padding(DuckSpacing.large)
         }.inspectorColumnWidth(min: 240, ideal: 290, max: 380)
       }
-      .toolbar {
-        ToolbarItem { Toggle(isOn: $information) { Label("folders_show_info", systemImage: "info.circle") }.toggleStyle(.button) }
+      .background(MacMediaKeyHandler { event in if event.keyCode == 53 { close(); return true }; return false })
+      .task(id: model.queueRevision) {
+        navigation.viewerTitle = MacViewerTitle.date(photo.takenAt)
+        navigation.viewerSubtitle = MacViewerTitle.subtitle(photo.takenAt, index: 1, total: 1)
+        navigation.viewerShare = nil; navigation.viewerBack = close
+        await facts.load(source: photo.source, revision: nil, model: model, recorded: photo.job)
+        updateMark()
       }
-      .onReceive(NotificationCenter.default.publisher(for: .init("BackupDuckPhotoViewerInfo"))) { _ in information.toggle() }
+      .onDisappear { navigation.viewerBack = nil }
+      .onChange(of: facts.stateKey) { _, _ in updateMark() }
+      .onChange(of: facts.job) { _, _ in updateMark() }
+      .sheet(isPresented: $history) {
+        NavigationStack {
+          BackupHistoryView(model: model, initialFocus: facts.job.map(HistoryPhoto.init)).navigationTitle("records_title")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("records_done") { history = false } } }
+        }.frame(minWidth: 640, minHeight: 480)
+      }
+  }
+  private func updateMark() { navigation.viewerState = facts.stateKey; navigation.viewerProgress = facts.progress }
+  private func retry() {
+    guard let job = facts.job else { return }
+    Task { facts.working = true; facts.error = await model.retry(job.id) ? nil : model.message; facts.working = false
+      await facts.load(source: photo.source, revision: nil, model: model, recorded: photo.job); updateMark() }
+  }
+}
+
+/// The same window-scoped presentation is inherited by history and file grids.
+enum MacViewerRequest {
+  case photo(PHAsset?, [PHAsset], HistoryPhoto?)
+  case folder(FolderPhoto, [FolderPhoto], FolderSources, ((FolderPhoto) -> Void)?)
+}
+private struct MacViewerPresentationKey: EnvironmentKey {
+  static let defaultValue: ((MacViewerRequest) -> Void)? = nil
+}
+extension EnvironmentValues {
+  var macViewerPresentation: ((MacViewerRequest) -> Void)? {
+    get { self[MacViewerPresentationKey.self] }
+    set { self[MacViewerPresentationKey.self] = newValue }
+  }
+}
+private struct MacViewerHistoryKey: EnvironmentKey {
+  static let defaultValue: ((HistoryPhoto) -> Void)? = nil
+}
+extension EnvironmentValues {
+  var macViewerHistory: ((HistoryPhoto) -> Void)? {
+    get { self[MacViewerHistoryKey.self] }
+    set { self[MacViewerHistoryKey.self] = newValue }
+  }
+}
+struct MacViewerCommands {
+  var back: () -> Void
+  var info: () -> Void
+  var share: () -> Void
+}
+private struct MacViewerCommandsKey: FocusedValueKey { typealias Value = MacViewerCommands }
+extension FocusedValues {
+  var photoViewerCommands: MacViewerCommands? {
+    get { self[MacViewerCommandsKey.self] }
+    set { self[MacViewerCommandsKey.self] = newValue }
+  }
+}
+
+enum MacViewerTitle {
+  static func date(_ date: Date?) -> String {
+    guard let date else { return NSLocalizedString("design_capture_unknown", comment: "") }
+    let calendar = Calendar.current
+    let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: Date())).day ?? 8
+    if (0..<7).contains(days) {
+      let formatter = DateFormatter(); formatter.doesRelativeDateFormatting = true
+      formatter.dateStyle = .full; formatter.timeStyle = .none
+      if days < 2 { return formatter.string(from: date) }
+      return date.formatted(.dateTime.weekday(.wide))
+    }
+    return date.formatted(date: .long, time: .omitted)
+  }
+  static func subtitle(_ date: Date?, index: Int?, total: Int) -> String {
+    var parts = date.map { [$0.formatted(date: .omitted, time: .shortened)] } ?? []
+    if let index, total > 0 { parts.append(String(format: NSLocalizedString("mac_viewer_position", comment: ""), index, total)) }
+    return parts.joined(separator: "  ·  ")
+  }
+}
+
+/// Native toolbar items are shared by library, recorded and file-backed media.
+struct MacViewerToolbar: ToolbarContent {
+  @ObservedObject var navigation: MacLibraryNavigation
+  var back: () -> Void
+  var body: some ToolbarContent {
+    ToolbarItem(id: "viewer.back", placement: .navigation) {
+      Button(action: back) { Label("mac_library_back", systemImage: "chevron.backward") }
+        .keyboardShortcut(.cancelAction).help(Text("mac_library_back"))
+        .accessibilityIdentifier("library.preview.close")
+    }
+    #if compiler(>=6.2)
+    if #available(macOS 26.0, *) {
+      ToolbarItem(id: "viewer.title", placement: .principal) { title }.sharedBackgroundVisibility(.hidden)
+    } else { ToolbarItem(id: "viewer.title", placement: .principal) { title } }
+    #else
+    ToolbarItem(id: "viewer.title", placement: .principal) { title }
+    #endif
+    ToolbarItemGroup(placement: .primaryAction) {
+      Button { navigation.viewerShare?() } label: { Label("library_context_share", systemImage: "square.and.arrow.up") }
+        .disabled(navigation.viewerShare == nil).help(Text("library_context_share"))
+        .accessibilityIdentifier("library.preview.share")
+      MacViewerInfoButton(navigation: navigation)
+    }
+  }
+  private var title: some View {
+    VStack(spacing: 1) {
+      Text(navigation.viewerTitle).font(.headline).lineLimit(1)
+      Text(navigation.viewerSubtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    }.accessibilityElement(children: .combine).accessibilityIdentifier("library.preview.title")
+  }
+}
+
+struct MacViewerInfoButton: View {
+  @ObservedObject var navigation: MacLibraryNavigation
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  private var marked: Bool { navigation.viewerState != "photo_viewer_saved" && navigation.viewerProgress == nil }
+  private var label: String {
+    let info = NSLocalizedString("photo_viewer_info", comment: "")
+    guard navigation.viewerState != "photo_viewer_saved" else { return info }
+    let state = NSLocalizedString(navigation.viewerState, comment: "")
+      + (navigation.viewerProgress.map { " " + $0.formatted(.percent.precision(.fractionLength(0))) } ?? "")
+    return String(format: NSLocalizedString("photo_viewer_info_state", comment: ""), state)
+  }
+  var body: some View {
+    Button {
+      withAnimation(.easeInOut(duration: DuckMotion.enter)) { navigation.viewerInfo.toggle() }
+    } label: {
+      Image(systemName: navigation.viewerInfo ? "info.circle.fill" : "info.circle")
+        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+        .overlay(alignment: .topTrailing) {
+          Image(systemName: "circle.fill")
+            .resizable().frame(width: 6, height: 6)
+            .foregroundStyle(navigation.viewerState == "photo_viewer_failed" || navigation.viewerState == "records_load_failed" ? DuckRole.attention : DuckRole.accent)
+            .offset(x: 4, y: -3)
+            .symbolEffect(.disappear, options: .nonRepeating, isActive: !marked && !reduceMotion)
+            .opacity(reduceMotion ? (marked ? 1 : 0) : 1)
+        }
+        .overlay {
+          if let progress = navigation.viewerProgress {
+            Circle().trim(from: 0, to: progress).stroke(DuckRole.accent, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+              .rotationEffect(.degrees(-90)).frame(width: 26, height: 26)
+              .animation(reduceMotion ? nil : .linear(duration: DuckMotion.progress), value: progress)
+              .transition(.opacity)
+          }
+        }
+        .animation(.easeInOut(duration: DuckMotion.enter), value: navigation.viewerProgress == nil)
+        .animation(.easeInOut(duration: DuckMotion.enter), value: marked)
+        .animation(.easeInOut(duration: DuckMotion.enter), value: navigation.viewerInfo)
+    }
+    .accessibilityLabel(label).accessibilityValue(Text(navigation.viewerInfo ? "preview_hide_info" : "folders_show_info"))
+    .help(Text(navigation.viewerInfo ? "preview_hide_info" : "folders_show_info"))
+    .accessibilityIdentifier("library.preview.info")
+  }
+}
+
+@MainActor enum MacViewerSharing {
+  private static var picker: NSSharingServicePicker?
+  private static var editingInput: PHContentEditingInput?
+  static func show(asset: PHAsset, failure: @escaping () -> Void) {
+    if let sample = asset as? any PreviewSample { show(sample.previewImage); return }
+    guard BackupEnvironment.usesPhotoLibrary else { failure(); return }
+    let options = PHContentEditingInputRequestOptions(); options.isNetworkAccessAllowed = true
+    asset.requestContentEditingInput(with: options) { input, _ in
+      Task { @MainActor in
+        guard let input else { failure(); return }
+        editingInput = input
+        if let url = input.fullSizeImageURL ?? (input.audiovisualAsset as? AVURLAsset)?.url { show(url) }
+        else { failure() }
+      }
+    }
+  }
+  static func show(_ item: Any?) {
+    guard let item, let view = NSApp.keyWindow?.contentView else { return }
+    picker = NSSharingServicePicker(items: [item])
+    picker?.show(relativeTo: NSRect(x: view.bounds.maxX - 60, y: view.bounds.maxY, width: 1, height: 1), of: view, preferredEdge: .minY)
+  }
+}
+
+/// A read-only projection of core facts; requests still use the existing durable endpoints.
+@MainActor final class MacViewerFacts: ObservableObject {
+  @Published private(set) var job: BackupJob?
+  @Published private(set) var tile: String?
+  @Published private(set) var loaded = false
+  @Published private(set) var unavailable = false
+  @Published var working = false
+  @Published var error: String?
+  private var identity = ""
+  private var generation = UUID()
+  var stateKey: String {
+    if working { return "photo_viewer_backing_up" }
+    if !loaded { return "photo_viewer_loading" }
+    if unavailable { return "records_load_failed" }
+    if error != nil || tile == "needs_you" || job?.state == "failed" || job?.processing == "failed" { return "photo_viewer_failed" }
+    if tile == "sending" { return "photo_viewer_backing_up" }
+    if tile == "saved" { return "photo_viewer_saved" }
+    if job?.state == "received" { return job?.processing == "complete" ? "photo_viewer_saved" : "photo_viewer_received" }
+    if tile == "saving" { return "photo_viewer_received" }
+    return job == nil ? "photo_viewer_not_backed_up" : "photo_viewer_backing_up"
+  }
+  var progress: Double? {
+    guard stateKey == "photo_viewer_backing_up", let job, job.state == "running",
+      job.confirmedBytes > 0, job.confirmedBytes < job.totalBytes else { return nil }
+    return Double(job.confirmedBytes) / Double(job.totalBytes)
+  }
+  func load(source: String, revision: String?, model: BackupModel, library: PhotoLibraryModel? = nil,
+    recorded: BackupJob? = nil, fallback: String? = nil) async {
+    let expected = UUID(); generation = expected
+    let key = source + "|" + (model.pairing?.receiverID ?? "")
+    if identity != key { identity = key; job = recorded; tile = fallback; loaded = false; unavailable = false; working = false; error = nil }
+    guard let receiver = recorded?.receiverID ?? model.pairing?.receiverID else { loaded = true; return }
+    do {
+      let data = try await Bridge.call(["op": "source_job", "receiver_id": receiver, "source_id": source])
+      let current = try JSONDecoder().decode(BackupJob?.self, from: data)
+      var state = fallback
+      if let library, let revision {
+        let group = LibraryGroup(sources: [LibrarySource(id: source, revision: revision)], complete: true)
+        guard let states = await librarySourceStates([source: group], receiver: receiver, cache: library.tileStates,
+          revision: "\(model.queueRevision)|\(model.pendingImports)") else { throw Bridge.Failure(code: "internal") }
+        state = states[source]
+      }
+      guard !Task.isCancelled, identity == key, generation == expected else { return }
+      job = current.flatMap { $0.asset.source_id == source && (revision == nil || $0.asset.revision == revision) ? $0 : nil } ?? recorded
+      tile = state
+      if tile == "sending", job?.state == "received" { job = nil }
+      loaded = true; unavailable = false
+    } catch {
+      guard !Task.isCancelled, identity == key, generation == expected else { return }
+      loaded = true; unavailable = recorded == nil && fallback == nil
+    }
+  }
+  func information(takenAt: Date?, filename: String, fields: [(String, String)], model: BackupModel,
+    action: String?, busy: Bool, perform: @escaping () -> Void, history: @escaping () -> Void) -> some View {
+    PhotoInformationLayout(takenAt: takenAt, job: job,
+      receiverName: job.flatMap { model.receiverDeviceName(for: $0) } ?? model.peerDevice?.name ?? "Pixel",
+      needsYou: tile == "needs_you", filename: filename, fields: fields, model: model,
+      loaded: loaded, unavailable: unavailable, unpaired: model.pairing == nil && job == nil,
+      preparing: working || tile == "sending", allowsRetry: false, showHistory: job == nil ? nil : history,
+      actionKey: action, actionBusy: busy, performAction: perform, actionFailure: error)
   }
 }

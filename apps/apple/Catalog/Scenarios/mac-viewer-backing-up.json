@@ -1,0 +1,166 @@
+{
+  "id": "mac.viewer-backing-up",
+  "page": "library",
+  "step": "macViewer",
+  "title": "Mac viewer \u00b7 backing-up",
+  "extends": "photo.viewer-backing-up",
+  "ios_only": false,
+  "mac_only": true,
+  "expect": [
+    "The production workspace retains its sidebar and system window canvas.",
+    "One native toolbar: back, centered date/time/position, Share and Info.",
+    "Info toggles the trailing A8 inspector; only recorded partial bytes establish a progress ring."
+  ],
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 801,
+          "receiver_id": "catalog-pixel",
+          "state": "running",
+          "confirmed_bytes": 1920000,
+          "processing": null,
+          "asset": {
+            "kind": "photo",
+            "source_id": "a8-synthetic-photo",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0801.HEIC",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "camera_model": "Synthetic camera",
+              "lens_model": "24 mm",
+              "aperture": "\u0192/1.8",
+              "exposure": "1/125 s",
+              "iso": "100"
+            }
+          }
+        }
+      ]
+    },
+    "source_job": [
+      {
+        "when": {
+          "source_id": "a8-synthetic-photo"
+        },
+        "value": {
+          "id": 801,
+          "receiver_id": "catalog-pixel",
+          "state": "running",
+          "confirmed_bytes": 1920000,
+          "processing": null,
+          "asset": {
+            "kind": "photo",
+            "source_id": "a8-synthetic-photo",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0801.HEIC",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "camera_model": "Synthetic camera",
+              "lens_model": "24 mm",
+              "aperture": "\u0192/1.8",
+              "exposure": "1/125 s",
+              "iso": "100"
+            }
+          }
+        }
+      },
+      {
+        "value": null
+      }
+    ],
+    "library_source_states": {
+      "value": {
+        "a8-synthetic-photo": {
+          "revision": "1",
+          "preparing": false,
+          "tile_state": "sending"
+        }
+      }
+    },
+    "backup_tasks": [
+      {
+        "when": {
+          "state": "attention"
+        },
+        "value": {
+          "items": [],
+          "summary": {
+            "total": 1,
+            "received": 0,
+            "published": 0,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 1920000,
+            "active": 0,
+            "attention": 0
+          }
+        }
+      },
+      {
+        "value": {
+          "items": [
+            {
+              "id": "job-801",
+              "cursor": 801,
+              "sort_value": 1792534500000,
+              "job": {
+                "id": 801,
+                "receiver_id": "catalog-pixel",
+                "state": "running",
+                "confirmed_bytes": 1920000,
+                "processing": null,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "a8-synthetic-photo",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_0801.HEIC",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "camera_model": "Synthetic camera",
+                    "lens_model": "24 mm",
+                    "aperture": "\u0192/1.8",
+                    "exposure": "1/125 s",
+                    "iso": "100"
+                  }
+                }
+              }
+            }
+          ],
+          "summary": {
+            "total": 1,
+            "received": 0,
+            "published": 0,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 1920000,
+            "active": 0,
+            "attention": 0
+          }
+        }
+      }
+    ]
+  }
+}

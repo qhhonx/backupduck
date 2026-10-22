@@ -18,7 +18,8 @@ enum PhotoBackupOrder {
   }
   /// Metadata only: submission never downloads a PhotoKit original.
   static func sources(_ identifiers: [String]) async -> [Source] {
-    await Task.detached(priority: .userInitiated) {
+    guard BackupEnvironment.usesPhotoLibrary else { return [] }
+    return await Task.detached(priority: .userInitiated) {
       var found: [String: Source] = [:]
       for start in stride(from: 0, to: identifiers.count, by: 200) {
         let batch = Array(identifiers[start..<min(start + 200, identifiers.count)])
@@ -37,7 +38,8 @@ enum PhotoBackupOrder {
   }
 
   static func captureDates(_ identifiers: [String]) async -> [String: Int64] {
-    await Task.detached(priority: .utility) {
+    guard BackupEnvironment.usesPhotoLibrary else { return [:] }
+    return await Task.detached(priority: .utility) {
       var dates: [String: Int64] = [:]
       for start in stride(from: 0, to: identifiers.count, by: 200) {
         let batch = Array(identifiers[start..<min(start + 200, identifiers.count)])

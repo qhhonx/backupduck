@@ -39,15 +39,18 @@ no file list, no path tree and no settings.
 
 ## Toolbar (A2)
 
-Two groups:
+Items, as the system lays out a browsing window's toolbar:
 
-1. **View menu.** Show: By Folder, All Photos (by capture date). Filter: All,
-   Not Backed Up, Needs You, Recently Backed Up — the same views as Photo
-   Library. While a filter is active the button shows its name with a clear
-   control. Each view keeps its own scroll position (I6).
-2. **Add Folder** and **Search.** Search finds photos by file name and by
-   subfolder name inside the added folders and shows the matches in the same
-   grid.
+1. **View menu**, next to the title. Show: By Folder, All Photos (by capture
+   date). Filter: All, Not Backed Up, Needs You, Recently Backed Up — the same
+   views as Photo Library. While a filter is active the button shows its name
+   with a clear control. Each view keeps its own scroll position (I6).
+2. **Add Folder**, an icon button on the trailing side, followed by **Back Up
+   Selected** only while photos that are not backed up are selected.
+3. **Search**, a field of its own at the trailing edge, never grouped with a
+   button. It finds photos by file name and by subfolder name inside the added
+   folders and shows the matches in the same grid. While a photo is open, the
+   viewer's toolbar replaces all of these.
 
 All three commands also exist in the menu bar.
 

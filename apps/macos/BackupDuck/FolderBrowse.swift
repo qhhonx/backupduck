@@ -137,6 +137,7 @@ extension FocusedValues {
 }
 struct MacFolderCommands: Commands {
   @FocusedValue(\.folderCommands) private var actions
+  @FocusedValue(\.photoViewerCommands) private var viewer
   var body: some Commands {
     CommandGroup(after: .newItem) {
       Button("folders_back_up_selected") { actions?.backUp() }.disabled(actions?.canBackUp != true)
@@ -145,11 +146,16 @@ struct MacFolderCommands: Commands {
     CommandGroup(after: .textEditing) {
       Button("folders_search") { actions?.search() }.keyboardShortcut("f", modifiers: .command).disabled(actions == nil)
     }
-    CommandMenu("folders_view") {
+    CommandGroup(after: .pasteboard) {
+      Button("library_context_share") { viewer?.share() }.disabled(viewer == nil)
+    }
+    CommandGroup(after: .sidebar) {
+      Button("mac_library_back") { viewer?.back() }.disabled(viewer == nil)
+      Divider()
       Button("folders_by_folder") { actions?.view(true) }.disabled(actions == nil)
       Button("mac_library_all_photos") { actions?.view(false) }.disabled(actions == nil)
       Divider()
-      Button("folders_show_info") { MacPhotoViewerWindow.toggleInfo(); MacFolderViewer.toggleInfo() }.keyboardShortcut("i", modifiers: .command)
+      Button("folders_show_info") { viewer?.info() }.disabled(viewer == nil).keyboardShortcut("i", modifiers: .command)
       Divider()
       ForEach(LibraryBackupView.allCases) { view in
         Button(LocalizedStringKey(view.title)) { actions?.filter(view) }.disabled(actions == nil)

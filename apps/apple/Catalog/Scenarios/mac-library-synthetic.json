@@ -1,0 +1,11 @@
+{
+  "id": "library.synthetic",
+  "page": "library",
+  "title": "Photo Library \u00b7 synthetic browsing",
+  "extends": "base-paired",
+  "mac_only": true,
+  "expect": [
+    "The production virtualized grid and browsing toolbar render in-memory synthetic photos without PhotoKit authorization, fetches or image managers.",
+    "Opening a photo replaces the browsing toolbar with viewer controls."
+  ]
+}

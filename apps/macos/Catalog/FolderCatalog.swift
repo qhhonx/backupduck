@@ -35,6 +35,10 @@ import SwiftUI
     }
     folders.previewRows = photos
     folders.previewImage = image
+    if id == "folders.viewer" {
+      folders.browser.search = "Mountains"
+      folders.browser.selection = ["fixture-2|fixture-photo-2-40"]
+    }
     if id == "folders.all-not-backed-up" { folders.initialFilter = .notBackedUp }
     if id == "settings.folder-detail" || sheet == "rules" || sheet == "stop" { folders.initialSettingsFolder = "fixture-0" }
   }

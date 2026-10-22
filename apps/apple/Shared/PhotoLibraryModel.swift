@@ -89,8 +89,8 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   @Published private(set) var loading = false
   // Read at creation (a cheap synchronous query) so the first frame shows the
   // library rather than the permission placeholder until `open()` runs.
-  @Published private(set) var authorized = PhotoLibraryModel.allowed(PHPhotoLibrary.authorizationStatus(for: .readWrite))
-  @Published private(set) var authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+  @Published private(set) var authorized = BackupEnvironment.usesPhotoLibrary && PhotoLibraryModel.allowed(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+  @Published private(set) var authorizationStatus: PHAuthorizationStatus = BackupEnvironment.usesPhotoLibrary ? PHPhotoLibrary.authorizationStatus(for: .readWrite) : .notDetermined
   @Published private(set) var requestingPermission = false
   @Published private(set) var filter: LibraryFilter = .all
   @Published private(set) var backupView: LibraryBackupView = .all
@@ -131,6 +131,17 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     super.init()
   }
 
+  func installSyntheticAssets(_ assets: PHFetchResult<PHAsset>) {
+    precondition(!BackupEnvironment.usesPhotoLibrary)
+    precondition((0..<assets.count).allSatisfy { assets.object(at: $0) is any PreviewSample })
+    fetch = assets
+    presentation = LibraryPresentationIndex()
+    presentation.load(assets, targetRows: assets.count)
+    total = assets.count; loaded = presentation.rows.count
+    authorized = true; authorizationStatus = .authorized
+    generation += 1
+  }
+
   // Display rows can group multiple burst assets, so loaded < total does not
   // describe the raw PhotoKit cursor's remaining pagination range.
   var hasMoreRows: Bool {
@@ -147,7 +158,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
 
   func open(requestPermission: Bool = false) async {
     LaunchTrace.mark("library open")
-    guard !requestingPermission else { return }
+    guard BackupEnvironment.usesPhotoLibrary, !requestingPermission else { return }
     if requestPermission { requestingPermission = true }
     defer { if requestPermission { requestingPermission = false } }
     let access =
@@ -168,6 +179,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   /// core's answer, in the library's own order. Nil when the core cannot answer.
   nonisolated static func narrow(_ fetch: PHFetchResult<PHAsset>, to view: LibraryBackupView,
     filter: LibraryFilter, receiver: String?) async -> PHFetchResult<PHAsset>? {
+    guard BackupEnvironment.usesPhotoLibrary else { return nil }
     let ids: [String]
     switch view {
     case .all:
@@ -226,6 +238,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
 
   /// Sorted fetch for a filter; identical for the launch prewarm and reloads.
   nonisolated static func fetchAssets(_ filter: LibraryFilter, collection: String? = nil) -> PHFetchResult<PHAsset> {
+    guard BackupEnvironment.usesPhotoLibrary else { return PHFetchResult<PHAsset>() }
     let options = photoLibraryFetchOptions(for: filter)
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
     guard let collection else { return PHAsset.fetchAssets(with: options) }
@@ -240,7 +253,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   private static var earlyFetch: Task<(PHFetchResult<PHAsset>, PHPersistentChangeToken), Never>?
   static func prewarm() {
     // `-no-launch-prewarm` keeps the old start for side-by-side launch traces.
-    guard earlyFetch == nil, !ProcessInfo.processInfo.arguments.contains("-no-launch-prewarm"),
+    guard BackupEnvironment.usesPhotoLibrary, earlyFetch == nil, !ProcessInfo.processInfo.arguments.contains("-no-launch-prewarm"),
       allowed(PHPhotoLibrary.authorizationStatus(for: .readWrite)) else { return }
     earlyFetch = Task.detached(priority: .userInitiated) {
       LaunchTrace.mark("early fetch start")
@@ -303,7 +316,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     await reload(resetWindow: true)
   }
   func reload(resetWindow: Bool = false) async {
-    guard authorized else { return }
+    guard BackupEnvironment.usesPhotoLibrary, authorized else { return }
     LaunchTrace.mark("library reload start")
     requestGeneration += 1
     cancelMetadata?(); cancelMetadata = nil
@@ -470,6 +483,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     }.value
   }
   private nonisolated static func resolveTokens(_ tokens: Set<String>, in fetch: PHFetchResult<PHAsset>) -> [String: String] {
+    guard BackupEnvironment.usesPhotoLibrary else { return [:] }
     var resolved: [String: String] = [:]
     let ordinary = tokens.filter { !$0.hasPrefix("burst:") }
     if !ordinary.isEmpty {
@@ -484,7 +498,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     return resolved
   }
   private nonisolated static func rawIndex(of token: String?, in fetch: PHFetchResult<PHAsset>) -> Int? {
-    guard let token else { return nil }
+    guard BackupEnvironment.usesPhotoLibrary, let token else { return nil }
     let assets: PHFetchResult<PHAsset>
     if token.hasPrefix("burst:") {
       assets = PHAsset.fetchAssets(withBurstIdentifier: String(token.dropFirst(6)), options: photoLibraryFetchOptions())
@@ -506,7 +520,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       var out: [String: LibraryGroup] = [:]
       for asset in missing {
         var members = [asset]
-        if let burst = asset.burstIdentifier {
+        if BackupEnvironment.usesPhotoLibrary, let burst = asset.burstIdentifier {
           let result = PHAsset.fetchAssets(withBurstIdentifier: burst, options: photoLibraryFetchOptions())
           members = result.objects(at: IndexSet(integersIn: 0..<result.count))
         }
@@ -537,6 +551,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   }
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor in
+      guard BackupEnvironment.usesPhotoLibrary else { return }
       let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
       guard self.applyAuthorization(access), let fetch = self.fetch,
         let details = changeInstance.changeDetails(for: fetch) else { return }
@@ -1042,7 +1057,7 @@ enum LaunchTrace {
 
 @MainActor final class ThumbnailPipeline {
   enum Priority: Int { case prefetch, visible }
-  private let manager: PHCachingImageManager
+  private let manager: PHCachingImageManager?
   #if os(iOS)
   var disk: ThumbnailDiskCache? = .shared
   #endif
@@ -1090,8 +1105,8 @@ enum LaunchTrace {
   private(set) var epoch = 0
   private(set) var requestsStarted = 0
   private(set) var requestsCancelled = 0
-  init(cacheBudget: Int = 64 * 1024 * 1024, manager: PHCachingImageManager = PHCachingImageManager()) {
-    self.manager = manager
+  init(cacheBudget: Int = 64 * 1024 * 1024, manager: PHCachingImageManager? = nil) {
+    self.manager = BackupEnvironment.usesPhotoLibrary ? (manager ?? PHCachingImageManager()) : nil
     cache.totalCostLimit = cacheBudget
     // Tiny mosaics can expose thousands of 64-pixel images. Keep the byte
     // budget authoritative instead of evicting still-visible tiles at 500 items.
@@ -1105,7 +1120,7 @@ enum LaunchTrace {
     #else
     posters.countLimit = 80; posters.totalCostLimit = 24 * 1024 * 1024
     #endif
-    manager.allowsCachingHighQualityImages = true
+    self.manager?.allowsCachingHighQualityImages = true
     policyObservation = PreviewNetworkPolicy.shared.$choice.dropFirst().sink { [weak self] _ in
       self?.clear()
       #if os(iOS)
@@ -1171,6 +1186,7 @@ enum LaunchTrace {
       completion(sample.previewImage, false)
       return PHInvalidImageRequestID
     }
+    guard manager != nil else { completion(nil, false); return PHInvalidImageRequestID }
     let target = size(pixels)
     let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(Int(target.width))|\(contentMode.rawValue)" as NSString
     if let image = cache.object(forKey: key) {
@@ -1310,7 +1326,7 @@ enum LaunchTrace {
     }
   }
   private func start(_ id: PHImageRequestID, network: Bool, forceQuality: Bool = false, smallFallback: Bool = false) {
-    guard let item = pending[id] else { return }
+    guard let manager, let item = pending[id] else { return }
     pending[id]?.cloud = network
     pending[id]?.requestVersion += 1
     let attempt = pending[id]?.requestVersion
@@ -1470,11 +1486,12 @@ enum LaunchTrace {
     guard subscribers[owner]?.isEmpty != false,let item = pending[owner] else { return }
     requestsCancelled += 1
     finish(owner)
-    if item.native != PHInvalidImageRequestID { manager.cancelImageRequest(item.native) }
+    if item.native != PHInvalidImageRequestID { manager?.cancelImageRequest(item.native) }
     activeLocal.remove(owner); pumpLocal()
     cloudQueue.removeAll { $0 == owner }; activeCloud.remove(owner); pumpCloud()
   }
   func preheat(_ assets: [PHAsset], pixels: CGFloat) {
+    guard let manager else { return }
     let target = size(pixels)
     if preheatSize != target {
       manager.stopCachingImagesForAllAssets()
@@ -1507,9 +1524,9 @@ enum LaunchTrace {
     cloudQueue.removeAll(); activeCloud.removeAll()
     localQueue.removeAll(); localCursor = 0; activeLocal.removeAll()
     prefetchQueue.removeAll(); prefetchCursor = 0
-    requests.filter { $0 != PHInvalidImageRequestID }.forEach { manager.cancelImageRequest($0) }
+    requests.filter { $0 != PHInvalidImageRequestID }.forEach { manager?.cancelImageRequest($0) }
     cache.removeAllObjects(); posters.removeAllObjects(); smallPosters.removeAllObjects()
-    manager.stopCachingImagesForAllAssets()
+    manager?.stopCachingImagesForAllAssets()
     preheated.removeAll()
   }
 }
