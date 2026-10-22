@@ -44,11 +44,11 @@ in parallel sessions because they touch separate folders; shared Apple code
 | --- | --- | --- | --- |
 | 1 | Standards in the repository: `visual-language.md`, `interaction.md`, tokens, AGENTS.md pointers | Export `--check`, literal check and public audit pass | Done |
 | 2 | Shared components. Apple (`DuckLook.swift`): card, status card, problem card, primary and tinted capsule buttons, status pill, identity header, empty state, guided-flow scaffold, media marks; Mac metrics. Pixel (`DuckLook.kt`): the same in Material 3. Fold the `proposedLook` probes (`IOSHubLook`, `ReceiverHubLook`) into the components and remove the `proposedLook` switch | Components exist on both stacks, use only tokens, have catalog scenarios in light, dark and large text | Done on both stacks |
-| 3a | iPhone pages on the components, by flow: hub, photos views and photo info, first run, problems, settings (including the newly designed Devices, album chooser, Help) | Each flow's catalog scenarios pass review criteria in `iteration-checklist.md`; iOS tests pass | Hub, Devices, Help and A8 viewer implemented; notifications and Live Activity implemented with system acceptance remaining. Chooser remnants and first-run continuation remain |
+| 3a | iPhone pages on the components, by flow: hub, photos views and photo info, first run, problems, settings (including the newly designed Devices, album chooser, Help) | Each flow's catalog scenarios pass review criteria in `iteration-checklist.md`; iOS tests pass | Hub, Devices, Help and A8 viewer implemented; notifications and Live Activity implemented with system acceptance remaining. Scope editors rebuilt; selected review, scope-contract reconciliation and first-run continuation remain |
 | 3b | Pixel pages: receive hub, received photos and detail, first run, connect, devices, settings, the newly designed Storage page | Android unit tests, catalog and debug builds pass; native catalog checked | Pages implemented, received-original previews and problem thumbnails added; native acceptance and register blockers remain |
-| 3c | Mac pages: overview, library views and marks, history, settings list and detail, connect, viewer window, menu bar | Mac catalog checked in light and dark | Overview, Settings with Devices and Help, connect, library marks, A8 viewer, Folders and menu bar implemented; native acceptance and register blockers remain |
+| 3c | Mac pages: overview, library views and marks, history, settings list and detail, connect, viewer/inspector, menu bar | Mac catalog checked in light and dark | Overview, Settings with Devices and Help, connect, library marks, A8 viewer, Folders and menu bar implemented; native acceptance and register blockers remain |
 | 3d | Core data for new pages: a "saving to Photos" tile state, Pixel storage breakdown, device page counts | `cargo test` and `cargo fmt --check` pass; hosts read the new fields | `source_job`, saving marks, storage/folder facts, confirmed history publication and bounded received-original previews implemented (`c8f4af3`, `c9363d6`, `e87c8f8`, `524c626`) |
-| 4 | Remaining pages from the standards: Mac first run and Folders, notifications, Live Activity, Pixel experiments, help articles | Catalog scenarios for each | Folders, notifications, Live Activity and Apple help implemented; no dedicated Mac first-run wizard. Pixel experiments, help and other register remnants remain |
+| 4 | Remaining pages from the standards: Mac first run and Folders, notifications, Live Activity, Pixel cleanup recovery, help articles | Catalog scenarios for each | Folders, notifications, Live Activity and Apple help implemented; no dedicated Mac first-run wizard. Pixel D2/Storage entry done; cleanup recovery, help and other register blockers remain |
 | 5 | Verification pass: light, dark, large text (one step above default), long localized copy, failure and recovery on every flow; Release-build motion recordings on iPhone and Pixel XL | Findings fixed or recorded under Known gaps | Not started |
 | 6 | Make the redesign the default: the design switch defaults on, legacy pages and remnants removed, `page-register.md` all redesigned, HTML prototypes retired | All checks pass on all three platforms | Default on in all three apps (0252a3f, fa9c23f); legacy removal remains |
 
@@ -62,50 +62,61 @@ BackupDuck's) and the Mac Folders structure (`mac-folders.md`).
 
 Implementation status:
 
-1. **Platform audit — done.** System chrome/component corrections landed in
-   `82a460f`; Pixel secondary destinations use native navigation (`f47e726`),
-   and Apple library controls use public API (`524c626`). Remaining contract
-   deviations and native acceptance blockers are recorded in `page-register.md`;
-   this milestone does not claim that every reachable surface passes A0–A11.
-2. **Mac Folders and Apple photo information (A8) — done.** The native Folders
-   browser, core facts, Settings, sheets, alert and synthetic catalog landed in
-   `27765f7`. Apple library/history viewer routing, shared information layout,
-   Mac inspector and missing-local fallback landed in `786f879`. Native visual
-   and device acceptance remain open. The Folders inspector still needs the
-   shared receipt/publication layout, as recorded in `page-register.md`.
-3. **Notifications and Live Activity — implemented; system acceptance remains.**
-   iPhone notifications, the widget target, system Live Activity presentations
-   and pause/resume intents landed in `27765f7`; confirmed historical publication
-   landed in `c9363d6`. Pixel notification routing landed in `c8f4af3`. Verify
-   system delivery, cold/warm taps, activity creation, intents, stale content,
-   dismissal and restart. The register also records the iPhone first-run gate
-   and Mac notification permission/tap integration gaps.
-4. **Mac menu bar — done (`bec2e13`).** Native status menu, shared status
-   projection and synthetic catalog scenarios are implemented. Native system
-   menu and action acceptance remains part of Release verification.
+1. **Platform audit — implemented.** Native chrome/navigation corrections
+   (`82a460f`, `f47e726`, `524c626`) remain the baseline; structural and
+   acceptance gaps are recorded in `page-register.md`.
+2. **D1 — decided and adopted on iPhone, Mac and Pixel (October 22).** iPhone
+   keeps tile flight and full-aspect system long-press preview; its viewer uses
+   system composition with state on Info (`4517cd5`). Mac shares the in-window
+   viewer and facts inspector across Library, History and Folders (`caf910e`),
+   with system browsing toolbars (`96748d3`). Pixel uses tile flight, contextual
+   selection and the system-composed viewer (`0c2c0ea`), recorded metadata
+   (`f266d9b`) and inset-safe details (`36a10d1`). Comparison switches are removed;
+   this closes adoption, not Release/device acceptance.
+3. **D2 — done.** Automatic cleanup belongs to Storage; Experiments is retired
+   and probes belong to Diagnostics (`895f8e5`, `6ccdda8`). Legacy account/setup
+   and cleanup recovery descendants still need redesign.
+4. **Settings bottom, About and feedback — done on all three platforms.**
+   Version/update status and Diagnostics · Advanced routing are rebuilt;
+   reserved author/email/rating items stay hidden while absent (`d9f2323`,
+   `544f1ed`, `895f8e5`). Apple scope editors and direct selected-backup
+   registration are implemented (`49efc3e`, `2f00d25`); review/contract gaps remain.
+5. **Notifications, Live Activity and Mac menu bar — implemented.** System
+   delivery, activity lifecycle and menu-action acceptance remain; Mac permission
+   entry/tap integration and iPhone onboarding routing are still incomplete.
+6. **Iteration checks.** Redesign iterations check light and dark only
+   (`f21b6ba`); large text and broader layout/recovery checks belong to release
+   verification under `iteration-checklist.md`. Pixel shared balanced wrapping
+   and the single short cloud footer are implemented (`c88e354`).
 
-Next, in order:
+## Next
 
-5. **Remaining remnants.** Redesign album/media choosers and selected-photo
-   review/confirmation surfaces, Pixel help, Pixel Advanced remnants (format
-   conversion and browser management), and Mac update controls. Include Pixel
-   update controls and the reachable cleanup, recovery and compatibility routes
-   listed in `page-register.md`; preserve intentionally technical diagnostics.
-   Resolve the register's routing and contract blockers alongside these flows.
-6. **Photo-library chrome comparison — decided for iPhone (October 22).** See
-   the D1 entry in `platform-expression.md`. The Pixel comparison continues
-   with the native variant's shared-element and contextual-bar fixes.
-7. **Pixel experiments page — decided (D2, October 22).** Automatic cleanup
-   moved to Storage › Free up space automatically; probes moved to Diagnostics;
-   there is no Experiments page.
-8. **Release verification.** Check light/dark, narrow layouts, large text,
-   long localized content, failure and recovery. Complete system notification
-   and Live Activity acceptance, real pairing and Release gesture/motion
-   recordings under `iteration-checklist.md`. Builds and catalog scenarios do
-   not replace native or physical-device observations.
-9. **Legacy removal.** After review of the production redesign and acceptance,
-   remove superseded pages and the catalog comparison switch. Resolve supported
-   compatibility routes explicitly; file presence alone is not reachability.
+Follow the source audit's priority order, with completed work removed:
+
+1. **iPhone onboarding:** retain the flow until durable completion; add an exit
+   and recovery from first-photo waiting.
+2. **Mac notifications:** add explicit permission entry and receiver-scoped route
+   consumption; verify cold/warm taps.
+3. **Mac Overview and History:** route Needs you to the requested records, settle
+   the one-grid direction and connect recent mosaic photos to the shared viewer.
+4. **Pixel cleanup recovery:** finish the Storage journey and separate retained
+   technical probes from old account-binding, setup and progress/result UI.
+5. **Apple remaining review/contracts:** redesign selected-photo review and
+   remove its radius override; reconcile A6 with the stale album-column rule and
+   review the now-inventoried context, History and sharing routes.
+6. **Pixel Help:** redesign around tasks/problems and their recovery destinations.
+7. **Pixel Advanced/compatibility:** redesign Format Conversion and browser
+   access; decide supported retention/archive routes and ordinary recovery UI.
+8. **Pixel records ordering:** make latest-change ordering global across core
+   paging; viewer adoption, metadata, chrome and the repeated footer are resolved.
+9. **Release/native/device acceptance:** real pairing, notifications/Live
+   Activity, gesture reversal/anchors, settings persistence, update handoffs and
+   failure recovery. Check light/dark, narrow layouts, large text and long copy;
+   measure Release motion from recordings. Catalog/build checks do not replace
+   physical-device observations.
+10. **Legacy removal:** after production review and acceptance, remove remaining
+    superseded pages and resolve compatibility routes explicitly; preserve
+    intentionally technical diagnostics.
 
 Publishing waits for the owner.
 
