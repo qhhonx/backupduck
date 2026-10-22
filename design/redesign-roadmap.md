@@ -105,7 +105,7 @@ Follow the source audit's priority order, with completed work removed:
    remove its radius override; reconcile A6 with the stale album-column rule and
    review the now-inventoried context, History and sharing routes.
 6. **Pixel Help — contract written (`settings.md` Help Center), not built.** Redesign around tasks/problems and their recovery destinations.
-7. **Pixel Advanced/compatibility:** redesign Format Conversion and browser
+7. **Pixel Advanced/compatibility — decided by `feature-triage.md` (conversion and browser access stay in Advanced; storage budget and log retention automatic; zip export removed), queued.** Redesign Format Conversion and browser
    access; decide supported retention/archive routes and ordinary recovery UI.
 8. **Pixel records ordering:** make latest-change ordering global across core
    paging; viewer adoption, metadata, chrome and the repeated footer are resolved.

@@ -124,12 +124,12 @@ platform, in each platform's components:
    filters (All, Problems, Transfers, Storage). A row opens the entry: every
    recorded field (time, code, job, size, context) with Copy and Copy All.
    Empty and failed-to-read states say so with a retry.
-3. **Exports**: each export is one row naming what the file contains and its
-   format; the system save or share sheet chooses where; success names the
-   file; failure keeps the row with Retry. Pixel: Diagnostics report and Photos
-   saving receipts.
-4. **Settings for the log**: how many days and entries are kept, with the
-   consequence stated once ("Older entries are removed and can't be restored").
+3. **Export**: one row, "Export diagnostics", naming what the file contains
+   and its format (on the Pixel it includes the record of photos saved to
+   Photos, per `feature-triage.md`); the system save or share sheet chooses
+   where; success names the file; failure keeps the row with Retry.
+4. **No retention settings**: the log keeps 14 days automatically
+   (`feature-triage.md`); the top line may say so.
 5. **Pixel tools**: the Google Photos compatibility check (observation only),
    and the cleanup technical tools that the Storage journey does not need.
 
