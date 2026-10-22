@@ -33,7 +33,10 @@ struct DuckSettingsLabel: View {
       // The system label spacing crowds the icon tile on the Mac.
       HStack(spacing: 10) { DuckSettingsIcon(symbol: symbol, color: color); Text(title) }
     #else
-      Label { Text(title) } icon: { DuckSettingsIcon(symbol: symbol, color: color) }
+      HStack(alignment: .center, spacing: DuckSpacing.small + DuckSpacing.xSmall) {
+        DuckSettingsIcon(symbol: symbol, color: color)
+        Text(title)
+      }
     #endif
   }
 }
@@ -60,6 +63,11 @@ struct DuckSettingsLabel: View {
 
   /// The paired receiver's name for footers.
   var receiverName: String { model.peerDevice?.name ?? NSLocalizedString("receiver_paired", comment: "") }
+
+  static var releaseVersion: String {
+    Bundle.main.object(forInfoDictionaryKey: "BackupDuckReleaseVersion") as? String
+      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+  }
 
   static var version: String {
     let info = Bundle.main.infoDictionary ?? [:]

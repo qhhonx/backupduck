@@ -1,0 +1,38 @@
+{
+  "page": "settings",
+  "extends": "base-paired",
+  "core": {
+    "activity_log": {
+      "value": [
+        {
+          "id": 1,
+          "timestamp": 1792627200,
+          "code": "backup_started",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        }
+      ]
+    }
+  },
+  "id": "settings.feedback-reserved",
+  "title": "Settings \u203a feedback (reserved content preview)",
+  "expect": [
+    "The two-action system menu opens automatically from the full-width feedback row with its colored icon tile and primary title; iPhone shows a chevron and the Mac list row has no trailing glyph.",
+    "Email exports an immutable diagnostics file; the preview and composer never send automatically.",
+    "iPhone uses the system mail composer when configured, otherwise mailto plus the system file share sheet.",
+    "Mac uses NSSharingService composeEmail with the diagnostics attachment.",
+    "The reserved Rate BackupDuck row appears with arrow.up.right on both hosts and forms its review URL from a placeholder App Store app ID.",
+    "The email recipient is feedback@example.invalid; this is design-only placeholder content."
+  ],
+  "actions": [
+    {
+      "action": "Open Send Feedback",
+      "result": "Join the User Feedback Group and Email Us (Attach Diagnostics) appear in a system menu."
+    },
+    {
+      "action": "Choose Email, inspect the diagnostics attachment, then cancel the composer",
+      "result": "No email is sent; the exported file remains available for another attempt."
+    }
+  ]
+}

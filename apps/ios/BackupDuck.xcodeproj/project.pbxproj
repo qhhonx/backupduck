@@ -26,6 +26,8 @@
 		262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
 		26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA4F7B4794F768E7D3071B /* BackupScope.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
+		2C5C90A755B29BC8B45E8DEC /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
+		2D202037E82213C36D8B014A /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
 		306C79EE9085A6579BAC0EDB /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
 		32338024CB39A770E19632ED /* BackupActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B6C4F2284DEAD93FD4FBD9 /* BackupActivityView.swift */; };
 		332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
@@ -51,6 +53,7 @@
 		4DCDDE21481BA90B60D7FD73 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
 		4E6FB956C1C9A3E5FCF20408 /* IOSHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C8DAED4BC83F757CD44368 /* IOSHub.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
+		528CE89269DCC74AF6657D1C /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620A0D38838A61333D998D46 /* SettingsSupport.swift */; };
 		54853049A123D203EE45E18C /* IOSConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354FD796EC38268C550E83C1 /* IOSConnect.swift */; };
 		561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		5672B041A1C40468F548D65C /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
@@ -118,6 +121,7 @@
 		BA114F060234BD9171C23F24 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		BB66616127002940EA2CAEBE /* BackupLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E510846D713909749C7E826 /* BackupLiveActivity.swift */; };
 		BC5592E160B881C2267EEB20 /* DuckComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */; };
+		BC8BBCDBBC2D4415D7BC6127 /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620A0D38838A61333D998D46 /* SettingsSupport.swift */; };
 		BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		C48A9F57D6004D4A628EE4C8 /* CalendarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63393D3E70EEF613D5806923 /* CalendarLibrary.swift */; };
 		C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
@@ -223,6 +227,7 @@
 		57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActivityAttributes.swift; sourceTree = "<group>"; };
 		59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridTests.swift; sourceTree = "<group>"; };
 		5CBA4F7B4794F768E7D3071B /* BackupScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupScope.swift; sourceTree = "<group>"; };
+		620A0D38838A61333D998D46 /* SettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSupport.swift; sourceTree = "<group>"; };
 		63393D3E70EEF613D5806923 /* CalendarLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarLibrary.swift; sourceTree = "<group>"; };
 		64B6C4F2284DEAD93FD4FBD9 /* BackupActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActivityView.swift; sourceTree = "<group>"; };
 		686C340C683B91E66C51FAEE /* BackupLiveActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupLiveActivityTests.swift; sourceTree = "<group>"; };
@@ -279,6 +284,7 @@
 		E39C47C19DD887E5B79CF1EF /* BackupWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupWidgetBundle.swift; sourceTree = "<group>"; };
 		E9DC3066EDAD759AC94A12F8 /* Scenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenario.swift; sourceTree = "<group>"; };
 		EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupNotifier.swift; sourceTree = "<group>"; };
+		EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = BackupDuckLicense.txt; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F216BA9DB13FA7A6DAE85EC0 /* BackupDuckCatalog.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BackupDuckCatalog.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
@@ -380,6 +386,7 @@
 		8B1BA4F931D5BD124606C855 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */,
 				89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */,
 				E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */,
 				4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */,
@@ -443,6 +450,7 @@
 				E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */,
 				831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */,
 				84136452F1E989052208E2AB /* SettingsComponents.swift */,
+				620A0D38838A61333D998D46 /* SettingsSupport.swift */,
 				2DD73467DFE30B87BA715C9D /* StorageModel.swift */,
 				CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */,
 				DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */,
@@ -625,6 +633,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3596354693362991FA4D9E63 /* Assets.xcassets in Resources */,
+				2C5C90A755B29BC8B45E8DEC /* BackupDuckLicense.txt in Resources */,
 				A069C49CB633E10F02DB9F3C /* DuckBrand.png in Resources */,
 				0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */,
 				EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */,
@@ -638,6 +647,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				358ABB1546C3819108BD6BFB /* Assets.xcassets in Resources */,
+				2D202037E82213C36D8B014A /* BackupDuckLicense.txt in Resources */,
 				94E8C583B194F42A5585B965 /* DuckBrand.png in Resources */,
 				B9F56EADDB99697062A99110 /* DuckMenuBar.pdf in Resources */,
 				5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */,
@@ -756,6 +766,7 @@
 				9B9F793EF074BA92F213034B /* SetBackupPauseIntent.swift in Sources */,
 				E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */,
 				D39276A745BE767B3F33C721 /* SettingsPage.swift in Sources */,
+				BC8BBCDBBC2D4415D7BC6127 /* SettingsSupport.swift in Sources */,
 				100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */,
 				E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */,
 				D01A5A12BBEC8310ED188FDA /* TransferConcurrencySettings.swift in Sources */,
@@ -856,6 +867,7 @@
 				E460E0E4645FC1F093CCA0D7 /* SetBackupPauseIntent.swift in Sources */,
 				235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */,
 				0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */,
+				528CE89269DCC74AF6657D1C /* SettingsSupport.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
 				561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */,
 				3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */,

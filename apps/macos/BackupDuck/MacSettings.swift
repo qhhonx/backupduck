@@ -15,8 +15,6 @@ struct MacSettings: View {
   var albumsModel: ScopeAlbumsModel
   var initialScopeDestination: BackupScopeDestination?
   var initialScopeSearch: String
-  /// Devices live in the identity header (design/navigation.md, D3).
-  @ObservedObject private var feedback = TesterFeedback.shared
   @AppStorage("duckAppearance") private var appearance = "system"
   @State private var page: Page? = .autoBackup
   @State private var renaming = false
@@ -46,7 +44,6 @@ struct MacSettings: View {
     .labeledContentStyle(DuckPreferenceRowStyle())
     .toggleStyle(DuckPreferenceToggleStyle())
     .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
-    .task { await feedback.check() }
     .onAppear { consumeAboutRequest() }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowAbout"))) { _ in
       page = .about
@@ -81,21 +78,16 @@ struct MacSettings: View {
       }
       Section {
         row(.help, "settings_help_center", "questionmark", DuckGlyph.orange, nil)
-        if feedback.available {
-          Button { NSWorkspace.shared.open(TesterFeedback.group) } label: {
-            LabeledContent { Text(verbatim: "Telegram") } label: {
-              DuckSettingsLabel(title: "settings_feedback", symbol: "bubble.left.and.bubble.right.fill", color: DuckGlyph.blue)
-            }
-          }.buttonStyle(.plain).selectionDisabled()
-        }
-        row(.about, "about_title", "info", DuckGlyph.gray, nil)
+        DuckFeedbackMenu().selectionDisabled()
+        DuckRateBackupDuckRow().selectionDisabled()
+      }
+      Section {
+        row(.about, "about_title", "info", DuckGlyph.gray, DuckSettingsValues.releaseVersion)
       } footer: {
-        VStack(spacing: 4) {
-          Text(DuckSettingsValues.version)
-          HStack(spacing: 12) {
-            Button("settings_diagnostics") { page = .diagnostics }.buttonStyle(.link)
-            Button("settings_advanced") { page = .advanced }.buttonStyle(.link)
-          }
+        HStack(spacing: DuckSpacing.xSmall) {
+          Button("settings_diagnostics") { page = .diagnostics }.buttonStyle(.link)
+          Text(verbatim: "·")
+          Button("settings_advanced") { page = .advanced }.buttonStyle(.link)
         }
         .font(.caption).foregroundStyle(.secondary)
         .frame(maxWidth: .infinity).padding(.top, 16)
@@ -173,7 +165,7 @@ struct MacSettings: View {
     case .appearance: MacAppearanceSettings()
     case .language: MacLanguageSettings(languageName: languageName)
     case .help: NavigationStack { HelpCenter() }
-    case .about: MacAboutSettings()
+    case .about: NavigationStack { MacAboutSettings() }
     case .diagnostics: ActivityLogView(embedded: true)
     case .advanced: MacAdvancedSettings(model: model)
     case nil: Color.clear
@@ -272,8 +264,9 @@ struct MacAboutSettings: View {
   var updateSection: MacUpdateSection? = nil
   var body: some View {
     Form {
+      DuckAboutAuthorSection()
       if let updateSection { updateSection } else { UpdateSettings() }
-      Link("official_website", destination: URL(string: "https://backupduck.app")!)
+      DuckAboutLinksSection()
     }
     .formStyle(.grouped)
   }

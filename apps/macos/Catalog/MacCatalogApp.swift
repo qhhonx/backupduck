@@ -17,7 +17,7 @@ import SwiftUI
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
     let scenario = MacCatalogLaunch.value("-scenario") ?? ""
-    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.hasPrefix("folders.") || scenario.hasPrefix("settings.folder") || scenario.hasPrefix("settings.scope.") || scenario.hasPrefix("settings.updates") || scenario.hasPrefix("settings.about")
+    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.hasPrefix("folders.") || scenario.hasPrefix("settings.folder") || scenario.hasPrefix("settings.scope.") || scenario.hasPrefix("settings.updates") || scenario.hasPrefix("settings.about") || ["settings.bottom", "settings.feedback", "settings.feedback-reserved"].contains(scenario)
   }
 
   var body: some Scene {
@@ -150,7 +150,12 @@ private struct MacCatalogRoot: View {
     }
   }
 
-  private func start(_ scenario: Scenario) { open = scenario; run = UUID() }
+  private func start(_ scenario: Scenario) {
+    if ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id) || scenario.id.hasPrefix("settings.updates.") {
+      DesignPreview.proposedDesign = true
+    }
+    open = scenario; run = UUID()
+  }
 
   private func restart() {
     run = nil
@@ -174,8 +179,8 @@ private struct MacScenarioRun: View {
       if scenario.step == "selectedBackup" {
         SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
       } else if scenario.step == "updates" {
-        MacAboutSettings(updateSection: MacUpdateSection(canCheck: !checkingUpdates && !scenario.id.hasSuffix("unavailable"),
-          automaticChecks: $automaticChecks, check: { checkingUpdates = true }))
+        NavigationStack { MacAboutSettings(updateSection: MacUpdateSection(status: checkingUpdates ? .checking : .notChecked, canCheck: !checkingUpdates && !scenario.id.hasSuffix("unavailable"),
+          automaticChecks: $automaticChecks, check: { checkingUpdates = true })) }
           .labeledContentStyle(DuckPreferenceRowStyle())
           .navigationTitle("about_title")
       } else if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
@@ -195,6 +200,8 @@ private struct MacScenarioRun: View {
         initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "")
       }
     }
+      .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
+      .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
       .onDisappear { session.model.stop() }
   }
 }

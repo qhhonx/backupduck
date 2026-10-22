@@ -1,0 +1,27 @@
+{
+  "page": "settings",
+  "extends": "base-paired",
+  "core": {
+    "activity_log": {
+      "value": [
+        {
+          "id": 1,
+          "timestamp": 1792627200,
+          "code": "backup_started",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        }
+      ]
+    }
+  },
+  "id": "settings.bottom",
+  "title": "Settings › bottom",
+  "expect": [
+    "Help Center and Send Feedback use the same colored-tile preference rows as the categories above.",
+    "About is a separate group with the real bundle release version.",
+    "No rating row: no App Store app ID is configured in the repository.",
+    "The centered footer contains only Diagnostics · Advanced."
+  ],
+  "actions": []
+}

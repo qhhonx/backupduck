@@ -6,10 +6,14 @@
   "title": "About · direct updates unavailable",
   "extends": "base-paired",
   "expect": [
-    "Production About Form contains one native update section with version, standard Check for Updates… push button and trailing automatic-check switch.",
+    "About shows one Version row with the update-status subtitle and a system disclosure. Its destination shows only status, Check for Updates… and the Automatic Updates switch.",
     "Check is disabled while the updater cannot check."
   ],
   "actions": [
+    {
+      "action": "Open the Version row.",
+      "result": "Update details opens with status and controls, without repeating the version."
+    },
     {
       "action": "Toggle automatic checks.",
       "result": "The switch changes immediately in isolated catalog state."

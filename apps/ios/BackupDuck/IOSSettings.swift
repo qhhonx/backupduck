@@ -7,7 +7,7 @@ import UIKit
 /// migration step 6 replaces `IOSSettingsPage`.
 struct IOSSettings: View {
   @ObservedObject var model: BackupModel
-  @ObservedObject private var feedback = TesterFeedback.shared
+  var showBottom = false
   @AppStorage("duckAppearance") private var appearance = "system"
   @Environment(\.openURL) private var openURL
   @State private var editingName = false
@@ -18,6 +18,7 @@ struct IOSSettings: View {
 
   var body: some View {
     NavigationStack {
+      ScrollViewReader { proxy in
       Form {
         header
         if model.message != nil && !model.ready { openFailedCard }
@@ -52,20 +53,20 @@ struct IOSSettings: View {
             HelpCenter()
           } label: { DuckSettingsLabel(title: "settings_help_center", symbol: "questionmark", color: DuckGlyph.orange) }
             .accessibilityIdentifier("settings.help")
-          if feedback.available {
-            Link(destination: TesterFeedback.group) {
-              LabeledContent { Text(verbatim: "Telegram") } label: { DuckSettingsLabel(title: "settings_feedback", symbol: "bubble.left.and.bubble.right.fill", color: DuckGlyph.blue) }
-            }
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier("settings.feedback_group")
-          }
+          DuckFeedbackMenu()
+          DuckRateBackupDuckRow()
+        }
+        Section {
           NavigationLink { IOSAboutSettings() } label: {
-            DuckSettingsLabel(title: "about_title", symbol: "info", color: DuckGlyph.gray)
-          }.accessibilityIdentifier("settings.about")
+            LabeledContent { Text(DuckSettingsValues.releaseVersion) } label: {
+              DuckSettingsLabel(title: "about_title", symbol: "info", color: DuckGlyph.gray)
+            }
+          }.accessibilityIdentifier("settings.about").id("settings.bottom")
         } footer: {
           footer
         }
       }
+      .environment(\.defaultMinListRowHeight, DuckPreferenceMetrics.rowHeight)
       .navigationTitle("nav_settings")
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
@@ -77,7 +78,8 @@ struct IOSSettings: View {
       }
       .navigationDestination(isPresented: $advanced) { IOSAdvancedSettings(model: model) }
       .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
-      .task { await feedback.check() }
+      .onAppear { if showBottom { proxy.scrollTo("settings.bottom", anchor: .bottom) } }
+      }
     }
     .sheet(isPresented: $editingName) {
       if let name = model.deviceSnapshot?.device.name { DeviceNameEditor(model: model, name: name) }
@@ -124,13 +126,11 @@ struct IOSSettings: View {
   }
 
   private var footer: some View {
-    VStack(spacing: 6) {
-      Text(DuckSettingsValues.version)
-      HStack(spacing: 16) {
-        Button("settings_diagnostics") { diagnostics = true }
-        Button("settings_advanced") { advanced = true }
-      }.font(.footnote)
-    }
+    HStack(spacing: DuckSpacing.xSmall) {
+      Button("settings_diagnostics") { diagnostics = true }
+      Text(verbatim: "·").foregroundStyle(.secondary)
+      Button("settings_advanced") { advanced = true }
+    }.font(.footnote)
     .frame(maxWidth: .infinity)
     .padding(.top, 24)
   }
@@ -210,8 +210,9 @@ private struct IOSAdvancedSettings: View {
 private struct IOSAboutSettings: View {
   var body: some View {
     Form {
-      LabeledContent("settings_version", value: DuckSettingsValues.version)
-      Link("official_website", destination: URL(string: "https://backupduck.app")!)
+      DuckAboutAuthorSection()
+      Section { DuckAboutVersionLabel() }
+      DuckAboutLinksSection()
     }
     .navigationTitle("about_title")
     .navigationBarTitleDisplayMode(.inline)
