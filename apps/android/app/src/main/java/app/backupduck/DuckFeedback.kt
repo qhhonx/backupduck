@@ -31,7 +31,10 @@ internal class DuckConfirmation(private val activity:AppCompatActivity,title:Int
     val window get() = dialog.window
     val isShowing get() = dialog.isShowing
     private val idleLabel = activity.getString(positive)
-    init { dialog.setOnShowListener { confirm.setOnClickListener { confirmed(this) } } }
+    init { dialog.setOnShowListener {
+        dialog.findViewById<android.widget.TextView>(android.R.id.message)?.balanceLines()
+        confirm.setOnClickListener { confirmed(this) }
+    } }
     fun show() = dialog.show()
     override fun dismiss() = dialog.dismiss()
     override fun cancel() = dialog.cancel()

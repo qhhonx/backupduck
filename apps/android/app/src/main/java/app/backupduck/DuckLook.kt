@@ -73,9 +73,16 @@ internal object LookSectionMetrics {
 
 // ---- Text ----
 
+/** Shared wrapping for body, supporting text and footnotes, including centered empty states. */
+internal fun TextView.balanceLines() {
+    breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+    hyphenationFrequency = android.text.Layout.HYPHENATION_FREQUENCY_NONE
+}
+
 /** Text in one role of the type scale: on-surface, or on-surface-variant when [secondary]. */
 internal fun Context.lookText(value: CharSequence, appearance: Int, secondary: Boolean = false, color: Int? = null) = TextView(this).apply {
     text = value; setTextAppearance(appearance)
+    balanceLines()
     setTextColor(color ?: getColor(if (secondary) R.color.duck_role_secondary_text else R.color.duck_role_primary_text))
 }
 

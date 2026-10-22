@@ -19,6 +19,7 @@ internal fun Context.secondaryColor() = themeColor(android.R.attr.textColorSecon
 internal fun Context.accentColor() = themeColor(com.google.android.material.R.attr.colorPrimary)
 internal fun Context.label(parent: LinearLayout, value: String, size: Int, color: Int = themeColor(android.R.attr.textColorPrimary)) = TextView(this).also {
     it.text = value; it.textSize = size.toFloat(); it.setTextColor(color)
+    it.balanceLines()
     it.setPadding(0, dp(6), 0, dp(8)); parent.addView(it)
 }
 internal fun Context.section(parent: LinearLayout, title: Int) {

@@ -21,6 +21,11 @@ switch already shows on or off, so its line says what it does. Explanations
 that apply to the group go in one footnote sentence under it; anything longer
 goes to Help. A row's line changes only to report a problem with its action.
 
+Multi-line text never ends with a lone character or a character and its
+punctuation. Shared text components use the platform's balanced line breaking
+for body, supporting and footnote text (Android `BREAK_STRATEGY_BALANCED`; Apple
+text already avoids short last lines) instead of rewording individual strings.
+
 Errors remain visible with a recovery action. Routine persistence and preparation
 use neutral busy feedback, not warnings. Only an unfinished operation after
 execution ends exposes recovery. Do not permanently stack a submitted message

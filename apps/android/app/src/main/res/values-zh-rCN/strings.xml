@@ -502,7 +502,7 @@
     <string name="photos_after_arrival">收到后存进 Pixel 相册</string>
     <string name="photos_live_cause">不能原样存进 Pixel 相册 · 已安全保存在 Pixel 上</string>
     <string name="photos_not_saved">没能存进 Pixel 相册</string>
-    <string name="photos_cloud_footer">是否已备份到 Google 相册云端，请在 Google 相册里查看；备份鸭看不到这一项。</string>
+    <string name="photos_cloud_footer">云端备份情况请在 Google 相册中查看。</string>
     <string name="photos_open">在相册中打开</string>
     <string name="photos_open_failed">这台 Pixel 上没有能打开它的应用。</string>
     <string name="photos_kind_photo">照片</string>

@@ -1,5 +1,15 @@
 # Pixel receiver design catalog
 
+All shared body, supporting and footnote text uses balanced native line breaking
+with hyphenation disabled, including centered empty states and compatibility text
+helpers. Launch with `--ez auditText true` to export visible TextView line layouts
+to the catalog's external-files `text-layout.json` after layout or scrolling.
+Use these line endings with full-resolution screenshots to review CJK orphans;
+layout evidence alone does not establish visual acceptance.
+Add `--ez staticCapture true` with the audit to capture synthetic pairing codes
+and hold `onboarding.code` before its scripted connection. Ordinary Catalog
+review and production code-window protection keep their existing behavior.
+
 The `catalog` build type (`app.backupduck.catalog`, label "Duck Catalog")
 renders the production receiver pages from scenario data. It is a review target
 only and is never distributed. See the design catalog section of

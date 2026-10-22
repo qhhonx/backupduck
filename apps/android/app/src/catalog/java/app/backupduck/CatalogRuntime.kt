@@ -196,7 +196,9 @@ internal object CatalogRuntime {
             if (list.isNullOrEmpty()) { missing += op; null } else {
                 val index = cursor.getOrDefault(op, 0)
                 cursor[op] = index + 1
-                list[minOf(index, list.size - 1)]
+                // Typography capture holds the code; normal review still plays the connection.
+                val held = CatalogTextAudit.staticCapture && scenario.id == "onboarding.code" && op == "device_status"
+                list[if (held) 0 else minOf(index, list.size - 1)]
             }
         }
         if (answer == null) {

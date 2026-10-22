@@ -53,6 +53,8 @@ class CatalogActivity : BackupDuckActivity() {
         setContentView(ScrollView(this).apply { addView(list) })
         // `--ez proposed true` shows the proposed redesign instead of the current page.
         ReceiverEnvironment.proposedDesign = intent.getBooleanExtra("proposed", ReceiverEnvironment.proposedDesign)
+        CatalogTextAudit.enabled = intent.getBooleanExtra("auditText", false)
+        CatalogTextAudit.staticCapture = intent.getBooleanExtra("staticCapture", false)
         // `--es language zh-CN` shows the pages in that language for this process.
         intent.getStringExtra("language")?.let { AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it)) }
         intent.getStringExtra("scenario")?.let { id -> all.firstOrNull { it.id == id }?.let { open(it, intent.getStringExtra("appearance")) } }
@@ -77,6 +79,7 @@ class CatalogActivity : BackupDuckActivity() {
 /** Scenario controls occupy their own strip outside the production page. */
 internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {
+        CatalogTextAudit.attach(activity)
         if (activity !is MainActivity) return
         val content = activity.findViewById<FrameLayout>(android.R.id.content)
         if (content.findViewWithTag<View>("catalog") != null) return
