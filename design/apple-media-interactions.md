@@ -48,9 +48,12 @@ in light appearance, black in dark), as in the system photo library. A tap hides
 or reveals the chrome and turns the background black while hidden. The chrome is
 the system's (A8 in `platform-expression.md`) and composed as the system photo
 library composes it: back, a date-and-time title capsule that opens the
-information panel, and More at the top; Share, Info and a backup-state button
-at the bottom, always present, the state shown by the button's glyph rather than
-by text. The information panel has no close button; it closes by dragging down,
+information panel, and More at the top; Share and Info at the bottom, as the
+system's read-only viewers place them. The photo's backup state rides on Info
+and is quiet when normal: no mark once the photo is in the Pixel's Photos, a
+small accent dot while it is not there yet, the attention colour when it failed,
+and a progress ring only with real progress. Back Up and Retry live in the
+panel's backup card and in More. Marks change with the system's symbol effects. The information panel has no close button; it closes by dragging down,
 by Info or by the title. The filmstrip shows only while browsing. The viewer is read-only: do not copy
 Apple/Google editing, deletion or cloud-backup controls that BackupDuck does not
 implement.

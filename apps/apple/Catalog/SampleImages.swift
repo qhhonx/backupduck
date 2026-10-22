@@ -7,10 +7,11 @@ import Photos
 /// Catalog-only asset: no identifiers, resources or pixels from the person's library.
 final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable {
   let job: BackupJob
-  init(job: BackupJob) { self.job = job; super.init() }
-  override var localIdentifier: String { job.asset.source_id }
+  private let identifier: String?
+  init(job: BackupJob, identifier: String? = nil) { self.job = job; self.identifier = identifier; super.init() }
+  override var localIdentifier: String { identifier ?? job.asset.source_id }
   override var creationDate: Date? { HistoryPhoto(job: job).takenAt }
-  override var modificationDate: Date? { creationDate }
+  override var modificationDate: Date? { Double(job.asset.revision).map { Date(timeIntervalSince1970: $0 / 1000) } }
   override var mediaType: PHAssetMediaType { .image }
   override var mediaSubtypes: PHAssetMediaSubtype { [] }
   override var burstIdentifier: String? { nil }

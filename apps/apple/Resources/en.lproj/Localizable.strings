@@ -1658,3 +1658,18 @@
 "updates_available" = "Update available";
 "updates_check_failed" = "Couldn’t check for updates";
 "settings_rate" = "Rate BackupDuck";
+
+/* Photo viewer backup capsule. */
+"photo_viewer_received" = "On the Pixel";
+"photo_viewer_backing_up" = "Backing Up";
+"photo_viewer_not_backed_up" = "Not Backed Up";
+"photo_viewer_failed" = "Backup Failed";
+"photo_viewer_loading" = "Loading…";
+
+"photo_viewer_saved" = "In Pixel's Photos";
+"photo_viewer_info_hint" = "Shows the photo's information";
+
+"photo_viewer_more" = "More";
+
+"photo_viewer_info" = "Info";
+"photo_viewer_info_state" = "Info, %@";

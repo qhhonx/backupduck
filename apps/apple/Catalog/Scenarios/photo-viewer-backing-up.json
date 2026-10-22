@@ -1,0 +1,168 @@
+{
+  "id": "photo.viewer-backing-up",
+  "page": "backup",
+  "step": "photoViewer",
+  "title": "Photo viewer · backing-up",
+  "extends": "photo.info",
+  "ios_only": true,
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 801,
+          "receiver_id": "catalog-pixel",
+          "state": "running",
+          "confirmed_bytes": 0,
+          "processing": null,
+          "asset": {
+            "kind": "photo",
+            "source_id": "a8-synthetic-photo",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0801.HEIC",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "camera_model": "Synthetic camera",
+              "lens_model": "24 mm",
+              "aperture": "ƒ/1.8",
+              "exposure": "1/125 s",
+              "iso": "100"
+            }
+          }
+        }
+      ]
+    },
+    "source_job": [
+      {
+        "when": {
+          "source_id": "a8-synthetic-photo"
+        },
+        "value": {
+          "id": 801,
+          "receiver_id": "catalog-pixel",
+          "state": "running",
+          "confirmed_bytes": 0,
+          "processing": null,
+          "asset": {
+            "kind": "photo",
+            "source_id": "a8-synthetic-photo",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0801.HEIC",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "camera_model": "Synthetic camera",
+              "lens_model": "24 mm",
+              "aperture": "ƒ/1.8",
+              "exposure": "1/125 s",
+              "iso": "100"
+            }
+          }
+        }
+      },
+      {
+        "value": null
+      }
+    ],
+    "library_source_states": {
+      "value": {
+        "a8-synthetic-photo": {
+          "revision": "1",
+          "preparing": false,
+          "tile_state": "sending"
+        }
+      }
+    },
+    "backup_tasks": [
+      {
+        "when": {
+          "state": "attention"
+        },
+        "value": {
+          "items": [],
+          "summary": {
+            "total": 1,
+            "received": 0,
+            "published": 0,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 0,
+            "active": 0,
+            "attention": 0
+          }
+        }
+      },
+      {
+        "value": {
+          "items": [
+            {
+              "id": "job-801",
+              "cursor": 801,
+              "sort_value": 1792534500000,
+              "job": {
+                "id": 801,
+                "receiver_id": "catalog-pixel",
+                "state": "running",
+                "confirmed_bytes": 0,
+                "processing": null,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "a8-synthetic-photo",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_0801.HEIC",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "camera_model": "Synthetic camera",
+                    "lens_model": "24 mm",
+                    "aperture": "ƒ/1.8",
+                    "exposure": "1/125 s",
+                    "iso": "100"
+                  }
+                }
+              }
+            }
+          ],
+          "summary": {
+            "total": 1,
+            "received": 0,
+            "published": 0,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 0,
+            "active": 0,
+            "attention": 0
+          }
+        }
+      }
+    ]
+  },
+  "expect": [
+    "Two system circular toolbar buttons only: Share leading and Info trailing; no centre item or backup action slot.",
+    "Normal publication in Pixel Photos uses plain info.circle with no mark. Not backed up or received uses a small accent dot at the top-trailing edge; failure uses the attention dot. The mark remains when info.circle.fill is selected.",
+    "Only real partial confirmed core bytes draw a thin continuously animated progress ring around Info. Waiting without progress uses the accent dot.",
+    "Dot appearance/disappearance and glyph replacement use system symbol effects; Reduce Motion cross-fades. No custom keyframes.",
+    "The backup facts card and More contain the applicable Back Up or Retry action. Show in Backup History exists only with history and navigates to this photo entry.",
+    "Info accessibility includes the backup state and percentage, or just Info when saved. Filmstrip, date/time title, immersion and shared information layout retain system composition."
+  ]
+}

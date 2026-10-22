@@ -295,8 +295,7 @@ and calendar transitions in a synthetic simulator library. Use `-proposed`.
 
 `photo.info-light` and `photo.info-dark` open the production iPhone drawer with
 an explicit panel appearance for edge review. Check the full bottom edge and
-home indicator, scroll to the final field, then close and reopen. The black media
-viewer retains its production appearance. On Mac use `-appearance light` or
+home indicator, scroll to the final field, then close and reopen. The media viewer follows the selected system appearance. On Mac use `-appearance light` or
 `-appearance dark` to review the existing trailing inspector.
 
 
@@ -317,41 +316,10 @@ Registration is distinct from preparation, transfer and Photos publication;
 progress belongs to Backup / Overview. Native rendering and device acceptance
 remain separate from these fixtures and build checks.
 
-## iPhone library chrome A/B (D1)
-
-These are comparison variants of the existing library, not a default migration.
-Debug apps and the iOS catalog accept `-libraryChrome current|native`; omission
-selects current unless an A/B catalog scenario supplies its variant. Production
-Release compiles both paths and always selects current, even with the argument.
-Explicit launch arguments take precedence over a catalog scenario's variant.
-
-On the Demo simulator's existing photo library, launch the Release catalog with:
-
-- `-scenario library.ab-current -libraryChrome current -proposed`
-- `-scenario library.ab-native -libraryChrome native -proposed`
-
-Both wait for the complete chronological index, use three columns and center the
-same middle asset once; subsequent scrolling, selection and refresh use normal
-production behavior. They do not seed, change or replace the photo library.
-Do not install or reset the simulator as part of source/build verification.
-
-Native uses a navigation-owned Close/title (subtitle on iOS 26+), system zoom
-on iOS 18+ and system photo context menus while browsing. Below iOS 18 the
-existing media flight remains. Select mode retains range selection. System zoom
-resolves the current asset after paging, scrolls a recycled/offscreen source
-into view and returns nil for a deleted/unavailable tile. Image zoom, paging
-and information travel exclude system interactive dismissal. The context menu
-uses the same durable selected-backup action without changing grid selection,
-opens that photo's recorded backup facts, and shares its original through the
-system share sheet. Loading/error/repeat confirmation remain actionable.
-
-Record start, held drag, reversal and settled states in both variants, including
-a mid-library page change and return, image zoom/input ownership, information
-open/close, Select-mode range selection, light/dark, large text and Reduce Motion.
-Build checks do not establish gesture, motion or device acceptance. UIKit's
-[zoom transition](https://developer.apple.com/documentation/uikit/uiviewcontroller/transition/zoom(options:sourceviewprovider:))
-owns native presentation and dismissal; the existing grid and media pager remain
-virtualized and keep their stable asset identity and cancellation/cache owners.
+The iPhone/iPad library uses the photo-only flight over a stationary grid, with
+its current tile hidden until return lands. Browsing long press opens the system
+menu with a full-aspect cached preview at every density; tapping it uses the same
+flight. Select mode retains range selection and Reduce Motion retains its fallback.
 
 ### Reserved Settings content
 
@@ -362,3 +330,62 @@ placeholders on iPhone and Mac. The former shows the author card; the latter
 opens the feedback menu with both actions and shows Rate BackupDuck. The review
 URL is formed from the placeholder app ID. The placeholder email uses the
 reserved `.invalid` domain. These scenarios do not configure production content.
+
+The iOS-only `photo.viewer-light`, `photo.viewer-dark`, `photo.viewer-immersive`,
+`photo.viewer-received`, `photo.viewer-backing-up`, `photo.viewer-not-backed-up`,
+`photo.viewer-failed`, `photo.viewer-info` and `photo.viewer-state-change` scenarios use the production viewer
+and a thirteen-photo synthetic collection focused on its middle item, without
+PhotoKit access. Light/dark scenarios set the enclosing presentation's appearance
+and the native navigation owner. The info scenario invokes the title's actual
+system button to open the shared A8 panel; tapping again closes it.
+
+Review one system back button and a principal title capsule with exactly two
+lines: the relative weekday for the last seven days (otherwise the full date),
+then the time. The title slot reserves the native wide capsule geometry; a
+trailing system More button balances Back. More contains Show in Backup History when a recorded job exists
+and the same supported durable Back Up or Retry action, with no other commands. Title and Info toggle
+the shared A8 panel, including title-toggle closing after top chrome fades.
+The fixed system toolbar contains exactly two circular system buttons: Share
+leading and Info trailing. Info fills while its panel is open. State is a quiet
+mark on Info, retained while open: no mark once in the Pixel's Photos, an accent
+dot when not backed up or received but not published, and an attention dot on
+failure. Only real partial core acknowledgement draws a thin progress ring
+around the glyph. Waiting has an accent dot, never estimated progress.
+System symbol appear/disappear and replace effects own mark/glyph changes;
+Reduce Motion uses cross-fades. Progress interpolates continuously without
+custom keyframes. Info's accessibility label includes the state and recorded
+percentage, or just Info when normal. The backup facts card and More expose the
+same supported durable Back Up or Retry action. History is hidden without a
+recorded job; Show in Backup History scrolls to that photo's history entry.
+Receipt does not establish Photos publication or cloud upload. Synthetic
+registration and retry record queued facts; production keeps durable selected
+intent and core retry.
+
+`photo.viewer-state-change` starts without a job, then changes synthetic core
+answers after the viewer settles: not backed up, running without confirmed
+bytes, 10–90% confirmed bytes, then confirmed Photos publication over about four
+seconds. The fixture does not directly set the viewer's glyph or progress.
+`-viewer-info` opens the production panel in any viewer fixture, including failed
+and not-backed-up states.
+
+The filmstrip occupies its own region directly above the toolbar, outside the
+photo. Information fades it away, moves/crops the photo into the upper region,
+and fades top chrome. The square-edged information surface continues directly under the photo with
+no grabber. Three rounded inset groups contain capture date, weekday and time
+on one line with the file name below, independent backup facts with their
+recorded times and the history row, then file details. Its scroll viewport ends
+above the fixed toolbar, so the final metadata field remains reachable. Drag down, Info or title closes the panel; there is no close
+button. Immersion fades all chrome and the light canvas to black without
+refitting the browsing photo. These scenarios are source/build fixtures,
+not device or motion acceptance.
+
+For an iOS Simulator library comparison, a viewer scenario also accepts
+`-viewer-asset <PhotoKit local identifier>`. This reads an existing fixture and
+its browsing context only if Photos access is already authorized; it never
+requests access or changes the library. Omit the argument for the synthetic
+collection. Appearance and information/immersion still come from the scenario.
+
+Viewer captures accept `-appearance light|dark` without changing device settings.
+For the information scroll endpoint, combine `photo.viewer-info` with
+`-viewer-info-bottom`; this positions the production information scroll view at
+its bottom after opening and retains the fixed native toolbar.

@@ -14,7 +14,6 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeUIViewController(context: Context) -> UINavigationController {
     let grid = CalendarGridController()
-    if library.catalogAnchorFraction != nil { grid.columns = 3 }
     context.coordinator.controller = grid
     let c = context.coordinator
     library.previewPoster = { [weak c] id in
@@ -85,7 +84,8 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       guard let c, let asset = c.asset(item.id) else { return }
       let index = c.controller?.assets.firstIndex(where: { $0.id == item.id })
       let visible = index.flatMap { c.controller?.grid.cellForItem(at: IndexPath(item: $0,section: 0)) as? CalendarGridCell }
-      let poster = visible?.image.image
+      let poster = visible?.image.image ?? index.flatMap { c.controller?.denseCanvas.displayedImage($0) }
+        ?? c.parent.library.thumbnails.contextPreview(for: asset)
       let version = c.epoch
       Task { [weak c] in
         guard let c, let prepared = await c.parent.library.preparePreviewWindow(containing: item.id)
@@ -104,21 +104,19 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       return LibraryPhotoActions.menu(asset: asset, library: c.parent.library,
         model: c.parent.model, presenter: grid)
     }
-    library.previewSourceView = { [weak c] id in
-      guard let c, let grid = c.controller else { return nil }
-      guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: photoLibraryFetchOptions()).firstObject else { return nil }
-      let key = asset.burstIdentifier.map { "burst:" + $0 } ?? id
-      guard let index = grid.assets.firstIndex(where: { $0.id == key }) else { return nil }
-      if grid.level != .all { grid.changeLevel(.all, asset: index, from: nil) }
-      guard let tile = grid.layout.geometry.tiles.firstIndex(where: { $0.members.contains(index) }) else { return nil }
-      let path = IndexPath(item: tile, section: 0)
-      let visible = grid.grid.bounds.inset(by: grid.grid.adjustedContentInset)
-      if grid.grid.cellForItem(at: path) == nil || !visible.intersects(grid.layout.frame(tile)) {
-        grid.locateAsset(index)
-      }
-      grid.grid.layoutIfNeeded()
-      guard let cell = grid.grid.cellForItem(at: path) as? CalendarGridCell, cell.assetID == key else { return nil }
-      return cell.image
+    grid.photoPreview = { [weak c] item, poster in
+      guard let c, let asset = c.asset(item.id) else { return nil }
+      return LibraryPhotoPreview(asset: asset, pipeline: c.parent.library.thumbnails, poster: poster)
+    }
+    grid.photoAccessibilityActions = { [weak c] item in
+      guard let c, let asset = c.asset(item.id), let grid = c.controller else { return [] }
+      return LibraryPhotoActions.accessibilityActions(asset: asset, library: c.parent.library,
+        model: c.parent.model, presenter: grid)
+    }
+    library.previewVisibility = { [weak c] id in
+      guard let c, let grid = c.controller else { return }
+      let asset = id.flatMap { PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: photoLibraryFetchOptions()).firstObject }
+      grid.setPreviewHidden(asset?.burstIdentifier.map { "burst:" + $0 } ?? id)
     }
     grid.onReviewBrowse = { [weak c] review in
       guard let c else { return }
@@ -211,7 +209,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     coordinator.work?.cancel()
     coordinator.prefill?.cancel()
     coordinator.refresh.cancel()
-    coordinator.parent.library.previewSourceView = nil
+    coordinator.parent.library.previewVisibility = nil
     coordinator.parent.library.previewFrame = nil
     coordinator.parent.library.previewPoster = nil
     coordinator.controller?.restoreNavigation()
@@ -229,7 +227,6 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     let refresh = LibraryRefreshScheduler()
     var queueRevision: Int64 = -1, receiver: String?
     var networkAllowed = false, filter: LibraryFilter?
-    var appliedCatalogAnchor = false
     var previewOrigin: String?
     var previewPoster: UIImage?
     var lastPreheat: CFTimeInterval = 0
@@ -298,12 +295,6 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         self.controller?.indexing = false
         LaunchTrace.mark("all items published (\(result.0.count))")
         self.controller?.replaceAssets(result.0)
-        if !self.appliedCatalogAnchor, let fraction = self.parent.library.catalogAnchorFraction, !result.0.isEmpty {
-          self.appliedCatalogAnchor = true
-          let index = min(result.0.count - 1, max(0, Int(Double(result.0.count - 1) * fraction)))
-          self.controller?.catalogAnchorID = result.0[index].id
-          self.controller?.applyCatalogAnchor()
-        }
         self.startPrefill(result.0)
         self.parent.library.previewFrame = { [weak self] id in
           guard let self, let grid = self.controller else { return nil }
@@ -313,10 +304,8 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
           let key = asset?.burstIdentifier.map { "burst:" + $0 } ?? id
           guard let index = grid.assets.firstIndex(where: { $0.id == key }) else { return nil }
           if grid.level != .all { grid.changeLevel(.all, asset: index, from: nil) }
-          let path = IndexPath(item: index, section: 0)
           let rect = grid.grid.convert(grid.layout.frame(index), to: grid.view)
-          if id != self.previewOrigin || grid.grid.cellForItem(at: path) == nil
-            || rect.maxY < grid.view.safeAreaInsets.top || rect.minY > grid.view.bounds.height - 90
+          if rect.minY < grid.view.safeAreaInsets.top || rect.maxY > grid.view.bounds.height - 90
           {
             grid.locateAsset(index)
           }

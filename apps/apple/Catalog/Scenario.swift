@@ -60,6 +60,7 @@ struct Scenario: Identifiable {
         if object["mac_only"] as? Bool == true { return nil }
       #endif
       #if os(macOS)
+        if object["ios_only"] as? Bool == true { return nil }
         // Library scenarios read the photo library. On a Mac that is the
         // reviewer's real library, so they run only on the iOS Simulator.
         if object["library"] != nil || object["step"] as? String == "liveActivity" { return nil }
@@ -195,6 +196,18 @@ final class ScenarioCore: CoreTransport, @unchecked Sendable {
       cursor = [:]
       missing = []
       generation += 1
+    }
+  }
+
+  /// A synthetic action records its next facts before the production page refreshes.
+  func setValue(_ value: Any, for operation: String, when: [String: String]? = nil) {
+    lock.withLock {
+      let answer = Scenario.Response(value: value, error: nil, delay: 0, when: when)
+      if let when {
+        responses[operation, default: []].removeAll { $0.when == when }
+        responses[operation, default: []].insert(answer, at: 0)
+      } else { responses[operation] = [answer] }
+      cursor[operation] = 0
     }
   }
 

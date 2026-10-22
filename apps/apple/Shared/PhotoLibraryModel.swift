@@ -79,9 +79,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   var previewFrame: ((String) -> CGRect?)?
   var previewPoster: ((String) -> LibraryImage?)?
   #if os(iOS)
-  var previewSourceView: ((String) -> UIView?)?
-  /// Catalog-only start position, applied once after the complete index is ready.
-  var catalogAnchorFraction: Double?
+  var previewVisibility: ((String?) -> Void)?
   #endif
 
   @Published private(set) var total = 0
@@ -1134,6 +1132,17 @@ enum LaunchTrace {
     if let sample = asset as? any PreviewSample { return sample.previewImage }
     return posters.object(forKey:smallKey(asset)) ?? smallPosters.object(forKey: smallKey(asset))
   }
+  #if os(iOS)
+  /// Synchronous menu seed: prefer the largest decoded uncropped rendition.
+  func contextPreview(for asset: PHAsset) -> UIImage? {
+    if let sample = asset as? any PreviewSample { return sample.previewImage }
+    for edge in (Array(stride(from: 1024, through: 384, by: -64)) + [352] + Array(stride(from: 320, through: 64, by: -64))) {
+      let key = "\(asset.localIdentifier)|\(PhotoLibraryModel.revision(asset))|\(edge)|\(PHImageContentMode.aspectFit.rawValue)" as NSString
+      if let image = cache.object(forKey: key) { return image }
+    }
+    return poster(for: asset)
+  }
+  #endif
   /// The caller supplies already prepared 64-pixel fallback pixels.
   private func rememberSmall(_ image: LibraryImage, asset: PHAsset) {
     #if os(iOS)

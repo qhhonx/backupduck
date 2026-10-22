@@ -1658,3 +1658,18 @@
 "updates_available" = "有可用更新";
 "updates_check_failed" = "无法检查更新";
 "settings_rate" = "为备份鸭评分";
+
+/* Photo viewer backup capsule. */
+"photo_viewer_received" = "已送达 Pixel";
+"photo_viewer_backing_up" = "正在备份";
+"photo_viewer_not_backed_up" = "未备份";
+"photo_viewer_failed" = "备份失败";
+"photo_viewer_loading" = "正在读取…";
+
+"photo_viewer_saved" = "已存进 Pixel 相册";
+"photo_viewer_info_hint" = "显示照片信息";
+
+"photo_viewer_more" = "更多";
+
+"photo_viewer_info" = "信息";
+"photo_viewer_info_state" = "信息，%@";

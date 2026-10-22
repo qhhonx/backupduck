@@ -649,6 +649,11 @@ final class CalendarGridCell: UICollectionViewCell {
   }
 }
 
+private final class CalendarPhotoAccessibilityElement: UIAccessibilityElement {
+  var activate: () -> Bool = { false }
+  override func accessibilityActivate() -> Bool { activate() }
+}
+
 /// Dense month/year overviews show up to about two thousand photos per screen.
 /// One collection cell per photo made UIKit's cell management dominate scrolling
 /// (measured with Time Profiler), so these levels draw strips of rows into a few
@@ -700,6 +705,18 @@ final class CalendarDenseCanvas: UIView {
     layer.actions = actions
   }
   required init?(coder: NSCoder) { fatalError() }
+  /// Mask bounded bitmap strips, never the full library-sized canvas.
+  func hidePreviewTile(_ frame: CGRect?) {
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    defer { CATransaction.commit() }
+    for strip in strips.values {
+      guard let frame, strip.layer.frame.intersects(frame) else { strip.layer.mask = nil; continue }
+      let mask = CAShapeLayer(), path = UIBezierPath(rect: strip.layer.bounds)
+      path.append(UIBezierPath(rect: frame.offsetBy(dx: -strip.layer.frame.minX, dy: -strip.layer.frame.minY)))
+      mask.fillRule = .evenOdd; mask.path = path.cgPath
+      strip.layer.mask = mask
+    }
+  }
   var rowCount: Int { (geometry.tiles.count + geometry.leadingSlots + columns - 1) / max(1, columns) }
   func rowFrame(_ row: Int) -> CGRect {
     let first = max(0, row * columns - geometry.leadingSlots)
@@ -1615,13 +1632,31 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var prefetchImage: ImageRequest?
   var onPreview: (CalendarGridAsset, CGRect) -> Void = { _, _ in }
   var photoMenu: ((CalendarGridAsset) -> UIMenu?)?
-  var catalogAnchorID: String?
-  func applyCatalogAnchor() {
-    guard let id = catalogAnchorID, grid.bounds.width > 0, grid.bounds.height > 0,
-      let index = assets.firstIndex(where: { $0.id == id }),
-      layout.geometry.tiles.contains(where: { $0.members.contains(index) }) else { return }
-    catalogAnchorID = nil
-    locateAsset(index)
+  var photoPreview: ((CalendarGridAsset, UIImage?) -> UIViewController?)?
+  var photoAccessibilityActions: (CalendarGridAsset) -> [UIAccessibilityCustomAction] = { _ in [] }
+  private var hiddenPreviewID: String?
+  func setPreviewHidden(_ id: String?) {
+    hiddenPreviewID = id
+    UIView.performWithoutAnimation {
+      for case let cell as CalendarGridCell in grid.visibleCells {
+        cell.contentView.isHidden = id != nil && cell.assetID == id
+      }
+      updatePreviewMask()
+    }
+  }
+  private func updatePreviewMask() {
+    let frame = (hiddenPreviewID ?? denseMenuID).flatMap { id in layout.geometry.tiles.first(where: { $0.id == id })?.frame }
+    denseCanvas.hidePreviewTile(frame)
+  }
+  private func photoActions(_ asset: CalendarGridAsset) -> [UIAccessibilityCustomAction] {
+    guard !selecting else { return [] }
+    var actions = [UIAccessibilityCustomAction(name: NSLocalizedString("library_select", comment: "")) { [weak self] _ in
+      guard let self, let index = self.assets.firstIndex(where: { $0.id == asset.id }) else { return false }
+      if !self.selecting { self.toggleSelection() }
+      self.toggleAsset(index); return true
+    }]
+    actions += photoAccessibilityActions(asset)
+    return actions
   }
   var onSelection: (Set<String>) -> Void = { _ in }
   var onBackup: () -> Void = {}
@@ -1757,6 +1792,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     grid.panGestureRecognizer.maximumNumberOfTouches = 1
     configureDenseCanvas()
+    NotificationCenter.default.addObserver(forName: UIAccessibility.voiceOverStatusDidChangeNotification,
+      object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.syncDenseCanvas() }
+    }
     for name in [UIApplication.didEnterBackgroundNotification, UIApplication.willResignActiveNotification] {
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.saveLaunchSnapshot() }
@@ -1774,7 +1813,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     long.minimumPressDuration = 0.4
     long.delegate = self
     grid.addGestureRecognizer(long)
-    if LibraryChrome.native { grid.addInteraction(UIContextMenuInteraction(delegate: self)) }
+    grid.addInteraction(UIContextMenuInteraction(delegate: self))
     titleLabel.text = NSLocalizedString("nav_library", comment: "")
     titleLabel.font = .systemFont(ofSize: 32, weight: .bold)
     titleLabel.textColor = .white
@@ -1928,7 +1967,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       contentOwner?.setContentScrollView(grid, for: .all)
     }
     rebuildIfNeeded()
-    applyCatalogAnchor()
     updateChrome()
   }
   override func viewDidDisappear(_ animated: Bool) {
@@ -2024,7 +2062,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         x: 0, y: interactionTop, width: view.bounds.width,
         height: max(1, interactionBottom - interactionTop)), in: view)
     rebuildIfNeeded()
-    applyCatalogAnchor()
     updateChrome()
     syncDenseCanvas()
     layoutLaunchCover()
@@ -2237,6 +2274,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let tile = layout.geometry.tiles[path.item]
     let displayed = coverIndices[tile.id] ?? tile.asset
     let asset = assets[displayed]
+    cell.contentView.isHidden = hiddenPreviewID == asset.id
+    cell.accessibilityCustomActions = level == .all ? photoActions(asset) : nil
     cell.coverAsset = displayed
     cell.liveMark.image = asset.live ? CalendarTileDecorations.Style.symbol("livephoto") : nil
     cell.assetID = asset.id
@@ -2283,13 +2322,14 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   // Dense browsing has no collection cells. Resolve one tile from its existing
   // geometry and bitmap canvas rather than materializing a grid of views.
   private var denseMenuPreview: UIImageView?
+  private var denseMenuID: String?
   private weak var photoMenuSourceView: UIView?
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
     configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-    guard LibraryChrome.native, !selecting, level == .all,
+    guard !selecting, level == .all,
       !motionActive, let index = item(at: location), layout.geometry.tiles.indices.contains(index) else { return nil }
     let tile = layout.geometry.tiles[index], asset = assets[layout.geometry.tiles[index].asset]
-    denseMenuPreview?.removeFromSuperview()
+    denseMenuPreview?.removeFromSuperview(); denseMenuID = nil
     if let cell = grid.cellForItem(at: IndexPath(item: index, section: 0)) as? CalendarGridCell,
       cell.assetID == asset.id {
       photoMenuSourceView = cell.image
@@ -2297,10 +2337,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       let preview = UIImageView(image: denseCanvas.displayedImage(tile.asset) ?? placeholderImage(asset))
       preview.frame = tile.frame; preview.contentMode = .scaleAspectFill; preview.clipsToBounds = true
       grid.addSubview(preview); denseMenuPreview = preview; photoMenuSourceView = preview
+      denseMenuID = asset.id; updatePreviewMask()
     }
-    return UIContextMenuConfiguration(identifier: asset.id as NSString, previewProvider: nil) { [weak self] _ in
-      self?.photoMenu?(asset)
-    }
+    let poster = (photoMenuSourceView as? UIImageView)?.image
+      ?? transitionImages.object(forKey: asset.id as NSString) ?? denseCanvas.displayedImage(tile.asset)
+    return UIContextMenuConfiguration(identifier: asset.id as NSString, previewProvider: { [weak self] in
+      self?.photoPreview?(asset, poster)
+    }) { [weak self] _ in self?.photoMenu?(asset) }
   }
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
     previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
@@ -2312,9 +2355,27 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   }
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
     willEndFor configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionAnimating?) {
-    let preview = denseMenuPreview; denseMenuPreview = nil; photoMenuSourceView = nil
-    if let animator { animator.addCompletion { preview?.removeFromSuperview() } }
-    else { preview?.removeFromSuperview() }
+    let preview = denseMenuPreview
+    let finish = { [weak self] in
+      preview?.removeFromSuperview()
+      guard let self, self.denseMenuPreview === preview else { return }
+      self.denseMenuPreview = nil; self.photoMenuSourceView = nil; self.denseMenuID = nil
+      self.updatePreviewMask()
+    }
+    if let animator { animator.addCompletion(finish) }
+    else { finish() }
+  }
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+    willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+    animator: UIContextMenuInteractionCommitAnimating) {
+    guard let id = configuration.identifier as? String else { return }
+    animator.preferredCommitStyle = .dismiss
+    animator.addCompletion { [weak self] in
+      guard let self, let index = self.assets.firstIndex(where: { $0.id == id }) else { return }
+      let frame = self.layout.frame(index)
+      if !self.grid.bounds.inset(by: self.grid.adjustedContentInset).contains(frame) { self.locateAsset(index) }
+      self.onPreview(self.assets[index], self.grid.convert(self.layout.frame(index), to: nil))
+    }
   }
   var tracedImages = 0
   func rememberImage(_ image: UIImage, for id: String, aspect: CGFloat? = nil) {
@@ -2513,6 +2574,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let g = layout.geometry
     guard g.dense, grid.bounds.width > 0 else {
       if !denseCanvas.isHidden { denseCanvas.isHidden = true; denseCanvas.stop(); denseCanvasKey = "" }
+      grid.accessibilityElements = nil; denseCanvas.accessibilityElements = nil; denseAccessibility = [:]
       return
     }
     let key = "\(g.columns)|\(g.leadingSlots)|\(g.tiles.count)|\(g.height)|\(grid.bounds.width)|\(assets.count)"
@@ -2530,6 +2592,33 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     denseCanvas.isHidden = false
     denseCanvas.update(visible: grid.bounds, scale: traitCollection.displayScale)
+    updatePreviewMask()
+    updateDenseAccessibility()
+  }
+  private var denseAccessibility: [String: CalendarPhotoAccessibilityElement] = [:]
+  private func updateDenseAccessibility() {
+    guard UIAccessibility.isVoiceOverRunning else {
+      grid.accessibilityElements = nil; denseCanvas.accessibilityElements = nil; denseAccessibility = [:]; return
+    }
+    var retained: [String: CalendarPhotoAccessibilityElement] = [:]
+    denseCanvas.accessibilityElements = visibleItems().map { index in
+      let tile = layout.geometry.tiles[index], asset = assets[tile.asset]
+      let element = denseAccessibility[asset.id] ?? CalendarPhotoAccessibilityElement(accessibilityContainer: denseCanvas)
+      retained[asset.id] = element
+      element.accessibilityLabel = asset.date?.formatted(date: .abbreviated, time: .shortened)
+      element.accessibilityTraits = .button
+      element.accessibilityFrameInContainerSpace = tile.frame
+      element.accessibilityCustomActions = photoActions(asset)
+      element.activate = { [weak self] in
+        guard let self, let current = self.assets.firstIndex(where: { $0.id == asset.id }) else { return false }
+        if self.selecting { self.toggleAsset(current) }
+        else { self.onPreview(self.assets[current], self.grid.convert(self.layout.frame(current), to: nil)) }
+        return true
+      }
+      return element
+    }
+    denseAccessibility = retained
+    grid.accessibilityElements = denseCanvas.accessibilityElements
   }
   func configureDenseCanvas() {
     denseCanvas.prepare = { [weak self] indices in
@@ -4019,7 +4108,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
     if gesture is UITapGestureRecognizer { return layout.geometry.dense && !changing }
     if gesture is UILongPressGestureRecognizer {
-      return (!LibraryChrome.native || selecting) && gesture.numberOfTouches == 1 && level == .all && columns <= 5 && !changing
+      return selecting && gesture.numberOfTouches == 1 && level == .all && columns <= 5 && !changing
     }
     if gesture is UIPinchGestureRecognizer {
       if selectionStart != nil { stopRange(revert: true) }
@@ -4036,9 +4125,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func refreshSelection() {
     for path in grid.indexPathsForVisibleItems {
       guard layout.geometry.tiles.indices.contains(path.item) else { continue }
-      (grid.cellForItem(at: path) as? CalendarGridCell)?.selection(
-        selected.contains(assets[layout.geometry.tiles[path.item].asset].id), enabled: selecting && level == .all && columns <= 5)
+      let asset = assets[layout.geometry.tiles[path.item].asset]
+      let cell = grid.cellForItem(at: path) as? CalendarGridCell
+      cell?.selection(selected.contains(asset.id), enabled: selecting && level == .all && columns <= 5)
+      cell?.accessibilityCustomActions = level == .all ? photoActions(asset) : nil
     }
+    if layout.geometry.dense { updateDenseAccessibility() }
     updateChrome()
   }
   @objc func rangeSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -4184,6 +4276,15 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     navigationItem.leftBarButtonItem?.isEnabled = !ids.isEmpty
     clear.isEnabled = !ids.isEmpty
   }
+  private var hiddenPreviewID: String?
+  func setPreviewHidden(_ id: String?) {
+    hiddenPreviewID = id
+    UIView.performWithoutAnimation {
+      for case let cell as CalendarGridCell in grid.visibleCells {
+        cell.contentView.isHidden = id != nil && cell.assetID == id
+      }
+    }
+  }
   func previewFrame(_ id: String) -> CGRect? {
     guard let index = assets.firstIndex(where: { $0.id == id }) else { return nil }
     focusedID = id
@@ -4245,6 +4346,7 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     let c = v.dequeueReusableCell(withReuseIdentifier: "selected", for: p) as! CalendarGridCell
     let a = assets[p.item]
     c.assetID = a.id
+    c.contentView.isHidden = hiddenPreviewID == a.id
     c.label.isHidden = true
     c.scrim.isHidden = true
     c.selection(selected.contains(a.id), enabled: true)

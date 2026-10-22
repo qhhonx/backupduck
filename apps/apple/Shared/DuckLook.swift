@@ -224,3 +224,10 @@ private struct DuckMosaicPhoto: View {
   private var thumbnail: some View { AssetThumbnail(sourceID: source, size: side, cornerRadius: 0) }
   private func update(_ value: CGRect) { frame = value; frameChanged?(source, value) }
 }
+
+#if os(iOS)
+/// A8: system appearance while browsing; immersive media uses the dark system canvas.
+enum DuckViewerSurface {
+  static let immersive = Color(uiColor: UIColor.systemBackground.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)))
+}
+#endif

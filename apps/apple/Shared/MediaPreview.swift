@@ -362,10 +362,14 @@ struct BurstPreviewControls: View {
 }
 struct PhotoMetadataPanel: View {
   @ObservedObject var preview: MediaPreviewModel
+  var backupInfo: (([(String, String)]) -> AnyView)? = nil
   var body: some View {
     VStack(alignment: .leading, spacing: DuckSpacing.small) {
-      PhotoBackupInfo(sourceID: preview.asset.localIdentifier, takenAt: preview.asset.creationDate,
-        filename: preview.filename, fields: fields)
+      if let backupInfo { backupInfo(fields) }
+      else {
+        PhotoBackupInfo(sourceID: preview.asset.localIdentifier, takenAt: preview.asset.creationDate,
+          filename: preview.filename, fields: fields)
+      }
       if preview.metadataLoading { ProgressView().controlSize(.small) }
       if preview.metadataUnavailable { Text("preview_info_unavailable").font(.footnote).foregroundStyle(.secondary) }
       if let location = preview.asset.location {

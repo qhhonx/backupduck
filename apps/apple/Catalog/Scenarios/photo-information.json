@@ -2,13 +2,21 @@
   "id": "photo.info",
   "page": "backup",
   "step": "photoInformation",
-  "title": "One photo \u2014 viewer information",
+  "title": "One photo — viewer information",
   "extends": "base-paired",
   "core": {
-    "refresh_processing": { "value": null },
-    "reconcile_native": { "value": [] },
-    "prepare_native": { "value": null },
-    "record_event": { "value": null },
+    "refresh_processing": {
+      "value": null
+    },
+    "reconcile_native": {
+      "value": []
+    },
+    "prepare_native": {
+      "value": null
+    },
+    "record_event": {
+      "value": null
+    },
     "jobs": {
       "value": [
         {
@@ -34,7 +42,7 @@
               "created_at_ms": "1792495800000",
               "camera_model": "Synthetic camera",
               "lens_model": "24 mm",
-              "aperture": "\u0192/1.8",
+              "aperture": "ƒ/1.8",
               "exposure": "1/125 s",
               "iso": "100"
             }
@@ -66,7 +74,7 @@
             "created_at_ms": "1792495800000",
             "camera_model": "Synthetic camera",
             "lens_model": "24 mm",
-            "aperture": "\u0192/1.8",
+            "aperture": "ƒ/1.8",
             "exposure": "1/125 s",
             "iso": "100"
           }
@@ -75,6 +83,15 @@
     },
     "retry": {
       "value": null
+    },
+    "library_source_states": {
+      "value": {
+        "a8-synthetic-photo": {
+          "revision": "1",
+          "preparing": false,
+          "tile_state": "saved"
+        }
+      }
     }
   },
   "expect": [

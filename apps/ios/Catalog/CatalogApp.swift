@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 /// Design catalog: production pages driven by scenario data instead of the
@@ -20,6 +21,14 @@ import SwiftUI
   var body: some Scene {
     WindowGroup { CatalogHome() }
   }
+}
+
+private func catalogViewerStyle(_ scenario: Scenario) -> UIUserInterfaceStyle {
+  let arguments = ProcessInfo.processInfo.arguments
+  if let flag = arguments.firstIndex(of: "-appearance"), arguments.indices.contains(flag + 1) {
+    return arguments[flag + 1] == "light" ? .light : .dark
+  }
+  return scenario.id.hasSuffix("-light") ? .light : .dark
 }
 
 private struct CatalogHome: View {
@@ -82,6 +91,9 @@ private struct ScenarioStage: View {
   @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
+    if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
+      _scheme = State(initialValue: catalogViewerStyle(scenario) == .light ? .light : .dark)
+    }
     _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope.") || ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id))
   }
   @Environment(\.dismiss) private var dismiss
@@ -91,7 +103,7 @@ private struct ScenarioStage: View {
       .preferredColorScheme(scheme)
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
       .overlay(alignment: .bottomTrailing) {
-        if scenario.step != "photoInformation" {
+        if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
         // Above the tab bar, clear of navigation bar items.
         Button { info = true } label: {
           Image(systemName: "info.circle.fill").font(.title2)
@@ -127,10 +139,7 @@ private struct ScenarioRun: View {
     _scopeFixture = State(initialValue: scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil)
     // Shared code (library menu, tile marks) reads the same switch as the Mac catalog.
     DesignPreview.proposedDesign = proposed
-    LibraryChrome.catalogVariant = scenario.library?["chrome"] as? String
-    let recordingLibrary = PhotoLibraryModel()
-    recordingLibrary.catalogAnchorFraction = scenario.library?["anchor_fraction"] as? Double
-    _library = StateObject(wrappedValue: recordingLibrary)
+    _library = StateObject(wrappedValue: PhotoLibraryModel())
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
     BackupEnvironment.activeModel = { made }
     _model = StateObject(wrappedValue: made)
@@ -142,8 +151,8 @@ private struct ScenarioRun: View {
   var body: some View {
     if scenario.step == "selectedBackup" {
       SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
-    } else if scenario.step == "photoInformation" {
-      IOSInformationCatalog(model: model, panelStyle: scenario.id.hasSuffix("-light") ? .light : .dark)
+    } else if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
+      IOSInformationCatalog(model: model, panelStyle: catalogViewerStyle(scenario), showInformation: scenario.step == "photoInformation" || scenario.id == "photo.viewer-info", unregistered: ["photo.viewer-not-backed-up", "photo.viewer-state-change"].contains(scenario.id), immersive: scenario.id.hasSuffix("-immersive"), stateChange: scenario.id == "photo.viewer-state-change")
         .task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.step == "liveActivity" {
       LiveActivityCatalogPage(model: model, stale: scenario.id.hasSuffix(".stale"))
@@ -214,45 +223,165 @@ private struct ScenarioRun: View {
 private struct IOSInformationCatalog: View {
   @ObservedObject var model: BackupModel
   var panelStyle: UIUserInterfaceStyle
+  var showInformation = true
+  var unregistered = false
+  var immersive = false
+  var stateChange = false
   var body: some View {
-    if let job = model.jobs.first {
+    if let job = model.jobs.first ?? (unregistered ? Self.unregisteredAsset : nil) {
       if ProcessInfo.processInfo.arguments.contains("fallback") {
         PhotoBackupDetail(photo: HistoryPhoto(job: job), model: model)
-      } else { InformationViewerSample(job: job, panelStyle: panelStyle).ignoresSafeArea() }
+      } else { InformationViewerSample(job: job, model: model, panelStyle: panelStyle, showInformation: showInformation, immersive: immersive, stateChange: stateChange).ignoresSafeArea() }
     } else { ProgressView() }
+  }
+  // Media metadata only: this does not add a job to the model or core.
+  private static var unregisteredAsset: BackupJob {
+    BackupJob(id: 801, asset: BackupJob.Asset(metadata: ["created_at_ms": "1792495800000"],
+      kind: "photo", source_id: "a8-synthetic-photo", revision: "1",
+      resources: [.init(filename: "IMG_0801.HEIC", size: 4800000)]),
+      state: "queued", confirmedBytes: 0, errorCode: nil)
   }
 }
 
 /// Opens the production viewer and its actual drawer; no replacement gestures.
 private struct InformationViewerSample: UIViewControllerRepresentable {
   let job: BackupJob
+  let model: BackupModel
   let panelStyle: UIUserInterfaceStyle
-  func makeUIViewController(context: Context) -> NativeMediaViewer {
-    let asset = InformationSampleAsset(job: job)
-    let session = MediaPreviewSession(asset: asset, library: PhotoLibraryModel(), reviewAssets: [asset])
-    let item = IOSPreviewItem(asset: asset, frame: .zero, poster: asset.previewImage)
+  let showInformation: Bool
+  let immersive: Bool
+  let stateChange: Bool
+  func makeUIViewController(context: Context) -> UINavigationController {
+    let arguments = ProcessInfo.processInfo.arguments
+    let asset: PHAsset
+    let neighbors: [PHAsset]
+    // Read-only simulator comparison of a specified fixture already in Photos.
+    // Never request permission or alter the library as part of a capture.
+    if let flag = arguments.firstIndex(of: "-viewer-asset"), arguments.indices.contains(flag + 1),
+      PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized,
+      let reference = PHAsset.fetchAssets(withLocalIdentifiers: [arguments[flag + 1]], options: nil).firstObject {
+      asset = reference
+      let options = PHFetchOptions()
+      options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+      let assets = PHAsset.fetchAssets(with: options)
+      var collection: [PHAsset] = []
+      assets.enumerateObjects { asset, _, _ in collection.append(asset) }
+      neighbors = collection
+    } else {
+      let sample = InformationSampleAsset(job: job)
+      asset = sample
+      neighbors = (0..<13).map {
+        $0 == 6 ? sample : InformationSampleAsset(job: job, identifier: "viewer-neighbor-\($0)")
+      }
+    }
+    let session = MediaPreviewSession(asset: asset, library: PhotoLibraryModel(), reviewAssets: neighbors)
+    let item = IOSPreviewItem(asset: asset, frame: .zero, poster: (asset as? any PreviewSample)?.previewImage)
     let viewer = NativeMediaViewer(item: item, session: session, close: {})
+    viewer.backupModel = model
+    let recordQueued: @MainActor (String) -> Void = { source in
+      let queued: [String: Any] = ["id": 801, "receiver_id": "catalog-pixel", "state": "queued", "confirmed_bytes": 0,
+        "asset": ["kind": "photo", "source_id": source, "revision": "1",
+          "resources": [["filename": "IMG_0801.HEIC", "size": 4800000]],
+          "metadata": ["created_at_ms": "1792495800000"]]]
+      CatalogApp.core.setValue(queued, for: "source_job")
+      CatalogApp.core.setValue([source: ["revision": "1", "preparing": false, "tile_state": "sending"]], for: "library_source_states")
+      CatalogApp.core.setValue([queued], for: "jobs")
+      Self.recordHistory(queued)
+      model.queueRevision += 1
+    }
+    viewer.backupRequest = { [weak viewer] in
+      guard let viewer else { return }
+      await viewer.backupAction.perform({
+        recordQueued(viewer.session.current.asset.localIdentifier); return true
+      }, failure: { nil })
+    }
+    viewer.retryRequest = { job in
+      recordQueued(job.asset.source_id)
+      return await model.retry(job.id)
+    }
+    let nav = MediaViewerNavigationController(rootViewController: viewer)
+    nav.overrideUserInterfaceStyle = panelStyle
     viewer.loadViewIfNeeded()
-    viewer.information.overrideUserInterfaceStyle = panelStyle
-    context.coordinator.open(viewer)
-    return viewer
+    context.coordinator.open(viewer, information: showInformation, immersive: immersive,
+      stateChange: stateChange, model: model, source: asset.localIdentifier)
+    return nav
   }
-  func updateUIViewController(_ controller: NativeMediaViewer, context: Context) {}
+  func updateUIViewController(_ controller: UINavigationController, context: Context) {}
   func makeCoordinator() -> Coordinator { Coordinator() }
+  private static func recordHistory(_ job: [String: Any]) {
+    // Keep the history endpoint consistent with each synthetic source observation.
+    let id = job["id"] as? Int ?? 801
+    let failed = job["state"] as? String == "failed" || job["processing"] as? String == "failed"
+    var summary = Dictionary(uniqueKeysWithValues: ["total", "received", "published", "publication_failed",
+      "waiting", "failed", "queued", "running", "paused", "confirmed_bytes", "active", "attention"].map { ($0, 0) })
+    summary["total"] = 1; summary["attention"] = failed ? 1 : 0
+    if let state = job["state"] as? String, summary[state] != nil { summary[state] = 1 }
+    summary["published"] = job["processing"] as? String == "complete" ? 1 : 0
+    summary["publication_failed"] = job["processing"] as? String == "failed" ? 1 : 0
+    summary["active"] = failed || summary["published"] == 1 ? 0 : 1
+    summary["confirmed_bytes"] = job["confirmed_bytes"] as? Int ?? 0
+    let items: [[String: Any]] = [["id": "job-\(id)", "cursor": id,
+      "sort_value": job["state_changed_at_ms"] ?? 1792534500000, "job": job]]
+    CatalogApp.core.setValue(["items": items, "summary": summary], for: "backup_tasks")
+    CatalogApp.core.setValue(["items": failed ? items : [], "summary": summary],
+      for: "backup_tasks", when: ["state": "attention"])
+  }
   final class Coordinator {
     var task: Task<Void, Never>?
-    func open(_ viewer: NativeMediaViewer) {
+    func open(_ viewer: NativeMediaViewer, information: Bool, immersive: Bool, stateChange: Bool, model: BackupModel, source: String) {
       task = Task { @MainActor [weak viewer] in
         while !Task.isCancelled {
           try? await Task.sleep(for: .milliseconds(100))
           guard let viewer else { return }
           if viewer.viewIfLoaded?.window != nil, !viewer.flying {
-            viewer.setInfo(true)
-            viewer.informationHost?.overrideUserInterfaceStyle = viewer.information.overrideUserInterfaceStyle
+            if information { viewer.titleButton.sendActions(for: .touchUpInside) }
+            if immersive { viewer.setChrome(false, animated: false) }
+            if ProcessInfo.processInfo.arguments.contains("-viewer-info") { viewer.titleButton.sendActions(for: .touchUpInside) }
+            if stateChange {
+              // Let the enclosing system presentation settle before advancing facts.
+              try? await Task.sleep(for: .seconds(1))
+              await self.changeState(model: model, source: source)
+            }
+            if information, ProcessInfo.processInfo.arguments.contains("-viewer-info-bottom") {
+              try? await Task.sleep(for: .seconds(1))
+              viewer.informationHost?.view.layoutIfNeeded()
+              if let host = viewer.informationHost?.view, let scroll = self.informationScroll(in: host) {
+                scroll.setContentOffset(CGPoint(x: 0,y: max(-scroll.adjustedContentInset.top,
+                  scroll.contentSize.height-scroll.bounds.height+scroll.adjustedContentInset.bottom)), animated: false)
+              }
+            }
             return
           }
         }
       }
+    }
+    @MainActor private func changeState(model: BackupModel, source: String) async {
+      try? await Task.sleep(for: .seconds(1))
+      for step in 0...10 {
+        guard !Task.isCancelled else { return }
+        let saved = step == 10
+        var value: [String: Any] = ["id": 801, "receiver_id": "catalog-pixel",
+          "state": saved ? "received" : "running", "confirmed_bytes": step * 480000,
+          "asset": ["kind": "photo", "source_id": source, "revision": "1",
+            "resources": [["filename": "IMG_0801.HEIC", "size": 4800000]],
+            "metadata": ["created_at_ms": "1792495800000"]]]
+        if saved {
+          value["processing"] = "complete"
+          value["received_at_ms"] = 1792534500000
+          value["published_at_ms"] = 1792534560000
+        }
+        CatalogApp.core.setValue(value, for: "source_job")
+        CatalogApp.core.setValue([source: ["revision": "1", "preparing": false,
+          "tile_state": saved ? "saved" : "sending"]], for: "library_source_states")
+        CatalogApp.core.setValue([value], for: "jobs")
+        InformationViewerSample.recordHistory(value)
+        model.queueRevision += 1
+        try? await Task.sleep(for: .milliseconds(300))
+      }
+    }
+    private func informationScroll(in view: UIView) -> UIScrollView? {
+      if let scroll = view as? UIScrollView, scroll.contentSize.height > scroll.bounds.height { return scroll }
+      return view.subviews.lazy.compactMap { self.informationScroll(in: $0) }.first
     }
     deinit { task?.cancel() }
   }

@@ -173,6 +173,7 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
 
 struct BackupHistoryView: View {
   @ObservedObject var model: BackupModel
+  var initialFocus: HistoryPhoto? = nil
   @StateObject private var history = BackupHistoryModel()
   @StateObject private var photoRouter = BackupPhotoRouter()
   @State private var retrying: HistoryCause?
@@ -188,6 +189,7 @@ struct BackupHistoryView: View {
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
 
   var body: some View {
+    ScrollViewReader { position in
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
         Text(String(format: NSLocalizedString("records_scope", comment: ""), receiverName, history.total.formatted()))
@@ -214,6 +216,8 @@ struct BackupHistoryView: View {
               ForEach(photos) { photo in
                 BackupPhotoButton(photo: photo, collection: history.photos, router: photoRouter) { HistoryTile(photo: photo) }
                   .buttonStyle(.plain)
+                  .id(photo.id)
+                  .accessibilityIdentifier("history.photo.\(photo.id)")
                   .accessibilityLabel(Text(tileLabel(photo)))
                   .onAppear { if photo.id == history.photos.last?.id { Task { await history.loadMore() } } }
               }
@@ -236,8 +240,20 @@ struct BackupHistoryView: View {
       }
     }
     .background(DuckRole.background)
-    .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") { await reload() }
+    .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") {
+      await reload()
+      if let initialFocus {
+        // A deep entry may be beyond the first page; retain the core's ordering.
+        while !history.photos.contains(where: { $0.id == initialFocus.id }), history.hasMore, !Task.isCancelled {
+          let count = history.photos.count
+          await history.loadMore()
+          if history.photos.count == count { break }
+        }
+        position.scrollTo(initialFocus.id, anchor: .center)
+      }
+    }
     .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
+    }
   }
 
   private func reload() async {
@@ -377,6 +393,9 @@ struct PhotoBackupDetail: View {
   }
 
   var body: some View {
+    #if os(iOS)
+    IOSRecordedPhotoViewer(photo: photo, model: model) { dismiss() }.ignoresSafeArea()
+    #else
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 20) {
@@ -394,23 +413,13 @@ struct PhotoBackupDetail: View {
       }
       .background(DuckRole.background)
       .navigationTitle("records_detail_title")
-      #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-      #endif
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
-          #if os(iOS)
-          DuckSheetDismissButton { dismiss() }
-          #else
           Button("records_done") { dismiss() }
-          #endif
         }
       }
     }
-    #if os(iOS)
-      .presentationDetents([.large])
-    #else
-      .frame(width: 420, height: 640)
+    .frame(width: 420, height: 640)
     #endif
   }
 }
@@ -443,7 +452,8 @@ struct PhotoBackupFacts: View {
       default: fact(.active, format("records_fact_waiting", name))
       }
     } else if needsYou {
-      fact(.problem, format("records_fact_not_sent", name), status: NSLocalizedString("error_source_unavailable", comment: ""))
+      // A preparation failure without its error code does not establish the cause.
+      fact(.problem, format("records_fact_not_sent", name), status: NSLocalizedString("state_failed", comment: ""))
     } else {
       fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("records_preparing", comment: ""))
     }
@@ -503,6 +513,13 @@ struct PhotoInformationLayout: View {
   var loaded = true
   var unavailable = false
   var unpaired = false
+  var preparing = false
+  var allowsRetry = true
+  var showHistory: (() -> Void)? = nil
+  var actionKey: String? = nil
+  var actionBusy = false
+  var performAction: (() -> Void)? = nil
+  var actionFailure: String? = nil
   @State private var retrying = false
   @State private var retryFailure: String?
   @State private var followsRetry = false
@@ -536,40 +553,71 @@ struct PhotoInformationLayout: View {
     let job = job.map { original in
       followsRetry ? model.jobs.first(where: { $0.id == original.id }) ?? original : original
     }
-    VStack(alignment: .leading, spacing: DuckSpacing.large) {
-      VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
-        Text(takenAt?.formatted(date: .long, time: .omitted) ?? NSLocalizedString("design_capture_unknown", comment: ""))
-          .font(.title3.weight(.semibold))
-        if let takenAt { Text(takenAt.formatted(date: .omitted, time: .shortened)).font(.subheadline).foregroundStyle(.secondary) }
-      }
-      if !loaded { ProgressView().controlSize(.small) }
-      else if unavailable { Text("records_load_failed").font(.subheadline).foregroundStyle(.secondary) }
-      else if unpaired { Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary) }
-      else if job != nil || needsYou { PhotoBackupFacts(job: job, receiverName: receiverName, needsYou: needsYou) }
-      else { Label("library_info_not_backed_up", systemImage: "circle.dashed").font(.subheadline).foregroundStyle(.secondary) }
-      if let job, job.state == "failed" {
-        Button("records_try_again") {
-          retrying = true; retryFailure = nil
-          Task {
-            if await model.retry(job.id) {
-              followsRetry = true
-            } else { retryFailure = model.message ?? NSLocalizedString("state_failed", comment: "") }
-            retrying = false
-          }
-        }.buttonStyle(.bordered).disabled(retrying)
-      }
-      if let retryFailure { Text(retryFailure).font(.subheadline).foregroundStyle(.secondary) }
+    VStack(alignment: .leading, spacing: DuckSpacing.medium) {
       VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-        if !filename.isEmpty { Text(verbatim: filename).textSelection(.enabled) }
-        ForEach(Array(orderedFields.enumerated()), id: \.offset) { _, field in
-          Text("\(Text(LocalizedStringKey(field.0))) · \(Text(verbatim: field.1))")
-            .fixedSize(horizontal: false, vertical: true)
+        Text(takenAt.map { $0.formatted(date: .complete, time: .omitted) + " " + $0.formatted(date: .omitted, time: .shortened) }
+          ?? NSLocalizedString("design_capture_unknown", comment: ""))
+          .font(.subheadline)
+        if !filename.isEmpty { Text(verbatim: filename).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+      }.photoInformationCard().accessibilityElement(children: .combine)
+      VStack(alignment: .leading, spacing: DuckSpacing.medium) {
+        if !loaded { ProgressView().controlSize(.small) }
+        else if unavailable { Text("records_load_failed").font(.subheadline).foregroundStyle(.secondary) }
+        else if unpaired { Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary) }
+        else if job != nil || needsYou || preparing { PhotoBackupFacts(job: job, receiverName: receiverName, needsYou: needsYou) }
+        else { Label("library_info_not_backed_up", systemImage: "circle.dashed").font(.subheadline).foregroundStyle(.secondary) }
+        if let actionKey, let performAction {
+          Button(LocalizedStringKey(actionKey), action: performAction)
+            .buttonStyle(.bordered).controlSize(.small).disabled(actionBusy)
+            .accessibilityIdentifier("preview.info.backup")
         }
-      }.font(.footnote).foregroundStyle(.secondary)
+        if job != nil, let showHistory {
+          Divider()
+          Button(action: showHistory) {
+            HStack {
+              Label("library_context_history", systemImage: "clock.arrow.circlepath")
+              Spacer(minLength: DuckSpacing.small)
+              Image(systemName: "chevron.forward").font(.footnote).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+          }.buttonStyle(.plain).foregroundStyle(DuckRole.accent)
+            .accessibilityIdentifier("preview.info.history")
+        }
+        if allowsRetry, let job, job.state == "failed" {
+          Button("records_try_again") {
+            retrying = true; retryFailure = nil
+            Task {
+              if await model.retry(job.id) { followsRetry = true }
+              else { retryFailure = model.message ?? NSLocalizedString("state_failed", comment: "") }
+              retrying = false
+            }
+          }.buttonStyle(.bordered).disabled(retrying)
+        }
+        if let failure = actionFailure ?? retryFailure { Text(failure).font(.subheadline).foregroundStyle(.secondary) }
+      }.photoInformationCard()
+      if !orderedFields.isEmpty {
+        VStack(alignment: .leading, spacing: DuckSpacing.small) {
+          ForEach(Array(orderedFields.enumerated()), id: \.offset) { _, field in
+            LabeledContent(LocalizedStringKey(field.0)) { Text(verbatim: field.1) }
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }.font(.footnote).foregroundStyle(.secondary).photoInformationCard()
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .foregroundStyle(DuckRole.primaryText).textSelection(.enabled)
     .onChange(of: self.job?.id) { _, _ in followsRetry = false; retryFailure = nil }
+  }
+}
+
+private extension View {
+  @ViewBuilder func photoInformationCard() -> some View {
+    #if os(iOS)
+    self.frame(maxWidth: .infinity, alignment: .leading)
+      .padding(DuckSpacing.medium)
+      .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: DuckRadius.card))
+    #else
+    self.duckCard()
+    #endif
   }
 }
 
@@ -669,9 +717,11 @@ struct BackupPhotoPresentation: ViewModifier {
   @ObservedObject var router: BackupPhotoRouter
   let model: BackupModel
   func body(content: Content) -> some View {
-    content.sheet(item: $router.fallback) { PhotoBackupDetail(photo: $0, model: model) }
-      #if os(iOS)
+    #if os(iOS)
+    content.background(IOSRecordedPhotoPresentation(photo: router.fallback, model: model) { router.fallback = nil })
       .background(IOSPreviewPresentation(item: router.preview, library: router.library, collection: router.assets) { router.preview = nil })
-      #endif
+    #else
+    content.sheet(item: $router.fallback) { PhotoBackupDetail(photo: $0, model: model) }
+    #endif
   }
 }
