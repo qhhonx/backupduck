@@ -370,7 +370,7 @@ internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title
     })
     words.addView(support)
     row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-    trailing?.let { row.addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginStart = token(R.dimen.duck_space_medium) }) }
+    trailing?.let { row.addView(it, LinearLayout.LayoutParams(it.layoutParams?.width ?: -2, it.layoutParams?.height ?: -2).apply { marginStart = token(R.dimen.duck_space_medium) }) }
     if (group.childCount > 0) group.addView(View(this).apply { setBackgroundColor(getColor(R.color.duck_role_separator)) }, LinearLayout.LayoutParams(-1, dp(1)))
     group.addView(row, LinearLayout.LayoutParams(-1, -2))
     return support

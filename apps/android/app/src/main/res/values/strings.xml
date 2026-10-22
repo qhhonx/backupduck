@@ -460,6 +460,7 @@
     </plurals>
     <!-- Received photos and photo detail (design/records.md), proposed design. -->
     <string name="photos_title">Received photos</string>
+    <string name="photos_scope_summary">%1$s · %2$s</string>
     <plurals name="photos_scope">
         <item quantity="one">%1$s photo</item>
         <item quantity="other">%1$s photos</item>

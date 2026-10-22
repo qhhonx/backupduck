@@ -36,7 +36,7 @@ covers a hub state (receiving, all saved, all received with some not saved,
 space running low, waiting, no device, stopped, paused, space full, too hot, no
 Wi‑Fi, other problem), and `pixel.storage*` covers Storage. Opening one resets the catalog app's own
 preferences, seeds the scenario's preferences and snapshot, and starts the
-production `MainActivity` at the scenario's page. The ⓘ button over the page
+production `MainActivity` at the scenario's page. The ⓘ button in a reserved bottom strip outside the page
 shows the scenario details and the unscripted core commands. It also restarts
 the scenario, switches between dark and light, or closes the page.
 
@@ -266,6 +266,10 @@ catalog JPEGs. A missing copy leaves the selection and an actionable failure in
 the contextual bar. Each cause grid owns its selection separately. Long press
 starts selection without opening the viewer; taps toggle while selection is active.
 Back exits selection. View preserves selection on return.
+Selected native tiles inset by the small spacing token and clip to the control
+corner radius. A top-start primary circle carries an on-primary check; other
+tiles show an outlined circle while selection is active. Leaving selection
+restores the original image bounds without changing thumbnail identity.
 
 The viewer is an Activity destination using Android shared-element transitions,
 with the source tile's actual ImageView and a stable transition name per media ID.
@@ -273,9 +277,14 @@ The launch reasserts the tile name and preserves Android's captured outgoing
 mapping; the source callback resolves a new tile only on reentry. The viewer
 theme explicitly enables Activity transitions and disables window animations.
 Only the toolbar and information panel fade, never an ancestor of the photo.
-Entry is postponed until the fitted image's first laid-out frame; a retained tile
-poster prevents a blank frame and stays unchanged during the flight. Full-size
-image publication waits until entry settles. Loading is cancelled on destruction.
+Entry is postponed only until the fitted poster's first laid-out frame; a retained
+tile poster prevents a blank frame and stays unchanged during the flight. With a
+poster, the full-size request starts after entry settles, so decoding cannot gate
+entry. Without one, the first available rendition releases entry; failure removes
+the shared mapping. Loading is cancelled on return and destruction.
+At return start, the viewer adopts the source window's status/navigation icon
+appearance, including dark-mode and animation-disabled returns, before its dark
+canvas fades away over the grid.
 The source grid remains mounted. Return sends the displayed media ID, scrolls its
 tile into view if needed and postpones reentry until its thumbnail is laid out
 (with a bounded wait). A removed/unavailable tile uses a short snapshot fade.
@@ -331,3 +340,24 @@ Catalog only. Production checks actual accessibility access on return from
 Settings; the consent itself never grants system access. Recorded completion
 bytes come only from a recognized completion amount; unknown amounts stay
 unknown. Binding and the cleanup state machine retain their existing fences.
+
+## Layout and recreation regressions
+
+Scenario controls reserve a separate bottom strip; they never cover the page's
+navigation title or content. Non-onboarding fixtures seed first-run completion,
+including `pixel.devices-none`, so an empty peer list stays on Connected devices.
+Theme recreation retains FragmentManager-owned destinations without dismissing
+them during Activity destruction. Review direct dark launches and the Catalog
+Dark / light option while a pushed destination is open.
+
+Settings discovery marks have a token-sized trailing slot. Shared preference
+rows preserve explicitly supplied trailing dimensions; text retains the remaining
+width and grows vertically. Review `pixel.settings` and `pixel.settings-stopped`
+with the Storage row visible in both languages and appearances.
+
+The Chinese photo-scope summary puts source/count and saved-to-Photos on separate
+lines and keeps the two characters of Photos together with a word joiner. Review `pixel.transfers` and `pixel.transfers-failed` in light/dark.
+The current viewer selects system-bar icon contrast from the actual canvas color,
+including a light dialog canvas. This does not change its photo or navigation
+behavior. Preview cancellation through Android's signal is an expected discarded
+result, including when it arrives before or after decoding.

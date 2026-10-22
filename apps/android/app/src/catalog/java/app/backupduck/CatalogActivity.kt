@@ -74,7 +74,7 @@ class CatalogActivity : BackupDuckActivity() {
     }
 }
 
-/** A small scenario button over the production page: details, restart and close. */
+/** Scenario controls occupy their own strip outside the production page. */
 internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {
         if (activity !is MainActivity) return
@@ -88,8 +88,13 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
             contentDescription = "Scenario"
             setOnClickListener { details(activity, scenario) }
         }
-        content.addView(button, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { setMargins(0, activity.dp(10), 0, 0) })
+        val stripHeight = activity.token(R.dimen.duck_space_xx_large)
+        for (index in 0 until content.childCount) {
+            val child = content.getChildAt(index)
+            child.layoutParams = (child.layoutParams as FrameLayout.LayoutParams).apply { bottomMargin = stripHeight }
+        }
+        content.addView(button, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, stripHeight,
+            Gravity.BOTTOM or Gravity.END))
     }
 
     private fun details(activity: MainActivity, scenario: CatalogScenario) {

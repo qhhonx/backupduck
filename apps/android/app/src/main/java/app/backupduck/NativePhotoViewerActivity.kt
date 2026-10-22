@@ -133,6 +133,12 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
         setResult(RESULT_OK, Intent().putExtra(RETURN_ID, id))
         publishAfterEnter = null
         content?.cancel?.invoke()
+        // This window still owns the bars while its canvas fades over the grid.
+        // Adopt the source appearance at return start, rather than focus transfer.
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = intent.getBooleanExtra(RETURN_LIGHT_STATUS, false)
+            isAppearanceLightNavigationBars = intent.getBooleanExtra(RETURN_LIGHT_NAVIGATION, false)
+        }
         if (!photoAnimationsEnabled()) {
             window.returnTransition = null; window.sharedElementReturnTransition = null
             finish(); overridePendingTransition(0, 0)
@@ -146,6 +152,8 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
     }
     companion object {
         private const val RETURN_ID = "returnedPhotoId"
+        private const val RETURN_LIGHT_STATUS = "returnLightStatus"
+        private const val RETURN_LIGHT_NAVIGATION = "returnLightNavigation"
         // One bounded poster handoff, consumed by onCreate. No Bitmap goes through Binder.
         private var pendingPoster: Pair<String, Bitmap>? = null
         internal fun open(activity: MainActivity, item: HistoryItem, source: ImageView?, list: RecyclerView) {
@@ -209,8 +217,11 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                     }
                 }
             }
+            val bars = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
             val intent = Intent(activity, NativePhotoViewerActivity::class.java)
                 .putExtra("photo", item.toBundle()).putExtra("shared", shared != null)
+                .putExtra(RETURN_LIGHT_STATUS, bars.isAppearanceLightStatusBars)
+                .putExtra(RETURN_LIGHT_NAVIGATION, bars.isAppearanceLightNavigationBars)
             if (shared != null) activity.startActivity(intent,
                 ActivityOptions.makeSceneTransitionAnimation(activity, shared, name).toBundle())
             else {

@@ -122,10 +122,8 @@ internal class NativePhotoSelection(
     }
     fun bind(view: View, key: String) {
         view.isActivated = tracker.isSelected(key); view.isSelected = tracker.isSelected(key)
-        view.findViewWithTag<android.widget.CheckBox>("photo-selection")?.apply {
-            visibility = if (tracker.isSelected(key)) View.VISIBLE else View.GONE
-            isChecked = tracker.isSelected(key)
-        }
+        view.findViewWithTag<NativePhotoSelectionMark>("photo-selection")
+            ?.bind(tracker.isSelected(key), tracker.hasSelection())
         androidx.core.view.ViewCompat.setStateDescription(view,
             if (tracker.isSelected(key)) activity.getString(R.string.photos_selection_selected) else null)
     }
@@ -205,5 +203,42 @@ internal class NativePhotoSelection(
             runCatching { activity.startActivity(Intent.createChooser(intent, activity.getString(R.string.photos_share))) }
                 .onFailure { mode.subtitle = activity.getString(R.string.photos_share_unavailable) }
         }
+    }
+}
+
+/** Native D1 tile decoration; selection never resizes the grid or reloads its image. */
+internal class NativePhotoSelectionMark(private val image: android.widget.ImageView) : android.widget.ImageView(image.context) {
+    private val inset = context.token(R.dimen.duck_space_xx_small)
+    private val circle = android.graphics.drawable.GradientDrawable().apply {
+        shape = android.graphics.drawable.GradientDrawable.OVAL
+    }
+    init {
+        tag = "photo-selection"
+        isClickable = false; isFocusable = false
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        visibility = View.GONE
+        background = circle
+        setPadding(inset, inset, inset, inset)
+        image.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: android.graphics.Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height,
+                    context.token(R.dimen.duck_radius_control).toFloat())
+            }
+        }
+    }
+    fun bind(selected: Boolean, selecting: Boolean) {
+        visibility = if (selecting) View.VISIBLE else View.GONE
+        circle.setColor(context.getColor(if (selected) R.color.duck_role_accent else R.color.duck_role_background))
+        circle.setStroke(if (selected) 0 else inset / 2, context.getColor(R.color.duck_role_secondary_text))
+        setImageResource(if (selected) R.drawable.ic_check else 0)
+        imageTintList = android.content.res.ColorStateList.valueOf(context.getColor(R.color.duck_m3_on_primary))
+        val margin = if (selected) inset else 0
+        val params = image.layoutParams as android.widget.FrameLayout.LayoutParams
+        if (params.leftMargin != margin) {
+            params.setMargins(margin, margin, margin, margin)
+            image.layoutParams = params
+        }
+        image.clipToOutline = selected
+        image.invalidateOutline()
     }
 }

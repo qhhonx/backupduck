@@ -29,6 +29,7 @@ internal fun Context.duckBackground(color: Int = R.color.duck_surface, radius: I
 internal fun Context.duckRule() = View(this).apply { setBackgroundColor(getColor(R.color.duck_border)); layoutParams = LinearLayout.LayoutParams(-1, dp(1)) }
 /** A quiet discovery mark; its owner supplies a localized, non-color accessibility label. */
 internal fun Context.duckDiscoveryDot() = View(this).apply {
+    layoutParams = LinearLayout.LayoutParams(token(R.dimen.duck_space_x_small), token(R.dimen.duck_space_x_small))
     tag = "duck.discovery"
     background = duckBackground(R.color.duck_brand_accent, 4, false)
     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO

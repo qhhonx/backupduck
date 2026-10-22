@@ -186,24 +186,29 @@ internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompa
     fun load(item: HistoryItem, width: Int, height: Int, signal: CancellationSignal, done: (Bitmap?) -> Unit): Job =
         activity.lifecycleScope.launch {
             val key = key(item, width, height)
-            val image = cache.get(key) ?: withContext(Dispatchers.IO) {
-                permits.withPermit {
-                    currentCoroutineContext().ensureActive()
-                    signal.throwIfCanceled()
-                    val image = runCatching {
-                        val published = if (item.processing == "complete") runCatching {
-                            ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
-                            GalleryPreview.resolve(activity, item, null, signal)?.let {
-                                GalleryPreview.decode(activity, it, Size(width, height), signal)
-                            }
-                        }.getOrNull() else null
+            val image = try {
+                cache.get(key) ?: withContext(Dispatchers.IO) {
+                    permits.withPermit {
+                        currentCoroutineContext().ensureActive()
                         signal.throwIfCanceled()
-                        published ?: receivedPreview(item, signal)
-                    }.getOrNull()
-                    currentCoroutineContext().ensureActive()
-                    signal.throwIfCanceled()
-                    image?.also { cache.put(key, it) }
+                        val image = runCatching {
+                            val published = if (item.processing == "complete") runCatching {
+                                ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
+                                GalleryPreview.resolve(activity, item, null, signal)?.let {
+                                    GalleryPreview.decode(activity, it, Size(width, height), signal)
+                                }
+                            }.getOrNull() else null
+                            signal.throwIfCanceled()
+                            published ?: receivedPreview(item, signal)
+                        }.getOrNull()
+                        currentCoroutineContext().ensureActive()
+                        signal.throwIfCanceled()
+                        image?.also { cache.put(key, it) }
+                    }
                 }
+            } catch (_: android.os.OperationCanceledException) {
+                // Recycling cancels the Android signal independently of the coroutine job.
+                return@launch
             }
             if (isActive && !signal.isCanceled) done(image)
         }
@@ -363,10 +368,12 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             (itemView as FrameLayout).apply {
                 setPadding(activity.dp(1), activity.dp(1), activity.dp(1), activity.dp(1))
                 addView(image, FrameLayout.LayoutParams(-1, -1))
-                if (ReceiverEnvironment.nativeLibraryChrome) addView(android.widget.CheckBox(activity).apply {
-                    tag = "photo-selection"; isClickable = false; isFocusable = false
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO; visibility = View.GONE
-                }, FrameLayout.LayoutParams(activity.dp(48), activity.dp(48), Gravity.TOP or Gravity.END))
+                if (ReceiverEnvironment.nativeLibraryChrome) addView(NativePhotoSelectionMark(image),
+                    FrameLayout.LayoutParams(activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_large),
+                        Gravity.TOP or Gravity.START).apply {
+                        topMargin = activity.token(R.dimen.duck_space_xx_small)
+                        marginStart = activity.token(R.dimen.duck_space_xx_small)
+                    })
                 addView(badge, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, activity.dp(2), activity.dp(2)) })
                 isFocusable = true; isClickable = true
                 val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
@@ -536,8 +543,10 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             window.navigationBarColor = dark.getColor(android.R.color.transparent)
             if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
             androidx.core.view.WindowCompat.getInsetsController(window, content.root).apply {
-                isAppearanceLightStatusBars = false
-                isAppearanceLightNavigationBars = false
+                val surface = (content.root.background as android.graphics.drawable.ColorDrawable).color
+                val light = androidx.core.graphics.ColorUtils.calculateLuminance(surface) > 0.5
+                isAppearanceLightStatusBars = light
+                isAppearanceLightNavigationBars = light
             }
             androidx.core.view.ViewCompat.requestApplyInsets(content.root)
         }
@@ -586,21 +595,36 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }
         // A retained tile poster can start the flight immediately. Do not replace its
         // drawable mid-flight; publish the full rendition once Android settles it.
-        if (hasPreview) preview.doOnPreDraw { ready(true) }
         val signal = CancellationSignal()
-        val work = images.load(item, width, height, signal) { bitmap ->
-            if (bitmap != null && isShowing()) {
-                fun publish() {
-                    if (!isShowing()) return
-                    preview.background = null; preview.imageTintList = null
-                    if (sharedName != null) preview.setPadding(0, 0, 0, 0)
-                    preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap)
+        var work: Job? = null
+        fun loadFullImage() {
+            if (signal.isCanceled) return
+            work = images.load(item, width, height, signal) { bitmap ->
+                if (bitmap != null && isShowing()) {
+                    fun publish() {
+                        if (!isShowing()) return
+                        preview.background = null; preview.imageTintList = null
+                        if (sharedName != null) preview.setPadding(0, 0, 0, 0)
+                        preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap)
+                    }
+                    if (sharedName != null && hasPreview) afterEnter(::publish) else publish()
+                } else if (isShowing() && !hasPreview) placeholder(preview)
+                if (!hasPreview) {
+                    if (sharedName != null) preview.doOnPreDraw { ready(bitmap != null) } else ready(bitmap != null)
                 }
-                if (sharedName != null && hasPreview) afterEnter(::publish) else publish()
-            } else if (isShowing() && !hasPreview) placeholder(preview)
-            if (!hasPreview) {
-                if (sharedName != null) preview.doOnPreDraw { ready(bitmap != null) } else ready(bitmap != null)
             }
+        }
+        if (hasPreview && sharedName != null) {
+            // The first fitted poster frame releases entry. Even a cache hit or
+            // a slow decoder cannot delay it or change the flying drawable.
+            preview.doOnPreDraw {
+                ready(true)
+                afterEnter { loadFullImage() }
+            }
+        } else {
+            // Preserve the current dialog's loading and publication order.
+            if (hasPreview) preview.doOnPreDraw { ready(true) }
+            loadFullImage()
         }
         val panel = LinearLayout(dark).apply {
             orientation = LinearLayout.VERTICAL
@@ -672,7 +696,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         panel.addView(dark.lookText(getString(R.string.photos_detail_cloud), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
             setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0)
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
-        Content(root, preview) { signal.cancel(); work.cancel(); lookup?.cancel() }
+        Content(root, preview) { signal.cancel(); work?.cancel(); lookup?.cancel() }
     }
 
     /** One fact: its glyph in the state color, the sentence, and its time below when known. */
@@ -731,7 +755,7 @@ private fun scopeLine(context: android.content.Context, scope: PhotoScope): Stri
         ?: resources.getQuantityString(R.plurals.photos_scope, scope.total, total)
     val saved = if (scope.allSaved) getString(R.string.photos_scope_all_saved)
         else getString(R.string.photos_scope_saved, String.format(java.util.Locale.getDefault(), "%,d", scope.saved))
-    "$photos · $saved"
+    getString(R.string.photos_scope_summary, photos, saved)
 }
 
 /** What a tile says to a screen reader: its kind and where it is. */

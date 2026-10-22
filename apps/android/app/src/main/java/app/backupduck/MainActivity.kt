@@ -237,11 +237,6 @@ class MainActivity : BackupDuckActivity() {
             }
         }
     }
-    override fun onDestroy() {
-        // Recreated for a theme change or rotation: onCreate reopens what was showing.
-        if (isChangingConfigurations) { connectPage?.dismiss(); devicesPage?.dismiss(); storageScreen?.dismiss() }
-        super.onDestroy()
-    }
     internal var restorePhotoAnchor: ((Intent?) -> Unit)? = null
     override fun onActivityReenter(resultCode: Int, data: Intent?) {
         super.onActivityReenter(resultCode, data)

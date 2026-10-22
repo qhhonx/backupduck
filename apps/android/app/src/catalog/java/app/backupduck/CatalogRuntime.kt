@@ -140,6 +140,9 @@ internal object CatalogRuntime {
             }
             editor.commit()
         }
+        // A destination fixture stays on its page even with no paired devices.
+        context.getSharedPreferences("first_run", Context.MODE_PRIVATE).edit()
+            .putBoolean("done", scenario.page != "onboarding").commit()
         ReceiverProgress.mutable.value = emptyMap()
         ReceiverEnvironment.smartStorage = { scenario.storage?.optBoolean("smart_storage", true) }
         ReceiverEnvironment.cleanupAccess = { scenario.storage?.optBoolean("cleanup_access", true) == true }

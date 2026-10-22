@@ -460,14 +460,16 @@
     </plurals>
     <!-- Received photos and photo detail (design/records.md), proposed design. -->
     <string name="photos_title">收到的照片</string>
+    <string name="photos_scope_summary">%1$s\n%2$s</string>
     <plurals name="photos_scope">
         <item quantity="other">%1$s 张照片</item>
     </plurals>
     <plurals name="photos_scope_from">
         <item quantity="other">来自 %2$s 的 %1$s 张照片</item>
     </plurals>
-    <string name="photos_scope_all_saved">都已存进 Pixel 相册</string>
-    <string name="photos_scope_saved">%1$s 张已存进 Pixel 相册</string>
+    <!-- U+2060 keeps the two-character Photos term together when this summary wraps. -->
+    <string name="photos_scope_all_saved">都已存进 Pixel 相⁠册</string>
+    <string name="photos_scope_saved">%1$s 张已存进 Pixel 相⁠册</string>
     <string name="photos_needs_you">需要你处理</string>
     <plurals name="photos_cause_live">
         <item quantity="other">%1$s 张实况照片不能原样存进 Pixel 相册</item>

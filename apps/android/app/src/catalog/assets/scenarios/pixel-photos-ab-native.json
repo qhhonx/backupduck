@@ -8,6 +8,9 @@
     "Grid paging, media keys and scroll survive viewing and returning.",
     "Only the photo changes bounds between tile and viewer; no whole-page scale or photo fade.",
     "Contextual title, menu and close icon use readable surface/on-surface roles in light and dark.",
+    "Selected tiles inset with rounded corners and a top-start primary circle with an on-primary check; other tiles show outline circles only during selection.",
+    "Return adopts the source status/navigation icon appearance at transition start.",
+    "A laid-out tile poster releases entry before any full-size request; slow or failed decoding keeps the poster visible.",
     "Animator duration scale zero opens and closes immediately with the tile poster visible."
   ],
   "actions": [
