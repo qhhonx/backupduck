@@ -120,6 +120,13 @@ Follow the source audit's priority order, with completed work removed:
 11. **Legacy removal:** after production review and acceptance, remove remaining
     superseded pages and resolve compatibility routes explicitly.
 
+## Later (after the roadmap)
+
+- **Pixel grid and viewer as shared components (light):** pass the data source,
+  state marks, actions and detail facts in from the page so nothing
+  receiver-specific lives inside the grid or viewer, sized for large libraries,
+  ready for a future Android sender. No new module and no sender features.
+
 Publishing waits for the owner.
 
 ## Product decisions made
