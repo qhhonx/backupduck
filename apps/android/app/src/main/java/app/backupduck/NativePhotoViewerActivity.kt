@@ -48,9 +48,13 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
     private var publishAfterEnter: (() -> Unit)? = null
     private var initialId = ""
 
+    // Fix the viewer's dark mode before the base context is attached. Setting it
+    // in onCreate makes AppCompat recreate the activity, and the recreated one
+    // has no scene-transition options, so the photo would cut in instead of flying.
+    init { delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         window.requestFeature(Window.FEATURE_ACTIVITY_TRANSITIONS)
-        delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES
         super.onCreate(savedInstanceState)
         // Install the decor/theme defaults before configuring transitions. A null
         // transition set before decor installation can be replaced by theme defaults.
@@ -105,6 +109,7 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                 content?.preview?.post { startPostponedEnterTransition() }
             }, afterEnter = { publish -> if (entered) publish() else publishAfterEnter = publish })
         setContentView(content!!.root)
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(darkLook().getColor(R.color.duck_role_background)))
         // Never fade a parent of the shared image: it would also fade the photo
         // out before its return flight has reached the grid.
         window.enterTransition = photoChromeFade(this, content!!.root)

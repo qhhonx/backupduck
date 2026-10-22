@@ -551,8 +551,10 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         val dark = darkLook()
         val canvas = dark.getColor(R.color.duck_role_background)
         val root = LinearLayout(dark).apply {
-            orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas)
-            if (sharedName != null) isTransitionGroup = false
+            orientation = LinearLayout.VERTICAL
+            // A shared-element viewer paints its canvas on the window instead, so the
+            // activity transition can fade it in over the grid rather than cutting to it.
+            if (sharedName != null) isTransitionGroup = false else setBackgroundColor(canvas)
         }
         if (sharedName != null) {
             root.addView(com.google.android.material.appbar.MaterialToolbar(dark).apply {
