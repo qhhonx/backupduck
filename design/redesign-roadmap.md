@@ -92,11 +92,12 @@ Next, in order:
    update controls and the reachable cleanup, recovery and compatibility routes
    listed in `page-register.md`; preserve intentionally technical diagnostics.
    Resolve the register's routing and contract blockers alongside these flows.
-6. **Photo-library chrome comparison — owner decision pending.** Compare the
-   current native compositions and record the decision before changing chrome.
-7. **Pixel experiments page redesign — owner decision pending.** Define and
-   approve the ordinary-user structure before rebuilding the overview and
-   automatic-cleanup descendants.
+6. **Photo-library chrome comparison — decided for iPhone (October 22).** See
+   the D1 entry in `platform-expression.md`. The Pixel comparison continues
+   with the native variant's shared-element and contextual-bar fixes.
+7. **Pixel experiments page — decided (D2, October 22).** Automatic cleanup
+   moved to Storage › Free up space automatically; probes moved to Diagnostics;
+   there is no Experiments page.
 8. **Release verification.** Check light/dark, narrow layouts, largest text,
    long localized content, failure and recovery. Complete system notification
    and Live Activity acceptance, real pairing and Release gesture/motion

@@ -11,6 +11,7 @@
     }
   },
   "expect": [
-    "Automatic cleanup stays enabled; subtitle names the changed Google Photos page and offers one action to open Google Photos. No failure dialog."
+    "Auto Cleanup stays enabled; its supporting text replaces the action phrase with the changed Google Photos page cause and one action to open Google Photos. Failure stays on the row, with no failure dialog.",
+    "The recovery text wraps within the third row without clipping or shifting its leading icon column. All three automatic options remain in one group, with an inset footnote and the standard gap before Free up space now."
   ]
 }

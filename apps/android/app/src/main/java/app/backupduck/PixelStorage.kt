@@ -49,7 +49,7 @@ private class ReceiverCopyStorage(private val data: JSONObject) {
 
 /**
  * Storage (design/flows.md § How the Pixel keeps space free; P7): how much is
- * free, what uses the space, the two automatic ways to keep space free with
+ * free, what uses the space, the three automatic ways to keep space free with
  * their consequences, and freeing space in Google Photos now. A page opened from
  * Settings and the hub; replaces the current Storage tab at migration step 6.
  */
@@ -65,6 +65,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
     private lateinit var reclaimableNote: TextView
     private lateinit var cleanup: MaterialSwitch
     private lateinit var cleanupSupport: TextView
+    private lateinit var cleanupFootnote: TextView
     private lateinit var smartSupport: TextView
     private lateinit var cleanupGroup: LinearLayout
     private var consentSheet: LookSheet? = null
@@ -87,9 +88,13 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         summary.addView(legend, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         legend(null)
 
-        lookSection(body, getString(R.string.storage_automatic))
-        cleanupGroup = lookGroup(body)
-        smartSupport = lookRow(cleanupGroup, R.drawable.ic_storage, getString(R.string.storage_smart), getString(R.string.history_loading),
+        val automatic = lookContentSection(body, getString(R.string.storage_automatic))
+        cleanupGroup = lookGroup(automatic)
+        val relayRow = lookSwitchRow(cleanupGroup, R.drawable.ic_photo, getString(R.string.storage_relay),
+            getString(R.string.storage_relay_note), false, changed = ::saveRelay)
+        relay = relayRow.toggle; relaySupport = relayRow.supporting
+        relay.isEnabled = false
+        smartSupport = lookRow(cleanupGroup, R.drawable.ic_storage, getString(R.string.storage_smart), getString(R.string.storage_smart_note),
             trailing = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_chevron)
                 imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
@@ -101,7 +106,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
                 .onFailure { smartSupport.setSupporting(getString(R.string.storage_smart_unavailable)) }
         }
         val cleanupRow = lookSwitchRow(cleanupGroup, R.drawable.ic_bolt, getString(R.string.storage_cleanup),
-            getString(R.string.storage_cleanup_note), PhotosCleanup(this).enabled, getString(R.string.onb_space_experiment)) { on ->
+            getString(R.string.storage_cleanup_note), PhotosCleanup(this).enabled, getString(R.string.storage_cleanup_experimental)) { on ->
             if (on) { cleanup.restore(false); showCleanupConsent() }
             else {
                 page.state.remove("cleanup-awaiting-access")
@@ -109,38 +114,25 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             }
         }
         cleanup = cleanupRow.toggle; cleanupSupport = cleanupRow.supporting
-        body.addView(lookText(getString(R.string.storage_cleanup_footnote), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
-            LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = token(R.dimen.duck_space_small)
-                marginStart = token(R.dimen.duck_space_medium); marginEnd = token(R.dimen.duck_space_medium)
-            })
+        automatic.addView(failure, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = token(LookSectionMetrics.footnoteGap)
+            marginStart = token(LookSectionMetrics.inset); marginEnd = token(LookSectionMetrics.inset)
+        })
+        cleanupFootnote = lookFootnote(automatic, getString(R.string.storage_cleanup_footnote))
 
-        copySection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        body.addView(copySection, LinearLayout.LayoutParams(-1, -2))
-        lookSection(copySection, getString(R.string.storage_copies_on_pixel))
+        copySection = lookContentSection(body, getString(R.string.storage_copies_on_pixel))
         copyRows = lookGroup(copySection)
-        reclaimableNote = lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply { visibility = View.GONE }
-        copySection.addView(reclaimableNote, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = token(R.dimen.duck_space_small)
-            marginStart = token(R.dimen.duck_space_medium); marginEnd = token(R.dimen.duck_space_medium)
-        })
-        val copyNote = lookText(getString(R.string.storage_copies_scope), M.style.TextAppearance_Material3_BodyMedium, secondary = true)
-        copySection.addView(copyNote, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = token(R.dimen.duck_space_small)
-            marginStart = token(R.dimen.duck_space_medium); marginEnd = token(R.dimen.duck_space_medium)
-        })
+        reclaimableNote = lookFootnote(copySection, "").apply { visibility = View.GONE }
         renderCopies(null)
 
-        val group = lookGroup(body)
-        val relayRow = lookSwitchRow(group, null, getString(R.string.storage_relay), getString(R.string.storage_relay_note), false, changed = ::saveRelay)
-        relay = relayRow.toggle; relaySupport = relayRow.supporting
-        relay.isEnabled = false
-        body.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small); marginStart = token(R.dimen.duck_space_medium) })
-
-        lookSection(body, getString(R.string.storage_now))
-        val now = lookCard(body)
-        now.addView(lookText(getString(R.string.storage_free_up_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true))
-        now.addView(lookButton(getString(R.string.rhub_free_up), LookButton.TONAL, action = openPhotos), LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
+        val nowSection = lookContentSection(body, getString(R.string.storage_now))
+        val now = lookCard(nowSection)
+        now.addView(lookText(getString(R.string.storage_free_up_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+            breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+        })
+        now.addView(lookButton(getString(R.string.rhub_free_up), LookButton.TONAL, action = openPhotos).apply {
+            breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         page.resumed = {
             FeatureDiscovery(this).acknowledge(FeatureDiscovery.PHOTOS_CLEANUP)
             if (page.state.getBoolean("cleanup-awaiting-access")) {
@@ -164,7 +156,10 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
 
     fun focusCleanup() {
         page.root.post {
-            page.root.findViewById<androidx.core.widget.NestedScrollView>(R.id.destination_scroll)?.smoothScrollTo(0, cleanupGroup.top)
+            val bounds = android.graphics.Rect()
+            cleanupGroup.getDrawingRect(bounds)
+            page.body.offsetDescendantRectToMyCoords(cleanupGroup, bounds)
+            page.root.findViewById<androidx.core.widget.NestedScrollView>(R.id.destination_scroll)?.smoothScrollTo(0, bounds.top)
             cleanup.requestFocus()
         }
     }
@@ -192,9 +187,6 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
     }
 
     private fun refreshCleanup() = with(activity) {
-        smartSupport.setSupporting(getString(when (ReceiverEnvironment.smartStorage(this)) {
-            true -> R.string.storage_smart_on; false -> R.string.storage_smart_off; null -> R.string.storage_smart_unknown
-        }))
         val facts = PhotosCleanup(this)
         cleanup.restore(facts.enabled)
         val reason = facts.reason
@@ -219,14 +211,17 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             !ReceiverEnvironment.cleanupAccess(this) -> {
                 recovery = { showCleanupConsent() }; getString(R.string.storage_cleanup_access_off)
             }
-            facts.lastCompletedAt != null -> {
-                val date = DateFormat.getBestDateTimePattern(resources.configuration.locales[0], "MMMd")
-                    .let { java.text.SimpleDateFormat(it, resources.configuration.locales[0]).format(java.util.Date(facts.lastCompletedAt!!)) }
-                facts.lastFreedBytes?.let { getString(R.string.storage_cleanup_last_freed, size(it), date) }
-                    ?: getString(R.string.storage_cleanup_last_completed, date)
-            }
-            else -> getString(R.string.storage_cleanup_never)
+            else -> getString(R.string.storage_cleanup_note)
         }
+        val lastFreed = facts.lastCompletedAt?.let { completedAt ->
+            facts.lastFreedBytes?.let { bytes ->
+                val locale = resources.configuration.locales[0]
+                val date = java.text.SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "MMMd"), locale)
+                    .format(java.util.Date(completedAt))
+                getString(R.string.storage_cleanup_last_freed, size(bytes), date)
+            }
+        }
+        cleanupFootnote.text = listOfNotNull(getString(R.string.storage_cleanup_footnote), lastFreed).joinToString("\n")
         cleanupSupport.setSupporting(subtitle)
         cleanupSupport.isClickable = recovery != null; cleanupSupport.isFocusable = recovery != null
         cleanupSupport.setOnClickListener(recovery?.let { run -> View.OnClickListener { run() } })
@@ -265,7 +260,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         listOf(R.string.storage_copies_converted, R.string.storage_copies_pending,
             R.string.storage_copies_other).forEachIndexed { index, label ->
             val bytes = amounts[index]
-            if (bytes != 0L) lookRow(copyRows, null, getString(label), copySupporting(index, bytes))
+            if (bytes != 0L) lookRow(copyRows, null, getString(label), amount(bytes))
         }
         // Unknown readings retain their placeholders; only measured zeroes are omitted.
         copySection.visibility = if (copyRows.childCount == 0) View.GONE else View.VISIBLE
@@ -274,13 +269,16 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         })
     }
 
-    /** A legend entry per part; "—" until it is read, never a guess (I3 Opening). */
+    /** Measured zeroes are omitted; unknown parts retain "—", never a guess (I3 Opening). */
     private fun legend(parts: StorageParts?) = with(activity) {
         legend.removeAllViews()
-        fun entry(color: Int, label: Int, bytes: Long?) = legend.addView(lookText(getString(label, bytes?.let(::size) ?: "—"), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
-            setCompoundDrawablesRelativeWithIntrinsicBounds(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color); setSize(dp(8), dp(8)) }, null, null, null)
-            compoundDrawablePadding = token(R.dimen.duck_space_x_small); gravity = Gravity.CENTER_VERTICAL
-        })
+        fun entry(color: Int, label: Int, bytes: Long?) {
+            if (bytes == 0L) return
+            legend.addView(lookText(getString(label, bytes?.let(::size) ?: "—"), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+                setCompoundDrawablesRelativeWithIntrinsicBounds(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color); setSize(dp(8), dp(8)) }, null, null, null)
+                compoundDrawablePadding = token(R.dimen.duck_space_x_small); gravity = Gravity.CENTER_VERTICAL
+            })
+        }
         entry(getColor(R.color.duck_role_accent), R.string.storage_part_photos, parts?.photos)
         entry(getColor(R.color.duck_m3_tertiary), R.string.storage_part_copies, parts?.copies)
         entry(getColor(R.color.duck_m3_outline), R.string.storage_part_other, parts?.other)
@@ -301,9 +299,6 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             } else { relay.restore(relayOn == true); failure.visibility = View.VISIBLE }
         }
     }
-
-    private fun copySupporting(index: Int, bytes: Long?): String = amount(bytes) +
-        if (index == 0) "\n" + activity.getString(R.string.storage_copies_converted_note) else ""
 
     private fun size(bytes: Long) = Formatter.formatShortFileSize(activity, bytes)
     private fun amount(bytes: Long?) = bytes?.let(::size) ?: "—"

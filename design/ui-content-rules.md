@@ -15,6 +15,12 @@ terminology to help or diagnostics. Help is read-only and does not start another
 workflow. Receipt, phone-gallery publication and cloud upload remain separate
 facts; removing redundant text must not merge their success states.
 
+Rows in one group speak in parallel: each has at most one supporting line, of
+similar length and the same grammar (all action phrases, or all states). A
+switch already shows on or off, so its line says what it does. Explanations
+that apply to the group go in one footnote sentence under it; anything longer
+goes to Help. A row's line changes only to report a problem with its action.
+
 Errors remain visible with a recovery action. Routine persistence and preparation
 use neutral busy feedback, not warnings. Only an unfinished operation after
 execution ends exposes recovery. Do not permanently stack a submitted message

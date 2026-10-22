@@ -91,6 +91,7 @@
     <string name="duck_help_cloud_note">Google 相册会另行上传到你的账号，备份鸭无法确认上传是否完成。</string>
     <string name="duck_help_limit_note">保留原件的空间和预留可用空间都会限制新照片的接收。相册副本和临时文件也会占用空间，可在“存储”中查看。</string>
     <string name="duck_help_keep_note">存入相册失败时，备份鸭可从原件重试。Google 相册释放空间不会删除备份鸭内部保留的原件。</string>
+    <string name="duck_help_free_up_note">是否可以删除由 Google 相册判断。</string>
     <string name="duck_help_relay_title">移除备份鸭保留的副本</string>
     <string name="duck_help_relay_note">在“存储”中开启此选项后，备份鸭会先检查相册副本，再移除自己的临时原件。这不代表云端上传完成。关闭选项无法恢复已经移除的原件。</string>
     <string name="duck_help_archive_note">原件可以导出为 ZIP 文件。备份鸭会重新读取并检查导出文件，之后才可选择移除符合条件的原件。</string>

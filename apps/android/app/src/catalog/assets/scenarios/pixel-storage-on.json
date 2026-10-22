@@ -12,8 +12,9 @@
     }
   },
   "expect": [
-    "Automatic cleanup on with a neutral Experiment label. Last freed 2.3 GB · Oct 20 comes from seeded completion facts, not a live cleanup or cloud inference.",
-    "All temporary-file categories measure 0 B, so their rows, section heading and notes are hidden. The existing free-after-saving switch remains visible."
+    "Auto Cleanup is on with a neutral Experimental label and the same action phrase as when off. Last freed 2.3 GB · Oct 20 is appended to the section footnote from seeded completion facts, not a live cleanup or cloud inference.",
+    "All temporary-file categories measure 0 B, so their rows, section heading and notes are hidden. The free-after-saving switch remains the first row of the automatic group; its footnote is followed by the standard gap before Free up space now.",
+    "The legend omits BackupDuck's measured-zero category, leaving Photos and other space on one line when they fit."
   ],
   "core": {
     "receiver_settings": {

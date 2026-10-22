@@ -1,12 +1,33 @@
 <resources>
     <!-- D1 only: AppCompat owns an overlay contextual bar, using Material 3 roles. -->
     <style name="ThemeOverlay.BackupDuck.NativeLibrary" parent="">
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="actionBarTheme">@style/ThemeOverlay.BackupDuck.PhotoActionMode</item>
         <item name="actionModeStyle">@style/Widget.BackupDuck.PhotoActionMode</item>
-        <item name="actionModeCloseDrawable">@drawable/ic_close</item>
+        <item name="actionModeCloseDrawable">@drawable/ic_photo_selection_close</item>
+    </style>
+    <style name="DuckNativePhotoViewer" parent="AppTheme">
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="android:windowSharedElementsUseOverlay">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+    <!-- AppCompat inflates ActionMode in actionBarTheme, including the menu and
+         close button. Override its inherited dark ActionBar overlay as a unit. -->
+    <style name="ThemeOverlay.BackupDuck.PhotoActionMode" parent="">
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
+        <item name="colorControlNormal">?attr/colorOnSurface</item>
+        <item name="actionMenuTextColor">?attr/colorOnSurface</item>
     </style>
     <style name="Widget.BackupDuck.PhotoActionMode" parent="Widget.Material3.ActionMode">
         <item name="background">?attr/colorSurfaceContainerHighest</item>
-        <item name="titleTextStyle">@style/TextAppearance.Material3.TitleLarge</item>
-        <item name="subtitleTextStyle">@style/TextAppearance.Material3.BodyMedium</item>
+        <item name="titleTextStyle">@style/TextAppearance.BackupDuck.PhotoActionMode.Title</item>
+        <item name="subtitleTextStyle">@style/TextAppearance.BackupDuck.PhotoActionMode.Subtitle</item>
+    </style>
+    <style name="TextAppearance.BackupDuck.PhotoActionMode.Title" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="TextAppearance.BackupDuck.PhotoActionMode.Subtitle" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 </resources>

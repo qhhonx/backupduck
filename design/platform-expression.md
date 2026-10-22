@@ -95,6 +95,15 @@ An in-viewer information panel is docked to the bottom edge: only its top
 corners are rounded and it extends under the home indicator or navigation
 bar, like a system sheet.
 
+The iPhone and iPad viewer's chrome is the system photo library's: system
+background (white in light appearance, black in dark), a back button, a centered
+date-and-time title and a More menu at the top, and a bottom toolbar with Share,
+Info and Back Up above which the filmstrip sits. One tap on the photo hides the
+bars and filmstrip and turns the background black; another tap restores them.
+Opening and closing fly the photo from and back into its tile while the grid
+stays still. Long press on a tile opens the system context menu with the whole
+photo at its own aspect ratio as the preview; selection starts from Select.
+
 One photo has one viewer and one information layout on each platform: date and
 time, the backup facts with their times (`interaction.md` I2 Detail), at most
 one action, and a quiet file line. The trailing inspector follows the platform's
@@ -143,3 +152,9 @@ states the count and the device.
   have no search (A6); collection rows show covers; in-viewer panels dock to
   the bottom edge (A8); Live Activity glyph rules (A12); every page uses the
   system background role, with no cream canvas left (V1).
+- **October 22, 2026 (D1, iPhone):** after recorded comparisons with the system
+  photo library, the viewer keeps BackupDuck's tile-to-viewer flight (it already
+  matches the system; the system zoom transition moved the grid), long press
+  opens the system context menu with a full-aspect preview, and the viewer
+  chrome follows the system photo library, including the light background and
+  tap-for-black immersion (A8). The Pixel comparison continues.

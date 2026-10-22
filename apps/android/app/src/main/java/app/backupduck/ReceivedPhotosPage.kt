@@ -83,7 +83,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
 
     private fun open(item: HistoryItem, source: ImageView?, list: RecyclerView = view) {
         if (ReceiverEnvironment.nativeLibraryChrome) NativePhotoViewerActivity.open(activity, adapter.live(item), source, list)
-        else showDetail(item)
+        else showDetail(item, source?.photoPoster(item.id))
     }
 
     fun render(state: HistoryState) { history = state; rebuild() }
@@ -146,7 +146,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         lateinit var grid: RecyclerView
         val tiles = PhotoAdapter(activity, images, { _, _ -> }, { item, source ->
             if (ReceiverEnvironment.nativeLibraryChrome) open(item, source, grid)
-            else { sheet.dismiss(); showDetail(item) }
+            else { val poster = source?.photoPoster(item.id); sheet.dismiss(); showDetail(item, poster) }
         }, actions)
         grid = RecyclerView(activity).apply {
             layoutManager = GridLayoutManager(activity, span); adapter = tiles; itemAnimator = null; isNestedScrollingEnabled = false
@@ -161,7 +161,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         sheet.show()
     }
 
-    fun showDetail(item: HistoryItem) { PhotoDetail(activity, images, actions).show(adapter.live(item)) }
+    fun showDetail(item: HistoryItem, poster: Bitmap? = null) { PhotoDetail(activity, images, actions).show(adapter.live(item), poster) }
 }
 
 /**
@@ -391,7 +391,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             val key = "${item.id}:${item.receipt}:${item.processing}"
             if (bound == key) return
             cancel(); bound = key
-            if (ReceiverEnvironment.nativeLibraryChrome) image.setTag(R.id.photo_transition_ready, null)
+            image.setTag(R.id.photo_transition_ready, null)
             pictured = false
             images.cached(item, size, size)?.let { show(it); return }
             placeholder(image, loading = true); mark(item)
@@ -405,7 +405,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         private var pictured = false
         private fun show(bitmap: Bitmap) {
             image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
-            if (ReceiverEnvironment.nativeLibraryChrome) image.setTag(R.id.photo_transition_ready, item?.id)
+            image.setTag(R.id.photo_transition_ready, item?.id)
             pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true) }
         }
         fun mark(item: HistoryItem) {
@@ -520,13 +520,14 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
  * backup BackupDuck cannot see.
  */
 internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompatActivity, private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
-    fun show(item: HistoryItem): Unit = with(activity) {
+    fun show(item: HistoryItem, poster: Bitmap? = null): Unit = with(activity) {
         val dark = darkLook()
         val page = androidx.appcompat.app.AppCompatDialog(dark, R.style.DuckFullPage)
         trackNotificationWindow(page)
-        val content = content(item, dismiss = { page.dismiss() }, isShowing = { page.isShowing })
+        val content = content(item, dismiss = { page.dismiss() }, isShowing = { page.isShowing }, poster = poster)
         page.setContentView(content.root)
         page.setOnDismissListener { content.cancel() }
+        if (!photoAnimationsEnabled()) page.window?.setWindowAnimations(0)
         page.show()
         page.window?.let { window ->
             window.setLayout(-1, -1)
@@ -574,7 +575,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         // Keep the same space when neither the published copy nor a received preview is available.
         placeholder(preview, loading = true)
         var hasPreview = false
-        if (sharedName != null) (poster ?: images.cached(item, (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384),
+        (poster ?: images.cached(item, (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384),
             (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)))?.let {
             preview.background = null; preview.imageTintList = null
             preview.setPadding(0, 0, 0, 0)

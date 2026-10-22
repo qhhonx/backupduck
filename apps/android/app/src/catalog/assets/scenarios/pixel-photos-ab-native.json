@@ -5,7 +5,10 @@
   "libraryChrome": "native",
   "expect": [
     "Default launch keeps current library chrome.",
-    "Grid paging, media keys and scroll survive viewing and returning."
+    "Grid paging, media keys and scroll survive viewing and returning.",
+    "Only the photo changes bounds between tile and viewer; no whole-page scale or photo fade.",
+    "Contextual title, menu and close icon use readable surface/on-surface roles in light and dark.",
+    "Animator duration scale zero opens and closes immediately with the tile poster visible."
   ],
   "actions": [
     {

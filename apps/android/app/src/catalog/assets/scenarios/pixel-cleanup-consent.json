@@ -6,6 +6,8 @@
   "title": "Automatic cleanup application consent",
   "expect": [
     "Shared Material consent sheet: three lines explain action, cloud retention and limited accessibility use; experiment note; Not now and Go to settings.",
-    "Dismissal leaves cleanup off. Only Go to settings opens system settings. Real access is checked on return in production; Catalog supplies synthetic access."
+    "Dismissal leaves cleanup off. Only Go to settings opens system settings. Real access is checked on return in production; Catalog supplies synthetic access.",
+    "The underlying Storage page keeps its three automatic options grouped, inset footnotes and standard section gaps. Dismissal preserves the scroll position; the final action and bottom padding can scroll fully into view.",
+    "At 412 dp, the English and Chinese sheet title, explanations and native actions wrap without orphaned words or characters; the underlying three automatic rows keep their parallel action phrases."
   ]
 }

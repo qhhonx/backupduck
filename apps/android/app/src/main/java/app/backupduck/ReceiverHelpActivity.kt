@@ -26,6 +26,7 @@ internal enum class ReceiverHelpTopic(val key: String, val title: Int, val descr
         R.string.duck_help_gallery_title to R.string.duck_help_gallery_note,
         R.string.duck_help_cloud_title to R.string.duck_help_cloud_note)),
     STORAGE("storage",R.string.help_storage_title,R.string.help_storage_summary,listOf(
+        R.string.rhub_free_up to R.string.duck_help_free_up_note,
         R.string.storage_limits to R.string.duck_help_limit_note,
         R.string.duck_keep to R.string.duck_help_keep_note,
         R.string.duck_help_relay_title to R.string.duck_help_relay_note,

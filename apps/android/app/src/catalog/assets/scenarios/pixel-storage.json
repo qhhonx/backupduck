@@ -5,11 +5,13 @@
   "extends": "base",
   "expect": [
     "Free space and capacity from measured readings, with a bar legend for Photos, BackupDuck and other space.",
-    "Kept by BackupDuck: 734003200 bytes total, split into 314572800 Live Photo original bytes with an explanation of the converted Photos copy, 104857600 bytes still arriving or being saved, and 314572800 other kept file bytes.",
-    "A sentence below the group says about 524 MB can be freed because Photos already has these files; this overlaps the categories and adds no cleanup action. The footer counts only files BackupDuck keeps, excluding photos in Photos.",
-    "Free up space now: one sentence on what Google Photos removes, then the tonal action.",
-    "Free space automatically comes before kept files: real system Smart Storage state, then Automatic cleanup off with a neutral Experiment label and its consequence.",
-    "The cleanup switch opens the shared consent sheet. Not now keeps it off; only Go to settings opens system accessibility settings."
+    "BackupDuck's temporary files: 734003200 bytes total, split into 314572800 Live Photo original bytes, 104857600 bytes still arriving or being saved, and 314572800 other temporary file bytes. Rows contain only the name and measured size.",
+    "One footnote says 524 MB is saved in Photos and can be freed, using the measured reclaimable bytes. It is omitted when zero or unknown; no second scope footnote or cleanup action.",
+    "Free up space now: Photos stay in Google Photos’ cloud, then Free Up Space in Google Photos.",
+    "Free up space automatically has three rows with one parallel action phrase each: Deletes BackupDuck’s copy, Cleared regularly by Android, and Frees space when it runs low. Auto Cleanup has a neutral Experimental label. The section footnote says freed photos stay in Google Photos’ cloud; there is no completion sentence without recorded facts.",
+    "Each section uses the shared section gap. Footnotes sit below their group at the shared inset; the Free up space now action and bottom padding remain reachable by scrolling, including narrow layouts and enlarged text.",
+    "The cleanup switch opens the shared consent sheet. Not now keeps it off; only Go to settings opens system accessibility settings.",
+    "At 412 dp, English and Chinese action phrases each fit on one supporting line; localized titles, badges, footnotes and consent content have no orphaned word or character. Enlarged text can wrap without clipping."
   ],
   "core": {
     "receiver_storage_breakdown": {

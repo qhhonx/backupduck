@@ -91,6 +91,7 @@
     <string name="duck_help_cloud_note">Google Photos uploads to your account separately. BackupDuck cannot confirm that upload has finished.</string>
     <string name="duck_help_limit_note">The space kept for originals and the space left free both limit new photos. Copies in Photos and temporary files also use space. Check Storage to see how space is used.</string>
     <string name="duck_help_keep_note">If saving to Photos fails, BackupDuck can try again from the originals. Freeing space in Google Photos does not remove originals kept inside BackupDuck.</string>
+    <string name="duck_help_free_up_note">Google Photos decides what can be removed.</string>
     <string name="duck_help_relay_title">Remove copies kept by BackupDuck</string>
     <string name="duck_help_relay_note">When this option is on in Storage, BackupDuck checks the copy in Photos before removing its temporary original. This does not confirm a cloud upload. Turning it off cannot restore files already removed.</string>
     <string name="duck_help_archive_note">Originals can be exported as a ZIP file. BackupDuck reads it back to check it before you can choose to remove eligible originals.</string>

@@ -33,6 +33,10 @@ import java.io.File
 internal fun photoTransitionName(id: String) = "received-photo:$id"
 internal interface PhotoTransitionItems { fun positionOfPhoto(id: String): Int }
 
+/** Use the pixels already displayed, including when the image cache has evicted them. */
+internal fun ImageView.photoPoster(id: String): Bitmap? =
+    (drawable as? BitmapDrawable)?.bitmap?.takeIf { getTag(R.id.photo_transition_ready) == id }
+
 internal fun Context.photoAnimationsEnabled() = ValueAnimator.areAnimatorsEnabled() &&
     Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
 
@@ -48,14 +52,16 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
         window.requestFeature(Window.FEATURE_ACTIVITY_TRANSITIONS)
         delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES
         super.onCreate(savedInstanceState)
+        // Install the decor/theme defaults before configuring transitions. A null
+        // transition set before decor installation can be replaced by theme defaults.
+        window.decorView
         val item = intent.getBundleExtra("photo")?.toPhoto() ?: run { finish(); return }
         initialId = item.id
         shared = intent.getBooleanExtra("shared", false) && photoAnimationsEnabled()
         setResult(RESULT_OK, Intent().putExtra(RETURN_ID, item.id))
         val poster = pendingPoster?.takeIf { it.first == item.id }?.second
         pendingPoster = null
-        window.enterTransition = photoFade(this)
-        window.returnTransition = photoFade(this)
+        window.setWindowAnimations(0)
         window.sharedElementEnterTransition = if (shared) photoTransition(this) else null
         window.sharedElementReturnTransition = if (shared) photoTransition(this) else null
         window.transitionBackgroundFadeDuration = resources.getInteger(R.integer.duck_motion_enter_ms).toLong()
@@ -94,10 +100,15 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                     shared = false; window.sharedElementEnterTransition = null
                     window.sharedElementReturnTransition = null; finishEntry()
                 }
-                // PhotoDetail invokes this on the image's first laid-out frame.
-                startPostponedEnterTransition()
+                // Post out of pre-draw so the destination's image matrix and
+                // insets are committed before the coordinator captures its bounds.
+                content?.preview?.post { startPostponedEnterTransition() }
             }, afterEnter = { publish -> if (entered) publish() else publishAfterEnter = publish })
         setContentView(content!!.root)
+        // Never fade a parent of the shared image: it would also fade the photo
+        // out before its return flight has reached the grid.
+        window.enterTransition = photoChromeFade(this, content!!.root)
+        window.returnTransition = photoChromeFade(this, content!!.root)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = getColor(android.R.color.transparent)
         window.navigationBarColor = getColor(android.R.color.transparent)
@@ -136,19 +147,25 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
             val name = photoTransitionName(item.id)
             var returnId = item.id
             val animate = activity.photoAnimationsEnabled()
+            val poster = source?.photoPoster(item.id)
             val shared = source?.takeIf {
                 animate && it.isAttachedToWindow && it.rootView === activity.window.decorView &&
-                    it.transitionName == name && it.getTag(R.id.photo_transition_ready) == item.id &&
-                    it.drawable is BitmapDrawable
+                    poster != null
             }
-            pendingPoster = (shared?.drawable as? BitmapDrawable)?.bitmap?.let { item.id to it }
+            // Reassert the identity at the actual launch, after any selection rebind.
+            shared?.transitionName = name
+            pendingPoster = poster?.let { item.id to it }
             activity.window.sharedElementExitTransition = if (shared != null) photoTransition(activity) else null
             activity.window.sharedElementReenterTransition = if (shared != null) photoTransition(activity) else null
             // Keep the mounted grid visible and stationary beneath the media flight.
             activity.window.exitTransition = null
             activity.window.reenterTransition = null
+            var returning = false
             activity.setExitSharedElementCallback(object : SharedElementCallback() {
                 override fun onMapSharedElements(names: MutableList<String>, elements: MutableMap<String, View>) {
+                    // The framework has already captured the outgoing view. Do not
+                    // replace it with a visibility-dependent return lookup.
+                    if (!returning) return
                     val tile = list.transitionImage(photoTransitionName(returnId))
                     elements.clear()
                     if (tile != null) names.firstOrNull()?.let { elements[it] = tile } else names.clear()
@@ -169,6 +186,7 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                 }
             })
             activity.restorePhotoAnchor = { data ->
+                returning = true
                 returnId = data?.getStringExtra(RETURN_ID) ?: item.id
                 val manager = list.layoutManager as? GridLayoutManager
                 val position = (list.adapter as? PhotoTransitionItems)?.positionOfPhoto(returnId) ?: -1
@@ -210,8 +228,14 @@ private fun photoTransition(context: Context) = TransitionSet().apply {
     duration = context.resources.getInteger(R.integer.duck_motion_enter_ms).toLong()
     interpolator = android.view.animation.AnimationUtils.loadInterpolator(context, android.R.interpolator.fast_out_slow_in)
 }
-private fun photoFade(context: Context) = Fade().apply {
+private fun photoChromeFade(context: Context, root: View) = Fade().apply {
     duration = if (context.photoAnimationsEnabled()) context.resources.getInteger(R.integer.duck_motion_text_ms).toLong() else 0
+    // PhotoDetail owns the toolbar, media and information as direct children.
+    (root as android.view.ViewGroup).let { group ->
+        for (i in 0 until group.childCount) {
+            group.getChildAt(i).takeUnless { it is ImageView }?.let { addTarget(it) }
+        }
+    }
 }
 /** A placeholder or a recycled tile with another identity can never be a return target. */
 private fun View.transitionImage(name: String): ImageView? {

@@ -4,7 +4,7 @@
   "title": "Storage status unavailable",
   "extends": "pixel.storage",
   "expect": [
-    "Free space and Photos bytes remain measured by the host; BackupDuck, the three kept-file category values and other space show —. The free-space sentence is hidden and the scope footer has no read-failure clause.",
+    "Free space and Photos bytes remain measured by the host; BackupDuck, the three temporary-file category values and other space show —. No reclaimable footnote appears without a measured amount; there is no second scope footnote.",
     "No usage segments imply unknown bytes are free; the existing free-up-after-saving switch is disabled with its setting-read failure explanation."
   ],
   "core": {

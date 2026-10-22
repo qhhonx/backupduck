@@ -63,6 +63,14 @@ internal fun Context.darkLook(): Context {
 /** A spacing or radius token in pixels. */
 internal fun Context.token(@DimenRes id: Int) = resources.getDimensionPixelSize(id)
 
+/** Shared page composition metrics; row/card padding remains component-owned. */
+internal object LookSectionMetrics {
+    val gap = R.dimen.duck_space_large
+    val headingGap = R.dimen.duck_space_x_small
+    val footnoteGap = R.dimen.duck_space_small
+    val inset = R.dimen.duck_space_medium
+}
+
 // ---- Text ----
 
 /** Text in one role of the type scale: on-surface, or on-surface-variant when [secondary]. */
@@ -72,11 +80,32 @@ internal fun Context.lookText(value: CharSequence, appearance: Int, secondary: B
 }
 
 /** A section header: Label large in the accent, aligned with the row content of the group below (V2). */
-internal fun Context.lookSection(parent: LinearLayout, title: String): TextView = lookText(title, M.style.TextAppearance_Material3_LabelLarge,
+internal fun Context.lookSection(parent: LinearLayout, title: String, separated: Boolean = true): TextView = lookText(title, M.style.TextAppearance_Material3_LabelLarge,
     color = getColor(R.color.duck_role_accent)).apply {
     isAccessibilityHeading = true
-    setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_large), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_x_small))
-}.also { parent.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+    setPadding(token(LookSectionMetrics.inset), 0, token(LookSectionMetrics.inset), token(LookSectionMetrics.headingGap))
+}.also { parent.addView(it, LinearLayout.LayoutParams(-1, -2).apply {
+    if (separated) topMargin = token(LookSectionMetrics.gap)
+}) }
+
+/** One page section, including its heading, content and footnotes; hiding it removes its gap. */
+internal fun Context.lookContentSection(parent: LinearLayout, title: String): LinearLayout = LinearLayout(this).apply {
+    orientation = LinearLayout.VERTICAL
+}.also { section ->
+    parent.addView(section, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(LookSectionMetrics.gap) })
+    lookSection(section, title, separated = false)
+}
+
+/** Footnotes align with group content and grow with localized/accessibility text. */
+internal fun Context.lookFootnote(parent: LinearLayout, text: String): TextView =
+    lookText(text, M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+        breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+    }.also {
+        parent.addView(it, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = token(LookSectionMetrics.footnoteGap)
+            marginStart = token(LookSectionMetrics.inset); marginEnd = token(LookSectionMetrics.inset)
+        })
+    }
 
 // ---- Cards ----
 
@@ -304,11 +333,13 @@ internal fun Context.lookGroup(parent: LinearLayout): LinearLayout = lookCard(pa
  * optional supporting text, an optional trailing control and no chevron. 56dp
  * with one line and 72dp with two, growing with the text. Returns the
  * supporting text so callers can refresh the value with [setSupporting].
+ * Native balanced wrapping keeps enlarged labels from leaving an orphaned word.
  */
 internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title: String, supporting: String? = null,
     trailing: View? = null, badge: String? = null, action: (() -> Unit)? = null): TextView {
     val support = lookText(supporting.orEmpty(), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
         visibility = if (supporting.isNullOrEmpty()) View.GONE else View.VISIBLE
+        breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
     }
     val row = LinearLayout(this).apply {
         // Center each complete child; font baselines must not shift icons or text blocks.
@@ -325,9 +356,12 @@ internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title
         }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = token(R.dimen.duck_space_medium) })
     }
     val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    if (badge == null) words.addView(lookText(title, M.style.TextAppearance_Material3_BodyLarge))
+    fun titleText() = lookText(title, M.style.TextAppearance_Material3_BodyLarge).apply {
+        breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+    }
+    if (badge == null) words.addView(titleText())
     else words.addView(FlowRow(this, token(R.dimen.duck_space_x_small)).apply {
-        addView(lookText(title, M.style.TextAppearance_Material3_BodyLarge))
+        addView(titleText())
         addView(lookPill(badge, null).apply {
             minHeight = 0
             setTextAppearance(M.style.TextAppearance_Material3_LabelSmall)
@@ -491,11 +525,15 @@ internal fun Context.lookConsentSheet(title: String, lines: List<String>, note: 
     sheet.body.setPadding(inset, 0, inset, inset)
     sheet.body.addView(lookText(title, M.style.TextAppearance_Material3_HeadlineSmall).apply { isAccessibilityHeading = true })
     lines.forEach { line ->
-        sheet.body.addView(lookText(line, M.style.TextAppearance_Material3_BodyLarge), LinearLayout.LayoutParams(-1, -2).apply {
+        sheet.body.addView(lookText(line, M.style.TextAppearance_Material3_BodyLarge).apply {
+            breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+        }, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = token(R.dimen.duck_space_medium)
         })
     }
-    sheet.body.addView(lookText(note, M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-1, -2).apply {
+    sheet.body.addView(lookText(note, M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+        breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+    }, LinearLayout.LayoutParams(-1, -2).apply {
         topMargin = token(R.dimen.duck_space_medium)
     })
     val stacked = resources.configuration.fontScale > 1.3f || resources.configuration.screenWidthDp < 360
