@@ -10,11 +10,13 @@ struct FolderSourcesPage: View {
   private var viewerOpen: Bool
   init(folders: FolderSources, backup: BackupModel, viewerOpen: Bool = false, settings: @escaping (String) -> Void = { _ in }) {
     self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser; self.viewerOpen = viewerOpen
+    _searchFocus = State(initialValue: folders.browser.searchExpanded)
   }
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var adding: URL?
   @State private var stopping: FolderSource?
-  @State private var searching = false
+  @State private var searchFocus = false
+  @State private var toolbarWidth: CGFloat = 1180
   var body: some View {
     Group {
       if folders.loadFailed {
@@ -48,26 +50,31 @@ struct FolderSourcesPage: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .navigationSubtitle(viewerOpen ? "" : subtitle)
+    .background(MacToolbarWidth(width: $toolbarWidth))
     .toolbar {
-      // Named items keep AppKit's search-field host out of the viewer's
-      // anonymous action group. The browser owns the query across removal.
       if !viewerOpen {
-        ToolbarItem(id: "folders.view", placement: .navigation) {
-          FolderViewMenu(browser: browser)
+        ToolbarItem(id: "folders.view", placement: .primaryAction) {
+          if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth || browser.searchExpanded {
+            viewPicker.pickerStyle(.menu).fixedSize()
+          } else { viewPicker.pickerStyle(.segmented).fixedSize() }
         }
-        if browser.filter != .all {
-          ToolbarItem(id: "folders.clearFilter", placement: .navigation) {
-            Button { browser.filter = .all } label: { Image(systemName: "xmark") }
-              .help("folders_clear_filter").accessibilityLabel(Text("folders_clear_filter"))
+        MacBrowsingToolbarGap()
+        ToolbarItemGroup(placement: .primaryAction) {
+          FolderFilterMenu(browser: browser)
+          Button(action: choose) { Label("folders_add", systemImage: "folder.badge.plus") }
+            .labelStyle(.iconOnly).help("folders_add")
+            .disabled(!backup.ready || folders.loadFailed)
+          if let source = contextualSource {
+            Menu {
+              Button("folder_reveal") { folders.reveal(source) }.disabled(folders.isPreview)
+              Button("folders_settings") { settings(source.id) }
+            } label: { Label("folder_more", systemImage: "ellipsis") }
+              .menuIndicator(.hidden).help("folder_more")
           }
         }
-        ToolbarItem(id: "folders.add", placement: .primaryAction) {
-          Button(action: choose) { Label("folders_add", systemImage: "folder.badge.plus") }
-            .labelStyle(.iconOnly)
-            .help("folders_add")
-            .disabled(!backup.ready || folders.loadFailed)
-        }
         if !browser.selected.isEmpty {
+          MacBrowsingToolbarGap()
           ToolbarItem(id: "folders.backupSelected", placement: .primaryAction) {
             Button(action: backUpSelected) {
               Text(backupAction.title.isEmpty
@@ -77,10 +84,20 @@ struct FolderSourcesPage: View {
               .accessibilityIdentifier("folders.backup_selected")
           }
         }
+        MacBrowsingToolbarGap()
+        ToolbarItem(id: "folders.search", placement: .primaryAction) {
+          if browser.searchExpanded {
+            FolderSearchField(text: $browser.search, focus: $searchFocus) {
+              browser.searchExpanded = false
+            }.frame(width: MacBrowsingToolbarMetrics.searchWidth)
+          } else {
+            Button(action: beginSearch) { Label("folders_search", systemImage: "magnifyingglass") }
+              .help("folders_search").accessibilityIdentifier("folders.search")
+          }
+        }
       }
     }
-    .modifier(FolderBrowsingSearch(browser: browser, searching: $searching, viewerOpen: viewerOpen))
-    .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: { searching = true }, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
+    .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
     .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
       Button("settings_done") { backupAction.error = nil }
@@ -104,6 +121,39 @@ struct FolderSourcesPage: View {
         Task { _ = await folders.remove(source.id) }
       }.frame(width: 0, height: 0)
     }
+  }
+  private func beginSearch() { browser.searchExpanded = true; searchFocus = true }
+  private var viewPicker: some View {
+    Picker("folders_show", selection: $browser.byFolder) {
+      Text("folders_by_folder").tag(true)
+      Text("mac_library_all_photos").tag(false)
+    }.labelsHidden().accessibilityIdentifier("folders.view_mode")
+  }
+  private var contextualSource: FolderSource? {
+    let ids = Set(browser.sections.flatMap(\.photos).filter { browser.selection.contains($0.id) }.map(\.folder_id))
+    if ids.count == 1 { return folders.sources.first { ids.contains($0.id) } }
+    return folders.sources.count == 1 ? folders.sources.first : nil
+  }
+  private var subtitle: String {
+    if browser.loading { return NSLocalizedString("folders_counting", comment: "") }
+    if !browser.search.isEmpty || browser.filter == .recent {
+      let scope = NSLocalizedString(browser.search.isEmpty ? browser.filter.title : "folders_search_results", comment: "")
+      // Grouped sections contain only bounded cover samples, never a total.
+      guard browser.resultKey == browser.key,
+        !browser.search.isEmpty || !browser.byFolder,
+        !browser.sections.contains(where: \.hasMore) else { return scope }
+      return String(format: NSLocalizedString("folders_scope_count", comment: ""), scope, browser.sections.reduce(UInt64(0)) { $0 + UInt64($1.photos.count) })
+    }
+    guard folders.loaded || folders.isPreview, folders.facts.count == folders.sources.count else {
+      return NSLocalizedString("folders_counting", comment: "")
+    }
+    let count = folders.facts.values.reduce(UInt64(0)) { result, facts in
+      result + (browser.filter == .notBackedUp ? facts.not_backed_up : browser.filter == .needsYou ? facts.needs_you : facts.supported)
+    }
+    if browser.filter != .all {
+      return String(format: NSLocalizedString("folders_scope_count", comment: ""), NSLocalizedString(browser.filter.title, comment: ""), count)
+    }
+    return String(format: NSLocalizedString("folders_inventory_count", comment: ""), folders.sources.count, count)
   }
   private func backUpSelected() {
     let photos = browser.selected, tokens = browser.selection
@@ -132,21 +182,17 @@ struct FolderSourcesPage: View {
     if folders.initialSheet == "stop" { stopping = folders.sources.first }
   }
 }
-struct FolderViewMenu: View {
+struct FolderFilterMenu: View {
   @ObservedObject var browser: FolderBrowser
   var body: some View {
     Menu {
-      Picker("folders_show", selection: $browser.byFolder) {
-        Text("folders_by_folder").tag(true)
-        Text("mac_library_all_photos").tag(false)
-      }.pickerStyle(.inline)
-      Divider()
       Picker("library_view_section", selection: $browser.filter) {
         ForEach(LibraryBackupView.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
       }.pickerStyle(.inline)
     } label: {
-      Label(browser.filter == .all ? LocalizedStringKey("folders_view") : LocalizedStringKey(browser.filter.title), systemImage: "line.3.horizontal.decrease")
-    }.help("folders_view")
+      Label("library_filter", systemImage: browser.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+        .foregroundStyle(browser.filter == .all ? AnyShapeStyle(.primary) : AnyShapeStyle(DuckRole.accent))
+    }.menuIndicator(.hidden).help("library_filter").accessibilityIdentifier("folders.filter")
   }
 }
 
@@ -319,16 +365,5 @@ struct AddFolderSheet: View {
       }
     } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     _ = try? await Bridge.call(["op": "folder", "command": ["action": "preview_cancel"]])
-  }
-}
-
-/// Keep the system search item separate from action buttons and remove it in the viewer.
-private struct FolderBrowsingSearch: ViewModifier {
-  @ObservedObject var browser: FolderBrowser
-  @Binding var searching: Bool
-  let viewerOpen: Bool
-  func body(content: Content) -> some View {
-    if viewerOpen { content }
-    else { content.searchable(text: $browser.search, isPresented: $searching, placement: .toolbar, prompt: Text("folders_search")) }
   }
 }

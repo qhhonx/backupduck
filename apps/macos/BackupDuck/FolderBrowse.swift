@@ -39,9 +39,11 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   var configured = false
   @Published var byFolder = true { didSet { contextChanged() } }
   @Published var filter: LibraryBackupView = .all { didSet { contextChanged() } }
+  @Published var searchExpanded = false
   @Published var search = "" { didSet { contextChanged() } }
   @Published var selection = Set<String>()
   @Published private(set) var sections: [Section] = []
+  @Published private(set) var resultKey: String?
   @Published private(set) var loading = false
   @Published var error: String?
   var offsets: [String: CGPoint] = [:]
@@ -64,7 +66,7 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   }
   func reload(_ folders: FolderSources) async {
     generation += 1
-    let current = generation
+    let current = generation, requestedKey = key
     let grouped = byFolder && search.isEmpty
     let ids = grouped ? folders.sources.map(\.id) : ["all"]
     loading = sections.isEmpty
@@ -82,7 +84,7 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
         next.append(Section(id: id, photos: rows, hasMore: more))
       }
       guard current == generation else { return }
-      sections = next; error = nil
+      sections = next; resultKey = requestedKey; error = nil
     } catch { if current == generation { self.error = error.localizedDescription } }
     if current == generation { loading = false }
   }
@@ -169,12 +171,15 @@ struct MacFolderCommands: Commands {
 struct FolderSearchField: NSViewRepresentable {
   @Binding var text: String
   @Binding var focus: Bool
+  var collapse: () -> Void
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeNSView(context: Context) -> NSSearchField {
     let field = NSSearchField()
     field.placeholderString = NSLocalizedString("folders_search", comment: "")
     field.setAccessibilityLabel(field.placeholderString)
     field.delegate = context.coordinator
+    field.controlSize = .large
+    field.setAccessibilityIdentifier("folders.search_field")
     return field
   }
   func updateNSView(_ field: NSSearchField, context: Context) {
@@ -189,6 +194,12 @@ struct FolderSearchField: NSViewRepresentable {
   final class Coordinator: NSObject, NSSearchFieldDelegate {
     var parent: FolderSearchField
     init(_ parent: FolderSearchField) { self.parent = parent }
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy command: Selector) -> Bool {
+      guard command == #selector(NSResponder.cancelOperation(_:)) else { return false }
+      if parent.text.isEmpty { control.window?.makeFirstResponder(nil); parent.collapse() }
+      else { textView.selectAll(nil); textView.insertText("", replacementRange: textView.selectedRange()) }
+      return true
+    }
     func controlTextDidChange(_ note: Notification) {
       if let field = note.object as? NSSearchField { parent.text = field.stringValue }
     }

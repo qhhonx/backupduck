@@ -39,20 +39,34 @@ no file list, no path tree and no settings.
 
 ## Toolbar (A2)
 
-Items, as the system lays out a browsing window's toolbar:
+The leading side contains only the sidebar toggle and the title **Folders**,
+with a subtitle describing the visible scope: for example, “3 folders · 1,284
+photos” or “Not Backed Up · 312 photos”. Only a pushed level adds Back between
+the sidebar toggle and the title. Counts come from the current inventory or
+complete results; a paged search never presents its loaded count as a total.
 
-1. **View menu**, next to the title. Show: By Folder, All Photos (by capture
-   date). Filter: All, Not Backed Up, Needs You, Recently Backed Up — the same
-   views as Photo Library. While a filter is active the button shows its name
-   with a clear control. Each view keeps its own scroll position (I6).
-2. **Add Folder**, an icon button on the trailing side, followed by **Back Up
-   Selected** only while photos that are not backed up are selected.
-3. **Search**, a field of its own at the trailing edge, never grouped with a
-   button. It finds photos by file name and by subfolder name inside the added
-   folders and shows the matches in the same grid. While a photo is open, the
-   viewer's toolbar replaces all of these.
+Trailing groups keep this order, with native shared capsule backgrounds:
 
-All three commands also exist in the menu bar.
+1. A shared Zoom Out / Zoom In capsule only if the grid supports density.
+   The current Folders grid has fixed density and omits this group.
+2. A **By Folder | All Photos** segmented capsule, replaced by a pop-up at
+   narrow window widths or while search is expanded. Each view retains its own
+   scroll position and selection (I6).
+3. One action capsule: **Filter**, **Add Folder**, then **More** when a single
+   folder applies. Filter offers All, Not Backed Up, Needs You and Recently
+   Backed Up. An active filter has a filled, tinted symbol; choosing All clears
+   it. There is no separate clear button. More offers Show in Finder and Folder
+   Settings… for the applicable folder.
+4. **Back Up Selected**, the single prominent text action, appears only while
+   the selection contains eligible photos that are not backed up.
+5. **Search**, a separate magnifier circle at the trailing edge. Clicking it or
+   pressing ⌘F expands and focuses a native search field. Escape collapses an
+   empty search. Search finds file and subfolder names within added folders.
+
+The viewer replaces the browsing toolbar. Returning restores the search query,
+its expanded state, the active view, filter, selection and scroll position.
+View, filter, Add Folder, Back Up Selected and Search also have menu-bar
+equivalents.
 
 ## Adding a folder
 

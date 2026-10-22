@@ -30,6 +30,7 @@ struct MacWorkspace: View {
   private var initialScopeDestination: BackupScopeDestination?
   private var initialScopeSearch: String
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
+  @State private var toolbarWidth: CGFloat = 1180
   @State private var density = MacLibraryDensity.remembered
   @State private var pairSheet = false
   @State private var selectedPhotoDetails: PHAsset?
@@ -75,7 +76,12 @@ struct MacWorkspace: View {
         .navigationTitle(windowTitle)
         // The visible capture range (or the selection count) lives in the window
         // subtitle, as in Photos, instead of a strip above the media.
-        .background(MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: subtitleOverride))
+        .background {
+          if destination != .sources || hasViewer {
+            MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: subtitleOverride)
+          }
+        }
+        .background(MacToolbarWidth(width: $toolbarWidth))
         .toolbar { workspaceToolbar }
     }
     .environment(\.macViewerPresentation, { request in externalViewer = request })
@@ -251,29 +257,24 @@ struct MacWorkspace: View {
   if hasViewer {
     MacViewerToolbar(navigation: libraryNavigation, back: closeViewer)
   } else if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
-    ToolbarItem(id: "library.viewMode", placement: .principal) {
-      Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level },set: changeLibraryLevel)) {
-        ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
-      }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
-        .accessibilityIdentifier("library.view_mode")
-        // Choosing All again returns to the newest photo, as in Photos.
-        .simultaneousGesture(TapGesture(count: 2).onEnded {
-          if libraryNavigation.level == .all { libraryNavigation.scrollToNewest() }
-        })
-    }
-    ToolbarItemGroup(placement: .primaryAction) {
-      if !library.selection.isEmpty || backupAction.added || backupAction.busy {
-        DuckSelectionBackupButton(action: backupAction, library: library, model: model)
-          .buttonStyle(.borderedProminent)
+    MacLibraryScale(columns: $density, enabled: libraryNavigation.level == .all)
+    MacBrowsingToolbarGap()
+    ToolbarItem(id: "library.viewMode", placement: .primaryAction) {
+      if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth {
+        libraryPeriodPicker.pickerStyle(.menu).fixedSize()
+      } else {
+        libraryPeriodPicker.pickerStyle(.segmented).frame(width: MacBrowsingToolbarMetrics.periodWidth)
+          // Choosing All again returns to the newest photo.
+          .simultaneousGesture(TapGesture(count: 2).onEnded {
+            if libraryNavigation.level == .all { libraryNavigation.scrollToNewest() }
+          })
       }
-      // Kept in place and disabled outside All Photos: inserting and
-      // removing toolbar items relaid the toolbar during each level change.
-      Group {
-        MacLibraryScale(columns: $density)
-        Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
-          .toggleStyle(.button).help("calendar_original_aspect")
-          .accessibilityIdentifier("library.original_aspect")
-      }.disabled(libraryNavigation.level != .all)
+    }
+    MacBrowsingToolbarGap()
+    ToolbarItemGroup(placement: .primaryAction) {
+      Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
+        .toggleStyle(.button).help("calendar_original_aspect")
+        .accessibilityIdentifier("library.original_aspect").disabled(libraryNavigation.level != .all)
       // One flat menu, as in Photos: everything, then each media type, with
       // a check on the current one. No nested submenu, no menu chevron.
       Menu {
@@ -301,6 +302,13 @@ struct MacWorkspace: View {
         .menuIndicator(.hidden)
         .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
     }
+    if !library.selection.isEmpty || backupAction.added || backupAction.busy {
+      MacBrowsingToolbarGap()
+      ToolbarItem(id: "library.backupSelected", placement: .primaryAction) {
+        DuckSelectionBackupButton(action: backupAction, library: library, model: model)
+          .buttonStyle(.borderedProminent)
+      }
+    }
   }
   if !hasViewer, destination == .transfers {
     ToolbarItem(id: "history.pause", placement: .primaryAction) {
@@ -313,6 +321,11 @@ struct MacWorkspace: View {
       }.disabled(!model.ready || model.pairing == nil || model.changingPause)
     }
   }
+  }
+  private var libraryPeriodPicker: some View {
+    Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level }, set: changeLibraryLevel)) {
+      ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
+    }.labelsHidden().accessibilityIdentifier("library.view_mode")
   }
   private func sidebarRow(_ item: MacDestination, title: String? = nil) -> some View {
     Label(LocalizedStringKey(title ?? item.title), systemImage: item.icon).tag(item)

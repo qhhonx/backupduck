@@ -37,6 +37,14 @@ import SwiftUI
     folders.previewImage = image
     if id == "folders.viewer" {
       folders.browser.search = "Mountains"
+      folders.browser.searchExpanded = true
+      folders.browser.selection = ["fixture-2|fixture-photo-2-40"]
+    }
+    if id == "folders.toolbar-search" { folders.browser.searchExpanded = true }
+    if id == "folders.toolbar-selection" {
+      folders.initialFilter = .notBackedUp
+      folders.browser.filter = .notBackedUp
+      folders.browser.byFolder = false
       folders.browser.selection = ["fixture-2|fixture-photo-2-40"]
     }
     if id == "folders.all-not-backed-up" { folders.initialFilter = .notBackedUp }

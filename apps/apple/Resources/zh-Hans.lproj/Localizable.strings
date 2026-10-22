@@ -1675,3 +1675,7 @@
 "photo_viewer_info_state" = "信息，%@";
 
 "mac_viewer_position" = "第 %d 项，共 %d 项";
+
+"folders_inventory_count" = "%ld 个文件夹 · %llu 张照片";
+"folders_scope_count" = "%@ · %llu 张照片";
+"folders_search_results" = "搜索结果";

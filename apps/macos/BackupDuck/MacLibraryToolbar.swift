@@ -165,17 +165,65 @@ enum MacLibraryDensity {
   }
 }
 
-struct MacLibraryScale: View {
+/// A toolbar group, rather than a nested ControlGroup: AppKit owns one shared capsule.
+struct MacLibraryScale: ToolbarContent {
   @Binding var columns: Int
-  var body: some View {
-    ControlGroup {
+  var enabled = true
+  var body: some ToolbarContent {
+    ToolbarItemGroup(placement: .primaryAction) {
       Button { columns = MacLibraryDensity.step(columns, by: 1) } label: { Image(systemName: "minus") }
-        .disabled(columns >= (MacLibraryDensity.columns.last ?? columns))
+        .disabled(!enabled || columns >= (MacLibraryDensity.columns.last ?? columns))
         .help("mac_library_zoom_out").accessibilityLabel(Text("mac_library_zoom_out")).accessibilityIdentifier("library.zoom_out")
       Button { columns = MacLibraryDensity.step(columns, by: -1) } label: { Image(systemName: "plus") }
-        .disabled(columns <= (MacLibraryDensity.columns.first ?? columns))
+        .disabled(!enabled || columns <= (MacLibraryDensity.columns.first ?? columns))
         .help("mac_library_zoom_in").accessibilityLabel(Text("mac_library_zoom_in")).accessibilityIdentifier("library.zoom_in")
-    }.accessibilityIdentifier("library.thumbnail_size")
+    }
+  }
+}
+
+/// Native toolbar sizing, independent of content spacing tokens.
+enum MacBrowsingToolbarMetrics {
+  static let compactWidth: CGFloat = 1100
+  static let periodWidth: CGFloat = 230
+  static let searchWidth: CGFloat = 242
+}
+
+/// Native fixed toolbar spacing separates semantic groups without drawing chrome.
+struct MacBrowsingToolbarGap: ToolbarContent {
+  var body: some ToolbarContent {
+    if #available(macOS 26.0, *) { ToolbarSpacer(.fixed, placement: .primaryAction) }
+  }
+}
+
+/// Measure the whole window, including its sidebar, for browsing-toolbar adaptation.
+struct MacToolbarWidth: NSViewRepresentable {
+  @Binding var width: CGFloat
+  func makeNSView(context: Context) -> Probe { Probe() }
+  func updateNSView(_ view: Probe, context: Context) {
+    view.report = { value in if width != value { width = value } }
+    view.schedule()
+  }
+  final class Probe: NSView {
+    var report: ((CGFloat) -> Void)?
+    private var observer: NSObjectProtocol?
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if let observer { NotificationCenter.default.removeObserver(observer) }
+      observer = window.map { window in
+        NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: window, queue: .main) { [weak self] _ in
+          MainActor.assumeIsolated { self?.schedule() }
+        }
+      }
+      schedule()
+    }
+    func schedule() {
+      DispatchQueue.main.async { [weak self] in
+        guard let self, let window = self.window else { return }
+        self.report?(window.frame.width)
+      }
+    }
+    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
   }
 }
 

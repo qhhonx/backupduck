@@ -1,0 +1,12 @@
+{
+  "id": "folders.toolbar-search",
+  "page": "sources",
+  "title": "Folders expanded toolbar search",
+  "extends": "folders.sections",
+  "mac_only": true,
+  "expect": [
+    "Search is expanded and focused at the trailing edge.",
+    "The view selector uses a pop-up while searching.",
+    "Escape collapses the empty field back to a magnifier."
+  ]
+}

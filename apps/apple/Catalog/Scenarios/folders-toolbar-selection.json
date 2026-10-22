@@ -1,0 +1,12 @@
+{
+  "id": "folders.toolbar-selection",
+  "page": "sources",
+  "title": "Folders toolbar with eligible selection",
+  "extends": "folders.sections",
+  "mac_only": true,
+  "expect": [
+    "One native capsule groups Filter, Add Folder and contextual More.",
+    "Back Up Selected is the only prominent text action, before the search magnifier.",
+    "The active filter and its photo count remain visible in the subtitle."
+  ]
+}

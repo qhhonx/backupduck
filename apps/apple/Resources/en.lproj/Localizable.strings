@@ -1675,3 +1675,7 @@
 "photo_viewer_info_state" = "Info, %@";
 
 "mac_viewer_position" = "%d of %d";
+
+"folders_inventory_count" = "%ld folders · %llu photos";
+"folders_scope_count" = "%@ · %llu photos";
+"folders_search_results" = "Search results";
