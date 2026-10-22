@@ -1,0 +1,98 @@
+{
+  "id": "diagnostics.export-failure",
+  "extends": "diagnostics-base",
+  "page": "settings",
+  "step": "export-failure",
+  "title": "Diagnostics · export-failure",
+  "expect": [
+    "Native settings navigation; no system permissions or photo-library reads.",
+    "Exact recorded fields retained; exports contain JSON activity metadata only."
+  ],
+  "core": {
+    "activity_log": [
+      {
+        "error": "storage"
+      },
+      {
+        "value": [
+          {
+            "id": 18,
+            "timestamp": 1792638000,
+            "code": "request_failed",
+            "job_id": 881,
+            "bytes": 4194304,
+            "context": {
+              "execution": "background",
+              "phase": "upload",
+              "reason": "network",
+              "http_status": 503,
+              "system_error": -1009,
+              "bytes_sent": 4194304,
+              "bytes_expected": 8388608,
+              "next_retry_at": 1792638060,
+              "queued": 12,
+              "running": 1,
+              "waiting": 2,
+              "failed": 1,
+              "pending_imports": 3,
+              "discovery_pending": 0,
+              "paused": false,
+              "active_requests": 1,
+              "observed_transport": {
+                "interface": "wifi",
+                "constrained": false
+              }
+            },
+            "attempt": 2
+          },
+          {
+            "id": 17,
+            "timestamp": 1792637970,
+            "code": "transfer_received",
+            "job_id": 880,
+            "bytes": 5120000,
+            "context": {
+              "phase": "commit"
+            }
+          },
+          {
+            "id": 16,
+            "timestamp": 1792637930,
+            "code": "publication_complete",
+            "job_id": 880,
+            "bytes": null,
+            "context": null
+          },
+          {
+            "id": 15,
+            "timestamp": 1792637910,
+            "code": "cache_reclaimed",
+            "job_id": null,
+            "bytes": 314572800,
+            "context": null
+          },
+          {
+            "id": 14,
+            "timestamp": 1792551600,
+            "code": "sender_ready",
+            "job_id": null,
+            "bytes": null,
+            "context": {
+              "execution": "desktop"
+            }
+          },
+          {
+            "id": 13,
+            "timestamp": 1792551500,
+            "code": "future_observation_v2",
+            "job_id": null,
+            "bytes": null,
+            "context": {
+              "future_field": "retained verbatim"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

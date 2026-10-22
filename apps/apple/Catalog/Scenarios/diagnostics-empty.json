@@ -1,0 +1,40 @@
+{
+  "id": "diagnostics.empty",
+  "extends": "diagnostics-base",
+  "page": "settings",
+  "step": "empty",
+  "title": "Diagnostics · empty",
+  "expect": [
+    "Native settings navigation; no system permissions or photo-library reads.",
+    "Exact recorded fields retained; exports contain JSON activity metadata only."
+  ],
+  "core": {
+    "activity_log": [
+      {
+        "when": {
+          "after": "0"
+        },
+        "value": {
+          "entries": [],
+          "oldest_id": null,
+          "newest_id": null,
+          "reset": true
+        }
+      },
+      {
+        "when": {
+          "after": "18"
+        },
+        "value": {
+          "entries": [],
+          "oldest_id": 13,
+          "newest_id": 18,
+          "reset": false
+        }
+      },
+      {
+        "value": []
+      }
+    ]
+  }
+}

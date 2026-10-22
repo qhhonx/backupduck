@@ -500,3 +500,22 @@ sentence. Known blocking causes replace the sending message immediately; slow
 recovery actions retain their 20-second gate. Receipt and publication remain
 separate. The flight is hidden from accessibility because the adjacent text
 owns the fact. Sending is shown only for observed running work.
+
+### Apple diagnostics and records
+
+`diagnostics.root`, `.log`, `.empty`, `.failed`, `.detail`, `.export-success`,
+`.export-failure` and `.settings` open the shared production diagnostics in the
+Mac Settings detail pane or as pushed iPhone Settings pages. Launch with
+`-proposed -appearance light` (or `dark`). The log includes two days, transfer
+and storage events, a failure with all recorded context fields, and an unknown
+code/field to verify forward-compatible display and copying. Search matches
+plain titles, codes and recorded values; filters retain the full entry snapshot.
+The failed-export scenario fails once, then succeeds when Retry is pressed.
+Exports write real synthetic JSON; saving/sharing uses the system interface.
+Log preference changes use the same core settings command without initiating
+cache maintenance or photo preparation.
+
+`records.toolbar-attention` opens five attention items on Mac;
+`records.toolbar-all` opens the shared history on either Apple platform. Mac
+uses the window title/subtitle and shared native zoom capsule; pause belongs
+to Overview. The cloud-backup footer appears once per records surface.

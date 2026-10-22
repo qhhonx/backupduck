@@ -169,13 +169,19 @@ enum MacLibraryDensity {
 struct MacLibraryScale: ToolbarContent {
   @Binding var columns: Int
   var enabled = true
+  var stops: [Int] = MacLibraryDensity.columns
+  private func step(_ delta: Int) -> Int {
+    let index = stops.firstIndex(of: columns)
+      ?? stops.indices.min { abs(stops[$0] - columns) < abs(stops[$1] - columns) } ?? 0
+    return stops[min(stops.count - 1, max(0, index + delta))]
+  }
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .primaryAction) {
-      Button { columns = MacLibraryDensity.step(columns, by: 1) } label: { Image(systemName: "minus") }
-        .disabled(!enabled || columns >= (MacLibraryDensity.columns.last ?? columns))
+      Button { columns = step(1) } label: { Image(systemName: "minus") }
+        .disabled(!enabled || columns >= (stops.last ?? columns))
         .help("mac_library_zoom_out").accessibilityLabel(Text("mac_library_zoom_out")).accessibilityIdentifier("library.zoom_out")
-      Button { columns = MacLibraryDensity.step(columns, by: -1) } label: { Image(systemName: "plus") }
-        .disabled(!enabled || columns <= (MacLibraryDensity.columns.first ?? columns))
+      Button { columns = step(-1) } label: { Image(systemName: "plus") }
+        .disabled(!enabled || columns <= (stops.first ?? columns))
         .help("mac_library_zoom_in").accessibilityLabel(Text("mac_library_zoom_in")).accessibilityIdentifier("library.zoom_in")
     }
   }
@@ -346,4 +352,18 @@ struct MacAreaProbe: NSViewRepresentable {
 }
 private final class MacProbeView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+struct MacHistoryZoomActions {
+  var smaller: () -> Void
+  var larger: () -> Void
+  var canShrink: Bool
+  var canGrow: Bool
+}
+private struct MacHistoryZoomKey: FocusedValueKey { typealias Value = MacHistoryZoomActions }
+extension FocusedValues {
+  var historyZoom: MacHistoryZoomActions? {
+    get { self[MacHistoryZoomKey.self] }
+    set { self[MacHistoryZoomKey.self] = newValue }
+  }
 }

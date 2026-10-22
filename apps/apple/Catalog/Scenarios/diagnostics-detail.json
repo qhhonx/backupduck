@@ -1,0 +1,11 @@
+{
+  "id": "diagnostics.detail",
+  "extends": "diagnostics-base",
+  "page": "settings",
+  "step": "detail",
+  "title": "Diagnostics · detail",
+  "expect": [
+    "Native settings navigation; no system permissions or photo-library reads.",
+    "Exact recorded fields retained; exports contain JSON activity metadata only."
+  ]
+}

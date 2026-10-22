@@ -1,0 +1,9 @@
+{
+  "id": "records.toolbar-all",
+  "extends": "records-base",
+  "page": "backup",
+  "records": "all",
+  "step": "history",
+  "mac_only": false,
+  "title": "History · browsing toolbar"
+}

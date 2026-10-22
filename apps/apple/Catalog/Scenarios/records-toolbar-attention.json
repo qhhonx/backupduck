@@ -1,0 +1,9 @@
+{
+  "id": "records.toolbar-attention",
+  "extends": "hub.needs-you-navigation",
+  "page": "backup",
+  "records": "attention",
+  "step": "history",
+  "mac_only": true,
+  "title": "History · attention toolbar"
+}

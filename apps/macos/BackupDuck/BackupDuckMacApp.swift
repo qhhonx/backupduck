@@ -27,6 +27,7 @@ struct MacWorkspace: View {
   @State private var destination: MacDestination? = .backup
   private var initialSettingsRoute: MacSettingsRoute?
   private var initialSettingsPage: MacSettings.Page?
+  private var initialDiagnosticsPage: String?
   private var scopeStore: BackupScopeStore
   private var albumsModel: ScopeAlbumsModel
   private var initialScopeDestination: BackupScopeDestination?
@@ -38,6 +39,8 @@ struct MacWorkspace: View {
   @State private var selectedPhotoDetails: PHAsset?
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var transferFilter = "all"
+  @State private var historyScope = ""
+  @State private var historyColumns = 6
   @State private var historyFocus: HistoryPhoto?
   @State private var settingsTitle = "nav_settings"
   @State private var librarySelecting = false
@@ -54,7 +57,8 @@ struct MacWorkspace: View {
   @StateObject private var folders: FolderSources
   @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialSettingsRoute: MacSettingsRoute? = nil, initialTransferFilter: String = "all",
     initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
-    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false) {
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil) {
+    self.initialDiagnosticsPage = initialDiagnosticsPage
     self.model = model
     _externalViewer = State(initialValue: initialViewer)
     let navigation = MacLibraryNavigation(); navigation.viewerInfo = initialViewerInfo
@@ -90,6 +94,10 @@ struct MacWorkspace: View {
     .environment(\.macViewerHistory, { photo in
       closeViewer(); historyFocus = photo; destination = .transfers
     })
+    .focusedSceneValue(\.historyZoom, destination == .transfers && !hasViewer ? MacHistoryZoomActions(
+      smaller: { historyColumns = min(9, MacLibraryDensity.step(historyColumns, by: 1)) },
+      larger: { historyColumns = MacLibraryDensity.step(historyColumns, by: -1) },
+      canShrink: historyColumns < 9, canGrow: historyColumns > 3) : nil)
     .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
       info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
     .tint(DuckColors.action)
@@ -189,7 +197,7 @@ struct MacWorkspace: View {
             library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
         }
         if destination == .transfers && DesignPreview.proposedDesign {
-          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus)
+          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, scopeChanged: { historyScope = $0 })
             .id(transferFilter + "|" + (historyFocus?.id ?? ""))
         } else if destination == .transfers {
           MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
@@ -198,7 +206,7 @@ struct MacWorkspace: View {
           if DesignPreview.proposedDesign {
             MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
               initialPage: initialSettingsPage, scopeStore: scopeStore, albumsModel: albumsModel,
-              initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch)
+              initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch, initialDiagnosticsPage: initialDiagnosticsPage)
           } else {
             MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
           }
@@ -255,6 +263,7 @@ struct MacWorkspace: View {
   /// the viewer, the selection count while photos are selected.
   private var subtitleOverride: String? {
     if hasViewer { return "" }
+    if destination == .transfers { return historyScope }
     guard destination == .library && library.authorized else { return "" }
     if previewAsset != nil && libraryNavigation.viewerOpen { return "" }
     return librarySubtitle
@@ -317,15 +326,7 @@ struct MacWorkspace: View {
     }
   }
   if !hasViewer, destination == .transfers {
-    ToolbarItem(id: "history.pause", placement: .primaryAction) {
-      Button {
-        Task { await model.setPaused(!model.paused) }
-      } label: {
-        Label(LocalizedStringKey(
-          model.paused ? "resume_backup" : "pause_backup"),
-          systemImage: model.paused ? "play.fill" : "pause.fill")
-      }.disabled(!model.ready || model.pairing == nil || model.changingPause)
-    }
+    MacLibraryScale(columns: $historyColumns, stops: MacLibraryDensity.grid)
   }
   }
   private var libraryPeriodPicker: some View {

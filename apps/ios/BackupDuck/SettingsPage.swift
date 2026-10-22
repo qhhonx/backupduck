@@ -103,7 +103,7 @@ struct IOSSettingsPage: View {
         .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
         .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
         .task { await feedback.check() }
-    }.sheet(isPresented: $logs) { ActivityLogView() }
+    }.sheet(isPresented: $logs) { NavigationStack { DiagnosticsView(model: model) } }
       .sheet(isPresented: $editingName) {
         if let name = model.deviceSnapshot?.device.name { DeviceNameEditor(model: model, name: name) }
       }

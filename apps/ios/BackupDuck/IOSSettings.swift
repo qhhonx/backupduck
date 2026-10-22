@@ -74,7 +74,7 @@ struct IOSSettings: View {
         }
       }
       .navigationDestination(isPresented: $diagnostics) {
-        ActivityLogView(embedded: true).navigationTitle("settings_diagnostics").navigationBarTitleDisplayMode(.inline)
+        DiagnosticsView(model: model)
       }
       .navigationDestination(isPresented: $advanced) { IOSAdvancedSettings(model: model) }
       .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }

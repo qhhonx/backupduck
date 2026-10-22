@@ -838,7 +838,7 @@ private struct ProcessingEventsResult: Decodable {
       lastStorageRefresh = Date()
     } catch { storageError = error.localizedDescription }
   }
-  func saveStorage(_ settings: StorageSettings) async {
+  func saveStorage(_ settings: StorageSettings, performMaintenance: Bool = true) async {
     guard !savingStorage else { return }
     savingStorage = true
     storageSettingsError = nil
@@ -849,8 +849,10 @@ private struct ProcessingEventsResult: Decodable {
         "settings": JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)),
       ])
       await refreshStorage()
-      if settings.auto_reclaim { await reclaimCache() }
-      await processPendingImports()
+      if performMaintenance {
+        if settings.auto_reclaim { await reclaimCache() }
+        await processPendingImports()
+      }
     } catch let error as Bridge.Failure where error.code == "invalid_input" {
       storageSettingsError = NSLocalizedString("storage_settings_invalid", comment: "")
     } catch { storageSettingsError = error.localizedDescription }

@@ -15,6 +15,7 @@ struct MacSettings: View {
   var albumsModel: ScopeAlbumsModel
   var initialScopeDestination: BackupScopeDestination?
   var initialScopeSearch: String
+  var initialDiagnosticsPage: String?
   @AppStorage("duckAppearance") private var appearance = "system"
   @State private var page: Page? = .autoBackup
   @State private var renaming = false
@@ -24,7 +25,8 @@ struct MacSettings: View {
 
   @MainActor init(model: BackupModel, folders: FolderSources, showFolders: @escaping () -> Void,
     initialPage: Page? = nil, scopeStore: BackupScopeStore? = nil,
-    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "") {
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialDiagnosticsPage: String? = nil) {
+    self.initialDiagnosticsPage = initialDiagnosticsPage
     self.model = model; self.folders = folders; self.showFolders = showFolders
     self.scopeStore = scopeStore ?? .shared; self.albumsModel = albumsModel ?? .shared
     self.initialScopeDestination = initialScopeDestination; self.initialScopeSearch = initialScopeSearch
@@ -166,7 +168,7 @@ struct MacSettings: View {
     case .language: MacLanguageSettings(languageName: languageName)
     case .help: NavigationStack { HelpCenter() }
     case .about: NavigationStack { MacAboutSettings() }
-    case .diagnostics: ActivityLogView(embedded: true)
+    case .diagnostics: NavigationStack { DiagnosticsView(model: model, initialPage: initialDiagnosticsPage) }
     case .advanced: MacAdvancedSettings(model: model)
     case nil: Color.clear
     }

@@ -54,7 +54,7 @@ struct MacPreferences: View {
           MacAboutSettings()
         }.padding(DuckSpacing.large)
       } else if route == .diagnostics {
-        VStack(alignment: .leading, spacing: 16) { backButton; ActivityLogView(embedded: true) }.padding(28)
+        NavigationStack { DiagnosticsView(model: model) }
       } else {
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {

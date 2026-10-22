@@ -91,7 +91,7 @@ private struct ScenarioStage: View {
   @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
-    if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" {
+    if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" || scenario.id.hasPrefix("diagnostics.") {
       _scheme = State(initialValue: catalogViewerStyle(scenario) == .light ? .light : .dark)
     }
     _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope.") || ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id))
@@ -104,7 +104,7 @@ private struct ScenarioStage: View {
       .environment(\.duckStepMarkReducedTransparency, ProcessInfo.processInfo.arguments.contains("-reduce-transparency"))
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
       .overlay(alignment: .bottomTrailing) {
-        if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" {
+        if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" && !scenario.id.hasPrefix("diagnostics.") {
         // Above the tab bar, clear of navigation bar items.
         Button { info = true } label: {
           Image(systemName: "info.circle.fill").font(.title2)
@@ -207,7 +207,9 @@ private struct ScenarioRun: View {
         })
       } else { IOSBackupPage(model: model) }
     case .settings where "\(item)" == scenario.page:
-      if let scopeFixture {
+      if scenario.id.hasPrefix("diagnostics.") {
+        IOSDiagnosticsCatalog(model: model, page: scenario.step)
+      } else if let scopeFixture {
         IOSScopeCatalog(fixture: scopeFixture)
       } else if proposed, let detail = scenario.step {
         // A settings sub-page opened directly, as if pushed from Settings.
@@ -511,6 +513,24 @@ private struct OnboardingCatalog: View {
       } else {
         IOSOnboarding(model: model, progress: progress)
       }
+    }
+  }
+}
+
+/// Opens the production diagnostics as a pushed Settings destination.
+private struct IOSDiagnosticsCatalog: View {
+  @ObservedObject var model: BackupModel
+  var page: String?
+  @State private var opened = false
+  @State private var show = false
+  var body: some View {
+    NavigationStack {
+      Form {
+        NavigationLink(isActive: $show) { DiagnosticsView(model: model, initialPage: page) } label: {
+          Text("settings_diagnostics")
+        }
+      }.navigationTitle("nav_settings")
+        .task { if !opened { opened = true; show = true } }
     }
   }
 }

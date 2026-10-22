@@ -1,0 +1,16 @@
+{
+  "id": "diagnostics.failed",
+  "extends": "diagnostics-base",
+  "page": "settings",
+  "step": "failed",
+  "title": "Diagnostics · failed",
+  "expect": [
+    "Native settings navigation; no system permissions or photo-library reads.",
+    "Exact recorded fields retained; exports contain JSON activity metadata only."
+  ],
+  "core": {
+    "activity_log": {
+      "error": "storage"
+    }
+  }
+}

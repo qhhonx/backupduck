@@ -178,6 +178,8 @@ struct BackupHistoryView: View {
   @ObservedObject var model: BackupModel
   var filter = "all"
   var initialFocus: HistoryPhoto? = nil
+  var columns: Int? = nil
+  var scopeChanged: (String) -> Void = { _ in }
   @StateObject private var history = BackupHistoryModel()
   @StateObject private var photoRouter = BackupPhotoRouter()
   @State private var retrying: HistoryCause?
@@ -197,14 +199,18 @@ struct BackupHistoryView: View {
     ScrollViewReader { position in
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+        #if os(iOS)
         Text(String(format: NSLocalizedString(filter == "attention" ? "records_attention_scope" : "records_scope", comment: ""), receiverName, history.total.formatted()))
           .font(.subheadline).foregroundStyle(.secondary)
           .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
+        #endif
         if filter == "attention" {
+          #if os(iOS)
           HStack {
             Text("records_needs_you").font(.headline)
             Spacer()
           }.padding(.horizontal, DuckSpacing.medium).padding(.bottom, DuckSpacing.small)
+          #endif
         } else if !history.attention.isEmpty { needsYou }
         if history.failed && history.photos.isEmpty {
           ContentUnavailableView {
@@ -222,7 +228,7 @@ struct BackupHistoryView: View {
         }
         ForEach(history.days, id: \.0) { day, photos in
           Section {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumTile), spacing: spacing)], spacing: spacing) {
+            LazyVGrid(columns: columns.map { Array(repeating: GridItem(.flexible(), spacing: spacing), count: $0) } ?? [GridItem(.adaptive(minimum: minimumTile), spacing: spacing)], spacing: spacing) {
               ForEach(photos) { photo in
                 BackupPhotoButton(photo: photo, collection: history.photos, router: photoRouter) { HistoryTile(photo: photo) }
                   .buttonStyle(.plain)
@@ -278,6 +284,7 @@ struct BackupHistoryView: View {
     guard photoRouter.preview == nil, photoRouter.fallback == nil else { return }
     #endif
     await history.reload(receiver: model.pairing?.receiverID, state: filter)
+    scopeChanged(String(format: NSLocalizedString(filter == "attention" ? "records_toolbar_attention" : "records_toolbar_scope", comment: ""), receiverName, history.total.formatted()))
   }
 
   private var needsYou: some View {

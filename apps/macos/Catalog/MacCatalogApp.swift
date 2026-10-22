@@ -246,10 +246,10 @@ private struct MacScenarioRun: View {
         // Records belong to the hub; the Mac lists them as their own sidebar position.
         initialDestination: session.folders.initialSheet == "rules" ? .settings : scenario.records != nil ? .transfers : MacDestination(rawValue: scenario.page) ?? .settings,
         folderSources: session.folders, initialTransferFilter: scenario.records ?? "all",
-        initialSettingsPage: scenario.step == "about" ? .about : nil,
+        initialSettingsPage: scenario.id.hasPrefix("diagnostics.") ? .diagnostics : scenario.step == "about" ? .about : nil,
         scopeStore: session.scope?.store ?? .shared, albumsModel: session.scope?.albums ?? .shared,
         initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "",
-        initialViewerInfo: scenario.id == "folders.viewer-received")
+        initialViewerInfo: scenario.id == "folders.viewer-received", initialDiagnosticsPage: scenario.id.hasPrefix("diagnostics.") ? scenario.step : nil)
         .background {
           if scenario.id.hasPrefix("folders.viewer"), MacCatalogLaunch.value("-folder-viewer-state") != "browse" {
             FolderViewerCatalogOpening(source: scenario.id == "folders.viewer-received" ? "fixture-photo-0-4" : nil)

@@ -1,0 +1,255 @@
+{
+  "id": "records.cloud-footer",
+  "extends": "records-base",
+  "page": "backup",
+  "records": "all",
+  "step": "history",
+  "mac_only": false,
+  "title": "History \u00b7 cloud footer",
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 121,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-121",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_5121.HEIC",
+                "size": 4000000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1791777280000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4000000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792295680000,
+          "sort_value": 1792295680000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 122,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-122",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_5122.HEIC",
+                "size": 4000000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1791689440000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4000000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792294240000,
+          "sort_value": 1792294240000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 123,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-123",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_5123.HEIC",
+                "size": 4000000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1791601600000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4000000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792292800000,
+          "sort_value": 1792292800000,
+          "receiver_id": "catalog-pixel"
+        }
+      ]
+    },
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 3,
+        "received": 3,
+        "published": 3,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 12000000,
+        "active": 0,
+        "attention": 0,
+        "processing": 0
+      }
+    },
+    "backup_tasks": [
+      {
+        "when": {
+          "state": "attention"
+        },
+        "value": {
+          "items": [],
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 3,
+            "received": 3,
+            "published": 3,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 12000000,
+            "active": 0,
+            "attention": 0,
+            "processing": 0
+          }
+        }
+      },
+      {
+        "value": {
+          "items": [
+            {
+              "id": "job-121",
+              "cursor": 121,
+              "sort_value": 1792295680000,
+              "job": {
+                "id": 121,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "synthetic-121",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_5121.HEIC",
+                      "size": 4000000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1791777280000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4000000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792295680000,
+                "sort_value": 1792295680000,
+                "receiver_id": "catalog-pixel"
+              }
+            },
+            {
+              "id": "job-122",
+              "cursor": 122,
+              "sort_value": 1792294240000,
+              "job": {
+                "id": 122,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "synthetic-122",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_5122.HEIC",
+                      "size": 4000000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1791689440000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4000000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792294240000,
+                "sort_value": 1792294240000,
+                "receiver_id": "catalog-pixel"
+              }
+            },
+            {
+              "id": "job-123",
+              "cursor": 123,
+              "sort_value": 1792292800000,
+              "job": {
+                "id": 123,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "synthetic-123",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_5123.HEIC",
+                      "size": 4000000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1791601600000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4000000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792292800000,
+                "sort_value": 1792292800000,
+                "receiver_id": "catalog-pixel"
+              }
+            }
+          ],
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 3,
+            "received": 3,
+            "published": 3,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 12000000,
+            "active": 0,
+            "attention": 0,
+            "processing": 0
+          }
+        }
+      }
+    ]
+  }
+}

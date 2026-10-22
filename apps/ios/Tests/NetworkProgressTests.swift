@@ -625,3 +625,87 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(detailSnapshot.code, "backup_paused")
   }
 }
+
+@MainActor final class DiagnosticsProjectionTests: XCTestCase {
+  func testUnknownFieldsAndCodesSurviveDisplayAndCopyAll() throws {
+    let data = Data(#"{"id":42,"timestamp":1792638000,"code":"future_event_v3","job_id":881,"bytes":4194304,"context":{"http_status":503,"future":{"flag":false,"label":"kept","amount":9223372036854775806},"array":[1,"two",null]},"future_top":"retained"}"#.utf8)
+    let entry = try JSONDecoder().decode(ActivityEntry.self, from: data)
+    XCTAssertEqual(entry.title, "future_event_v3")
+    let fields = Dictionary(uniqueKeysWithValues: entry.fields)
+    XCTAssertEqual(fields["context.future.flag"], "false")
+    XCTAssertEqual(fields["context.future.amount"], "9223372036854775806")
+    XCTAssertEqual(fields["future_top"], "retained")
+    XCTAssertEqual(fields["context.array"], #"[1,"two",null]"#)
+    XCTAssertEqual(try JSONDecoder().decode(DiagnosticValue.self, from: Data(entry.json.utf8)),
+      try JSONDecoder().decode(DiagnosticValue.self, from: data))
+  }
+  func testFiltersDistinguishProblemsTransfersAndStorage() {
+    func entry(_ code: String, job: Int64? = nil) -> ActivityEntry {
+      .init(id: 1, timestamp: 1, code: code, job_id: job, bytes: nil, context: nil)
+    }
+    XCTAssertTrue(DiagnosticFilter.problems.includes(entry("request_failed")))
+    XCTAssertTrue(DiagnosticFilter.transfers.includes(entry("future_observation", job: 881)))
+    XCTAssertTrue(DiagnosticFilter.storage.includes(entry("cache_reclaimed")))
+    XCTAssertFalse(DiagnosticFilter.problems.includes(entry("cache_reclaimed")))
+    XCTAssertFalse(DiagnosticFilter.transfers.includes(entry("sender_ready")))
+    XCTAssertTrue(DiagnosticFilter.all.includes(entry("future_observation")))
+  }
+  func testNewestTimestampWinsWhileCursorUsesRecordIdentity() async {
+    let entries = [ActivityEntry(id: 8, timestamp: 100, code: "sender_ready", job_id: nil, bytes: nil, context: nil),
+      ActivityEntry(id: 7, timestamp: 200, code: "sender_ready", job_id: nil, bytes: nil, context: nil)]
+    let model = ActivityLogModel { _ in .init(entries: entries, oldest_id: 7, newest_id: 8, reset: true) }
+    await model.refresh { true }
+    XCTAssertEqual(model.entries.map(\.id), [7, 8])
+    XCTAssertEqual(model.cursor, 8)
+  }
+  func testDefaultExportWritesAnExactJSONFile() async throws {
+    let bytes = Data(#"[{"id":42,"timestamp":100,"code":"request_failed","context":{"http_status":503}}]"#.utf8)
+    let model = ActivityLogExportModel(snapshot: { bytes })
+    await model.prepare()
+    let url = try XCTUnwrap(model.url)
+    XCTAssertEqual(url.lastPathComponent, "BackupDuck-diagnostics.json")
+    XCTAssertEqual(try Data(contentsOf: url), bytes)
+    try FileManager.default.removeItem(at: url.deletingLastPathComponent())
+  }
+  func testLogRetentionSavesWithoutStartingMaintenanceAndKeepsFailureRetryable() async throws {
+    let original = BackupEnvironment.core
+    defer { BackupEnvironment.core = original }
+    let core = LogSettingsCore(); BackupEnvironment.core = core
+    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    model.ready = true
+    var settings = core.settings; settings.log_days = 7
+    await model.saveStorage(settings, performMaintenance: false)
+    XCTAssertEqual(core.operations, ["save_storage_settings", "storage_status"])
+    XCTAssertEqual(model.storage?.settings.log_days, 7)
+    XCTAssertTrue(model.storage?.settings.auto_reclaim == true)
+    core.fail = true; settings.log_days = 14
+    await model.saveStorage(settings, performMaintenance: false)
+    XCTAssertNotNil(model.storageSettingsError)
+    XCTAssertEqual(model.storage?.settings.log_days, 7)
+    XCTAssertFalse(model.savingStorage)
+    core.fail = false
+    await model.saveStorage(settings, performMaintenance: false)
+    XCTAssertNil(model.storageSettingsError)
+    XCTAssertEqual(model.storage?.settings.log_days, 14)
+  }
+
+}
+
+private final class LogSettingsCore: CoreTransport, @unchecked Sendable {
+  var operations: [String] = []
+  var fail = false
+  var settings = StorageSettings(cache_budget_bytes: 1 << 30, receiver_budget_bytes: 0,
+    min_free_bytes: 1 << 30, auto_reclaim: true, log_days: 30, log_limit: 2000)
+  func call(_ command: String) async throws -> Data {
+    let object = try JSONSerialization.jsonObject(with: Data(command.utf8)) as! [String: Any]
+    let op = object["op"] as! String; operations.append(op)
+    if op == "save_storage_settings" {
+      if fail { throw Bridge.Failure(code: "storage") }
+      settings = try JSONDecoder().decode(StorageSettings.self,
+        from: JSONSerialization.data(withJSONObject: object["settings"]!))
+    }
+    let value: Any = op == "storage_status" ? ["settings": try JSONSerialization.jsonObject(with: JSONEncoder().encode(settings)),
+      "used_bytes": 0, "free_bytes": 10 << 30, "export_allowance": 1 << 30] : NSNull()
+    return try JSONSerialization.data(withJSONObject: ["ok": true, "value": value])
+  }
+}

@@ -140,6 +140,7 @@ extension FocusedValues {
 struct MacFolderCommands: Commands {
   @FocusedValue(\.folderCommands) private var actions
   @FocusedValue(\.photoViewerCommands) private var viewer
+  @FocusedValue(\.historyZoom) private var historyZoom
   var body: some Commands {
     CommandGroup(after: .newItem) {
       Button("folders_back_up_selected") { actions?.backUp() }.disabled(actions?.canBackUp != true)
@@ -152,6 +153,9 @@ struct MacFolderCommands: Commands {
       Button("library_context_share") { viewer?.share() }.disabled(viewer == nil)
     }
     CommandGroup(after: .sidebar) {
+      Button("mac_library_zoom_out") { historyZoom?.smaller() }.disabled(historyZoom?.canShrink != true)
+      Button("mac_library_zoom_in") { historyZoom?.larger() }.disabled(historyZoom?.canGrow != true)
+      Divider()
       Button("mac_library_back") { viewer?.back() }.disabled(viewer == nil)
       Divider()
       Button("folders_by_folder") { actions?.view(true) }.disabled(actions == nil)
