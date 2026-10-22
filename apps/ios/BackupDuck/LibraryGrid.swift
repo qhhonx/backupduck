@@ -5,6 +5,21 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+/// D1 comparison only: production Release always keeps the current implementation.
+enum LibraryChrome {
+  static var catalogVariant: String?
+  static var native: Bool {
+    #if !DEBUG
+    guard Bundle.main.bundleIdentifier == "app.backupduck.catalog" else { return false }
+    #endif
+    let args = ProcessInfo.processInfo.arguments
+    if let flag = args.firstIndex(of: "-libraryChrome") {
+      return args.indices.contains(flag + 1) && args[flag + 1] == "native"
+    }
+    return catalogVariant == "native"
+  }
+}
+
 struct IOSLibraryGrid: UIViewRepresentable {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject var networkPolicy = PreviewNetworkPolicy.shared
@@ -45,6 +60,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
       let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
       press.minimumPressDuration = 0.4
       press.cancelsTouchesInView = true
+      press.delegate = context.coordinator
       view.addGestureRecognizer(press)
     }
     if !showSupplementaryContent {
@@ -53,6 +69,19 @@ struct IOSLibraryGrid: UIViewRepresentable {
     }
     context.coordinator.collection = view
     if !showSupplementaryContent {
+      library.previewSourceView = { [weak view, weak library] id in
+        guard let view, let library, let index = library.index(of: id), index < library.loaded else { return nil }
+        let path = IndexPath(item: index, section: 0)
+        let visible = view.bounds.inset(by: view.adjustedContentInset)
+        let frame = view.layoutAttributesForItem(at: path)?.frame ?? .zero
+        if view.cellForItem(at: path) == nil || !visible.intersects(frame) {
+          view.scrollToItem(at: path, at: .centeredVertically, animated: false)
+          view.layoutIfNeeded()
+        }
+        guard let cell = view.cellForItem(at: path) as? PhotoCell,
+          cell.presentationID == library.identifier(at: index) else { return nil }
+        return cell
+      }
       library.previewPoster = { [weak view, weak library] id in
         guard let view, let library, let index = library.index(of: id) else { return nil }
         return (view.cellForItem(at: IndexPath(item: index,section: 0)) as? PhotoCell)?.displayedImage
@@ -177,10 +206,10 @@ struct IOSLibraryGrid: UIViewRepresentable {
     coordinator.rememberScroll()
     coordinator.refresh.cancel()
     coordinator.parent.library.thumbnails.clear()
-    if !coordinator.parent.showSupplementaryContent { coordinator.parent.library.previewFrame = nil; coordinator.parent.library.previewPoster = nil }
+    if !coordinator.parent.showSupplementaryContent { coordinator.parent.library.previewFrame = nil; coordinator.parent.library.previewPoster = nil; coordinator.parent.library.previewSourceView = nil }
   }
   @MainActor
-  final class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout
+  final class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate
   {
     var parent: IOSLibraryGrid
     weak var collection: UICollectionView?
@@ -408,6 +437,19 @@ struct IOSLibraryGrid: UIViewRepresentable {
       _ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell,
       forItemAt indexPath: IndexPath
     ) { (cell as? PhotoCell)?.cancel() }
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+      !LibraryChrome.native || parent.selectionEnabled
+    }
+    func collectionView(_ view: UICollectionView, contextMenuConfigurationForItemAt path: IndexPath,
+      point: CGPoint) -> UIContextMenuConfiguration? {
+      guard LibraryChrome.native, !parent.selectionEnabled || parent.browseOnly,
+        let asset = parent.library.asset(at: path.item) else { return nil }
+      return UIContextMenuConfiguration(identifier: asset.localIdentifier as NSString, previewProvider: nil) { [weak self, weak view] _ in
+        guard let self, let presenter = view?.libraryViewController else { return nil }
+        return LibraryPhotoActions.menu(asset: asset, library: self.parent.library,
+          model: self.parent.backupModel, presenter: presenter)
+      }
+    }
     @objc func longPress(_ recognizer: UILongPressGestureRecognizer) {
       guard let collection, let window = collection.window else { return }
       switch recognizer.state {
@@ -744,8 +786,7 @@ struct IOSLibraryPage: View {
 private struct IOSCalendarLibraryPage: View {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject var model: BackupModel
-  @State private var rebackupReceivedSelection = false
-  @State private var confirmSelectedBackup = false
+  @StateObject private var backupAction = SelectionBackupAction()
   @State private var preview: IOSPreviewItem?
   var body: some View {
     Group {
@@ -776,11 +817,10 @@ private struct IOSCalendarLibraryPage: View {
       } else {
         calendar
       }
-    }.background(DuckColors.canvas).tint(DuckColors.action)
+    }.background(Color(uiColor: .systemBackground)).tint(DuckColors.action)
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
-      .sheet(isPresented:$confirmSelectedBackup) { selectedBackupConfirmation }
       .background(IOSPreviewPresentation(item:preview,library:library) { preview=nil }.frame(width:0,height:0))
   }
   private var isLoadingPlaceholder: Bool {
@@ -791,34 +831,14 @@ private struct IOSCalendarLibraryPage: View {
     IOSCalendarLibrary(library:library,model:model,onPreview:{ asset,frame in
       var transaction=Transaction();transaction.disablesAnimations=true
       withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for:asset)) }
-    },onBackup:showBackupConfirmation).ignoresSafeArea(.container)
+    }, backupAction: backupAction).ignoresSafeArea(.container)
   }
-  private func showBackupConfirmation() {
-    rebackupReceivedSelection = false
-    confirmSelectedBackup = true
-  }
-  private var selectedBackupConfirmation: some View {
-    DuckSelectedBackup(count: library.selection.count, rebackup: $rebackupReceivedSelection,
-      failureMessage: { model.message.flatMap { $0.isEmpty ? nil : $0 } }) {
-      let rebackup = rebackupReceivedSelection
-      return await backupSelection(rebackupReceived: rebackup)
-    }
-  }
-  private func backupSelection(rebackupReceived: Bool) async -> Bool {
-    let tokens = library.selection
-    let ids = await library.selectedAssetIdentifiers(tokens)
-    let accepted = await model.backupSelectedAssets(ids, rebackupReceived: rebackupReceived)
-    if accepted {
-      library.selection.subtract(tokens)
-    }
-    return accepted
-  }
+
 }
 private struct IOSLegacyLibraryPage: View {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject var model: BackupModel
-  @State private var confirmSelectedBackup = false
-  @State private var rebackupReceivedSelection = false
+  @StateObject private var backupAction = SelectionBackupAction()
   @State private var selecting = false
   @State private var preview: IOSPreviewItem?
   var body: some View {
@@ -844,7 +864,7 @@ private struct IOSLegacyLibraryPage: View {
               library.selection.insert(id); selecting = true
             }).frame(maxWidth: 640).duckLibraryViewport()
         }
-      }.background(DuckColors.canvas).symbolVariant(.none)
+      }.background(Color(uiColor: .systemBackground)).symbolVariant(.none)
       .navigationTitle(selecting ? String(format: NSLocalizedString("library_selection_title",comment: ""),library.selection.count) : NSLocalizedString("nav_library",comment: ""))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -852,13 +872,13 @@ private struct IOSLegacyLibraryPage: View {
           if selecting { selectionTitle } else { browsingTitle }
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-          if selecting { selectionActions } else { typeMenu; viewMenu }
+          if selecting || backupAction.added { selectionActions } else { typeMenu; viewMenu }
         }
       }
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
-      .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
+      .onChange(of: backupAction.added) { _, added in if added { selecting = false } }
       .background(IOSPreviewPresentation(item: preview, library: library) {
         preview = nil
       }.frame(width: 0, height: 0))
@@ -881,15 +901,13 @@ private struct IOSLegacyLibraryPage: View {
   }
   private var selectionActions: some View {
     HStack(spacing: 8) {
-      Button("settings_done") { selecting = false; library.selection.removeAll() }
-        .buttonStyle(.plain).frame(minWidth: 44, minHeight: 44)
-        .accessibilityIdentifier("library.select_mode")
-      Button("library_backup_action", action: showBackupConfirmation)
-        .font(.body.weight(.semibold)).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.small)
-        .frame(minWidth: 60, minHeight: 44)
-        .disabled(library.selection.isEmpty || model.pairing == nil || model.importing)
-        .accessibilityIdentifier("library.backup_selected_footer")
-        .accessibilityValue(Text(String(format: NSLocalizedString("library_selected_count", comment: ""), library.selection.count)))
+      if selecting {
+        Button("settings_done") { selecting = false; library.selection.removeAll() }
+          .buttonStyle(.plain).frame(minWidth: 44, minHeight: 44)
+          .accessibilityIdentifier("library.select_mode")
+      }
+      DuckSelectionBackupButton(action: backupAction, library: library, model: model)
+        .buttonStyle(.borderedProminent).controlSize(.small)
     }
   }
   @ViewBuilder private var typeMenu: some View {
@@ -935,26 +953,7 @@ private struct IOSLegacyLibraryPage: View {
       }
     }
   }
-  private func showBackupConfirmation() {
-    rebackupReceivedSelection = false
-    confirmSelectedBackup = true
-  }
-  private var selectedBackupConfirmation: some View {
-    DuckSelectedBackup(count: library.selection.count, rebackup: $rebackupReceivedSelection,
-      failureMessage: { model.message.flatMap { $0.isEmpty ? nil : $0 } }) {
-      let rebackup = rebackupReceivedSelection
-      return await backupSelection(rebackupReceived: rebackup)
-    }
-  }
-  private func backupSelection(rebackupReceived: Bool) async -> Bool {
-    let tokens = library.selection
-    let ids = await library.selectedAssetIdentifiers(tokens)
-    let accepted = await model.backupSelectedAssets(ids, rebackupReceived: rebackupReceived)
-    if accepted {
-      library.selection.subtract(tokens)
-    }
-    return accepted
-  }
+
 }
 
 @MainActor private final class LibrarySupplementaryView: UICollectionReusableView {
@@ -1014,6 +1013,11 @@ struct IOSPreviewItem: Identifiable {
   let selectedIndex = review.assets.firstIndex(where: { $0.id == key(asset) })
   let poster = selectedIndex.flatMap { (review.grid.cellForItem(at: IndexPath(item: $0,section: 0)) as? CalendarGridCell)?.image.image }
   let item = IOSPreviewItem(asset: asset,frame: frame,poster: poster ?? library.thumbnails.poster(for: asset))
+  if LibraryChrome.native {
+    let native = makeLibraryNativeViewer(item: item, library: library, assets: assets, review: review) {}
+    review.present(native, animated: native.usesSystemZoom)
+    return
+  }
   let viewer = UIHostingController(rootView: IOSPhotoPreview(item: item,library: library,reviewAssets: assets,review: review) { [weak review] in
     review?.dismiss(animated: false)
   })
@@ -1035,6 +1039,13 @@ struct IOSPreviewPresentation: UIViewControllerRepresentable {
     DispatchQueue.main.async {
       guard host.view.window != nil, host.presentedViewController == nil, coordinator.active == nil else { return }
       coordinator.active = item.id
+      if LibraryChrome.native {
+        let viewer = makeLibraryNativeViewer(item: item, library: library, assets: collection) {
+          coordinator.active = nil; close()
+        }
+        host.present(viewer, animated: viewer.usesSystemZoom)
+        return
+      }
       let viewer = UIHostingController(rootView: IOSPhotoPreview(item: item, library: library, reviewAssets: collection) {
         host.dismiss(animated: false) { coordinator.active = nil; close() }
       })
@@ -1072,6 +1083,9 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
 /// One UIKit owner coordinates paging, scrubbing, information and image flight.
 /// Gesture progress is direct; controllers are recycled only after a page settles.
 @MainActor final class NativeMediaViewer: UIViewController, UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate, UIGestureRecognizerDelegate {
+  let nativeChrome = LibraryChrome.native
+  var usesSystemZoom: Bool { if #available(iOS 18.0, *) { return nativeChrome }; return false }
+  private var finished = false, nativeStarted = false
   let item: IOSPreviewItem, session: MediaPreviewSession, closeViewer: () -> Void
   let backdrop = UIView(), stage = UIView(), pager = UIScrollView(), header = UIView(), footer = UIView()
   let date = UILabel(), status = UILabel()
@@ -1097,6 +1111,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   var dragOrigin = CGPoint.zero, dragCenter = CGPoint.zero
   init(item: IOSPreviewItem, session: MediaPreviewSession, review: CalendarSelectedController? = nil, close: @escaping () -> Void) {
     self.item = item; self.session = session; self.review = review; closeViewer = close; super.init(nibName: nil, bundle: nil)
+    if usesSystemZoom { flying = false }
+    if nativeChrome { edgesForExtendedLayout = .all; extendedLayoutIncludesOpaqueBars = true }
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
@@ -1159,7 +1175,8 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
       environment.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
       return UIColor(cgColor: DuckRole.elevatedSurface.resolve(in: environment).cgColor)
     }
-    information.layer.cornerRadius = 20
+    information.layer.cornerRadius = DuckRadius.card
+    information.layer.cornerCurve = .continuous
     information.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]; information.clipsToBounds = true
     information.accessibilityIdentifier = "preview.info.drawer"; view.addSubview(information); information.addSubview(infoHeader)
     let handle = UIView(); handle.backgroundColor = .lightGray; handle.layer.cornerRadius = 2; handle.tag = 3; infoHeader.addSubview(handle)
@@ -1177,12 +1194,35 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
       if zoomed && self.chrome { self.chrome = false; self.layoutMedia(); self.setNeedsStatusBarAppearanceUpdate() }
     }.store(in: &cancellables)
     PreviewNetworkPolicy.shared.$choice.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.session.reloadForPolicy() }.store(in: &cancellables)
+    if nativeChrome {
+      header.isHidden = true
+      navigationItem.largeTitleDisplayMode = .never
+      let close = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { [weak self] _ in self?.dismissViewer() })
+      close.accessibilityIdentifier = "library.preview.close"
+      navigationItem.leftBarButtonItem = close
+      if review != nil {
+        let done = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak self] _ in
+          self?.completeReview = true; self?.dismissViewer()
+        })
+        done.accessibilityIdentifier = "calendar.selected_preview_done"
+        navigationItem.rightBarButtonItem = done
+      }
+    }
+    if usesSystemZoom { stage.alpha = 1; backdrop.alpha = 1 }
     index = session.index(of: session.current.asset) ?? 0; installPages(); observeMedia()
+  }
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    if usesSystemZoom, !nativeStarted { nativeStarted = true; session.start() }
   }
   override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if flying { session.start(); enter() } }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews(); guard lastSize != view.bounds.size else { return }
     lastSize = view.bounds.size; layoutMedia(); centerStrip()
+  }
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    if isViewLoaded { layoutMedia() }
   }
   deinit { animator?.stopAnimation(true); infoAnimator?.stopAnimation(true) }
   func layoutMedia() {
@@ -1216,11 +1256,12 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     }
     if !pager.isDragging && !pager.isDecelerating { pager.contentOffset.x = pager.bounds.width }
     suppress = false
-    information.frame = CGRect(x: 0,y: b.height-infoHeight,width: b.width,height: infoHeight)
+    // A8: the solid panel reaches beyond the home indicator. Only the top edge is rounded.
+    information.frame = CGRect(x: 0,y: b.height-infoHeight,width: b.width,height: infoHeight + bottom)
     infoHeader.frame = CGRect(x: 0,y: 0,width: b.width,height: 48)
     infoHeader.viewWithTag(3)?.frame = CGRect(x: b.midX-18,y: 10,width: 36,height: 4)
     infoHeader.viewWithTag(4)?.frame = CGRect(x: b.width-52,y: 2,width: 44,height: 44)
-    informationHost?.view.frame = CGRect(x: 0,y: 48,width: b.width,height: max(0,infoHeight-48))
+    informationHost?.view.frame = CGRect(x: 0,y: 48,width: b.width,height: max(0,infoHeight-48-bottom))
     pages.forEach { $0.view.layoutIfNeeded() }
     let media = imageRect()
     selectionButton.frame = CGRect(x: media.maxX-44,y: media.maxY-44,width: 44,height: 44)
@@ -1228,6 +1269,10 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     selectionButton.alpha = chrome && !flying && infoHeight == 0 ? 1 : 0
     let infoFade = max(0,1-infoHeight/100)
     header.alpha = chrome && !flying ? infoFade : 0
+    if nativeChrome {
+      // The bar overlays the same full-screen viewport, including while hidden.
+      navigationController?.setNavigationBarHidden(!chrome || flying || infoHeight > 0, animated: false)
+    }
     footer.alpha = chrome && !flying ? infoFade : 0
     let loadingX: CGFloat = max(6,min(b.width-42,media.maxX-42))
     let selectionReserve: CGFloat = review == nil ? 0 : 44
@@ -1296,6 +1341,14 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     let model = session.current
     date.text = model.asset.creationDate?.formatted(date: .abbreviated,time: .omitted) ?? NSLocalizedString("library_preview",comment: "")
     status.text = model.asset.creationDate?.formatted(date: .omitted,time: .shortened)
+    if nativeChrome {
+      if #available(iOS 26.0, *) {
+        navigationItem.title = date.text
+        navigationItem.subtitle = status.text
+      } else {
+        navigationItem.title = [date.text, status.text].compactMap { $0 }.joined(separator: " · ")
+      }
+    }
     loadingIndicator.update(loading: model.loading,progress: model.progress,cloud: model.cloudNeeded,failure: model.failure)
     if !flying && !closing && verticalKind == 0 && infoAnimator?.isRunning != true { layoutMedia() }
   }
@@ -1370,7 +1423,15 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   }
   func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
     guard !flying, !closing, !session.zoomed, !pager.isDragging, !pager.isDecelerating else { return false }
-    if let pan = recognizer as? UIPanGestureRecognizer { let velocity = pan.velocity(in: view); return (review == nil || velocity.y > 0) && abs(velocity.y) > abs(velocity.x)*1.35 }
+    if let pan = recognizer as? UIPanGestureRecognizer {
+      let velocity = pan.velocity(in: view)
+      // UIKit owns downward/edge dismissal in the zoom variant; the app only
+      // owns upward information travel (or closing an already open panel).
+      if usesSystemZoom, recognizer.view === stage, infoHeight == 0 {
+        return review == nil && velocity.y < 0 && abs(velocity.y) > abs(velocity.x)*1.35
+      }
+      return (review == nil || velocity.y > 0) && abs(velocity.y) > abs(velocity.x)*1.35
+    }
     return true
   }
   func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
@@ -1451,7 +1512,7 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
   /// height is already the destination while Core Animation is interpolating.
   func interruptInformation() {
     guard let infoAnimator else { return }
-    let visibleHeight = information.layer.presentation()?.frame.height ?? infoHeight
+    let visibleHeight = information.layer.presentation().map { view.bounds.maxY - $0.frame.minY } ?? infoHeight
     infoAnimator.stopAnimation(true); self.infoAnimator = nil
     infoHeight = visibleHeight
     UIView.performWithoutAnimation { layoutMedia() }
@@ -1533,13 +1594,23 @@ private struct IOSNativeViewer: UIViewControllerRepresentable {
     }
   }
   func finishClosing() {
+    guard !finished else { return }; finished = true
     session.stop()
+    if nativeChrome, !usesSystemZoom, let nav = navigationController, nav.presentingViewController != nil {
+      nav.dismiss(animated: false) { [weak self] in self?.completeClosing() }
+    } else { completeClosing() }
+  }
+  private func completeClosing() {
     if completeReview, let review {
       review.dismiss(animated: false) { [weak review] in review?.done() }
     } else { closeViewer() }
   }
   func dismissViewer(velocity: CGFloat = 0) {
     guard !flying && !closing else { return }; closing = true; pager.isScrollEnabled = false
+    if usesSystemZoom {
+      navigationController?.dismiss(animated: true) { [weak self] in self?.finishClosing() }
+      return
+    }
     let destination: CGRect?
     if let review { destination = review.previewFrame(reviewID(session.current.asset)) }
     else { destination = session.library.previewFrame?(session.current.asset.localIdentifier) }
@@ -1856,4 +1927,155 @@ struct MediaFlightGeometry {
         return (first...last).compactMap { layoutAttributesForItem(at: IndexPath(item: $0,section: 0)) }.filter { $0.frame.intersects(rect) }
     }
     override func shouldInvalidateLayout(forBoundsChange bounds: CGRect) -> Bool { bounds.size != collectionView?.bounds.size }
+}
+
+/// The presented controller owns both system chrome and the system transition.
+@MainActor private final class LibraryViewerNavigation: UINavigationController {
+  var media: NativeMediaViewer { viewControllers[0] as! NativeMediaViewer }
+  var usesSystemZoom: Bool { media.usesSystemZoom }
+  override var childForStatusBarHidden: UIViewController? { media }
+  override var childForStatusBarStyle: UIViewController? { media }
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    // Interactive cancellation does not disappear. A completed dismissal must
+    // release PhotoKit/player work and the SwiftUI presentation identity once.
+    if isBeingDismissed || presentingViewController == nil { media.finishClosing() }
+  }
+}
+
+@MainActor private func makeLibraryNativeViewer(item: IOSPreviewItem, library: PhotoLibraryModel,
+  assets: [PHAsset]?, review: CalendarSelectedController? = nil, close: @escaping () -> Void
+) -> LibraryViewerNavigation {
+  let session = MediaPreviewSession(asset: item.asset, library: library, poster: item.poster, reviewAssets: assets)
+  let viewer = NativeMediaViewer(item: item, session: session, review: review, close: close)
+  let nav = LibraryViewerNavigation(rootViewController: viewer)
+  nav.overrideUserInterfaceStyle = .dark
+  nav.modalPresentationStyle = .fullScreen
+  nav.modalPresentationCapturesStatusBarAppearance = true
+  if #available(iOS 18.0, *) {
+    let options = UIViewController.Transition.ZoomOptions()
+    options.interactiveDismissShouldBegin = { [weak viewer] context in
+      guard let viewer else { return false }
+      return context.willBegin && !viewer.session.zoomed && viewer.infoHeight == 0
+        && !viewer.session.paging && !viewer.pager.isDragging && !viewer.pager.isDecelerating
+        && !viewer.strip.isTracking && !viewer.closing && viewer.verticalKind == 0
+        && viewer.infoAnimator?.isRunning != true
+        && viewer.pages.allSatisfy { !$0.scroll.isZooming && !$0.scroll.isZoomBouncing }
+    }
+    options.alignmentRectProvider = { [weak viewer, weak nav] _ in
+      guard let viewer, let nav else { return .null }
+      return viewer.view.convert(viewer.imageRect(), to: nav.view)
+    }
+    nav.preferredTransition = .zoom(options: options) { [weak viewer, weak library, weak review] _ in
+      guard let viewer else { return nil }
+      let asset = viewer.session.current.asset
+      if let review {
+        let key = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
+        guard review.previewFrame(key) != nil,
+          let index = review.assets.firstIndex(where: { $0.id == key }),
+          let cell = review.grid.cellForItem(at: IndexPath(item: index, section: 0)) as? CalendarGridCell,
+          cell.assetID == key else { return nil }
+        return cell.image
+      }
+      return library?.previewSourceView?(asset.localIdentifier)
+    }
+  }
+  return nav
+}
+
+private extension UIView {
+  var libraryViewController: UIViewController? {
+    var responder: UIResponder? = self
+    while let current = responder {
+      if let controller = current as? UIViewController { return controller }
+      responder = current.next
+    }
+    return nil
+  }
+}
+
+/// Menu identity is the asset ID, never an index path that can be recycled.
+@MainActor enum LibraryPhotoActions {
+  static func menu(asset: PHAsset, library: PhotoLibraryModel, model: BackupModel,
+    presenter: UIViewController) -> UIMenu {
+    let backup = UIAction(title: NSLocalizedString("library_context_backup", comment: ""),
+      image: UIImage(systemName: "arrow.up")) { [weak presenter] _ in
+      let sheet = UIHostingController(rootView: LibraryContextBackup(asset: asset, library: library, model: model))
+      presenter?.present(sheet, animated: true)
+    }
+    let history = UIAction(title: NSLocalizedString("library_context_history", comment: ""),
+      image: UIImage(systemName: "clock.arrow.circlepath")) { [weak presenter] _ in
+      let sheet = UIHostingController(rootView: LibraryContextHistory(asset: asset))
+      presenter?.present(sheet, animated: true)
+    }
+    let share = UIAction(title: NSLocalizedString("library_context_share", comment: ""),
+      image: UIImage(systemName: "square.and.arrow.up")) { [weak presenter] _ in
+      guard let presenter else { return }
+      shareAsset(asset, from: presenter)
+    }
+    return UIMenu(children: [backup, history, share])
+  }
+  private static func shareAsset(_ asset: PHAsset, from presenter: UIViewController) {
+    let resources = PHAssetResource.assetResources(for: asset)
+    guard let resource = resources.first(where: { $0.type == .photo || $0.type == .video }) ?? resources.first else { return }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("library-share-" + UUID().uuidString)
+    let provider = NSItemProvider()
+    let assetID = asset.localIdentifier, filename = resource.originalFilename
+    let typeIdentifier = resource.uniformTypeIdentifier, resourceType = resource.type.rawValue
+    provider.suggestedName = filename
+    // The system loads the original on demand, off the UI thread. There is no
+    // full-size context preview or additional thumbnail pipeline.
+    provider.registerFileRepresentation(forTypeIdentifier: typeIdentifier,
+      fileOptions: [], visibility: .all) { completion in
+      let progress = Progress(totalUnitCount: 1)
+      progress.isCancellable = false
+      guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetID], options: photoLibraryFetchOptions()).firstObject,
+        let resource = PHAssetResource.assetResources(for: asset).first(where: { $0.type.rawValue == resourceType }) else {
+        completion(nil, false, CocoaError(.fileNoSuchFile)); return progress
+      }
+      let requestDirectory = directory.appendingPathComponent(UUID().uuidString)
+      do { try FileManager.default.createDirectory(at: requestDirectory, withIntermediateDirectories: true) }
+      catch { completion(nil, false, error); return progress }
+      let url = requestDirectory.appendingPathComponent(filename)
+      let options = PHAssetResourceRequestOptions(); options.isNetworkAccessAllowed = true
+      PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: options) { error in
+        progress.completedUnitCount = 1
+        completion(error == nil ? url : nil, false, error)
+      }
+      return progress
+    }
+    let sheet = UIActivityViewController(activityItemsConfiguration: UIActivityItemsConfiguration(itemProviders: [provider]))
+    sheet.completionWithItemsHandler = { _, _, _, _ in try? FileManager.default.removeItem(at: directory) }
+    sheet.popoverPresentationController?.sourceView = presenter.view
+    sheet.popoverPresentationController?.sourceRect = CGRect(origin: CGPoint(x: presenter.view.bounds.midX, y: presenter.view.bounds.midY), size: .zero)
+    presenter.present(sheet, animated: true)
+  }
+}
+
+private struct LibraryContextBackup: View {
+  let asset: PHAsset
+  @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject var model: BackupModel
+  @StateObject private var action = SelectionBackupAction()
+  @Environment(\.dismiss) private var dismiss
+  var body: some View {
+    DuckSheetLayout(title: "library_context_backup", busy: action.busy, closeOnly: true) {
+      DuckSelectionBackupControl(action: action, count: 1,
+        request: { await action.request(library: library, model: model, sources: [asset.localIdentifier]) },
+        confirm: { await action.confirm(library: library, model: model) })
+    } actions: { EmptyView() }
+    .task { await action.request(library: library, model: model, sources: [asset.localIdentifier]) }
+    .onChange(of: action.added) { _, added in if added { dismiss() } }
+  }
+}
+
+private struct LibraryContextHistory: View {
+  let asset: PHAsset
+  var body: some View {
+    DuckSheetLayout(title: "library_context_history", closeOnly: true) {
+      // Reuse the history's source observation and actionable missing-record
+      // state; receipt and publication retain their independent timestamps.
+      PhotoBackupInfo(sourceID: asset.localIdentifier, takenAt: asset.creationDate)
+    } actions: { EmptyView() }
+  }
 }

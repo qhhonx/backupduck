@@ -25,8 +25,12 @@ struct LiveActivityCatalogPage: View {
                 .frame(width: DuckSpacing.large, height: DuckSpacing.large)
               BackupActivityCompactCount(state: state, stale: stale)
             }.accessibilityIdentifier("activity.compactContent")
+            Text("Minimal content · synthetic data").font(.headline)
+            BackupActivityRing(state: state, stale: stale, compact: true)
+              .frame(width: DuckSpacing.large, height: DuckSpacing.large)
+              .accessibilityIdentifier("activity.minimalContent")
           } else { ProgressView("hub_opening") }
-          Text("These are the production Lock Screen and compact contents. WidgetKit owns their containers. Preview actions are disabled. System delivery and lock-screen actions require separate acceptance.")
+          Text("These are the production Lock Screen, compact and minimal contents. WidgetKit owns their containers. Preview actions are disabled. System delivery and lock-screen actions require separate acceptance.")
             .font(.footnote).foregroundStyle(.secondary)
         }.padding(DuckSpacing.medium)
       }.background(DuckRole.background).navigationTitle("Live Activity")

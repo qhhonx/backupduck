@@ -87,7 +87,7 @@ private struct ScenarioStage: View {
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    Group { if let run { ScenarioRun(scenario: scenario, proposed: proposed).id(run) } else { DuckColors.canvas.ignoresSafeArea() } }
+    Group { if let run { ScenarioRun(scenario: scenario, proposed: proposed).id(run) } else { DuckRole.background.ignoresSafeArea() } }
       .preferredColorScheme(scheme)
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
       .overlay(alignment: .bottomTrailing) {
@@ -117,7 +117,7 @@ private struct ScenarioRun: View {
   let scenario: Scenario
   let proposed: Bool
   @StateObject private var model: BackupModel
-  @StateObject private var library = PhotoLibraryModel()
+  @StateObject private var library: PhotoLibraryModel
   @State private var tab: IOSAppTab
   @State private var scopeFixture: ScopeCatalogFixture?
 
@@ -127,6 +127,10 @@ private struct ScenarioRun: View {
     _scopeFixture = State(initialValue: scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil)
     // Shared code (library menu, tile marks) reads the same switch as the Mac catalog.
     DesignPreview.proposedDesign = proposed
+    LibraryChrome.catalogVariant = scenario.library?["chrome"] as? String
+    let recordingLibrary = PhotoLibraryModel()
+    recordingLibrary.catalogAnchorFraction = scenario.library?["anchor_fraction"] as? Double
+    _library = StateObject(wrappedValue: recordingLibrary)
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
     BackupEnvironment.activeModel = { made }
     _model = StateObject(wrappedValue: made)
@@ -136,8 +140,10 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.step == "photoInformation" {
-      IOSInformationCatalog(model: model)
+    if scenario.step == "selectedBackup" {
+      SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
+    } else if scenario.step == "photoInformation" {
+      IOSInformationCatalog(model: model, panelStyle: scenario.id.hasSuffix("-light") ? .light : .dark)
         .task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.step == "liveActivity" {
       LiveActivityCatalogPage(model: model, stale: scenario.id.hasSuffix(".stale"))
@@ -165,7 +171,7 @@ private struct ScenarioRun: View {
         }
       }
     }
-    .background(DuckColors.canvas.ignoresSafeArea())
+    .background(DuckRole.background.ignoresSafeArea())
     .tint(DuckColors.action)
     .task { await model.open() }
     .onDisappear { model.stop() }
@@ -205,11 +211,12 @@ private struct ScenarioRun: View {
 
 private struct IOSInformationCatalog: View {
   @ObservedObject var model: BackupModel
+  var panelStyle: UIUserInterfaceStyle
   var body: some View {
     if let job = model.jobs.first {
       if ProcessInfo.processInfo.arguments.contains("fallback") {
         PhotoBackupDetail(photo: HistoryPhoto(job: job), model: model)
-      } else { InformationViewerSample(job: job).ignoresSafeArea() }
+      } else { InformationViewerSample(job: job, panelStyle: panelStyle).ignoresSafeArea() }
     } else { ProgressView() }
   }
 }
@@ -217,11 +224,14 @@ private struct IOSInformationCatalog: View {
 /// Opens the production viewer and its actual drawer; no replacement gestures.
 private struct InformationViewerSample: UIViewControllerRepresentable {
   let job: BackupJob
+  let panelStyle: UIUserInterfaceStyle
   func makeUIViewController(context: Context) -> NativeMediaViewer {
     let asset = InformationSampleAsset(job: job)
     let session = MediaPreviewSession(asset: asset, library: PhotoLibraryModel(), reviewAssets: [asset])
     let item = IOSPreviewItem(asset: asset, frame: .zero, poster: asset.previewImage)
     let viewer = NativeMediaViewer(item: item, session: session, close: {})
+    viewer.loadViewIfNeeded()
+    viewer.information.overrideUserInterfaceStyle = panelStyle
     context.coordinator.open(viewer)
     return viewer
   }
@@ -235,7 +245,9 @@ private struct InformationViewerSample: UIViewControllerRepresentable {
           try? await Task.sleep(for: .milliseconds(100))
           guard let viewer else { return }
           if viewer.viewIfLoaded?.window != nil, !viewer.flying {
-            viewer.setInfo(true); return
+            viewer.setInfo(true)
+            viewer.informationHost?.overrideUserInterfaceStyle = viewer.information.overrideUserInterfaceStyle
+            return
           }
         }
       }

@@ -1,0 +1,27 @@
+{
+  "id": "library.ab-current",
+  "extends": "library.all",
+  "page": "library",
+  "title": "Library A/B · current",
+  "library": {
+    "arriving": 8,
+    "gap_every": 9,
+    "needs_you": 4,
+    "recent": 30,
+    "saving": 4,
+    "publication_failed": 1,
+    "unknown": 1,
+    "chrome": "current",
+    "anchor_fraction": 0.5
+  },
+  "expect": [
+    "Use the Demo simulator photo library; the complete chronological index opens at its middle asset at three columns. Both variants use the same membership and anchor.",
+    "Current keeps the existing header, flight and browsing range selection. Native uses system viewer chrome, iOS 18+ zoom and browsing context menus. Select mode retains range selection.",
+    "After paging, dismiss to the current asset tile; test image zoom, information panel, cancellation and reversal. Build success does not establish motion acceptance."
+  ],
+  "core": {
+    "register_preparations": {
+      "value": null
+    }
+  }
+}

@@ -14,12 +14,17 @@
   },
   "expect": [
     "The whole synthetic library in the calendar grid. The menu's Backup section offers All Photos, Not Backed Up, Needs You and Recently Backed Up.",
-    "Tile marks: sending arrow up, received and saving clock, needs you filled triangle; saved and unknown have no mark. Receipt-based Not Backed Up still excludes received photos."
+    "Tile marks: sending arrow up, received and saving clock, needs you filled triangle; saved and unknown have no mark. Receipt-based Not Backed Up still excludes received photos.",
+    "V1: plain system background fills exposed grid space and calendar transitions in light and dark; no legacy cream canvas."
   ],
   "actions": [
     {
       "action": "Choose a view in the menu",
       "result": "The same grid narrows to that view, keeping its gestures and date groups."
+    },
+    {
+      "action": "Select eligible photos and press Back Up N Photos",
+      "result": "Intent is saved immediately; Added to Backup replaces the toolbar action, selection ends and progress stays in Backup / Overview. Registration failure preserves selection and explains why."
     }
   ]
 }

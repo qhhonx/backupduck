@@ -1,0 +1,29 @@
+{
+  "id": "library.selection-repeat",
+  "page": "library",
+  "extends": "library.all",
+  "title": "Library selected durable intent: repeat",
+  "library": {
+    "arriving": 0,
+    "gap_every": 100000,
+    "needs_you": 0,
+    "saving": 0,
+    "publication_failed": 0,
+    "unknown": 0,
+    "recent": 30
+  },
+  "core": {
+    "register_preparations": {
+      "value": null
+    }
+  },
+  "expect": [
+    "iOS Simulator only, using the existing synthetic photo library. No original download occurs during registration."
+  ],
+  "actions": [
+    {
+      "action": "Select photos, then press Back Up N Photos",
+      "result": "One anchored confirmation explains another copy in Photos; cancellation preserves the selection; confirmation adds the backup."
+    }
+  ]
+}

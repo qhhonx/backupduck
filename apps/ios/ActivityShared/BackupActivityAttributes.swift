@@ -8,13 +8,12 @@ struct BackupActivityAttributes: ActivityAttributes {
     var title: String { "activity_" + rawValue }
     var symbol: String {
       switch self {
-      case .finding, .preparing: "photo.stack"
-      case .sending: "arrow.up.circle"
+      case .finding, .preparing, .sending: "arrow.up"
       case .saving: "clock"
-      case .paused: "pause.circle"
-      case .waiting: "wifi.exclamationmark"
-      case .attention: "exclamationmark.triangle"
-      case .saved: "checkmark.circle"
+      case .paused: "pause.fill"
+      case .waiting: "exclamationmark.triangle.fill"
+      case .attention: "exclamationmark.triangle.fill"
+      case .saved: "checkmark"
       }
     }
   }

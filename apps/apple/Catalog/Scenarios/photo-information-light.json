@@ -1,0 +1,12 @@
+{
+  "id": "photo.info-light",
+  "page": "backup",
+  "step": "photoInformation",
+  "title": "Viewer panel · docked · light",
+  "extends": "photo.info",
+  "expect": [
+    "The production in-viewer panel uses its light surface, fills the bottom edge under the home indicator, and rounds only the top corners.",
+    "Scroll metadata, close and reopen; content remains above the home indicator while the solid panel reaches the bottom.",
+    "On Mac use -appearance light to inspect the existing trailing inspector."
+  ]
+}

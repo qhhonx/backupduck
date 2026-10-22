@@ -30,6 +30,25 @@ final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable 
   }
 }
 
+/// A cover fixture exercises the production thumbnail pipeline without PhotoKit access.
+final class AlbumCoverSampleAsset: PHAsset, PreviewSample, @unchecked Sendable {
+  let identifier: String
+  init(_ identifier: String) { self.identifier = identifier; super.init() }
+  override var localIdentifier: String { identifier }
+  override var creationDate: Date? { Date(timeIntervalSince1970: 1_000) }
+  override var modificationDate: Date? { creationDate }
+  var previewFilename: String { "" }
+  var previewMetadata: [(String, String)] { [] }
+  var previewImage: LibraryImage? {
+    guard let cg = SampleImages.cgImage(for: identifier) else { return nil }
+    #if os(iOS)
+    return UIImage(cgImage: cg)
+    #else
+    return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+    #endif
+  }
+}
+
 /// Catalog-only local sample media, with procedural landscapes as fallback.
 /// Identifiers use the same fixed UTF-8 hash and manifest order on every platform.
 enum SampleImages {

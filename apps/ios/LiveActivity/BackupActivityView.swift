@@ -58,18 +58,23 @@ struct BackupActivityRing: View {
   var stale = false
   var compact = false
   private var strokeWidth: CGFloat { compact ? DuckSpacing.xxSmall / 2 : DuckSpacing.xxSmall }
+  private var stateColor: Color {
+    if stale || state.actionFailed || state.phase == .attention || state.phase == .waiting { return DuckRole.attention }
+    return state.phase == .paused ? DuckRole.secondaryText : DuckRole.accent
+  }
   var body: some View {
-    ZStack {
-      Circle().stroke(DuckRole.separator, lineWidth: strokeWidth)
-      if !stale, let progress = state.progress {
-        Circle().trim(from: 0, to: progress)
-          .stroke(DuckRole.accent, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
-          .rotationEffect(.degrees(-90))
-      }
-      if stale || state.progress == nil || state.phase != .sending {
-        Image(systemName: stale ? "clock.badge.exclamationmark" : state.phase.symbol)
-          .font(.caption).foregroundStyle(stale ? .primary : state.phase == .saved ? DuckRole.saved : state.phase == .attention ? DuckRole.attention : .primary)
-          .accessibilityHidden(true)
+    GeometryReader { geometry in
+      ZStack {
+        Circle().stroke(DuckRole.separator, lineWidth: strokeWidth)
+        if !stale, let progress = state.progress {
+          Circle().trim(from: 0, to: progress)
+            .stroke(stateColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+        }
+        // design-exception: A12 sizes the single-weight glyph to half the ring diameter in every presentation.
+        Image(systemName: stale || state.actionFailed ? "exclamationmark.triangle.fill" : state.phase.symbol)
+          .font(.system(size: min(geometry.size.width, geometry.size.height) / 2, weight: .regular))
+          .foregroundStyle(stateColor).accessibilityHidden(true)
       }
     }
     .padding(strokeWidth)

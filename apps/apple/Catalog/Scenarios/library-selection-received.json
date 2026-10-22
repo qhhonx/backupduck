@@ -1,0 +1,29 @@
+{
+  "id": "library.selection-received",
+  "page": "library",
+  "extends": "library.all",
+  "title": "Library selected durable intent: received",
+  "library": {
+    "arriving": 0,
+    "gap_every": 100000,
+    "needs_you": 0,
+    "saving": 100000,
+    "publication_failed": 0,
+    "unknown": 0,
+    "recent": 30
+  },
+  "core": {
+    "register_preparations": {
+      "value": null
+    }
+  },
+  "expect": [
+    "iOS Simulator only, using the existing synthetic photo library. No original download occurs during registration."
+  ],
+  "actions": [
+    {
+      "action": "Select photos, then press Back Up N Photos",
+      "result": "Registers immediately with no review or confirmation; Added to Backup replaces the action, selection ends. Received-but-saving photos are not repeated or called saved."
+    }
+  ]
+}

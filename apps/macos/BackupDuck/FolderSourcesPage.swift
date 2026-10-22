@@ -10,6 +10,7 @@ struct FolderSourcesPage: View {
   init(folders: FolderSources, backup: BackupModel, settings: @escaping (String) -> Void = { _ in }) {
     self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser
   }
+  @StateObject private var backupAction = SelectionBackupAction()
   @State private var adding: URL?
   @State private var stopping: FolderSource?
   @State private var searching = false
@@ -40,6 +41,7 @@ struct FolderSourcesPage: View {
             ContentUnavailableView.search(text: browser.search)
           } else {
             MacFolderGrid(folders: folders, browser: browser, settings: settings, stop: { stopping = $0 })
+              .allowsHitTesting(!backupAction.busy)
           }
         }
       }
@@ -58,14 +60,21 @@ struct FolderSourcesPage: View {
           .disabled(!backup.ready || folders.loadFailed)
         FolderSearchField(text: $browser.search, focus: $searching)
           .frame(idealWidth: 180, maxWidth: 220)
-        if !browser.selected.isEmpty {
-          Button("folders_back_up_selected") {
-            Task { if await folders.backUp(browser.selected) { await browser.reload(folders) } }
-          }.buttonStyle(.borderedProminent).disabled(backup.pairing == nil)
+        if !browser.selected.isEmpty || backupAction.added || backupAction.busy {
+          Button(action: backUpSelected) {
+            Text(backupAction.title.isEmpty
+              ? String(format: NSLocalizedString("selection_backup_count", comment: ""), browser.selected.count)
+              : backupAction.title)
+          }.buttonStyle(.borderedProminent).disabled(backupAction.busy || backupAction.added)
+            .accessibilityIdentifier("folders.backup_selected")
         }
       }
     }
-    .focusedSceneValue(\.folderCommands, FolderCommandActions(add: choose, search: { searching = true }, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: { Task { if await folders.backUp(browser.selected) { await browser.reload(folders) } } }, canBackUp: !browser.selected.isEmpty && backup.pairing != nil))
+    .focusedSceneValue(\.folderCommands, FolderCommandActions(add: choose, search: { searching = true }, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
+    .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
+    .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
+      Button("settings_done") { backupAction.error = nil }
+    } message: { Text(backupAction.error ?? "") }
     .task {
       if !browser.configured {
         browser.configured = true; browser.filter = folders.initialFilter
@@ -84,6 +93,22 @@ struct FolderSourcesPage: View {
       FolderStopAlert(source: $stopping, folders: folders) { source in
         Task { _ = await folders.remove(source.id) }
       }.frame(width: 0, height: 0)
+    }
+  }
+  private func backUpSelected() {
+    let photos = browser.selected, tokens = browser.selection
+    guard !photos.isEmpty, !backupAction.busy else { return }
+    Task {
+      await backupAction.perform({
+        guard await folders.backUp(photos) else { return false }
+        browser.completeSelection(tokens)
+        Task { await browser.reload(folders) }
+        return true
+      }, failure: {
+        let reason = folders.error
+        folders.error = nil
+        return reason
+      })
     }
   }
   private func choose() {

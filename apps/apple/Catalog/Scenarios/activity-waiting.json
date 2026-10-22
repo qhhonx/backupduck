@@ -2,7 +2,7 @@
   "id": "activity.waiting",
   "page": "backup",
   "step": "liveActivity",
-  "title": "Live Activity \u00b7 waiting",
+  "title": "Live Activity · waiting",
   "extends": "base-paired",
   "core": {
     "jobs": {
@@ -34,6 +34,8 @@
   "expect": [
     "The production card reflects waiting from synthetic whole-receiver counts.",
     "No cloud status or estimated remaining time is shown.",
-    "Stale content asks to open the app and hides the old progress."
+    "Stale content asks to open the app and hides the old progress.",
+    "A12: Lock Screen, compact and minimal previews each show one regular-weight glyph at half the ring diameter, including sending.",
+    "Sending/finding/preparing use arrow.up, saving clock, paused pause.fill, needs-you a filled triangle, and done checkmark. Accent marks active/done, attention marks needs-you/stale, secondary marks paused."
   ]
 }

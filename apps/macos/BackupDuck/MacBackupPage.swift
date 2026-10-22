@@ -23,7 +23,7 @@ struct MacBackupPage: View {
           Button("mac_fidelity_connect_receiver", action: receiver).duckPrimaryAction()
         }.frame(maxWidth: .infinity).padding(.vertical, 50).padding(.horizontal, 24)
       } else { pairedContent }
-    }.background(DuckColors.canvas)
+    }.background(DuckRole.background)
       .sheet(isPresented: $sourcePreferences) {
         MacBackupPreferences(model: model)
       }

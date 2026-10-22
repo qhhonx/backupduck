@@ -114,6 +114,10 @@ struct LibraryScenario {
   /// to the scenario's scripted answers.
   func answer(_ command: [String: Any]) -> Any? {
     switch command["op"] as? String {
+    case "source_job":
+      guard command["receiver_id"] as? String == receiver,
+        let id = command["source_id"] as? String else { return NSNull() }
+      return jobs.first { ($0["asset"] as? [String: Any])?["source_id"] as? String == id } ?? NSNull()
     case "received_sources":
       return received
     case "library_source_states":

@@ -470,12 +470,8 @@ extension NetworkProgressTests {
     }.background(DuckColors.canvas))
     model.paused = false
     try await capture("receiver-paired", IOSReceiverPage(model: model))
-    try await capture("selected-backup", FidelityModalFixture {
-      DuckSelectedBackup(count: 3, rebackup: .constant(false)) { false }
-    })
-    try await capture("selected-backup-force", FidelityModalFixture {
-      DuckSelectedBackup(count: 3, rebackup: .constant(true)) { false }
-    })
+    try await capture("selected-backup", SelectedBackupToolbarFixture())
+    try await capture("selected-backup-repeat", SelectedBackupToolbarFixture(repeatConfirmation: true))
     for (name, state, processing, captured) in [
       ("transfer-failed", "failed", "pending", true),
       ("transfer-received", "received", "pending", true),
@@ -489,6 +485,27 @@ extension NetworkProgressTests {
         DuckTransferDetail(job: job, status: NSLocalizedString(state == "failed" ? "state_failed" : processing == "complete" ? "state_published" : processing == "failed" ? "state_publication_failed" : "state_received", comment: ""),
               symbol: processing == "failed" ? "exclamationmark.triangle" : processing == "complete" ? "checkmark" : "clock", tone: processing == "failed" || state == "failed" ? .failure : processing == "complete" ? .saved : .attention, retry: { false })
       })
+    }
+  }
+}
+private struct SelectedBackupToolbarFixture: View {
+  var repeatConfirmation = false
+  @StateObject private var action = SelectionBackupAction()
+  @State private var count = 3
+  var body: some View {
+    NavigationStack {
+      Text("Synthetic selection").navigationTitle("nav_library")
+        .toolbar {
+          ToolbarItem(placement: .primaryAction) {
+            DuckSelectionBackupControl(action: action, count: count, request: {
+              await action.perform({ count = 0; return true }, failure: { nil })
+            }, confirm: {
+              action.confirmingRepeat = false
+              await action.perform({ count = 0; return true }, failure: { nil })
+            })
+          }
+        }
+        .task { if repeatConfirmation { action.confirmingRepeat = true } }
     }
   }
 }

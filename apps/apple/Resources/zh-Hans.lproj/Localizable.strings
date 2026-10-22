@@ -1617,3 +1617,16 @@
 "scope_selection_albums" = "%@ 个相簿";
 "scope_selection_photo" = "%@ 张照片";
 "scope_selection_photos" = "%@ 张照片";
+
+// Selected backup: durable intent and in-place toolbar feedback.
+"selection_backup_count" = "备份 %d 张照片";
+"selection_backup_added" = "已加入备份";
+"selection_backup_repeat_title" = "要再次备份这些照片吗？";
+"selection_backup_repeat_action" = "再次备份";
+"selection_backup_repeat_note" = "部分所选照片已在 Pixel 的相册中。再次备份可能会在相册中创建另一份副本。";
+"selection_backup_failed_title" = "未能加入备份";
+
+/* Photo-library comparison context menu. */
+"library_context_backup" = "备份";
+"library_context_history" = "在备份历史中显示";
+"library_context_share" = "分享";

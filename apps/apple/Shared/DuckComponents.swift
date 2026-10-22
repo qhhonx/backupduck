@@ -589,70 +589,114 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   }
 }
 
-struct DuckSelectedBackup: View {
-  let count: Int
-  @Binding var rebackup: Bool
-  var failureMessage: () -> String? = { nil }
-  var confirm: () async -> Bool
-  @State private var busy = false
-  @State private var error: String?
-  @Environment(\.dismiss) private var dismiss
-  #if os(iOS)
-  @ScaledMetric(relativeTo: .body) private var bodySize = 16
-  @ScaledMetric(relativeTo: .caption) private var captionSize = 13
-  #endif
-  var body: some View {
-    DuckSheetLayout(title: "backup_selected_confirm_title", busy: busy, error: error, desktopMinHeight: 360, desktopIdealHeight: 420, cancel: { dismiss() }) {
-      #if os(iOS)
-      Text(String(format: NSLocalizedString("apple_selected_items", comment: ""), count)).font(.body)
-      Toggle(isOn: $rebackup) {
-        VStack(alignment: .leading, spacing: 5) {
-          Text("backup_selected_rebackup_received").font(.body.weight(.semibold))
-        }
-      }.toggleStyle(.switch).disabled(busy).accessibilityIdentifier("selection.force_resend")
-      #else
-      Text(String(format: NSLocalizedString("apple_selected_items", comment: ""), count)).font(.headline.weight(.semibold))
-      HStack(alignment: .center, spacing: 14) {
-        VStack(alignment: .leading, spacing: 5) {
-          Text("backup_selected_rebackup_received").font(.body.weight(.semibold))
-        }.frame(maxWidth: .infinity, alignment: .leading)
-        Toggle("backup_selected_rebackup_received", isOn: $rebackup).labelsHidden().toggleStyle(.checkbox)
-          .disabled(busy).accessibilityIdentifier("selection.force_resend")
-      }.padding(.vertical, 14)
-      #endif
-      Text(LocalizedStringKey(rebackup ? "backup_selected_rebackup_note" : "backup_selected_confirm_note"))
-        #if os(iOS)
-        .font(.footnote)
-        #else
-        .font(.caption)
-        #endif
-        .foregroundStyle(DuckColors.textSecondary).fixedSize(horizontal: false, vertical: true)
-      if busy {
-        ProgressView("apple_selected_submitting")
-          .frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
-          .accessibilityIdentifier("selection.preparing")
+/// Presentation state for a single press, never a second task queue. Rust owns
+/// accepted work; these identifiers exist only while its consequence is confirmed.
+@MainActor final class SelectionBackupAction: ObservableObject {
+  @Published private(set) var busy = false
+  @Published private(set) var added = false
+  @Published var confirmingRepeat = false
+  @Published var error: String?
+  private var pending: (tokens: Set<String>, ids: [String], repeats: Set<String>, receiver: String)?
+
+  var title: String {
+    added ? NSLocalizedString("selection_backup_added", comment: "")
+      : busy ? NSLocalizedString("apple_selected_submitting", comment: "") : ""
+  }
+  func selectionChanged() { if !busy { added = false } }
+  func cancel() { pending = nil; confirmingRepeat = false }
+
+  func request(library: PhotoLibraryModel, model: BackupModel, sources: [String]? = nil) async {
+    guard !busy, !confirmingRepeat, !(sources?.isEmpty ?? library.selection.isEmpty) else { return }
+    busy = true; added = false; error = nil
+    defer { busy = false }
+    do {
+      guard let receiver = model.pairing?.receiverID else {
+        throw SelectionFailure(NSLocalizedString("apple_selected_receiver_needed", comment: ""))
       }
-    } actions: {
-      #if os(iOS)
-      DuckSheetConfirmButton(title: "backup_selected_confirm_action", action: submit).disabled(count == 0 || busy)
-        .accessibilityIdentifier("selection.confirm")
-      #else
-      Button("backup_selected_confirm_action", action: submit)
-        .duckPrimaryAction().disabled(count == 0 || busy)
-        .accessibilityIdentifier("selection.confirm")
-      #endif
+      let tokens = sources == nil ? library.selection : []
+      let ids: [String]
+      if let sources { ids = sources }
+      else { ids = await library.selectedAssetIdentifiers(tokens) }
+      guard !ids.isEmpty else { throw SelectionFailure(NSLocalizedString("error_source_unavailable", comment: "")) }
+      let repeats = try await model.selectedBackupRepeatSources(ids, receiver: receiver)
+      guard model.pairing?.receiverID == receiver else {
+        throw SelectionFailure(NSLocalizedString("apple_selected_receiver_needed", comment: ""))
+      }
+      pending = (tokens, ids, repeats, receiver)
+      if !repeats.isEmpty { confirmingRepeat = true }
+      else { await register(library: library, model: model) }
+    } catch { self.error = error.localizedDescription }
+  }
+  func confirm(library: PhotoLibraryModel, model: BackupModel) async {
+    guard !busy, pending != nil else { return }
+    confirmingRepeat = false; busy = true
+    defer { busy = false }
+    await register(library: library, model: model)
+  }
+  private func register(library: PhotoLibraryModel, model: BackupModel) async {
+    guard let pending else { return }
+    defer { self.pending = nil }
+    guard model.pairing?.receiverID == pending.receiver else {
+      error = NSLocalizedString("apple_selected_receiver_needed", comment: ""); return
+    }
+    if await model.backupSelectedAssets(pending.ids, rebackupReceived: !pending.repeats.isEmpty,
+      repeatSources: pending.repeats) {
+      library.selection.subtract(pending.tokens)
+      added = true
+    } else {
+      error = model.message ?? NSLocalizedString("apple_selected_backup_failed", comment: "")
     }
   }
-  private func submit() {
+  /// Folders use the same in-place feedback with their existing durable endpoint.
+  func perform(_ submit: () async -> Bool, failure: () -> String?) async {
     guard !busy else { return }
-    busy = true
-    error = nil
-    Task { @MainActor in
-      let accepted = await confirm()
-      busy = false
-      if accepted { dismiss() }
-      else { error = failureMessage() ?? NSLocalizedString("apple_selected_backup_failed", comment: "") }
+    busy = true; added = false; error = nil
+    defer { busy = false }
+    if await submit() { added = true }
+    else { error = failure() ?? NSLocalizedString("apple_selected_backup_failed", comment: "") }
+  }
+  private struct SelectionFailure: LocalizedError {
+    var errorDescription: String?
+    init(_ reason: String) { errorDescription = reason }
+  }
+}
+
+/// A5/I5: only a repeat send asks; registration replaces this toolbar action.
+struct DuckSelectionBackupButton: View {
+  @ObservedObject var action: SelectionBackupAction
+  @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject var model: BackupModel
+  var body: some View {
+    DuckSelectionBackupControl(action: action, count: library.selection.count,
+      request: { await action.request(library: library, model: model) },
+      confirm: { await action.confirm(library: library, model: model) })
+      .onChange(of: library.selection) { _, ids in if !ids.isEmpty { action.selectionChanged() } }
+  }
+}
+
+/// The native toolbar control is also exercised with synthetic Catalog inputs.
+struct DuckSelectionBackupControl: View {
+  @ObservedObject var action: SelectionBackupAction
+  let count: Int
+  var request: () async -> Void
+  var confirm: () async -> Void
+  var body: some View {
+    Button {
+      Task { await request() }
+    } label: {
+      Text(action.title.isEmpty
+        ? String(format: NSLocalizedString("selection_backup_count", comment: ""), count)
+        : action.title)
     }
+    .disabled(action.busy || action.added || count == 0)
+    .accessibilityIdentifier("library.backup_selected")
+    .confirmationDialog("selection_backup_repeat_title", isPresented: $action.confirmingRepeat, titleVisibility: .visible) {
+      Button("selection_backup_repeat_action") { Task { await confirm() } }
+      Button("cancel", role: .cancel) { action.cancel() }
+    } message: { Text("selection_backup_repeat_note") }
+    .alert("selection_backup_failed_title", isPresented: Binding(get: { action.error != nil }, set: { if !$0 { action.error = nil } })) {
+      Button("settings_done") { action.error = nil }
+    } message: { Text(action.error ?? "") }
   }
 }
 

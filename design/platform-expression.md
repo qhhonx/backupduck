@@ -65,6 +65,12 @@ bottom capsule.
 
 ## A6 Choosing from many (albums, subfolders)
 
+A6 is for large or unbounded sets. A small fixed set (up to about seven
+options, such as media types) is an inline checklist in a grouped list: no
+search field and no selection summary. Rows that stand for photo collections
+(albums, folders) lead with a cover thumbnail from that collection; symbols
+in a checklist share one column width so titles align.
+
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
 | Push a system list with search, a selection summary and checkmarks. Changes apply at once; no Save | A list with a search field in the settings detail; from a task, a sheet with Done | A full-screen pushed page with a search bar and checkbox rows |
@@ -84,6 +90,10 @@ and is pushed like any other settings page.
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
 | An information panel that slides up inside the viewer, as in the system photo library. A photo opened from backup history opens the same viewer; there is no separate photo-detail sheet | A trailing inspector in the viewer window (SwiftUI `inspector`), toggled with the toolbar info button and ⌘I, named "Show Info" in the View menu; the window remembers whether it is shown | A bottom panel inside the viewer |
+
+An in-viewer information panel is docked to the bottom edge: only its top
+corners are rounded and it extends under the home indicator or navigation
+bar, like a system sheet.
 
 One photo has one viewer and one information layout on each platform: date and
 time, the backup facts with their times (`interaction.md` I2 Detail), at most
@@ -114,9 +124,22 @@ stopping a device) shows a Material snackbar with Undo.
 | --- | --- | --- |
 | A toolbar menu (ellipsis); long press on a photo opens the system context menu | The toolbar's more menu, the context menu and the menu bar carry the same commands | Overflow menu in the top app bar; long press starts selection |
 
+## A12 Live Activity
+
+The Lock Screen and Dynamic Island show a progress ring with one SF Symbol
+inside at about half the ring's diameter, one weight for every state: arrow
+up while sending, clock while saving, pause, filled triangle when the person
+is needed, check when done. Active states use the accent, needs-you uses the
+attention role, paused uses the secondary label color. Text beside the ring
+states the count and the device.
+
 ## Decisions
 
 - **October 21, 2026:** the owner approved A0–A11. On A8 the owner asked
   whether the Mac's trailing inspector is right; it is the platform's place for
   details of the current item, so it stays. A9 allows the Pixel snackbar for
   undoable actions only.
+- **October 22, 2026 (owner review of the night's work):** small fixed sets
+  have no search (A6); collection rows show covers; in-viewer panels dock to
+  the bottom edge (A8); Live Activity glyph rules (A12); every page uses the
+  system background role, with no cream canvas left (V1).

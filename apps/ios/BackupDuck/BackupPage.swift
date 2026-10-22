@@ -65,7 +65,7 @@ struct IOSBackupPage: View {
 
         }.iosPrototypePageBody()
       }
-      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      }.background(DuckRole.background).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
       .navigationDestination(isPresented: $transfers) {
         IOSPrototypeDestination(title: "transfer_tasks") {
           TransferList(model: model, showsHeading: false).frame(maxWidth: 600).padding(.horizontal, 16).padding(.top, 4).frame(maxWidth: .infinity)

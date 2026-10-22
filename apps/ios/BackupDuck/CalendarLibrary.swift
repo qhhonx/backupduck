@@ -10,10 +10,11 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
   @ObservedObject var model: BackupModel
   @ObservedObject var policy = PreviewNetworkPolicy.shared
   let onPreview: (PHAsset, CGRect) -> Void
-  let onBackup: () -> Void
+  @ObservedObject var backupAction: SelectionBackupAction
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeUIViewController(context: Context) -> UINavigationController {
     let grid = CalendarGridController()
+    if library.catalogAnchorFraction != nil { grid.columns = 3 }
     context.coordinator.controller = grid
     let c = context.coordinator
     library.previewPoster = { [weak c] id in
@@ -76,7 +77,10 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     grid.placeholderImage = { asset in
       ThumbnailTables.placeholder(asset.id, revision: asset.revision).map { UIImage(cgImage: $0) }
     }
-    grid.onSelection = { [weak c] selection in c?.parent.library.selection = selection }
+    grid.onSelection = { [weak c] selection in
+      c?.parent.library.selection = selection
+      if !selection.isEmpty { c?.parent.backupAction.selectionChanged() }
+    }
     grid.onPreview = { [weak c] item, frame in
       guard let c, let asset = c.asset(item.id) else { return }
       let index = c.controller?.assets.firstIndex(where: { $0.id == item.id })
@@ -95,12 +99,36 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         c.parent.onPreview(prepared, frame)
       }
     }
+    grid.photoMenu = { [weak c] item in
+      guard let c, let asset = c.asset(item.id), let grid = c.controller else { return nil }
+      return LibraryPhotoActions.menu(asset: asset, library: c.parent.library,
+        model: c.parent.model, presenter: grid)
+    }
+    library.previewSourceView = { [weak c] id in
+      guard let c, let grid = c.controller else { return nil }
+      guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: photoLibraryFetchOptions()).firstObject else { return nil }
+      let key = asset.burstIdentifier.map { "burst:" + $0 } ?? id
+      guard let index = grid.assets.firstIndex(where: { $0.id == key }) else { return nil }
+      if grid.level != .all { grid.changeLevel(.all, asset: index, from: nil) }
+      guard let tile = grid.layout.geometry.tiles.firstIndex(where: { $0.members.contains(index) }) else { return nil }
+      let path = IndexPath(item: tile, section: 0)
+      let visible = grid.grid.bounds.inset(by: grid.grid.adjustedContentInset)
+      if grid.grid.cellForItem(at: path) == nil || !visible.intersects(grid.layout.frame(tile)) {
+        grid.locateAsset(index)
+      }
+      grid.grid.layoutIfNeeded()
+      guard let cell = grid.grid.cellForItem(at: path) as? CalendarGridCell, cell.assetID == key else { return nil }
+      return cell.image
+    }
     grid.onReviewBrowse = { [weak c] review in
       guard let c else { return }
       let photos = review.assets.compactMap { c.asset($0.id) }
       presentSelectedMediaReview(from: review,assets: photos,library: c.parent.library)
     }
-    grid.onBackup = { [weak c] in c?.parent.onBackup() }
+    grid.onBackup = { [weak c] in
+      guard let c else { return }
+      Task { await c.parent.backupAction.request(library: c.parent.library, model: c.parent.model) }
+    }
     grid.onVisibleChange = { [weak c] in c?.refreshStates() }
     grid.menu = { [weak c] in
       guard let c else { return [] }
@@ -137,7 +165,24 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     library.backupReceiver = model.pairing?.receiverID
     guard let grid = c.controller else { return }
     grid.loadViewIfNeeded()
-    grid.canBackup = model.pairing != nil && !model.importing
+    grid.canBackup = !backupAction.busy
+    grid.grid.isUserInteractionEnabled = !backupAction.busy
+    if backupAction.added && library.selection.isEmpty { grid.selecting = false }
+    grid.setBackupFeedback(title: backupAction.title, added: backupAction.added)
+    if backupAction.confirmingRepeat, grid.presentedViewController == nil {
+      let dialog = UIAlertController(title: NSLocalizedString("selection_backup_repeat_title", comment: ""),
+        message: NSLocalizedString("selection_backup_repeat_note", comment: ""), preferredStyle: .actionSheet)
+      dialog.addAction(UIAlertAction(title: NSLocalizedString("selection_backup_repeat_action", comment: ""), style: .default) { _ in
+        Task { await backupAction.confirm(library: library, model: model) }
+      })
+      dialog.addAction(UIAlertAction(title: NSLocalizedString("cancel", comment: ""), style: .cancel) { _ in backupAction.cancel() })
+      dialog.popoverPresentationController?.barButtonItem = grid.backupItem
+      grid.present(dialog, animated: true)
+    } else if let error = backupAction.error, grid.presentedViewController == nil {
+      let alert = UIAlertController(title: NSLocalizedString("selection_backup_failed_title", comment: ""), message: error, preferredStyle: .alert)
+      alert.addAction(UIAlertAction(title: NSLocalizedString("settings_done", comment: ""), style: .default) { _ in backupAction.error = nil })
+      grid.present(alert, animated: true)
+    }
     grid.displayedTotal = library.total
     grid.viewTitle = library.backupView == .all ? nil : NSLocalizedString(library.backupView.title, comment: "")
     grid.indexing = library.fetch == nil || library.loading || c.work != nil
@@ -166,6 +211,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     coordinator.work?.cancel()
     coordinator.prefill?.cancel()
     coordinator.refresh.cancel()
+    coordinator.parent.library.previewSourceView = nil
     coordinator.parent.library.previewFrame = nil
     coordinator.parent.library.previewPoster = nil
     coordinator.controller?.restoreNavigation()
@@ -183,6 +229,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     let refresh = LibraryRefreshScheduler()
     var queueRevision: Int64 = -1, receiver: String?
     var networkAllowed = false, filter: LibraryFilter?
+    var appliedCatalogAnchor = false
     var previewOrigin: String?
     var previewPoster: UIImage?
     var lastPreheat: CFTimeInterval = 0
@@ -251,6 +298,12 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         self.controller?.indexing = false
         LaunchTrace.mark("all items published (\(result.0.count))")
         self.controller?.replaceAssets(result.0)
+        if !self.appliedCatalogAnchor, let fraction = self.parent.library.catalogAnchorFraction, !result.0.isEmpty {
+          self.appliedCatalogAnchor = true
+          let index = min(result.0.count - 1, max(0, Int(Double(result.0.count - 1) * fraction)))
+          self.controller?.catalogAnchorID = result.0[index].id
+          self.controller?.applyCatalogAnchor()
+        }
         self.startPrefill(result.0)
         self.parent.library.previewFrame = { [weak self] id in
           guard let self, let grid = self.controller else { return nil }

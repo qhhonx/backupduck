@@ -45,3 +45,51 @@ final class BackupHubStatusTests: XCTestCase {
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary = SenderSummary() }), .empty)
   }
 }
+
+
+@MainActor final class SelectedBackupTests: XCTestCase {
+  func testRepeatConsentUsesPublicationAndMatchingRevision() {
+    let ids = ["new", "received", "saving", "failed", "saved", "changed", "missing", "unknown"]
+    let sources = ids.map { PhotoBackupOrder.Source(id: $0, revision: $0 == "missing" ? nil : "v2", capturedAt: nil) }
+    let observations: [String: LibrarySourceObservation] = [
+      "received": .init(revision: "v2", preparing: false, tile_state: "unknown"),
+      "saving": .init(revision: "v2", preparing: false, tile_state: "saving"),
+      "failed": .init(revision: "v2", preparing: false, tile_state: "needs_you"),
+      "saved": .init(revision: "v2", preparing: false, tile_state: "saved"),
+      "changed": .init(revision: "v1", preparing: false, tile_state: "saved"),
+      "missing": .init(revision: nil, preparing: false, tile_state: "saved"),
+    ]
+    XCTAssertEqual(BackupModel.selectedBackupRepeatSources(sources, observations: observations), ["saved"])
+  }
+  func testMissingReceiverPreservesSelectionWithoutRegistering() async {
+    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    let library = PhotoLibraryModel()
+    library.selection = ["selected"]
+    let action = SelectionBackupAction()
+    await action.request(library: library, model: model)
+    XCTAssertEqual(library.selection, ["selected"])
+    XCTAssertNotNil(action.error)
+    XCTAssertFalse(action.added)
+    XCTAssertFalse(action.busy)
+    XCTAssertFalse(action.confirmingRepeat)
+  }
+  func testRegistrationFeedbackFailureAndRetry() async {
+    let action = SelectionBackupAction()
+    var selection: Set<String> = ["selected"]
+    await action.perform({ false }, failure: { "Pixel is unavailable" })
+    XCTAssertEqual(selection, ["selected"])
+    XCTAssertEqual(action.error, "Pixel is unavailable")
+    XCTAssertFalse(action.added)
+    await action.perform({
+      XCTAssertTrue(action.busy)
+      selection.removeAll()
+      return true
+    }, failure: { nil })
+    XCTAssertTrue(selection.isEmpty)
+    XCTAssertTrue(action.added)
+    XCTAssertNil(action.error)
+    XCTAssertFalse(action.busy)
+    action.selectionChanged()
+    XCTAssertFalse(action.added)
+  }
+}

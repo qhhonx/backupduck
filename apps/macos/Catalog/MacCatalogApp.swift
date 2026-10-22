@@ -171,7 +171,9 @@ private struct MacScenarioRun: View {
 
   var body: some View {
     Group {
-      if scenario.step == "updates" {
+      if scenario.step == "selectedBackup" {
+        SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
+      } else if scenario.step == "updates" {
         MacAboutSettings(updateSection: MacUpdateSection(canCheck: !checkingUpdates && !scenario.id.hasSuffix("unavailable"),
           automaticChecks: $automaticChecks, check: { checkingUpdates = true }))
           .labeledContentStyle(DuckPreferenceRowStyle())

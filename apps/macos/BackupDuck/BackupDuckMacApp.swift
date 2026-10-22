@@ -33,8 +33,7 @@ struct MacWorkspace: View {
   @State private var density = MacLibraryDensity.remembered
   @State private var pairSheet = false
   @State private var selectedPhotoDetails: PHAsset?
-  @State private var confirmSelectedBackup = false
-  @State private var rebackupReceivedSelection = false
+  @StateObject private var backupAction = SelectionBackupAction()
   @State private var transferFilter = "all"
   @State private var settingsTitle = "nav_settings"
   @State private var librarySelecting = false
@@ -75,7 +74,7 @@ struct MacWorkspace: View {
         .toolbar { workspaceToolbar }
     }
     .tint(DuckColors.action)
-    .background(DuckColors.canvas)
+    .background(DuckRole.background)
     .background(MacSheetInitialFocus())
     .navigationSplitViewStyle(.balanced)
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowTransfers"))) { _ in showTransfers("all") }
@@ -108,7 +107,6 @@ struct MacWorkspace: View {
     }
     // Backup views of the library ask the core about the paired receiver.
     .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
-    .sheet(isPresented: $confirmSelectedBackup) { selectedBackupConfirmation }
     .sheet(isPresented: Binding(get: { selectedPhotoDetails != nil }, set: { if !$0 { selectedPhotoDetails = nil } })) {
       if let selectedPhotoDetails { DuckPhotoDetail(asset: selectedPhotoDetails) }
     }
@@ -255,17 +253,9 @@ struct MacWorkspace: View {
         })
     }
     ToolbarItemGroup(placement: .primaryAction) {
-      if !library.selection.isEmpty {
-        // Always reachable while photos are selected: without a receiver it
-        // opens pairing first and the selection stays as it is.
-        Button {
-          if model.pairing == nil { pairSheet = true; return }
-          rebackupReceivedSelection = false; confirmSelectedBackup = true
-        } label: {
-          Label("apple_library_backup_selected", systemImage: "arrow.up.doc")
-        }.disabled(model.importing)
-          .help(Text(LocalizedStringKey(model.pairing == nil ? "pair_receiver_desktop" : "apple_library_backup_selected")))
-          .accessibilityIdentifier("library.backup_selected")
+      if !library.selection.isEmpty || backupAction.added || backupAction.busy {
+        DuckSelectionBackupButton(action: backupAction, library: library, model: model)
+          .buttonStyle(.borderedProminent)
       }
       // Kept in place and disabled outside All Photos: inserting and
       // removing toolbar items relaid the toolbar during each level change.
@@ -498,24 +488,6 @@ struct MacWorkspace: View {
       previewAsset = nil; reviewAssets = nil
     }
   }
-  private var selectedBackupConfirmation: some View {
-    DuckSelectedBackup(count: library.selection.count, rebackup: $rebackupReceivedSelection,
-      failureMessage: { model.message }) {
-      await backupSelection(rebackupReceived: rebackupReceivedSelection)
-    }
-  }
-
-  private func backupSelection(rebackupReceived: Bool) async -> Bool {
-    let tokens = library.selection
-    let ids = await library.selectedAssetIdentifiers(tokens)
-    guard !ids.isEmpty else { return false }
-    let accepted = await model.backupSelectedAssets(ids, rebackupReceived: rebackupReceived)
-    // Clear selection only after shared durable submission succeeds. Original
-    // preparation and its recoverable failures belong to persistent task views.
-    if accepted { library.selection.subtract(tokens) }
-    return accepted
-  }
-
   private var footer: some View {
     MacBackupFooter(model: model, activeJob: activeTransfers.jobs.first,
       pair: { pairSheet = true }, showTransfers: { showTransfers("all") })

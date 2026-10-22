@@ -1,0 +1,12 @@
+{
+  "id": "library.system-background",
+  "page": "library",
+  "title": "Photo Library \u00b7 system background \u00b7 no access",
+  "extends": "base-paired",
+  "expect": [
+    "V1: the production Mac Photo Library no-access container uses the system window background, with no cream around content or at window edges.",
+    "Run light and dark appearances, and switch to Backup and Settings to compare native grouped page backgrounds.",
+    "No PhotoKit assets are read: the Mac catalog leaves its library model unopened."
+  ],
+  "mac_only": true
+}

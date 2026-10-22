@@ -1,0 +1,16 @@
+{
+  "id": "selection.direct",
+  "page": "library",
+  "step": "selectedBackup",
+  "extends": "base-paired",
+  "title": "Selected backup toolbar: direct",
+  "expect": [
+    "Synthetic toolbar specimen on iPhone and Mac. No PhotoKit access or transfer."
+  ],
+  "actions": [
+    {
+      "action": "Press Back Up 3 Photos",
+      "result": "No review sheet or confirmation. The action becomes Added to Backup, the selection ends and progress belongs to Backup / Overview."
+    }
+  ]
+}

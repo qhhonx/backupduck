@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import os
+import SwiftUI
 
 /// A reviewable state of one production page, shared by the iPhone and Mac
 /// catalogs. Scenarios are JSON files in `apps/apple/Catalog/Scenarios`; see
@@ -265,7 +266,8 @@ final class ScenarioCredentials: CredentialStore, @unchecked Sendable {
     let names = ["Trips", "Family", "Favorites"]
     var rows = (0..<500).map { index in
       ScopeAlbum(id: "album.\(index)", name: index < names.count ? names[index] : "Album \(index.formatted())",
-        count: index < 3 ? [2000, 1210, 1000][index] : index * 3, system: false, cover: nil)
+        count: index < 3 ? [2000, 1210, 1000][index] : index * 3, system: false,
+        cover: index % 7 == 3 ? nil : AlbumCoverSampleAsset("scope.cover.\(index)"))
     }
     if id.hasSuffix("empty") { rows = []; rule.albums = [] }
     if id.hasSuffix("unavailable") {
@@ -274,5 +276,40 @@ final class ScenarioCredentials: CredentialStore, @unchecked Sendable {
     }
     store.save(rule)
     albums = ScopeAlbumsModel(albums: rows, denied: id.hasSuffix("denied"))
+  }
+}
+
+/// Synthetic toolbar specimen; no photo library, original export or transfer.
+/// The action/confirmation/feedback controls are the production components.
+struct SelectionBackupCatalog: View {
+  let mode: String
+  @StateObject private var action = SelectionBackupAction()
+  @State private var count = 3
+  var body: some View {
+    NavigationStack {
+      List {
+        Text("Synthetic selection: \(count) photos")
+        Text("Transfer progress belongs to Backup / Overview.").foregroundStyle(.secondary)
+        Button("Select Again") { count = 3; action.selectionChanged() }
+      }
+      .navigationTitle("nav_library")
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          DuckSelectionBackupControl(action: action, count: count, request: {
+            if mode == "repeat" { action.confirmingRepeat = true }
+            else { await submit() }
+          }, confirm: {
+            action.confirmingRepeat = false
+            await submit()
+          }).buttonStyle(.borderedProminent)
+        }
+      }
+    }
+  }
+  private func submit() async {
+    await action.perform({
+      if mode == "failure" { return false }
+      count = 0; return true
+    }, failure: { NSLocalizedString("apple_selected_receiver_needed", comment: "") })
   }
 }

@@ -689,7 +689,11 @@ struct FolderSummary: Decodable, Equatable {
         }
         if let i = sources.firstIndex(where: { $0.id == id }), sources[i].receiver == nil { sources[i].receiver = receiver; save() }
       }
-      error = nil; revision += 1; await refreshFacts(); await backup.refresh(); await BackgroundTransfer.shared.kick(); return true
+      // Durable membership is already saved. Refresh and transfer execution must
+      // not hold the selection action open or delay its registration feedback.
+      error = nil; revision += 1
+      Task { await refreshFacts(); await backup.refresh(); await BackgroundTransfer.shared.kick() }
+      return true
     } catch { self.error = error.localizedDescription; return false }
   }
   func followAutoBackup(_ enabled: Bool) {

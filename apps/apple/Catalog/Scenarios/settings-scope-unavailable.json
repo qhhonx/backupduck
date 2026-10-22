@@ -6,7 +6,9 @@
   "extends": "base-paired",
   "expect": [
     "The unavailable selected album remains a selected removable row.",
-    "Photo count is unavailable rather than guessed; the scope never widens."
+    "Photo count is unavailable rather than guessed; the scope never widens.",
+    "Album rows lead with 44-point rounded cover thumbnails on iPhone and Mac; a missing cover is a neutral tile.",
+    "Scroll the virtualized list and toggle a row: cover identity stays stable, off-screen requests cancel, and search, summary and checkmarks remain."
   ],
   "actions": [
     {

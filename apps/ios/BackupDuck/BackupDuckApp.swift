@@ -89,7 +89,7 @@ import SwiftUI
           activityReceiver = receiver
           consumeActivityLink()
         }
-        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckColors.canvas.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task {
+        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckRole.background.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task {
           await model.open()
           BackupNotifier.shared.start(model)
           BackupLiveActivity.shared.start(model)

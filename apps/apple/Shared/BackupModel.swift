@@ -566,10 +566,26 @@ private struct ProcessingEventsResult: Decodable {
     let revision: String?
     let `repeat`: Bool
   }
+  /// Only a matching, observed Photos publication warrants repeat-send consent.
+  /// Receipt and pending publication must not be promoted to a saved photo.
+  func selectedBackupRepeatSources(_ identifiers: [String], receiver: String) async throws -> Set<String> {
+    let sources = await PhotoBackupOrder.sources(identifiers)
+    let data = try await Bridge.call(["op": "library_source_states", "receiver_id": receiver])
+    let observations = try JSONDecoder().decode([String: LibrarySourceObservation].self, from: data)
+    return Self.selectedBackupRepeatSources(sources, observations: observations)
+  }
+  static func selectedBackupRepeatSources(_ sources: [PhotoBackupOrder.Source],
+    observations: [String: LibrarySourceObservation]) -> Set<String> {
+    Set(sources.filter { source in
+      source.revision != nil && observations[source.id]?.revision == source.revision
+        && observations[source.id]?.tile_state == "saved"
+    }.map(\.id))
+  }
   /// Acknowledge durable submission, not completion of potentially long iCloud
   /// downloads. The existing worker consumes shared Rust membership on restart.
   @discardableResult func backupSelectedAssets(_ identifiers: [String],
-    requestAuthorization: Bool = true, rebackupReceived: Bool = false) async -> Bool
+    requestAuthorization: Bool = true, rebackupReceived: Bool = false,
+    repeatSources: Set<String>? = nil) async -> Bool
   {
     guard !identifiers.isEmpty, let target = pairing else {
       message = NSLocalizedString("apple_selected_receiver_needed", comment: "")
@@ -594,7 +610,7 @@ private struct ProcessingEventsResult: Decodable {
           ["receiver_id": target.receiverID, "request_id": UUID().uuidString,
            "source": source.id, "revision": source.revision as Any? ?? NSNull(),
            "captured_at_ms": source.capturedAt as Any? ?? NSNull(),
-           "repeat": rebackupReceived && states[source.id] == "received",
+           "repeat": rebackupReceived && states[source.id] == "received" && (repeatSources?.contains(source.id) ?? true),
            "error": source.revision == nil ? "source_unavailable" as Any : NSNull()]
         }
         _ = try await Bridge.call(["op": "register_preparations", "registrations": registrations])

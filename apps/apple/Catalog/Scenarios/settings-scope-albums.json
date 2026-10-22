@@ -6,7 +6,9 @@
   "extends": "base-paired",
   "expect": [
     "Native searchable virtualized list contains 500 albums; 3 albums · about 4,210 photos is independent of search.",
-    "Mac opens the list in Settings detail, without a sheet or Save."
+    "Mac opens the list in Settings detail, without a sheet or Save.",
+    "Album rows lead with 44-point rounded cover thumbnails on iPhone and Mac; a missing cover is a neutral tile.",
+    "Scroll the virtualized list and toggle a row: cover identity stays stable, off-screen requests cancel, and search, summary and checkmarks remain."
   ],
   "actions": [
     {

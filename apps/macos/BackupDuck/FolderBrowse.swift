@@ -56,6 +56,12 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   private var generation = 0
   var key: String { "\(byFolder)|\(filter.rawValue)|\(search)" }
   var selected: [FolderPhoto] { sections.flatMap(\.photos).filter { selection.contains($0.id) && $0.canBackUp } }
+  /// Submitted photos leave selection in every saved browse context. Photos
+  /// selected after the press remain selected if the person changes the view.
+  func completeSelection(_ submitted: Set<String>) {
+    selection.subtract(submitted)
+    for key in Array(selections.keys) { selections[key]?.subtract(submitted) }
+  }
   func reload(_ folders: FolderSources) async {
     generation += 1
     let current = generation

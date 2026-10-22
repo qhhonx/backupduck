@@ -248,3 +248,77 @@ switch applies immediately; Check disables through a synthetic driver without
 starting Sparkle, a network request or an installation. The real updater retains
 its existing native windows and action executor. Repeat with light/dark, narrow
 windows and Chinese; iPhone also supports the catalog's large-text controls.
+
+### Owner review: fixed choices, covers and surfaces
+
+`settings.scope.types` shows A6's small inline checklist without search or a
+selection summary. `settings.scope.albums`, `.search` and `.unavailable` show
+500 virtualized choices with synthetic cover assets and neutral missing-cover
+tiles, using the production thumbnail pipeline. Toggle and scroll to review
+identity retention and cancellation; use large text and long localizations.
+
+Every `activity.*` preview includes the production Lock Screen, compact and
+minimal contents, with A12's proportional, single-weight symbols and state colors.
+`library.system-background` opens the real Mac no-access library container
+without reading PhotoKit; `library.all` covers the iPhone populated grid
+and calendar transitions in a synthetic simulator library. Use `-proposed`.
+
+`photo.info-light` and `photo.info-dark` open the production iPhone drawer with
+an explicit panel appearance for edge review. Check the full bottom edge and
+home indicator, scroll to the final field, then close and reopen. The black media
+viewer retains its production appearance. On Mac use `-appearance light` or
+`-appearance dark` to review the existing trailing inspector.
+
+
+### Selected backup (D4)
+
+`selection.direct`, `.repeat` and `.failure` exercise the production native
+toolbar control with synthetic selection/submission inputs on iPhone and Mac.
+They do not access PhotoKit or register real work. Check the anchored repeat
+confirmation, Cancel, in-place Added to Backup, and retained selection on failure.
+
+`library.selection-direct`, `-repeat`, `-received` and `-failure` exercise the
+real PhotoKit selection/registration route against scripted core answers on the
+iOS Simulator's existing synthetic library. Receipt-only items in `-received`
+are not repeated or described as saved. The repeat scenario confirms only photos
+with a matching saved observation. No scenario exports originals during submission.
+`folders.all-not-backed-up` also covers direct submission and selection ending.
+Registration is distinct from preparation, transfer and Photos publication;
+progress belongs to Backup / Overview. Native rendering and device acceptance
+remain separate from these fixtures and build checks.
+
+## iPhone library chrome A/B (D1)
+
+These are comparison variants of the existing library, not a default migration.
+Debug apps and the iOS catalog accept `-libraryChrome current|native`; omission
+selects current unless an A/B catalog scenario supplies its variant. Production
+Release compiles both paths and always selects current, even with the argument.
+Explicit launch arguments take precedence over a catalog scenario's variant.
+
+On the Demo simulator's existing photo library, launch the Release catalog with:
+
+- `-scenario library.ab-current -libraryChrome current -proposed`
+- `-scenario library.ab-native -libraryChrome native -proposed`
+
+Both wait for the complete chronological index, use three columns and center the
+same middle asset once; subsequent scrolling, selection and refresh use normal
+production behavior. They do not seed, change or replace the photo library.
+Do not install or reset the simulator as part of source/build verification.
+
+Native uses a navigation-owned Close/title (subtitle on iOS 26+), system zoom
+on iOS 18+ and system photo context menus while browsing. Below iOS 18 the
+existing media flight remains. Select mode retains range selection. System zoom
+resolves the current asset after paging, scrolls a recycled/offscreen source
+into view and returns nil for a deleted/unavailable tile. Image zoom, paging
+and information travel exclude system interactive dismissal. The context menu
+uses the same durable selected-backup action without changing grid selection,
+opens that photo's recorded backup facts, and shares its original through the
+system share sheet. Loading/error/repeat confirmation remain actionable.
+
+Record start, held drag, reversal and settled states in both variants, including
+a mid-library page change and return, image zoom/input ownership, information
+open/close, Select-mode range selection, light/dark, large text and Reduce Motion.
+Build checks do not establish gesture, motion or device acceptance. UIKit's
+[zoom transition](https://developer.apple.com/documentation/uikit/uiviewcontroller/transition/zoom(options:sourceviewprovider:))
+owns native presentation and dismissal; the existing grid and media pager remain
+virtualized and keep their stable asset identity and cancellation/cache owners.

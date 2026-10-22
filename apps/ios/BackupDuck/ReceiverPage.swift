@@ -48,7 +48,7 @@ struct IOSReceiverPage: View {
 
           }.iosPrototypePageBody()
         }
-      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      }.background(DuckRole.background).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
         .sheet(isPresented: $scanner) { IOSPairingFlow(model: model) }
     }
   }

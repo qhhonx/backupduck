@@ -71,7 +71,7 @@ struct MacPreferences: View {
           }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
         }
       }
-    }.background(DuckColors.canvas).tint(DuckColors.action)
+    }.background(DuckRole.background).tint(DuckColors.action)
       .task { await feedback.check() }
       .onAppear {
         if UserDefaults.standard.string(forKey: "macRequestedSettingsRoute") == "about" { showAbout() }

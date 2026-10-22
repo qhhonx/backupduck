@@ -690,7 +690,7 @@ final class CalendarDenseCanvas: UIView {
   private var generation = 0
   /// Bitmap drawing runs off the main thread; layers only adopt finished images.
   let renderQueue = DispatchQueue(label: "app.backupduck.dense-canvas", qos: .userInitiated)
-  private let canvasColor = UIColor(DuckColors.canvas)
+  private var canvasColor: UIColor { UIColor.systemBackground.resolvedColor(with: traitCollection) }
   private let actions: [String: CAAction] = [
     "contents": NSNull(), "position": NSNull(), "bounds": NSNull(), "frame": NSNull(), "hidden": NSNull(),
   ]
@@ -1396,7 +1396,7 @@ final class CalendarZoomStage: UIView {
           tileLayer.presentedImage = nil
           tileLayer.photo.contents = nil
           tileLayer.cloud = false
-          tileLayer.backgroundColor = (face.columns <= 5 ? UIColor(DuckColors.subtle) : UIColor(DuckColors.canvas)).cgColor
+          tileLayer.backgroundColor = (face.columns <= 5 ? UIColor(DuckColors.subtle) : UIColor.systemBackground).cgColor
           if face.columns <= 5 {
             let badges = tileLayer.decorations ?? CalendarTileDecorations()
             tileLayer.decorations = badges
@@ -1601,7 +1601,7 @@ final class CalendarNavigationController: UINavigationController {
 }
 
 final class CalendarGridController: UIViewController, UICollectionViewDataSource,
-  UICollectionViewDelegate, UIGestureRecognizerDelegate
+  UICollectionViewDelegate, UIGestureRecognizerDelegate, UIContextMenuInteractionDelegate
 {
   typealias ImageRequest = (CalendarGridAsset, CGFloat, @escaping (UIImage?, Bool) -> Void) -> (
     () -> Void
@@ -1614,6 +1614,15 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var requestUncroppedImage: ImageRequest?
   var prefetchImage: ImageRequest?
   var onPreview: (CalendarGridAsset, CGRect) -> Void = { _, _ in }
+  var photoMenu: ((CalendarGridAsset) -> UIMenu?)?
+  var catalogAnchorID: String?
+  func applyCatalogAnchor() {
+    guard let id = catalogAnchorID, grid.bounds.width > 0, grid.bounds.height > 0,
+      let index = assets.firstIndex(where: { $0.id == id }),
+      layout.geometry.tiles.contains(where: { $0.members.contains(index) }) else { return }
+    catalogAnchorID = nil
+    locateAsset(index)
+  }
   var onSelection: (Set<String>) -> Void = { _ in }
   var onBackup: () -> Void = {}
   var menu: (() -> [UIMenuElement])?
@@ -1644,6 +1653,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var lastCoverChange: CFTimeInterval = 0
   var tabReselection: CalendarTabReselection?
   var motionSourceIDs = Set<String>(), motionDestinationIDs = Set<String>()
+  var backupFeedback = "", backupAdded = false
   var canBackup = false
   var indexing = false
   var displayedTotal: Int?
@@ -1726,7 +1736,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     transitionImages.countLimit = 8192
     transitionSmallImages.totalCostLimit = 16 * 1024 * 1024
     transitionSmallImages.countLimit = 8192
-    view.backgroundColor = UIColor(DuckColors.canvas)
+    view.backgroundColor = UIColor.systemBackground
     grid.backgroundColor = .clear
     grid.dataSource = self
     grid.delegate = self
@@ -1764,6 +1774,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     long.minimumPressDuration = 0.4
     long.delegate = self
     grid.addGestureRecognizer(long)
+    if LibraryChrome.native { grid.addInteraction(UIContextMenuInteraction(delegate: self)) }
     titleLabel.text = NSLocalizedString("nav_library", comment: "")
     titleLabel.font = .systemFont(ofSize: 32, weight: .bold)
     titleLabel.textColor = .white
@@ -1866,6 +1877,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     selectionControls.isHidden = true
     loadLaunchSnapshot()
   }
+  func setBackupFeedback(title: String, added: Bool) {
+    guard backupFeedback != title || backupAdded != added else { return }
+    backupFeedback = title; backupAdded = added
+    headerSelecting = nil
+  }
   @objc func backUpSelected() {
     guard canBackup, !selected.isEmpty else { return }
     onBackup()
@@ -1892,7 +1908,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     // The same item objects persist across the switch and the change is
     // animated, so the bar uses the system transition (a glass morph on iOS 26)
     // instead of replacing its groups at once.
-    let items: [UIBarButtonItem] = selecting ? [closeItem, moreItem] : [selectItem, filterItem]
+    let items: [UIBarButtonItem] = selecting ? [backupItem, closeItem]
+      : backupAdded ? [backupItem, selectItem, filterItem] : [selectItem, filterItem]
     navigationItem.setRightBarButtonItems(items, animated: animated && !UIAccessibility.isReduceMotionEnabled)
   }
   override func viewDidAppear(_ animated: Bool) {
@@ -1911,6 +1928,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       contentOwner?.setContentScrollView(grid, for: .all)
     }
     rebuildIfNeeded()
+    applyCatalogAnchor()
     updateChrome()
   }
   override func viewDidDisappear(_ animated: Bool) {
@@ -2006,6 +2024,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         x: 0, y: interactionTop, width: view.bounds.width,
         height: max(1, interactionBottom - interactionTop)), in: view)
     rebuildIfNeeded()
+    applyCatalogAnchor()
     updateChrome()
     syncDenseCanvas()
     layoutLaunchCover()
@@ -2058,6 +2077,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     super.traitCollectionDidChange(previousTraitCollection)
     if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
       updateHeaderFade()
+      // V1: existing raster strips must adopt the new system surface as well.
+      denseCanvasKey = ""
+      syncDenseCanvas()
     }
   }
   /// Library changes (iCloud sync adds or updates items continuously) must not
@@ -2258,6 +2280,42 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     cell.resumeThumbnail?()
     return cell
   }
+  // Dense browsing has no collection cells. Resolve one tile from its existing
+  // geometry and bitmap canvas rather than materializing a grid of views.
+  private var denseMenuPreview: UIImageView?
+  private weak var photoMenuSourceView: UIView?
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+    guard LibraryChrome.native, !selecting, level == .all,
+      !motionActive, let index = item(at: location), layout.geometry.tiles.indices.contains(index) else { return nil }
+    let tile = layout.geometry.tiles[index], asset = assets[layout.geometry.tiles[index].asset]
+    denseMenuPreview?.removeFromSuperview()
+    if let cell = grid.cellForItem(at: IndexPath(item: index, section: 0)) as? CalendarGridCell,
+      cell.assetID == asset.id {
+      photoMenuSourceView = cell.image
+    } else {
+      let preview = UIImageView(image: denseCanvas.displayedImage(tile.asset) ?? placeholderImage(asset))
+      preview.frame = tile.frame; preview.contentMode = .scaleAspectFill; preview.clipsToBounds = true
+      grid.addSubview(preview); denseMenuPreview = preview; photoMenuSourceView = preview
+    }
+    return UIContextMenuConfiguration(identifier: asset.id as NSString, previewProvider: nil) { [weak self] _ in
+      self?.photoMenu?(asset)
+    }
+  }
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+    previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+    photoMenuSourceView.map { UITargetedPreview(view: $0) }
+  }
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+    previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+    photoMenuSourceView.map { UITargetedPreview(view: $0) }
+  }
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
+    willEndFor configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionAnimating?) {
+    let preview = denseMenuPreview; denseMenuPreview = nil; photoMenuSourceView = nil
+    if let animator { animator.addCompletion { preview?.removeFromSuperview() } }
+    else { preview?.removeFromSuperview() }
+  }
   var tracedImages = 0
   func rememberImage(_ image: UIImage, for id: String, aspect: CGFloat? = nil) {
     if LaunchTrace.enabled, tracedImages < 30 {
@@ -2357,7 +2415,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard !tiles.isEmpty, cached.count * 10 >= tiles.count * 9 else { return }
     let image = sceneImage(viewport: viewport)
     let snapshot = UIGraphicsImageRenderer(size: view.bounds.size).image { _ in
-      UIColor(DuckColors.canvas).setFill(); UIRectFill(CGRect(origin: .zero, size: view.bounds.size))
+      UIColor.systemBackground.setFill(); UIRectFill(CGRect(origin: .zero, size: view.bounds.size))
       image.draw(in: grid.frame)
     }
     let info = LaunchSnapshotInfo(columns: columns, width: view.bounds.width, height: view.bounds.height,
@@ -3005,7 +3063,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let format = UIGraphicsImageRendererFormat()
     format.scale = min(2, traitCollection.displayScale)
     return UIGraphicsImageRenderer(size: viewport.size, format: format).image { context in
-      UIColor(DuckColors.canvas).setFill()
+      UIColor.systemBackground.setFill()
       context.fill(CGRect(origin: .zero,size: viewport.size))
       previous?.draw(in:CGRect(origin:.zero,size:viewport.size))
       for i in geometry.visible(in: viewport) {
@@ -3718,7 +3776,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       selected.isEmpty ? NSLocalizedString("calendar_select_items", comment: "") : String(format: NSLocalizedString("calendar_show_selected", comment: ""), selected.count),
       for: .normal)
     selectedButton.isEnabled = !selected.isEmpty
-    let backupEnabled = canBackup && !selected.isEmpty
+    let backupTitle = backupFeedback.isEmpty
+      ? String(format: NSLocalizedString("selection_backup_count", comment: ""), selected.count) : backupFeedback
+    if backupItem.title != backupTitle { backupItem.title = backupTitle; backupItem.accessibilityLabel = backupTitle }
+    let backupEnabled = canBackup && !selected.isEmpty && !backupAdded
     if backupItem.isEnabled != backupEnabled {
       backupItem.isEnabled = backupEnabled
       refreshMenu()
@@ -3958,7 +4019,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
     if gesture is UITapGestureRecognizer { return layout.geometry.dense && !changing }
     if gesture is UILongPressGestureRecognizer {
-      return gesture.numberOfTouches == 1 && level == .all && columns <= 5 && !changing
+      return (!LibraryChrome.native || selecting) && gesture.numberOfTouches == 1 && level == .all && columns <= 5 && !changing
     }
     if gesture is UIPinchGestureRecognizer {
       if selectionStart != nil { stopRange(revert: true) }
@@ -4137,7 +4198,7 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
   }
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = UIColor(DuckColors.canvas)
+    view.backgroundColor = UIColor.systemBackground
     flow.minimumLineSpacing = 2
     flow.minimumInteritemSpacing = 2
     grid.dataSource = self

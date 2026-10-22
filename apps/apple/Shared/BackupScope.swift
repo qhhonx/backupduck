@@ -187,7 +187,7 @@ struct ScopeAlbum: Identifiable, Hashable {
         let options = photoLibraryFetchOptions(); options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let photos = PHAsset.fetchAssets(in: collection, options: options)
         result.append(ScopeAlbum(id: collection.localIdentifier, name: name, count: photos.count,
-          system: collection.assetCollectionType == .smartAlbum, cover: photos.firstObject))
+          system: collection.assetCollectionType == .smartAlbum, cover: PHAsset.fetchKeyAssets(in: collection, options: nil)?.firstObject))
       }
       PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil).enumerateObjects { collection, _, _ in append(collection) }
       // Resolve existing explicit choices without enumerating every smart album.
@@ -198,7 +198,7 @@ struct ScopeAlbum: Identifiable, Hashable {
   }
 }
 
-/// A6: one searchable native list; edits persist immediately on both hosts.
+/// A6: fixed choices are inline; collection choices use a searchable native list.
 struct BackupScopeEditor: View {
   let destination: BackupScopeDestination
   @ObservedObject private var store: BackupScopeStore
@@ -223,13 +223,17 @@ struct BackupScopeEditor: View {
     Group {
       #if os(macOS)
       VStack(spacing: 0) {
-        TextField(LocalizedStringKey(searchPrompt), text: $search)
-          .textFieldStyle(.roundedBorder).padding(DuckSpacing.medium)
-          .accessibilityIdentifier("backup.scope.search")
+        if destination == .albums {
+          TextField(LocalizedStringKey("scope_search_albums"), text: $search)
+            .textFieldStyle(.roundedBorder).padding(DuckSpacing.medium)
+            .accessibilityIdentifier("backup.scope.search")
+        }
         scopeContent
       }
       #else
-      scopeContent.searchable(text: $search, prompt: Text(LocalizedStringKey(searchPrompt)))
+      if destination == .albums {
+        scopeContent.searchable(text: $search, prompt: Text("scope_search_albums"))
+      } else { scopeContent }
       #endif
     }
       .navigationTitle(LocalizedStringKey(destination.title))
@@ -246,17 +250,11 @@ struct BackupScopeEditor: View {
       }
   }
 
-  private var searchPrompt: String { destination == .albums ? "scope_search_albums" : "scope_search_types" }
-
   @ViewBuilder private var scopeContent: some View {
     if destination == .types {
-      List {
+      Form {
         Section {
-          Text(String(format: NSLocalizedString("scope_types_selected", comment: ""), store.rule.types.count))
-            .foregroundStyle(.secondary).accessibilityIdentifier("backup.scope.type_count")
-        }
-        Section {
-          ForEach(BackupMediaKind.allCases.filter { matches(NSLocalizedString($0.title, comment: "")) }) { kind in
+          ForEach(BackupMediaKind.allCases) { kind in
             ScopeChoiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol,
               selected: store.rule.types.contains(kind)) {
               var next = store.rule
@@ -264,12 +262,10 @@ struct BackupScopeEditor: View {
               store.save(next)
             }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
           }
-          if !search.isEmpty && !BackupMediaKind.allCases.contains(where: { matches(NSLocalizedString($0.title, comment: "")) }) {
-            ContentUnavailableView.search(text: search)
-          }
         }
       }
-      .scopeChoiceList()
+      .formStyle(.grouped)
+      .accessibilityIdentifier("backup.scope.choices")
     } else if model.denied {
       ContentUnavailableView {
         Label("photos_access_title", systemImage: "photo.badge.exclamationmark")
@@ -308,7 +304,7 @@ struct BackupScopeEditor: View {
         }
         ForEach(visible) { album in
           ScopeChoiceRow(title: album.name, subtitle: albumItemCount(album.count),
-            selected: chosen.contains(album.id)) { selectAlbum(album) }
+            showsCover: true, cover: album.cover, selected: chosen.contains(album.id)) { selectAlbum(album) }
             .contextMenu {
               Button("scope_album_view") { openedAlbum = album }
               Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
@@ -322,7 +318,7 @@ struct BackupScopeEditor: View {
           ForEach(missing.sorted().filter { matches(store.rule.albumNames[$0] ?? NSLocalizedString("scope_album_unavailable", comment: "")) }, id: \.self) { id in
             let name = store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable", comment: "")
             ScopeChoiceRow(title: name, subtitle: NSLocalizedString("scope_album_unavailable", comment: ""),
-                symbol: "rectangle.slash", selected: true) {
+                showsCover: true, selected: true) {
                 var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
               }.accessibilityIdentifier("backup.scope.album." + id)
           }
@@ -369,12 +365,18 @@ private struct ScopeChoiceRow: View {
   let title: String
   var subtitle: String? = nil
   var symbol: String? = nil
+  var showsCover = false
+  var cover: PHAsset? = nil
   let selected: Bool
   var action: () -> Void
   var body: some View {
     Button(action: action) {
       HStack(spacing: DuckSpacing.small) {
-        if let symbol { Image(systemName: symbol).foregroundStyle(DuckRole.secondaryText).accessibilityHidden(true) }
+        if showsCover { ReadOnlyMediaThumbnail(asset: cover) }
+        else if let symbol {
+          Image(systemName: symbol).foregroundStyle(DuckRole.secondaryText)
+            .frame(width: DuckSpacing.large).accessibilityHidden(true)
+        }
         VStack(alignment: .leading) {
           Text(title).foregroundStyle(DuckRole.primaryText)
           if let subtitle { Text(subtitle).font(.caption).foregroundStyle(DuckRole.secondaryText) }
@@ -410,16 +412,16 @@ struct ReadOnlyMediaThumbnail: View {
   @State private var requestGeneration = UUID()
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 7).fill(DuckRole.groupedSurface)
+      RoundedRectangle(cornerRadius: DuckRadius.control).fill(DuckRole.background)
       if let image {
         #if os(macOS)
         Image(nsImage: image).resizable().scaledToFill()
         #else
         Image(uiImage: image).resizable().scaledToFill()
         #endif
-      } else { Image(systemName: "rectangle.stack").foregroundStyle(Color.secondary) }
-    }.frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: 7)).accessibilityHidden(true)
-      .task(id: "\(asset?.localIdentifier ?? "")|\(Int(width*displayScale))|\(Int(height*displayScale))|\(policy.choice)") {
+      }
+    }.frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: DuckRadius.control)).accessibilityHidden(true)
+      .task(id: "\(asset.map { $0.localIdentifier + "|" + PhotoLibraryModel.revision($0) } ?? "")|\(Int(width*displayScale))|\(Int(height*displayScale))|\(policy.choice)") {
         ScopeThumbnailCache.pipeline.cancel(request)
         if identity != asset?.localIdentifier { image = nil }
         identity = asset?.localIdentifier
@@ -431,7 +433,9 @@ struct ReadOnlyMediaThumbnail: View {
           if let value { image = value }
         }
       }.onReceive(policy.$choice.dropFirst()) { _ in image = nil }
-      .onDisappear { identity = nil; ScopeThumbnailCache.pipeline.cancel(request) }
+      .onDisappear {
+        requestGeneration = UUID(); ScopeThumbnailCache.pipeline.cancel(request); request = PHInvalidImageRequestID
+      }
   }
 }
 

@@ -1,0 +1,24 @@
+{
+  "id": "selection.repeat",
+  "page": "library",
+  "step": "selectedBackup",
+  "extends": "base-paired",
+  "title": "Selected backup toolbar: repeat",
+  "expect": [
+    "Synthetic toolbar specimen on iPhone and Mac. No PhotoKit access or transfer."
+  ],
+  "actions": [
+    {
+      "action": "Press Back Up 3 Photos",
+      "result": "One system confirmation is anchored to the action and states the duplicate-copy consequence."
+    },
+    {
+      "action": "Cancel",
+      "result": "All three photos remain selected; nothing is registered."
+    },
+    {
+      "action": "Confirm Back Up Again",
+      "result": "Added to Backup replaces the action; selection ends. No second sheet or toast."
+    }
+  ]
+}

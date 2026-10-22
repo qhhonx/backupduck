@@ -1617,3 +1617,16 @@
 "scope_selection_albums" = "%@ albums";
 "scope_selection_photo" = "%@ photo";
 "scope_selection_photos" = "%@ photos";
+
+// Selected backup: durable intent and in-place toolbar feedback.
+"selection_backup_count" = "Back Up %d Photos";
+"selection_backup_added" = "Added to Backup";
+"selection_backup_repeat_title" = "Back up these photos again?";
+"selection_backup_repeat_action" = "Back Up Again";
+"selection_backup_repeat_note" = "Some selected photos are already in your Pixel’s Photos. Backing them up again can create another copy in Photos.";
+"selection_backup_failed_title" = "Could Not Add to Backup";
+
+/* Photo-library comparison context menu. */
+"library_context_backup" = "Back Up";
+"library_context_history" = "Show in Backup History";
+"library_context_share" = "Share";

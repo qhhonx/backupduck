@@ -1,0 +1,29 @@
+{
+  "id": "library.selection-failure",
+  "page": "library",
+  "extends": "library.all",
+  "title": "Library selected durable intent: failure",
+  "library": {
+    "arriving": 0,
+    "gap_every": 1,
+    "needs_you": 0,
+    "saving": 0,
+    "publication_failed": 0,
+    "unknown": 0,
+    "recent": 30
+  },
+  "core": {
+    "register_preparations": {
+      "error": "storage_full"
+    }
+  },
+  "expect": [
+    "iOS Simulator only, using the existing synthetic photo library. No original download occurs during registration."
+  ],
+  "actions": [
+    {
+      "action": "Select photos, then press Back Up N Photos",
+      "result": "A registration failure explains why, preserves the selection and offers the same action for retry."
+    }
+  ]
+}

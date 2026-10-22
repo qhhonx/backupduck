@@ -1,0 +1,12 @@
+{
+  "id": "photo.info-dark",
+  "page": "backup",
+  "step": "photoInformation",
+  "title": "Viewer panel · docked · dark",
+  "extends": "photo.info",
+  "expect": [
+    "The production in-viewer panel uses its dark surface, fills the bottom edge under the home indicator, and rounds only the top corners.",
+    "Scroll metadata, close and reopen; content remains above the home indicator while the solid panel reaches the bottom.",
+    "On Mac use -appearance dark to inspect the existing trailing inspector."
+  ]
+}

@@ -7,6 +7,11 @@
     "Only synthetic folders and in-memory images.",
     "Counts and states are scripted core facts."
   ],
-  "actions": [],
+  "actions": [
+    {
+      "action": "Select eligible photos and press Back Up N Photos",
+      "result": "Intent is saved immediately; Added to Backup replaces the toolbar action, selection ends and progress stays in Backup / Overview. Registration failure preserves selection and explains why."
+    }
+  ],
   "mac_only": true
 }

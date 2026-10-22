@@ -78,6 +78,11 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   // Resolve current media in the native viewport at presentation/return time.
   var previewFrame: ((String) -> CGRect?)?
   var previewPoster: ((String) -> LibraryImage?)?
+  #if os(iOS)
+  var previewSourceView: ((String) -> UIView?)?
+  /// Catalog-only start position, applied once after the complete index is ready.
+  var catalogAnchorFraction: Double?
+  #endif
 
   @Published private(set) var total = 0
   @Published private(set) var loaded = 0

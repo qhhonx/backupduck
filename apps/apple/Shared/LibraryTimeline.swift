@@ -226,7 +226,7 @@ import UIKit
 @MainActor final class TimelineDateHeader: UICollectionReusableView {
   private let label = UILabel()
   override init(frame: CGRect) {
-    super.init(frame: frame); backgroundColor = UIColor(DuckColors.canvas); label.font = .preferredFont(forTextStyle: .subheadline)
+    super.init(frame: frame); backgroundColor = UIColor.systemBackground; label.font = .preferredFont(forTextStyle: .subheadline)
     label.adjustsFontForContentSizeCategory = true; label.textColor = UIColor(DuckColors.text); addSubview(label)
     label.accessibilityIdentifier = "library.timeline.date"
   }

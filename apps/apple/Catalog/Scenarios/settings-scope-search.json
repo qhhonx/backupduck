@@ -5,7 +5,9 @@
   "title": "Backup scope · search",
   "extends": "base-paired",
   "expect": [
-    "Family is the initial search; the summary still describes all three selected albums."
+    "Family is the initial search; the summary still describes all three selected albums.",
+    "Album rows lead with 44-point rounded cover thumbnails on iPhone and Mac; a missing cover is a neutral tile.",
+    "Scroll the virtualized list and toggle a row: cover identity stays stable, off-screen requests cancel, and search, summary and checkmarks remain."
   ],
   "actions": [
     {

@@ -99,7 +99,7 @@ struct IOSSettingsPage: View {
             }
           }.iosPrototypePageBody()
         }
-      }.background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      }.background(DuckRole.background).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
         .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
         .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
         .task { await feedback.check() }
@@ -243,7 +243,7 @@ struct IOSPrototypeDestination<Content: View>: View {
   @Environment(\.dismiss) private var dismiss
   var body: some View {
     VStack(spacing: 0) { IOSPrototypeHeader(title, back: { dismiss() }); content() }
-      .background(DuckColors.canvas).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
+      .background(DuckRole.background).foregroundStyle(DuckColors.text).toolbar(.hidden, for: .navigationBar).symbolVariant(.none)
       .background(IOSNativeEdgeBack().frame(width: 0, height: 0).allowsHitTesting(false))
   }
 }

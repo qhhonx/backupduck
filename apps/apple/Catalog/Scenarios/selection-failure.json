@@ -1,0 +1,16 @@
+{
+  "id": "selection.failure",
+  "page": "library",
+  "step": "selectedBackup",
+  "extends": "base-paired",
+  "title": "Selected backup toolbar: failure",
+  "expect": [
+    "Synthetic toolbar specimen on iPhone and Mac. No PhotoKit access or transfer."
+  ],
+  "actions": [
+    {
+      "action": "Press Back Up 3 Photos",
+      "result": "The system alert explains the missing Pixel; all three photos remain selected and the action can be retried."
+    }
+  ]
+}
