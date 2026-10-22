@@ -68,7 +68,18 @@ class CatalogActivity : BackupDuckActivity() {
             val mode = if (it == "dark") AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
             getSharedPreferences("appearance", MODE_PRIVATE).edit().putInt("mode", mode).commit()
         }
-        if (scenario.page == "onboarding") {
+        if (scenario.surface == "metadata") {
+            val row = (CatalogMedia.history(scenario.core.getValue("receiver_history").first().value) as org.json.JSONObject).getJSONArray("items").getJSONObject(0)
+            val item = HistoryItem(row.getLong("cursor"), row.getString("id"), row.getString("filename"), row.getString("kind"),
+                row.getLong("total_bytes"), 0, "received", "complete", null, false,
+                senderNames = row.optJSONArray("senders")?.let { peers ->
+                    (0 until peers.length()).mapNotNull { peers.optJSONObject(it)?.optJSONObject("profile")?.optString("name")?.takeIf(String::isNotBlank) }.joinToString(" · ")
+                }.orEmpty(),
+                capturedAtMs = row.optLong("captured_at_ms").takeIf { it > 0 },
+                receivedAtMs = row.optLong("received_at_ms").takeIf { it > 0 },
+                publishedAtMs = row.optLong("published_at_ms").takeIf { it > 0 })
+            startActivity(Intent(this, NativePhotoViewerActivity::class.java).putExtra("photo", item.toBundle()))
+        } else if (scenario.page == "onboarding") {
             startActivity(Intent(this, ReceiverOnboardingActivity::class.java).putExtra("step", scenario.step))
         } else {
             startActivity(Intent(this, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface))
@@ -80,6 +91,20 @@ class CatalogActivity : BackupDuckActivity() {
 internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {
         CatalogTextAudit.attach(activity)
+        if (activity is NativePhotoViewerActivity && CatalogRuntime.current?.surface == "metadata") {
+            val root = activity.window.decorView
+            if (root.tag != "metadata-opened") {
+                root.tag = "metadata-opened"
+                root.post {
+                    fun find(view: View): View? {
+                        if (view.contentDescription == activity.getString(R.string.viewer_details)) return view
+                        if (view is ViewGroup) for (i in 0 until view.childCount) find(view.getChildAt(i))?.let { return it }
+                        return null
+                    }
+                    find(root)?.performClick()
+                }
+            }
+        }
         if (activity !is MainActivity) return
         val content = activity.findViewById<FrameLayout>(android.R.id.content)
         if (content.findViewWithTag<View>("catalog") != null) return

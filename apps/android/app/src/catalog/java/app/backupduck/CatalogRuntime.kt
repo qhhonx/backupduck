@@ -87,6 +87,11 @@ internal object CatalogRuntime {
             }
         }
         ReceiverEnvironment.previewImage = CatalogMedia::draw
+        ReceiverEnvironment.metadataFiles = CatalogMedia::originals
+        ReceiverEnvironment.openPhotoLocation = { context, intent ->
+            File(context.getExternalFilesDir(null), "metadata-geo-intent.txt").writeText(intent.toUri(0))
+            throw android.content.ActivityNotFoundException("Catalog records external location handoffs locally")
+        }
     }
 
     val unscripted: List<String> get() = synchronized(lock) { missing.toList() }
@@ -119,6 +124,7 @@ internal object CatalogRuntime {
     fun apply(context: Context, scenario: CatalogScenario) {
         CatalogMedia.reload(context)
         PhotoImages.clearCache()
+        PhotoMetadataReader.clearCache()
         synchronized(lock) { cursor = HashMap(); missing.clear(); current = scenario }
         AppUpdates.resetStatus(if (scenario.updates.optString("state") == "current") UpdateCheckStatus.Current else null)
         ReceiverEnvironment.reservedSettings = if (scenario.showReserved) ReservedSettingsContent(

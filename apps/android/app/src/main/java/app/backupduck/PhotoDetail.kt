@@ -53,6 +53,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         var work: Job? = null
         var lookup: Job? = null
         var metadataWork: Job? = null
+        var metadataSignal = CancellationSignal()
         var shareWork: Job? = null
         val top = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val bottom = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -166,7 +167,9 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         val scroll = NestedScrollView(this).apply { addView(panel); isFillViewport = false }
         sheet.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         val behavior = BottomSheetBehavior<LinearLayout>().apply { isHideable = true; skipCollapsed = true; isFitToContents = true }
-        root.addView(sheet, CoordinatorLayout.LayoutParams(-1, -1).apply { this.behavior = behavior; gravity = Gravity.BOTTOM })
+        // BottomSheetBehavior owns the vertical offset. Bottom gravity would apply it
+        // twice whenever asynchronous metadata or inline feedback requests layout.
+        root.addView(sheet, CoordinatorLayout.LayoutParams(-1, -1).apply { this.behavior = behavior })
         behavior.state = BottomSheetBehavior.STATE_HIDDEN
         // Keep a native Back control above the photo while information replaces the app bar.
         val detailBack = lookButton("", LookButton.TONAL, icon = R.drawable.ic_back) {
@@ -174,8 +177,11 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }.apply {
             contentDescription = getString(R.string.viewer_back)
             iconPadding = 0; iconSize = dp(24)
-            iconGravity = com.google.android.material.button.MaterialButton.ICON_GRAVITY_TEXT_START
-            setPadding(0, 0, 0, 0); insetTop = 0; insetBottom = 0
+            // There is no label: text-relative gravity can shift the icon outside
+            // this fixed control after another native layout pass.
+            iconGravity = com.google.android.material.button.MaterialButton.ICON_GRAVITY_START
+            gravity = Gravity.CENTER
+            setPadding(dp(8), 0, dp(8), 0); insetTop = 0; insetBottom = 0
             minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
             backgroundTintList = ColorStateList.valueOf(if (isDarkAppearance()) getColor(R.color.duck_role_elevated_surface) else white)
             iconTint = ColorStateList.valueOf(getColor(R.color.duck_role_primary_text))
@@ -194,14 +200,18 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             if (immersive) controller.hide(WindowInsetsCompat.Type.systemBars()) else controller.show(WindowInsetsCompat.Type.systemBars())
             statusScrim.visibility = if (sheetOpen && isDarkAppearance() && !immersive) View.VISIBLE else View.GONE
             val light = sheetOpen && !isDarkAppearance()
-            controller.isAppearanceLightStatusBars = light
+            // The status inset stays on the black media canvas above the fitted photo.
+            controller.isAppearanceLightStatusBars = false
             controller.isAppearanceLightNavigationBars = light
         }
         fun chrome(fraction: Float) {
-            // Keep the fitted image bounds unchanged; information translates the media node only.
-            // The sheet reaches the window edge; media travel uses the viewport below the status inset.
-            val mediaFraction = (root.height - systemTop).toFloat() / root.height.coerceAtLeast(1)
-            preview.translationY = -sheetHeight * mediaFraction * fraction
+            // FIT_CENTER uses the visible viewport, following the native sheet in both
+            // directions. Moving a full-screen image instead can send it offscreen.
+            val mediaTop = if (fraction > 0f) systemTop else 0
+            val mediaBottom = if (fraction > 0f) (root.height - sheet.top).coerceIn(0, root.height) else 0
+            if (preview.paddingTop != mediaTop || preview.paddingBottom != mediaBottom) {
+                preview.setPadding(0, mediaTop, 0, mediaBottom)
+            }
             detailBack.alpha = fraction
             detailBack.visibility = if (fraction > 0f && !immersive) View.VISIBLE else View.GONE
             val alpha = if (immersive) 0f else 1f - fraction
@@ -209,12 +219,20 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             top.visibility = if (alpha == 0f) View.INVISIBLE else View.VISIBLE
             bottom.visibility = if (alpha == 0f) View.INVISIBLE else View.VISIBLE
         }
+        // A content re-layout can settle without an onSlide callback. Reassert
+        // the expanded chrome after native layout; dragging still owns its fraction.
+        sheet.viewTreeObserver.addOnGlobalLayoutListener {
+            if (sheetOpen && behavior.state == BottomSheetBehavior.STATE_EXPANDED) chrome(1f)
+        }
         behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onSlide(bottomSheet: View, offset: Float) { chrome(((root.height - sheet.top).toFloat() / sheetHeight.coerceAtLeast(1)).coerceIn(0f, 1f)) }
             override fun onStateChanged(bottomSheet: View, state: Int) {
                 sheetOpen = state != BottomSheetBehavior.STATE_HIDDEN
                 bars()
-                if (state == BottomSheetBehavior.STATE_HIDDEN) { chrome(0f); date.requestFocus() }
+                if (state == BottomSheetBehavior.STATE_HIDDEN) {
+                    metadataSignal.cancel(); metadataWork?.cancel()
+                    chrome(0f); date.requestFocus()
+                }
             }
         })
         fun group(): LinearLayout = lookGroup(panel).also {
@@ -223,7 +241,6 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         panel.setPadding(token(R.dimen.duck_space_medium), 0, token(R.dimen.duck_space_medium), token(R.dimen.duck_space_large))
         panel.addView(text(listOfNotNull(dateText("yMMMEd"), dateText("jm")).joinToString(" · ").ifEmpty { getString(R.string.photos_taken_unknown) },
             M.style.TextAppearance_Material3_TitleMedium).apply { isAccessibilityHeading = true }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
-        panel.addView(text(item.filename, M.style.TextAppearance_Material3_BodyMedium), LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_large) })
         val facts = group()
         val sender = item.senders.joinToString(getString(R.string.photos_list_separator)).ifEmpty { null }
         lookRow(facts, R.drawable.ic_clock,
@@ -251,17 +268,53 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             }
         }
         pill.setOnClickListener { retrySave() }; retry?.setOnClickListener { retrySave() }
-        val files = group()
-        val fileInfo = lookRow(files, R.drawable.ic_photo, getString(R.string.viewer_file_details),
-            listOf(FormatterSize(activity, item.totalBytes), item.filename.substringAfterLast('.', "").uppercase()).filter { it.isNotBlank() }.joinToString(" · "))
+        val files = group().apply { (parent as View).visibility = View.GONE }
+        fun renderMetadata(info: PhotoMetadata) {
+            files.removeAllViews()
+            fun row(icon: Int, primary: String, secondary: String? = null, action: (() -> Unit)? = null): TextView =
+                lookRow(files, icon, primary, secondary, action = action)
+            if (info.camera != null || info.lens != null || info.capture(resources.configuration.locales[0]) != null) {
+                row(R.drawable.ic_camera, info.camera ?: getString(R.string.metadata_capture),
+                    listOfNotNull(info.lens, info.capture(resources.configuration.locales[0])).joinToString("\n").ifBlank { null })
+            }
+            val number = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0]).apply { maximumFractionDigits = 1 }
+            val fileLine = listOfNotNull(
+                if (info.width != null && info.height != null) "${number.format(info.width.toLong() * info.height / 1_000_000.0)} MP" else null,
+                if (info.width != null && info.height != null) "${info.width} × ${info.height}" else null,
+                info.bytes?.let { FormatterSize(activity, it) }, info.format,
+                info.durationMs?.let { photoDuration(it) },
+                if (info.live) "Live Photo" else null).map { it.replace(' ', '\u00a0') }.joinToString(" · ")
+            row(R.drawable.ic_document, item.filename, fileLine.ifBlank { null })
+            info.gps?.let { (latitude, longitude) ->
+                val coordinates = String.format(java.util.Locale.ROOT, "%.3f, %.3f", latitude, longitude)
+                var locationSupport: TextView? = null
+                locationSupport = row(R.drawable.ic_location, info.place ?: coordinates, if (info.place != null) coordinates else null) {
+                    runCatching { ReceiverEnvironment.openPhotoLocation(activity, Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:$latitude,$longitude?q=$latitude,$longitude"))) }
+                        .onFailure {
+                            locationSupport?.apply {
+                                setText(R.string.metadata_map_unavailable); visibility = View.VISIBLE
+                                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+                            }
+                        }
+                }
+            }
+            (files.parent as View).visibility = if (files.childCount == 0) View.GONE else View.VISIBLE
+        }
+        renderMetadata(PhotoMetadata())
         fun showDetails() {
             immersive = false; sheetOpen = true; bars()
             behavior.state = BottomSheetBehavior.STATE_EXPANDED
-            if (!metadataLoaded) {
-                metadataLoaded = true
+            if (!metadataLoaded && metadataWork?.isActive != true) {
+                metadataSignal = CancellationSignal()
+                val readSignal = metadataSignal
                 metadataWork = lifecycleScope.launch {
-                    val info = withContext(Dispatchers.IO) { readPhotoMetadata(activity, item, signal) }
-                    if (isShowing() && info.isNotEmpty()) { fileInfo.visibility = View.VISIBLE; fileInfo.text = listOf(fileInfo.text.toString(), info.joinToString("\n")).joinToString("\n") }
+                    val info = withContext(Dispatchers.IO) {
+                        try { PhotoMetadataReader.read(activity, item, readSignal) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: android.os.OperationCanceledException) { throw kotlinx.coroutines.CancellationException("Metadata dismissed") }
+                        catch (_: Exception) { readSignal.throwIfCanceled(); PhotoMetadata() }
+                    }
+                    if (isShowing() && !readSignal.isCanceled) { metadataLoaded = true; renderMetadata(info) }
                 }
             }
         }
@@ -346,50 +399,12 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         Content(root, preview, {
             if (sheetOpen) { behavior.state = BottomSheetBehavior.STATE_HIDDEN; true }
             else if (immersive) { immersive = false; chrome(0f); bars(); true } else false
-        }) { signal.cancel(); observations.cancel(); work?.cancel(); lookup?.cancel(); metadataWork?.cancel(); shareWork?.cancel() }
+        }) { signal.cancel(); observations.cancel(); work?.cancel(); lookup?.cancel(); metadataSignal.cancel(); metadataWork?.cancel(); shareWork?.cancel() }
     }
 }
 
 private fun android.content.Context.isDarkAppearance() = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
 private fun FormatterSize(context: android.content.Context, bytes: Long) = android.text.format.Formatter.formatFileSize(context, bytes)
-
-/** Read original metadata on demand; a rendition's dimensions are never presented as the original's. */
-private fun readPhotoMetadata(context: android.content.Context, item: HistoryItem, signal: CancellationSignal): List<String> {
-    val copy = runCatching { GalleryPreview.resolve(context, item, null, signal) }.getOrNull() ?: return emptyList()
-    signal.throwIfCanceled()
-    val result = mutableListOf<String>()
-    if (copy.mime.startsWith("image/")) {
-        runCatching {
-            android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(context.contentResolver, copy.uri)) { decoder, info, _ ->
-                result += "${info.size.width} × ${info.size.height}"
-                decoder.setTargetSize(1, 1)
-                decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
-            }.recycle()
-        }
-        runCatching { context.contentResolver.openInputStream(copy.uri)?.use { input ->
-            val exif = androidx.exifinterface.media.ExifInterface(input)
-            fun attribute(tag: String) = exif.getAttribute(tag)?.takeIf { it.isNotBlank() }
-            listOfNotNull(attribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE), attribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL))
-                .distinct().joinToString(" ").takeIf { it.isNotBlank() }?.let { result += it }
-            val aperture = exif.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, 0.0).takeIf { it > 0 }
-            val exposure = exif.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0).takeIf { it > 0 }
-            val focal = exif.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0).takeIf { it > 0 }
-            val iso = attribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
-            val numbers = java.text.NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).apply { maximumFractionDigits = 2 }
-            listOfNotNull(aperture?.let { "f/${numbers.format(it)}" }, exposure?.let { if (it < 1) "1/${kotlin.math.round(1 / it).toInt()} s" else "${numbers.format(it)} s" },
-                iso?.let { "ISO $it" }, focal?.let { "${numbers.format(it)} mm" })
-                .joinToString(" · ").takeIf { it.isNotBlank() }?.let { result += it }
-        } }
-    } else runCatching {
-        android.media.MediaMetadataRetriever().use { media ->
-            media.setDataSource(context, copy.uri)
-            val width = media.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
-            val height = media.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-            if (width != null && height != null) result += "$width × $height"
-        }
-    }
-    return result
-}
 
 private fun publicationReason(context: android.content.Context, error: String) = context.getString(when (error) {
     "storage_full", "insufficient_storage", "no_space" -> R.string.viewer_storage_full

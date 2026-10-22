@@ -373,3 +373,37 @@ Receipt and gallery publication keep their own recorded times; unknown metadata 
 `pixel.photos-viewer` and `pixel.photos-viewer-failed` cover normal and failed publication.
 For local same-item comparisons, CatalogActivity accepts a granted read-only MediaStore
 URI as Intent data; this changes only catalog data providers and never writes media.
+
+### Viewer file metadata
+
+`pixel.photos-metadata-camera`, `pixel.photos-metadata-gps-heic` and
+`pixel.photos-metadata-no-camera` directly open production information. The first
+three `pixel.photos` items use those same unmodified local pool files: `0013.jpg`,
+`metadata-gps.heic` and `0023.jpg`. The GPS HEIC is an explicitly synthetic CC0
+chart from https://heic.fyi/heic-sample-files; its embedded location is test data.
+Supply these through the Catalog's external `catalog-media/manifest.json` pool.
+Camera/lens/capture, measured file facts and recorded location share one card
+below the unchanged backup facts. Fields without evidence have no placeholder.
+The parser uses ExifInterface and MediaStore off the UI thread, cancels on close,
+and bounds the per-item cache. Published copies are the fallback when retained
+originals are unavailable through the existing core archive/publication view.
+Geocoder is queried only with no active network and a 350 ms budget; otherwise
+rounded coordinates remain tappable through a `geo:` intent. Catalog fixtures
+never write media into the device photo library.
+
+`pixel.photos-metadata-video` and `pixel.photos-metadata-live` additionally read
+`photos/metadata-video.mov`, a three-second local fixture rendered from the same
+CC0 still. The latter explicitly associates that video and `0013.jpg` as a known
+synthetic pair; it checks the duration and Live Photo label without pretending
+the sample is an original camera Live Photo. Neither fixture modifies Photos.
+
+### Metadata viewport fixtures
+
+`pixel.photos-metadata-portrait`, `pixel.photos-metadata-landscape` and
+`pixel.photos-metadata-square` open the production viewer with information shown.
+The optional local pool maps these to `0020.jpg`, `0013.jpg` and `0763.jpg`.
+The whole image uses aspect fit, centred between the status inset and the native
+sheet's current top on opening, dragging, reversal and closing. The received
+fact preserves scenario sender names. Content order is date/time, backup facts,
+then camera/file/location; the filename is the file row's first line, even when
+metadata is unavailable.

@@ -662,4 +662,6 @@
     <string name="viewer_storage_full">The Pixel has too little free space.</string>
     <string name="viewer_save_reason_unknown">Photos could not accept this file. Try again.</string>
     <string name="viewer_gallery_action">Google Photos</string>
+    <string name="metadata_capture">Capture</string>
+    <string name="metadata_map_unavailable">No app can open this location.</string>
 </resources>

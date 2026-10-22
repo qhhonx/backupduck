@@ -1,0 +1,49 @@
+{
+  "id": "pixel.photos-metadata-video",
+  "extends": "pixel.photos-viewer",
+  "page": "transfers",
+  "surface": "metadata",
+  "title": "Photo metadata \u00b7 video",
+  "expect": [
+    "Production details open automatically; unmodified local pool bytes supply only existing metadata.",
+    "Missing camera or location groups are absent. Backup facts retain their original layout."
+  ],
+  "core": {
+    "receiver_history": {
+      "value": {
+        "items": [
+          {
+            "cursor": 2000,
+            "id": "metadata-video",
+            "filename": "SAMPLE_001.PNG",
+            "kind": "video",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 3820000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792295160000,
+            "burst_primary": null,
+            "received_at_ms": 1792295220000,
+            "published_at_ms": 1792295224000
+          }
+        ],
+        "total": 1,
+        "next_cursor": null,
+        "counts": {
+          "total": 1,
+          "published": 1,
+          "failed": 0
+        }
+      }
+    }
+  }
+}

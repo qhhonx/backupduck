@@ -1,0 +1,49 @@
+{
+  "id": "pixel.photos-metadata-portrait",
+  "extends": "pixel.photos-metadata-camera",
+  "page": "transfers",
+  "surface": "metadata",
+  "title": "Photo metadata · portrait",
+  "expect": [
+    "The whole photo fits and stays centred between the status bar and sheet top, including during a drag.",
+    "Receipt names the recorded sender; the filename leads the file row below the backup facts."
+  ],
+  "core": {
+    "receiver_history": {
+      "value": {
+        "items": [
+          {
+            "cursor": 2000,
+            "id": "metadata-portrait",
+            "filename": "SAMPLE_001.PNG",
+            "kind": "photo",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 3820000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792295160000,
+            "burst_primary": null,
+            "received_at_ms": 1792295220000,
+            "published_at_ms": 1792295224000
+          }
+        ],
+        "total": 1,
+        "next_cursor": null,
+        "counts": {
+          "total": 1,
+          "published": 1,
+          "failed": 0
+        }
+      }
+    }
+  }
+}

@@ -26,6 +26,16 @@ internal object CatalogMedia {
         }
 
         fun photo(id: String): Photo {
+            val chosen = when (id) {
+                "catalog-2000", "metadata-video", "metadata-live" -> "0013.jpg"
+                "catalog-1999" -> "metadata-gps.heic"
+                "catalog-1998" -> "0023.jpg"
+                "metadata-portrait" -> "0020.jpg"
+                "metadata-landscape" -> "0013.jpg"
+                "metadata-square" -> "0763.jpg"
+                else -> null
+            }
+            photos.firstOrNull { it.file.name == chosen }?.let { return it }
             // Fixed UTF-8 hash; independent of process, locale and runtime hash randomization.
             var hash = 1469598103934665603uL
             for (byte in id.toByteArray(Charsets.UTF_8)) {
@@ -75,11 +85,28 @@ internal object CatalogMedia {
         val items = copy.optJSONArray("items") ?: return value
         for (index in 0 until items.length()) {
             val item = items.getJSONObject(index)
-            if (item.optLong("captured_at_ms") > 0) continue
+
             val id = item.optString("id").takeIf { it.isNotEmpty() } ?: continue
-            active.photo(id).takenMs?.let { item.put("captured_at_ms", it) }
+            val photo = active.photo(id)
+            val original = originalsFor(id, item.optString("kind"))
+            item.put("filename", original.firstOrNull()?.first?.name ?: photo.file.name)
+            item.put("total_bytes", original.sumOf { it.first.length() })
+            if (item.optLong("captured_at_ms") <= 0) photo.takenMs?.let { item.put("captured_at_ms", it) }
         }
         return copy
+    }
+
+    /** Read the unmodified pool file with the production metadata parser. */
+    fun originals(item: HistoryItem): List<Pair<File, String>> = originalsFor(item.id, item.kind)
+    private fun originalsFor(id: String, kind: String): List<Pair<File, String>> {
+        val photo = pool?.photo(id)?.file?.takeIf { it.isFile } ?: return emptyList()
+        val still = photo to if (photo.extension.equals("heic", true)) "image/heic" else "image/jpeg"
+        val video = File(photo.parentFile, "metadata-video.mov").takeIf { it.isFile }?.let { it to "video/quicktime" }
+        return when {
+            id == "metadata-video" -> listOfNotNull(video)
+            id == "metadata-live" && kind == "motion" -> listOfNotNull(still, video)
+            else -> listOf(still)
+        }
     }
 
     /** PhotoImages calls this on its bounded IO workers and retains view cancellation/identity. */
