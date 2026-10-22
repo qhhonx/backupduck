@@ -93,23 +93,23 @@ Implementation status:
 
 Follow the source audit's priority order, with completed work removed:
 
-1. **iPhone onboarding:** retain the flow until durable completion; add an exit
+1. **iPhone onboarding — done (`e325845`).** Was: retain the flow until durable completion; add an exit
    and recovery from first-photo waiting.
-2. **Mac notifications:** add explicit permission entry and receiver-scoped route
+2. **Mac notifications — done (`e325845`); system delivery and taps still need device acceptance.** Was: add explicit permission entry and receiver-scoped route
    consumption; verify cold/warm taps.
-3. **Mac Overview and History:** route Needs you to the requested records, settle
+3. **Mac Overview and History — Needs you and mosaic done (`e325845`); History toolbar built, Mac capture pending (`3ee7b96`).** Was: route Needs you to the requested records, settle
    the one-grid direction and connect recent mosaic photos to the shared viewer.
-4. **Pixel cleanup recovery:** finish the Storage journey and separate retained
+4. **Pixel cleanup recovery — in progress (`18bc59b`): row states done; switch-on journey, pending page and one line break open.** Was: finish the Storage journey and separate retained
    technical probes from old account-binding, setup and progress/result UI.
 5. **Apple remaining review/contracts:** redesign selected-photo review and
    remove its radius override; reconcile A6 with the stale album-column rule and
    review the now-inventoried context, History and sharing routes.
-6. **Pixel Help:** redesign around tasks/problems and their recovery destinations.
+6. **Pixel Help — contract written (`settings.md` Help Center), not built.** Redesign around tasks/problems and their recovery destinations.
 7. **Pixel Advanced/compatibility:** redesign Format Conversion and browser
    access; decide supported retention/archive routes and ordinary recovery UI.
 8. **Pixel records ordering:** make latest-change ordering global across core
    paging; viewer adoption, metadata, chrome and the repeated footer are resolved.
-9. **Technical pages:** redesign diagnostics (log, entry detail, exports) on all
+9. **Technical pages — Apple Diagnostics built (`3ee7b96`), Pixel not started.** Was: redesign diagnostics (log, entry detail, exports) on all
    three platforms and the Pixel compatibility/archive routes for their
    technical audience: the same components and standards, exact detail kept.
 10. **Release/native/device acceptance:** real pairing, notifications/Live
