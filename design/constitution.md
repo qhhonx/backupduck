@@ -252,8 +252,12 @@ Every page is either **redesigned** or **legacy**, as recorded in
 `page-register.md`. A page is redesigned only when it has gone through these
 steps and was approved in review:
 
-1. **The user's question.** State in one sentence what an ordinary user comes to
-   the page to learn or do, and what they never need to see there.
+1. **The user's question.** State in one sentence what the page's user comes
+   to learn or do, and what they never need to see there. For most pages this
+   is an ordinary user; for technical pages (diagnostics, logs, exports,
+   compatibility routes) it is someone troubleshooting or helping a person
+   troubleshoot. A technical audience changes what the page shows, not whether
+   it is designed: every page goes through these steps.
 2. **References.** Record how the system app and the reference products
    handle the same question (§ References).
 3. **Fresh structure and copy.** Derive sections, states and words from steps 1

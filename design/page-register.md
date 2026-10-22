@@ -26,10 +26,12 @@ or physical-device acceptance. The last column notes changes and remaining
 implementation, contract and acceptance blockers; “—” means no additional structural blocker was
 identified, not that every verification check passed.
 
-Diagnostics remain intentionally technical. Their log, detail and export
-surfaces do not require an ordinary-user redesign under the diagnostics
-exemption. Compatibility routes and technical exports are listed explicitly;
-unused files and catalog-only legacy comparisons are not production pages.
+Technical pages (diagnostics logs, entry details, exports, compatibility and
+archive routes) are redesigned too, for their audience: someone troubleshooting
+or helping a person troubleshoot. They keep exact technical detail, but get the
+same structure, components, copy rules and visual standard as every other page.
+"Technical" names the audience, not an exemption. Unused files and catalog-only
+legacy comparisons are not production pages.
 
 ## iPhone sender
 
@@ -60,8 +62,8 @@ unused files and catalog-only legacy comparisons are not production pages.
 | Rename device sheet and discard confirmation | iPhone | Redesigned | `platform-expression.md` A4/A5 (`82a460f`) | Native fitted-height, dirty-dismissal and save-failure acceptance. |
 | Help Center | iPhone | Redesigned | `interaction.md` I2/I8; `platform-expression.md` A7 | — |
 | Help articles by task and problem | iPhone | Redesigned | `interaction.md` I2/I8 | Native long-content/localization acceptance. |
-| Diagnostics log and immutable entry detail | iPhone | Legacy (intentionally technical) | Diagnostics exemption; `ui-content-rules.md` | No ordinary-page redesign required. |
-| Diagnostics export / system share sheet | iPhone | Legacy (intentionally technical) | Diagnostics exemption; `ui-content-rules.md` Submission | Native export/error/share acceptance. |
+| Diagnostics log and immutable entry detail | iPhone | Legacy (technical audience) | `ui-content-rules.md` | Redesign for the technical audience. |
+| Diagnostics export / system share sheet | iPhone | Legacy (technical audience) | `ui-content-rules.md` Submission | Native export/error/share acceptance. |
 | Backup notifications | iPhone | Partially redesigned | `apple-notifications.md`; `flows.md` Every day (`27765f7`, `c9363d6`) | System delivery, cold-start and tap acceptance; first-run invitation has the onboarding gate blocker above. |
 | Lock Screen / Dynamic Island Live Activity, pause/resume/Open | iPhone | Redesigned | `apple-live-activity.md`; `flows.md` Every day (`27765f7`) | Ring glyph rules updated (`2f00d25`); system creation, intents, stale content, dismissal/restart and physical-device acceptance remain. |
 | Open source & licenses, bundled-license reader | iPhone | Redesigned | `settings.md` (`d9f2323`, `544f1ed`) | Native long-content/localization and external-link acceptance remain. |
@@ -102,8 +104,8 @@ unused files and catalog-only legacy comparisons are not production pages.
 | Rename device sheet and discard confirmation | Mac | Redesigned | `platform-expression.md` A4/A5 (`82a460f`) | Native fitted-height, dirty-dismissal and save-failure acceptance. |
 | Help Center | Mac | Redesigned | `interaction.md` I2/I8; `platform-expression.md` A7 | — |
 | Help articles by task and problem | Mac | Redesigned | `interaction.md` I2/I8 | Native long-content/localization acceptance. |
-| Diagnostics log and immutable entry detail | Mac | Legacy (intentionally technical) | Diagnostics exemption; `ui-content-rules.md` | No ordinary-page redesign required. |
-| Diagnostics export / system share sheet | Mac | Legacy (intentionally technical) | Diagnostics exemption; `ui-content-rules.md` Submission | Native export/error/share acceptance. |
+| Diagnostics log and immutable entry detail | Mac | Legacy (technical audience) | `ui-content-rules.md` | Redesign for the technical audience. |
+| Diagnostics export / system share sheet | Mac | Legacy (technical audience) | `ui-content-rules.md` Submission | Native export/error/share acceptance. |
 | Menu-bar icon and status menu | Mac | Redesigned | `interaction.md` I1/I3; `platform-expression.md` A0 (`bec2e13`) | Implementation is committed; native menu, state and action acceptance remains. |
 | Backup notifications | Mac | Partially redesigned | `apple-notifications.md` (`27765f7`) | Shared notifier is implemented, but Mac has no notification-route consumer or explicit permission entry. Destination integration and system acceptance remain. |
 | Read-only album browser | Mac | Redesigned | `platform-expression.md` A6 (`49efc3e`) | Reachable through the shared chooser context menu; native grid/search/return/selection continuity remains. |
@@ -144,15 +146,15 @@ line breaks without hyphenation (`c88e354`); transfer scope wording is corrected
 | Experiments overview | Pixel | Redesigned | `settings.md`; `flows.md` (`895f8e5`) | Retired under D2: compatibility activity forwards to Storage; no production overview or pending owner decision remains. |
 | Automatic Cleanup setup/overview | Pixel | Partially redesigned | `flows.md` Free space automatically | Ordinary enable/overview moved to Storage (`895f8e5`, `6ccdda8`); Diagnostics still reaches old permission/account/actions/troubleshooting UI needing redesign. |
 | Account-binding and Cleanup progress/result pages | Pixel | Legacy | `ui-content-rules.md` External operations | Old flow remains reachable through Diagnostics (`895f8e5`); fresh structure and native external-app return/recovery acceptance remain. |
-| Photo-service diagnostics/probe page | Pixel | Legacy (intentionally technical) | Diagnostics exemption | Moved under Diagnostics (`895f8e5`); intentionally technical, separate from ordinary cleanup recovery. |
-| Photo-service diagnostics export | Pixel | Legacy (intentionally technical) | Diagnostics exemption; `ui-content-rules.md` Submission | Native interrupted-export/retry acceptance; navigation is rebuilt (`f47e726`). |
+| Photo-service diagnostics/probe page | Pixel | Legacy (technical audience) | — | Moved under Diagnostics (`895f8e5`); technical audience, separate from ordinary cleanup recovery. |
+| Photo-service diagnostics export | Pixel | Legacy (technical audience) | `ui-content-rules.md` Submission | Native interrupted-export/retry acceptance; navigation is rebuilt (`f47e726`). |
 | Cleanup/probe consent dialogs and Reviewed confirmation | Pixel | Partially redesigned | `ui-content-rules.md` Application consent; `platform-expression.md` A5 | Storage enable uses shared consent (`895f8e5`); legacy probe consent/review remain reachable and need workflow and native-return acceptance. |
 | Waking/unlocking transient screen | Pixel | Legacy | Target: `flows.md`; `ui-content-rules.md` External operations | Standalone text with literal typography/padding lacks a page contract and review. |
-| Diagnostics log-report and gallery-receipts report exports | Pixel | Legacy (intentionally technical) | Diagnostics exemption; `ui-content-rules.md` Submission | Footer now opens Diagnostics index (`895f8e5`); gallery Intent retained. Native export/interruption/error acceptance remains. |
-| Diagnostics index / Records and Exports | Pixel | Legacy (intentionally technical) | Diagnostics exemption | Settings footer opens this index (`895f8e5`); intentionally technical, with the ordinary cleanup-descendant boundary still to resolve. |
-| Storage limits, log retention and legacy retention/scope sheet | Pixel | Legacy (technical compatibility routes) | `feature-triage.md`; diagnostics exemption for log retention | Supported storage-limits/retention Intents and diagnostics routes remain. Retain or retire the old settings/scope structure explicitly; this is not redesigned Storage. |
-| Original archive explanation and export/verification task page | Pixel | Legacy (technical export) | `ui-content-rules.md` Submission | Reachable through diagnostics and `surface=archive`. Explicitly retain as technical export or redesign; native confirmation/task/return acceptance remains. |
-| Verified archive result and reclaim-originals confirmation/result | Pixel | Legacy (technical export) | `platform-expression.md` A5; `ui-content-rules.md` Submission | Old result/second-confirmation flow lacks fresh structure approval. |
+| Diagnostics log-report and gallery-receipts report exports | Pixel | Legacy (technical audience) | `ui-content-rules.md` Submission | Footer now opens Diagnostics index (`895f8e5`); gallery Intent retained. Native export/interruption/error acceptance remains. |
+| Diagnostics index / Records and Exports | Pixel | Legacy (technical audience) | — | Settings footer opens this index (`895f8e5`); technical audience, with the ordinary cleanup-descendant boundary still to resolve. |
+| Storage limits, log retention and legacy retention/scope sheet | Pixel | Legacy (technical audience: compatibility routes) | `feature-triage.md`; log retention | Supported storage-limits/retention Intents and diagnostics routes remain. Retain or retire the old settings/scope structure explicitly; this is not redesigned Storage. |
+| Original archive explanation and export/verification task page | Pixel | Legacy (technical audience: export) | `ui-content-rules.md` Submission | Reachable through diagnostics and `surface=archive`. Explicitly retain as technical export or redesign; native confirmation/task/return acceptance remains. |
+| Verified archive result and reclaim-originals confirmation/result | Pixel | Legacy (technical audience: export) | `platform-expression.md` A5; `ui-content-rules.md` Submission | Old result/second-confirmation flow lacks fresh structure approval. |
 | Operation-failed / Retry sheet | Pixel | Legacy | Target: `platform-expression.md` A7/A9/A10 | Generic modal error wrapper needs task-specific in-place or explanatory recovery review. |
 | Ongoing receiver notification and stopped/restart reminder | Pixel | Redesigned | `ui-content-rules.md` System notifications (`c8f4af3`) | Actual system rendering and Receive/Needs you/Storage cold/warm tap acceptance. |
 | About BackupDuck | Pixel | Redesigned | `settings.md` (`895f8e5`) | Version/update status, privacy, source/licenses and website rebuilt; absent author content hidden. Native update/external-return acceptance remains. |

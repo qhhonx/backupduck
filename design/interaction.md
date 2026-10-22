@@ -73,7 +73,10 @@ up or receiving, caught up, empty (`flows.md` § Hub rules).
 ## I6 Continuity
 
 - Returning restores scroll, date anchor, view and selection.
-- Grid to photo uses the zoom transition and returns to the same tile.
+- Every thumbnail that opens a photo (library grid, hub recent photos, problem
+  cards, history, folders) uses the same zoom transition from that thumbnail
+  and returns to it; after paging, the return lands on the current photo's
+  thumbnail, scrolled into view. Acceptance opens the viewer from every entry.
 - Hub summaries open the matching view ("Needs you" opens the Needs you view).
 - Notifications open the photo or problem they describe.
 - A narrow Mac window keeps detail and back reachable and keeps focus.

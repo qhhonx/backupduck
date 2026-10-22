@@ -109,14 +109,16 @@ Follow the source audit's priority order, with completed work removed:
    access; decide supported retention/archive routes and ordinary recovery UI.
 8. **Pixel records ordering:** make latest-change ordering global across core
    paging; viewer adoption, metadata, chrome and the repeated footer are resolved.
-9. **Release/native/device acceptance:** real pairing, notifications/Live
+9. **Technical pages:** redesign diagnostics (log, entry detail, exports) on all
+   three platforms and the Pixel compatibility/archive routes for their
+   technical audience: the same components and standards, exact detail kept.
+10. **Release/native/device acceptance:** real pairing, notifications/Live
    Activity, gesture reversal/anchors, settings persistence, update handoffs and
    failure recovery. Check light/dark, narrow layouts, large text and long copy;
    measure Release motion from recordings. Catalog/build checks do not replace
    physical-device observations.
-10. **Legacy removal:** after production review and acceptance, remove remaining
-    superseded pages and resolve compatibility routes explicitly; preserve
-    intentionally technical diagnostics.
+11. **Legacy removal:** after production review and acceptance, remove remaining
+    superseded pages and resolve compatibility routes explicitly.
 
 Publishing waits for the owner.
 
