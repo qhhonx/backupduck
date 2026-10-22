@@ -64,8 +64,15 @@ and upgrades, and never enables the feature or grants consent. Key this state by
 the feature introduction, not the app version. Avoid marking already visible
 routine actions or showing repeated reminders for disabled features.
 
-The Android receiver marks Settings and Experiments until the Experiments overview
-has been viewed. Google Photos automatic cleanup remains off until separately
+A required action is not a discovery: it uses the attention mark (the attention
+role, same size and place as the discovery dot) on the row that leads to it and
+on its navigation tab, and appears on the hub's Needs you, until resolved. On the
+Pixel, auto cleanup states that need the person (account changed, access off,
+result to check, failed) mark the Storage row and the Settings tab this way.
+Inside the destination page the row's own line and action suffice; no dot there.
+
+The Android receiver marks Settings and the Storage row with the discovery dot
+until Storage has been opened once after auto cleanup was introduced. Google Photos automatic cleanup remains off until separately
 configured and explicitly enabled. Other platforms do not add discovery dots
 without a specific discoverability need.
 

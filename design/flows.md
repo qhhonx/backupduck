@@ -12,7 +12,7 @@ Copy is quoted in English; the Chinese copy reviewed with the owner is in
 - **Say the whole journey first.** One screen names the three steps with three
   distinct marks: a yellow circle, the blue wing and an orange sparkle, sized to
   the same visual weight and without numerals. Every later step shows the row of
-  three with the current mark at full strength and the others faint, so the
+  three with the current mark in its colour and the others neutral and faint, so the
   person always sees where they are in the journey.
 - **One decision per screen, primary action in a fixed place.**
 - **Explain before the system asks.** Camera, photos and notifications each get

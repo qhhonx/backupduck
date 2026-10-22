@@ -102,7 +102,11 @@ grids use 2 pt gaps and no radius; photos inside a card take the card radius.
   numerals; their shapes and order tell the steps apart. The welcome screen
   lists all three at full strength beside their sentences. Every later
   first-run step shows the same row of three at the top, the current mark at
-  full strength and the others faint (about 25 % opacity). Assistive
+  full strength in its own colour and the others in a neutral faint fill (the
+  tertiary text role), so the current step is the only coloured mark on the
+  screen. In the welcome list each mark sits in a fixed square column no taller
+  than the two lines of text beside it, all three optically centred on one
+  axis and matched in visual weight. Assistive
   technology reads "Step 2 of 3".
 - Animations play once, stop when the page is left, show a still frame under
   Reduce Motion, and are hidden from assistive technology.

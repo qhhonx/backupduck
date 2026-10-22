@@ -119,15 +119,18 @@ platform, in each platform's components:
 
 1. **One line at the top**: what this is and the privacy promise ("For
    troubleshooting. Exports contain no photos.").
-2. **Activity log**: newest first, grouped by day. Each row: time, the event in
-   plain words, and its code in a quiet label. Search and a small set of
-   filters (All, Problems, Transfers, Storage). A row opens the entry: every
-   recorded field (time, code, job, size, context) with Copy and Copy All.
-   Empty and failed-to-read states say so with a retry.
-3. **Export**: one row, "Export diagnostics", naming what the file contains
-   and its format (on the Pixel it includes the record of photos saved to
-   Photos, per `feature-triage.md`); the system save or share sheet chooses
-   where; success names the file; failure keeps the row with Retry.
+2. **Activity log**: a dense list like a console, newest first, grouped by
+   day: one line per entry (time in tabular figures, the event in plain words,
+   its code as a small monospaced label at the end), no cards and no second
+   line. Search and a small set of filters (All, Problems, Transfers, Storage).
+   An entry opens a plain key–value list (readable label, value in monospace,
+   raw key quiet), one row per field, with Copy on each row and Copy All.
+   Empty and failed-to-read states say so; only a failure offers Retry.
+3. **Export**: an ordinary settings row, "Export diagnostics", with one small
+   supporting line naming what the file contains and its format (on the Pixel
+   it includes the record of photos saved to Photos, per `feature-triage.md`).
+   Tapping it opens the system save or share sheet; afterwards the supporting
+   line names the saved file, or says it failed and the row retries.
 4. **No retention settings**: the log keeps 14 days automatically
    (`feature-triage.md`); the top line may say so.
 5. **Pixel tools**: the Google Photos compatibility check (observation only),
