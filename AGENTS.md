@@ -75,8 +75,7 @@ list when it exists.
 
 ## Verification
 
-Follow `design/iteration-checklist.md`; Android also uses
-`design/android-v1.2/native-acceptance.md`. Run affected builds and existing checks,
+Follow `design/iteration-checklist.md`. Run affected builds and existing checks,
 then inspect active native windows for light/dark, narrow layouts, large text,
 long localized content, failure and recovery. View rectangles or text existence
 alone do not prove visible, correctly aligned feedback.

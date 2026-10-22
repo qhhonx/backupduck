@@ -43,10 +43,17 @@ existing-library snapshot, not queued jobs. Manual selection remains authoritati
 
 ## Viewer
 
-Media is the dominant surface: black canvas, aspect-fit image, compact overlay
-date/time header and icon controls. A tap hides/reveals chrome. The viewer is
-read-only: do not copy Apple/Google editing, deletion or cloud-backup controls
-that BackupDuck does not implement.
+Media is the dominant surface: aspect-fit image on the system background (white
+in light appearance, black in dark), as in the system photo library. A tap hides
+or reveals the chrome and turns the background black while hidden. The chrome is
+the system's (A8 in `platform-expression.md`) and composed as the system photo
+library composes it: back, a date-and-time title capsule that opens the
+information panel, and More at the top; Share, Info and a backup-state button
+at the bottom, always present, the state shown by the button's glyph rather than
+by text. The information panel has no close button; it closes by dragging down,
+by Info or by the title. The filmstrip shows only while browsing. The viewer is read-only: do not copy
+Apple/Google editing, deletion or cloud-backup controls that BackupDuck does not
+implement.
 
 iPhone uses native continuous page scrolling with a narrow gap. During a drag,
 the current and adjacent media remain visible and move with the finger. A short

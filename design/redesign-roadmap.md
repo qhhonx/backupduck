@@ -49,7 +49,7 @@ in parallel sessions because they touch separate folders; shared Apple code
 | 3c | Mac pages: overview, library views and marks, history, settings list and detail, connect, viewer window, menu bar | Mac catalog checked in light and dark | Overview, Settings with Devices and Help, connect, library marks, A8 viewer, Folders and menu bar implemented; native acceptance and register blockers remain |
 | 3d | Core data for new pages: a "saving to Photos" tile state, Pixel storage breakdown, device page counts | `cargo test` and `cargo fmt --check` pass; hosts read the new fields | `source_job`, saving marks, storage/folder facts, confirmed history publication and bounded received-original previews implemented (`c8f4af3`, `c9363d6`, `e87c8f8`, `524c626`) |
 | 4 | Remaining pages from the standards: Mac first run and Folders, notifications, Live Activity, Pixel experiments, help articles | Catalog scenarios for each | Folders, notifications, Live Activity and Apple help implemented; no dedicated Mac first-run wizard. Pixel experiments, help and other register remnants remain |
-| 5 | Verification pass: light, dark, largest text, long localized copy, failure and recovery on every flow; Release-build motion recordings on iPhone and Pixel XL | Findings fixed or recorded under Known gaps | Not started |
+| 5 | Verification pass: light, dark, large text (one step above default), long localized copy, failure and recovery on every flow; Release-build motion recordings on iPhone and Pixel XL | Findings fixed or recorded under Known gaps | Not started |
 | 6 | Make the redesign the default: the design switch defaults on, legacy pages and remnants removed, `page-register.md` all redesigned, HTML prototypes retired | All checks pass on all three platforms | Default on in all three apps (0252a3f, fa9c23f); legacy removal remains |
 
 ## Current step
@@ -98,7 +98,7 @@ Next, in order:
 7. **Pixel experiments page — decided (D2, October 22).** Automatic cleanup
    moved to Storage › Free up space automatically; probes moved to Diagnostics;
    there is no Experiments page.
-8. **Release verification.** Check light/dark, narrow layouts, largest text,
+8. **Release verification.** Check light/dark, narrow layouts, large text,
    long localized content, failure and recovery. Complete system notification
    and Live Activity acceptance, real pairing and Release gesture/motion
    recordings under `iteration-checklist.md`. Builds and catalog scenarios do
