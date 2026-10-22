@@ -155,22 +155,29 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }
         root.addView(statusScrim, CoordinatorLayout.LayoutParams(-1, 0).apply { gravity = Gravity.TOP })
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val sheetSurface = if (isDarkAppearance()) getColor(R.color.duck_role_background) else white
         val sheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 val r = dp(16).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
-                setColor(if (isDarkAppearance()) getColor(R.color.duck_role_background) else white)
+                setColor(sheetSurface)
             }
         }
         val handle = BottomSheetDragHandleView(this).apply { imageTintList = ColorStateList.valueOf(androidx.core.graphics.ColorUtils.setAlphaComponent(getColor(R.color.duck_role_secondary_text), 70)) }
         sheet.addView(handle, LinearLayout.LayoutParams(-1, dp(32)))
-        val scroll = NestedScrollView(this).apply { addView(panel); isFillViewport = false }
+        val scroll = NestedScrollView(this).apply {
+            addView(panel); isFillViewport = false; clipToPadding = true
+        }
         sheet.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         val behavior = BottomSheetBehavior<LinearLayout>().apply { isHideable = true; skipCollapsed = true; isFitToContents = true }
         // BottomSheetBehavior owns the vertical offset. Bottom gravity would apply it
         // twice whenever asynchronous metadata or inline feedback requests layout.
         root.addView(sheet, CoordinatorLayout.LayoutParams(-1, -1).apply { this.behavior = behavior })
         behavior.state = BottomSheetBehavior.STATE_HIDDEN
+        // Keep the navigation surface fixed while the native sheet moves. This
+        // also supplies the surface on systems that enforce transparent bars.
+        val navigationSurface = View(this).apply { setBackgroundColor(sheetSurface); visibility = View.GONE }
+        root.addView(navigationSurface, CoordinatorLayout.LayoutParams(-1, 0).apply { gravity = Gravity.BOTTOM })
         // Keep a native Back control above the photo while information replaces the app bar.
         val detailBack = lookButton("", LookButton.TONAL, icon = R.drawable.ic_back) {
             behavior.state = BottomSheetBehavior.STATE_HIDDEN
@@ -193,18 +200,29 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         var sheetOpen = false
         var metadataLoaded = false
         var systemTop = 0
+        var systemBottom = 0
         var sheetHeight = 0
         val controller = WindowCompat.getInsetsController(window, root)
+        fun sheetViewport() {
+            // A dragged sheet extends below the window. Exclude that offscreen
+            // portion as well as the navigation inset from its scroll viewport.
+            val obscured = systemBottom + (sheet.bottom - root.height).coerceAtLeast(0)
+            val inset = obscured.coerceAtMost((sheet.height - handle.height).coerceAtLeast(0))
+            if (scroll.paddingBottom != inset) scroll.setPadding(0, 0, 0, inset)
+        }
         fun bars() {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             if (immersive) controller.hide(WindowInsetsCompat.Type.systemBars()) else controller.show(WindowInsetsCompat.Type.systemBars())
             statusScrim.visibility = if (sheetOpen && isDarkAppearance() && !immersive) View.VISIBLE else View.GONE
+            navigationSurface.visibility = if (sheetOpen && !immersive) View.VISIBLE else View.GONE
+            window.navigationBarColor = if (sheetOpen) sheetSurface else getColor(android.R.color.transparent)
             val light = sheetOpen && !isDarkAppearance()
             // The status inset stays on the black media canvas above the fitted photo.
             controller.isAppearanceLightStatusBars = false
             controller.isAppearanceLightNavigationBars = light
         }
         fun chrome(fraction: Float) {
+            sheetViewport()
             // FIT_CENTER uses the visible viewport, following the native sheet in both
             // directions. Moving a full-screen image instead can send it offscreen.
             val mediaTop = if (fraction > 0f) systemTop else 0
@@ -222,7 +240,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         // A content re-layout can settle without an onSlide callback. Reassert
         // the expanded chrome after native layout; dragging still owns its fraction.
         sheet.viewTreeObserver.addOnGlobalLayoutListener {
-            if (sheetOpen && behavior.state == BottomSheetBehavior.STATE_EXPANDED) chrome(1f)
+            if (sheetOpen && behavior.state == BottomSheetBehavior.STATE_EXPANDED) chrome(1f) else sheetViewport()
         }
         behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onSlide(bottomSheet: View, offset: Float) { chrome(((root.height - sheet.top).toFloat() / sheetHeight.coerceAtLeast(1)).coerceIn(0f, 1f)) }
@@ -340,11 +358,14 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val safe = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             systemTop = safe.top
+            systemBottom = safe.bottom
             statusScrim.layoutParams = statusScrim.layoutParams.apply { height = safe.top }
+            navigationSurface.layoutParams = navigationSurface.layoutParams.apply { height = safe.bottom }
             detailBack.layoutParams = (detailBack.layoutParams as CoordinatorLayout.LayoutParams).apply { topMargin = safe.top + token(R.dimen.duck_space_small) }
             top.setPadding(safe.left, safe.top, safe.right, token(R.dimen.duck_space_xx_large))
             bottom.setPadding(safe.left, token(R.dimen.duck_space_xx_large), safe.right, safe.bottom)
-            sheet.setPadding(safe.left, 0, safe.right, safe.bottom)
+            sheet.setPadding(safe.left, 0, safe.right, 0)
+            sheetViewport()
             insets
         }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->

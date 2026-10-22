@@ -407,3 +407,9 @@ sheet's current top on opening, dragging, reversal and closing. The received
 fact preserves scenario sender names. Content order is date/time, backup facts,
 then camera/file/location; the filename is the file row's first line, even when
 metadata is unavailable.
+
+While information is visible, the system navigation region uses the same opaque
+surface as the panel in both appearances. The scroll viewport excludes the
+navigation inset and the panel's offscreen portion during a drag, so content
+remains above the system buttons or gesture area. Closing information restores
+the viewer's transparent navigation region and light indicators.
