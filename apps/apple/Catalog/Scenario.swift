@@ -276,3 +276,15 @@ final class ScenarioCredentials: CredentialStore, @unchecked Sendable {
     albums = ScopeAlbumsModel(albums: rows, denied: id.hasSuffix("denied"))
   }
 }
+
+// Reserved content is injected only by these explicit catalog scenarios.
+extension Scenario {
+  var reservedSettingsContent: DuckReservedSettingsContent {
+    guard ["settings.about-reserved", "settings.feedback-reserved"].contains(id) else { return .production }
+    return DuckReservedSettingsContent(
+      authorText: NSLocalizedString("settings_author_placeholder", comment: ""),
+      feedbackEmail: "feedback@example.invalid",
+      appStoreAppID: "0000000000"
+    )
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "settings.about-reserved",
+  "page": "settings",
+  "step": "about",
+  "title": "Settings \u203a about (reserved content preview)",
+  "extends": "base-paired",
+  "expect": [
+    "The production About page opens directly on both platforms.",
+    "The author card appears with clearly labeled design-only placeholder text; production remains nil.",
+    "Privacy opens the existing website privacy page. The license is readable in-app.",
+    "iPhone and Mac App Store builds show only Version and no update UI. Direct Mac builds show update status below Version and push a detail with status, Check for Updates and Automatic Updates, without repeating Version."
+  ]
+}

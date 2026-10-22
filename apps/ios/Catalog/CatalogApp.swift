@@ -82,7 +82,7 @@ private struct ScenarioStage: View {
   @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
-    _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope."))
+    _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope.") || ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id))
   }
   @Environment(\.dismiss) private var dismiss
 
@@ -165,6 +165,7 @@ private struct ScenarioRun: View {
         }
       }
     }
+    .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
     .background(DuckColors.canvas.ignoresSafeArea())
     .tint(DuckColors.action)
     .task { await model.open() }
@@ -195,7 +196,8 @@ private struct ScenarioRun: View {
       } else if proposed, let detail = scenario.step {
         // A settings sub-page opened directly, as if pushed from Settings.
         NavigationStack { IOSSettingsDetail(name: detail, model: model) }
-      } else if proposed { IOSSettings(model: model) } else { IOSSettingsPage(model: model) }
+      } else if proposed { IOSSettings(model: model, showBottom: ["settings.bottom", "settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
+          .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id)) } else { IOSSettingsPage(model: model) }
     default:
       ContentUnavailableView("Not in this scenario", systemImage: item.symbol,
         description: Text(scenario.id))

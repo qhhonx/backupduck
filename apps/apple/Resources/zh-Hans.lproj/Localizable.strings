@@ -1617,3 +1617,31 @@
 "scope_selection_albums" = "%@ 个相簿";
 "scope_selection_photo" = "%@ 张照片";
 "scope_selection_photos" = "%@ 张照片";
+
+/* Settings bottom and About */
+"settings_send_feedback" = "发送反馈";
+"settings_feedback_join" = "加入用户反馈群";
+"settings_feedback_email" = "发邮件给我们（附诊断信息）";
+"settings_feedback_subject" = "备份鸭反馈";
+"settings_feedback_attachment_note" = "写邮件前请先查看诊断附件。只有你在邮件应用中点发送后才会发送。";
+"settings_feedback_share_note" = "此设备尚未配置邮件。请先分享或保存诊断文件，再将它附到邮件中。";
+"settings_feedback_open_mail" = "打开邮件";
+"settings_feedback_compose" = "写邮件…";
+"settings_feedback_mail_failed" = "未能打开带附件的邮件。请检查邮件应用后重试。";
+"settings_author_words" = "作者的话";
+"settings_author_placeholder" = "仅供设计预览：这里将显示作者写给用户的一段话。";
+"settings_privacy" = "隐私说明";
+"settings_privacy_promise" = "照片只在你的设备之间传送，备份鸭没有自己的云端。";
+"settings_source_licenses" = "开源代码与许可";
+"settings_source_code" = "源代码";
+"settings_source_license_note" = "备份鸭源码采用 PolyForm Noncommercial 许可，允许非商业使用；商业使用需另行获得许可。";
+"settings_license" = "许可";
+"settings_license_online" = "在线查看许可";
+"settings_dependencies" = "第三方软件";
+
+"updates_not_checked" = "尚未检查";
+"updates_checking" = "正在检查…";
+"updates_up_to_date" = "已是最新版本";
+"updates_available" = "有可用更新";
+"updates_check_failed" = "无法检查更新";
+"settings_rate" = "为备份鸭评分";

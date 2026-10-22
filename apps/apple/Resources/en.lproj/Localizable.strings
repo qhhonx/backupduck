@@ -1617,3 +1617,31 @@
 "scope_selection_albums" = "%@ albums";
 "scope_selection_photo" = "%@ photo";
 "scope_selection_photos" = "%@ photos";
+
+/* Settings bottom and About */
+"settings_send_feedback" = "Send Feedback";
+"settings_feedback_join" = "Join the User Feedback Group";
+"settings_feedback_email" = "Email Us (Attach Diagnostics)";
+"settings_feedback_subject" = "BackupDuck Feedback";
+"settings_feedback_attachment_note" = "Review the attached diagnostics before composing your email. Nothing is sent until you choose Send in your mail app.";
+"settings_feedback_share_note" = "Mail is not configured on this device. Share or save the diagnostics file, then attach it to your email.";
+"settings_feedback_open_mail" = "Open Email";
+"settings_feedback_compose" = "Compose Email…";
+"settings_feedback_mail_failed" = "Couldn’t open the email with its attachment. Check your mail app and try again.";
+"settings_author_words" = "A Word from the Author";
+"settings_author_placeholder" = "Design preview only: a short personal note from the author will appear here.";
+"settings_privacy" = "Privacy";
+"settings_privacy_promise" = "Photos travel only between your own devices and BackupDuck has no cloud of its own.";
+"settings_source_licenses" = "Open Source & Licenses";
+"settings_source_code" = "Source Code";
+"settings_source_license_note" = "BackupDuck’s source is available under the PolyForm Noncommercial license. It permits noncommercial use; commercial use requires separate permission.";
+"settings_license" = "License";
+"settings_license_online" = "Read License Online";
+"settings_dependencies" = "Third-Party Software";
+
+"updates_not_checked" = "Not checked yet";
+"updates_checking" = "Checking…";
+"updates_up_to_date" = "Up to date";
+"updates_available" = "Update available";
+"updates_check_failed" = "Couldn’t check for updates";
+"settings_rate" = "Rate BackupDuck";

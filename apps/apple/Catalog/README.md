@@ -8,6 +8,35 @@ they are never archived or distributed. See the design catalog section of
 
 ## How it works
 
+### Settings bottom, About and feedback
+
+`settings.bottom`, `settings.about` and `settings.feedback` use the redesigned
+production settings on both Apple hosts, without needing `-proposed`. The iPhone
+bottom scenarios scroll to About; on Mac the list column keeps the footer below
+its categories. Check English and Simplified Chinese, light/dark, narrow windows
+and accessibility text sizes. About uses Version as the leading title and the
+release version as the trailing secondary value. The author card appears only
+when approved content is supplied. It links the website privacy page and
+provides the source and license. Direct Mac builds show update status below the
+title and open a separate update detail with status, Check for Updates and
+Automatic Updates. Store builds show only the version row. Web rows use primary
+text with an external arrow; pushed iPhone rows keep the system disclosure. Mac
+list rows that select a detail pane have no trailing glyph. Rate BackupDuck uses
+the external arrow on both hosts. The existing `settings.updates.ready` and
+`settings.updates.unavailable` fixtures review the direct-update controls.
+
+The production `settings.feedback` scenario opens the user group directly when
+the row is activated, with an external arrow and no one-item menu.
+`settings.feedback-reserved` automatically opens the two-item native menu from
+the same full-row trigger. This menu row keeps the iPhone chevron and has no
+trailing glyph in the Mac list.
+Choose Email to prepare a synthetic diagnostics file; inspect its Quick Look
+preview before opening the mail composer. Cancel and retry without losing the
+file. iPhone uses MessageUI when mail is configured; otherwise it offers mailto
+and the system file share sheet with manual attachment instructions. Mac uses
+NSSharingService's email composer. Neither path sends automatically. Mail setup,
+attachment delivery and external destinations need separate system acceptance.
+
 ### Mac status menu (A0, A11)
 
 Choose the `menu.backing-up`, `menu.paused`, `menu.caught-up`, `menu.offline`
@@ -238,13 +267,24 @@ must preserve search, selection and position. These fixtures do not read Photos;
 the browser shows the native no-access state. Review the actual grid separately
 on a synthetic Photos library with access granted.
 
-`settings.about` opens About directly, including the store note in the Mac
-catalog's store configuration. `settings.about-menu` starts at another detail;
+`settings.about` opens About directly; its version row has no update controls
+in the Mac catalog's store configuration. `settings.about-menu` starts at another detail;
 use the application's About command, then repeat from another category or
 workspace destination. This uses the production About navigation handler.
 `settings.updates.ready` and `settings.updates.unavailable` are Mac-only previews
-of the direct-distribution section in the production About Form. Their isolated
+of the direct-distribution version row and its update destination in the
+production About Form. Their isolated
 switch applies immediately; Check disables through a synthetic driver without
 starting Sparkle, a network request or an installation. The real updater retains
 its existing native windows and action executor. Repeat with light/dark, narrow
 windows and Chinese; iPhone also supports the catalog's large-text controls.
+
+### Reserved Settings content
+
+`settings.about` and `settings.feedback` use production content: missing author
+text, feedback email and App Store app ID remove their reserved UI completely.
+`settings.about-reserved` and `settings.feedback-reserved` inject design-only
+placeholders on iPhone and Mac. The former shows the author card; the latter
+opens the feedback menu with both actions and shows Rate BackupDuck. The review
+URL is formed from the placeholder app ID. The placeholder email uses the
+reserved `.invalid` domain. These scenarios do not configure production content.

@@ -1,0 +1,30 @@
+{
+  "page": "settings",
+  "extends": "base-paired",
+  "core": {
+    "activity_log": {
+      "value": [
+        {
+          "id": 1,
+          "timestamp": 1792627200,
+          "code": "backup_started",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        }
+      ]
+    }
+  },
+  "id": "settings.feedback",
+  "title": "Settings \u203a feedback",
+  "expect": [
+    "With no feedback email configured, Send Feedback opens the user group directly and ends with arrow.up.right on iPhone and Mac; no menu appears.",
+    "No email action or Rate BackupDuck row is present in production."
+  ],
+  "actions": [
+    {
+      "action": "Open Send Feedback",
+      "result": "The user group opens outside the app directly; no menu appears and no diagnostics export starts."
+    }
+  ]
+}

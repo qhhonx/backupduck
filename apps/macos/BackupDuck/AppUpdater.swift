@@ -8,7 +8,7 @@ import SwiftUI
 }
 
 struct UpdateSettings: View {
-  var body: some View { MacUpdateSection(storeBuild: true) }
+  var body: some View { Section { DuckAboutVersionLabel() } }
 }
 
 #else
@@ -18,6 +18,7 @@ import Sparkle
   static let shared = AppUpdater()
   @Published private(set) var canCheck = false
   @Published private(set) var automaticChecks = true
+  @Published private(set) var status: MacUpdateStatus = .notChecked
   private var controller: SPUStandardUpdaterController!
   private var observations: [NSKeyValueObservation] = []
   private var started = false
@@ -29,6 +30,12 @@ import Sparkle
     observations = [
       controller.updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] value, _ in
         Task { @MainActor in self?.canCheck = value.canCheckForUpdates }
+      },
+      controller.updater.observe(\.sessionInProgress, options: [.new]) { [weak self] value, _ in
+        let inProgress = value.sessionInProgress
+        Task { @MainActor in
+          if inProgress { self?.status = .checking }
+        }
       },
       controller.updater.observe(\.automaticallyChecksForUpdates, options: [.initial, .new]) { [weak self] value, _ in
         Task { @MainActor in self?.automaticChecks = value.automaticallyChecksForUpdates }
@@ -44,7 +51,16 @@ import Sparkle
     }
     controller.startUpdater()
   }
-  func check() { controller.checkForUpdates(nil) }
+  func check() {
+    guard canCheck else { return }
+    status = .checking
+    controller.checkForUpdates(nil)
+  }
+  func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) { status = .available }
+  func updaterDidNotFindUpdate(_ updater: SPUUpdater) { status = .upToDate }
+  func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
+    if status == .checking { status = error == nil ? .notChecked : .failed }
+  }
   func setAutomaticChecks(_ value: Bool) { controller.updater.automaticallyChecksForUpdates = value }
   func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem,
     untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
@@ -66,7 +82,7 @@ import Sparkle
 struct UpdateSettings: View {
   @ObservedObject private var updater = AppUpdater.shared
   var body: some View {
-    MacUpdateSection(canCheck: updater.canCheck,
+    MacUpdateSection(status: updater.status, canCheck: updater.canCheck,
       automaticChecks: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks),
       check: updater.check)
   }
@@ -74,26 +90,45 @@ struct UpdateSettings: View {
 
 #endif
 
-/// A native section shared by About and the updater's synthetic catalog states.
+/// Status comes from Sparkle observations, never from the installed version alone.
+enum MacUpdateStatus {
+  case notChecked, checking, upToDate, available, failed
+  var title: LocalizedStringKey {
+    switch self {
+    case .notChecked: "updates_not_checked"
+    case .checking: "updates_checking"
+    case .upToDate: "updates_up_to_date"
+    case .available: "updates_available"
+    case .failed: "updates_check_failed"
+    }
+  }
+}
+
+/// About owns the version; its destination owns only update status and controls.
 struct MacUpdateSection: View {
-  var storeBuild = false
+  var status: MacUpdateStatus = .notChecked
   var canCheck = true
   var automaticChecks: Binding<Bool> = .constant(true)
   var check: () -> Void = {}
   var body: some View {
     Section {
-      LabeledContent("settings_version", value: DuckSettingsValues.version)
-      if !storeBuild {
-        LabeledContent("updates_title") {
-          Button("updates_check", action: check).buttonStyle(.bordered).disabled(!canCheck)
-            .accessibilityIdentifier("settings.updates.check")
+      NavigationLink {
+        Form {
+          Section {
+            Text(status.title).foregroundStyle(.primary)
+              .accessibilityIdentifier("settings.updates.status")
+            Button("updates_check", action: check).buttonStyle(.bordered).disabled(!canCheck)
+              .accessibilityIdentifier("settings.updates.check")
+            Toggle("updates_automatic", isOn: automaticChecks)
+              .toggleStyle(DuckPreferenceToggleStyle())
+              .accessibilityIdentifier("settings.updates.automatic")
+          }
         }
-        Toggle("updates_automatic", isOn: automaticChecks)
-          .toggleStyle(DuckPreferenceToggleStyle())
-          .accessibilityIdentifier("settings.updates.automatic")
-      }
-    } footer: {
-      Text(storeBuild ? "updates_store_note" : "updates_mac_note").foregroundStyle(.secondary)
+        .formStyle(.grouped)
+        .navigationTitle("updates_title")
+      } label: {
+        DuckAboutVersionLabel(status: status.title)
+      }.accessibilityIdentifier("about.version")
     }
   }
 }
