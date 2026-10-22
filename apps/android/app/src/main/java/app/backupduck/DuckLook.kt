@@ -306,11 +306,13 @@ internal fun Context.lookGroup(parent: LinearLayout): LinearLayout = lookCard(pa
  * supporting text so callers can refresh the value with [setSupporting].
  */
 internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title: String, supporting: String? = null,
-    trailing: View? = null, action: (() -> Unit)? = null): TextView {
+    trailing: View? = null, badge: String? = null, action: (() -> Unit)? = null): TextView {
     val support = lookText(supporting.orEmpty(), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
         visibility = if (supporting.isNullOrEmpty()) View.GONE else View.VISIBLE
     }
     val row = LinearLayout(this).apply {
+        // Center each complete child; font baselines must not shift icons or text blocks.
+        isBaselineAligned = false
         gravity = Gravity.CENTER_VERTICAL
         minimumHeight = dp(if (supporting.isNullOrEmpty()) 56 else 72)
         setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_x_small), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_x_small))
@@ -323,7 +325,15 @@ internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title
         }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = token(R.dimen.duck_space_medium) })
     }
     val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    words.addView(lookText(title, M.style.TextAppearance_Material3_BodyLarge))
+    if (badge == null) words.addView(lookText(title, M.style.TextAppearance_Material3_BodyLarge))
+    else words.addView(FlowRow(this, token(R.dimen.duck_space_x_small)).apply {
+        addView(lookText(title, M.style.TextAppearance_Material3_BodyLarge))
+        addView(lookPill(badge, null).apply {
+            minHeight = 0
+            setTextAppearance(M.style.TextAppearance_Material3_LabelSmall)
+            setTextColor(getColor(R.color.duck_role_secondary_text))
+        })
+    })
     words.addView(support)
     row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
     trailing?.let { row.addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginStart = token(R.dimen.duck_space_medium) }) }
@@ -336,9 +346,9 @@ internal class LookSwitch(val toggle: MaterialSwitch, val supporting: TextView)
 
 /** A row whose switch applies at once (I4); tapping anywhere on the row flips it. */
 internal fun Context.lookSwitchRow(group: LinearLayout, @DrawableRes icon: Int?, title: String, supporting: String?,
-    checked: Boolean, changed: (Boolean) -> Unit): LookSwitch {
+    checked: Boolean, badge: String? = null, changed: (Boolean) -> Unit): LookSwitch {
     val toggle = MaterialSwitch(this).apply { isChecked = checked; contentDescription = title }
-    val support = lookRow(group, icon, title, supporting, toggle) { if (toggle.isEnabled) toggle.toggle() }
+    val support = lookRow(group, icon, title, supporting, toggle, badge) { if (toggle.isEnabled) toggle.toggle() }
     toggle.setOnCheckedChangeListener { view, value -> if (view.tag != "restoring") changed(value) }
     return LookSwitch(toggle, support)
 }
@@ -471,4 +481,31 @@ internal object PhotoGlyphs {
         }
         return BitmapDrawable(context.resources, bitmap)
     }
+}
+
+/** Application consent uses the shared Material sheet, wrapping content and native actions. */
+internal fun Context.lookConsentSheet(title: String, lines: List<String>, note: String,
+    cancel: String, confirm: String, action: () -> Unit): LookSheet {
+    val sheet = LookSheet(this)
+    val inset = token(R.dimen.duck_space_medium)
+    sheet.body.setPadding(inset, 0, inset, inset)
+    sheet.body.addView(lookText(title, M.style.TextAppearance_Material3_HeadlineSmall).apply { isAccessibilityHeading = true })
+    lines.forEach { line ->
+        sheet.body.addView(lookText(line, M.style.TextAppearance_Material3_BodyLarge), LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = token(R.dimen.duck_space_medium)
+        })
+    }
+    sheet.body.addView(lookText(note, M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-1, -2).apply {
+        topMargin = token(R.dimen.duck_space_medium)
+    })
+    val stacked = resources.configuration.fontScale > 1.3f || resources.configuration.screenWidthDp < 360
+    sheet.body.addView(LinearLayout(this).apply {
+        orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        gravity = Gravity.END
+        addView(lookButton(cancel, LookButton.TEXT) { sheet.dismiss() }, LinearLayout.LayoutParams(if (stacked) -1 else -2, -2))
+        addView(lookButton(confirm, LookButton.FILLED) { sheet.dismiss(); action() }, LinearLayout.LayoutParams(if (stacked) -1 else -2, -2).apply {
+            if (stacked) topMargin = token(R.dimen.duck_space_small) else marginStart = token(R.dimen.duck_space_small)
+        })
+    }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
+    return sheet
 }

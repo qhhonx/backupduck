@@ -11,6 +11,10 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.materialswitch.MaterialSwitch
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -18,12 +22,61 @@ import java.net.URL
 import java.security.MessageDigest
 
 internal data class AppRelease(val version: String, val build: Long, val url: String, val sha256: String, val size: Long)
+/** One observation shared by About, explicit checks and automatic checks. */
+internal sealed interface UpdateCheckStatus {
+    data object Checking : UpdateCheckStatus
+    data object Current : UpdateCheckStatus
+    data class Available(val release: AppRelease) : UpdateCheckStatus
+    data object Failed : UpdateCheckStatus
+    data object Development : UpdateCheckStatus
+}
+
+internal fun Context.updateStatusLabel(status: UpdateCheckStatus?, compact: Boolean = false): String = when (status) {
+    null, UpdateCheckStatus.Checking -> getString(if (compact) R.string.about_update_checking else R.string.updates_checking)
+    UpdateCheckStatus.Current -> getString(if (compact) R.string.about_update_current else R.string.updates_current)
+    is UpdateCheckStatus.Available -> if (compact) getString(R.string.about_update_available) else getString(R.string.updates_available, status.release.version)
+    UpdateCheckStatus.Failed -> getString(if (compact) R.string.about_update_failed else R.string.updates_check_failed)
+    UpdateCheckStatus.Development -> getString(R.string.duck_update_development)
+}
+
 internal object AppUpdates {
     private const val API = "https://api.github.com/repos/qhhonx/backupduck/releases?per_page=30"
     private const val SITE_API = "https://backupduck.app/releases.json"
     private const val PREFIX = "https://github.com/qhhonx/backupduck/releases/download/"
     private const val MAX_APK = 250L * 1024 * 1024
     private val TAG = Regex("v[0-9]+\\.[0-9]+\\.[0-9]+(?:-(?:alpha|beta|rc)\\.[0-9]+)?")
+    private val observedStatus = MutableStateFlow<UpdateCheckStatus?>(null)
+    val status = observedStatus.asStateFlow()
+    private val checkLock = Mutex()
+
+    /** Serializes observations so overlapping pages use the same in-flight check. */
+    suspend fun check(context: Context): UpdateCheckStatus {
+        if (!checkLock.tryLock()) return checkLock.withLock { observedStatus.value } ?: check(context)
+        try {
+            val installed = context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+            if (context.packageName.endsWith(".validation") || installed.endsWith("-dev")) {
+                return UpdateCheckStatus.Development.also { observedStatus.value = it }
+            }
+            observedStatus.value = UpdateCheckStatus.Checking
+            val result = try {
+                withContext(Dispatchers.IO) { ReceiverEnvironment.latestUpdate(context) }
+                    ?.let { UpdateCheckStatus.Available(it) } ?: UpdateCheckStatus.Current
+            } catch (cancelled: CancellationException) {
+                observedStatus.value = null
+                throw cancelled
+            } catch (_: Exception) {
+                UpdateCheckStatus.Failed
+            }
+            observedStatus.value = result
+            return result
+        } finally {
+            checkLock.unlock()
+        }
+    }
+
+    /** A newly selected catalog scenario must not reuse another scenario's observation. */
+    internal fun resetStatus(initial: UpdateCheckStatus? = null) { observedStatus.value = initial }
+
     fun preferences(context: Context) = context.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
     private fun connection(url: String) = (URL(url).openConnection() as javax.net.ssl.HttpsURLConnection).apply {
         connectTimeout = 15_000; readTimeout = 30_000
@@ -133,28 +186,20 @@ class UpdatesActivity:BackupDuckActivity() {
     private var downloaded:File?=null
     private lateinit var feedback:TextView
     private lateinit var button:com.google.android.material.button.MaterialButton
-    private val installedVersion get()=packageManager.getPackageInfo(packageName,0).versionName ?: ""
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
-        nativeDetailPage(R.string.updates_title) {panel ->
-            val group=lookGroup(panel)
-            lookRow(group,null,getString(R.string.updates_installed),receiverVersionLabel())
-            lookSwitchRow(group,null,getString(R.string.updates_automatic),getString(R.string.updates_automatic_note),AppUpdates.preferences(this).getBoolean("automatic",true)) {
-                AppUpdates.preferences(this).edit().putBoolean("automatic",it).apply()
-            }
+        nativeDetailPage(R.string.updates_check) {panel ->
             feedback=duckParagraph("").apply {accessibilityLiveRegion=android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE}
             panel.addView(feedback,LinearLayout.LayoutParams(-1,-2).apply {
                 topMargin=token(R.dimen.duck_space_large);bottomMargin=token(R.dimen.duck_space_small)
             })
             button=lookButton(getString(R.string.updates_check),LookButton.TEXT) {perform()}
             panel.addView(button,LinearLayout.LayoutParams(-1,-2))
-            panel.addView(lookButton(getString(R.string.official_website),LookButton.TEXT) {
-                runCatching {startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://backupduck.app")))}.onFailure {showMessage(getString(R.string.updates_check_failed),true)}
-            },LinearLayout.LayoutParams(-1,-2).apply {topMargin=token(R.dimen.duck_space_small)})
-            panel.addView(duckParagraph(getString(R.string.updates_note)),LinearLayout.LayoutParams(-1,-2).apply {
-                topMargin=token(R.dimen.duck_space_small)
-            })
+            val group=lookGroup(panel)
+            lookSwitchRow(group,R.drawable.ic_restart,getString(R.string.updates_automatic),getString(R.string.updates_automatic_note),AppUpdates.preferences(this).getBoolean("automatic",true)) {
+                AppUpdates.preferences(this).edit().putBoolean("automatic",it).apply()
+            }
         }
         check()
     }
@@ -164,15 +209,17 @@ class UpdatesActivity:BackupDuckActivity() {
         feedback.compoundDrawablePadding=token(R.dimen.duck_space_x_small)
     }
     private fun check() {
-        if(packageName.endsWith(".validation")||installedVersion.endsWith("-dev")) {
-            showMessage(getString(R.string.duck_update_development));button.isEnabled=false;return
-        }
         button.isEnabled=false;release=null;showMessage(getString(R.string.updates_checking))
         lifecycleScope.launch {
-            runCatching {withContext(Dispatchers.IO) {ReceiverEnvironment.latestUpdate(this@UpdatesActivity)}}
-                .onSuccess {release=it;showMessage(if(it==null)getString(R.string.updates_current) else getString(R.string.updates_available,it.version));button.setText(if(it==null)R.string.updates_check else R.string.updates_download)}
-                .onFailure {showMessage(getString(R.string.updates_check_failed),true);button.setText(R.string.duck_retry)}
-            button.isEnabled=ReceiverEnvironment.checksUpdates||release==null
+            val state=AppUpdates.check(this@UpdatesActivity)
+            release=(state as? UpdateCheckStatus.Available)?.release
+            showMessage(updateStatusLabel(state),state==UpdateCheckStatus.Failed)
+            button.setText(when(state) {
+                is UpdateCheckStatus.Available -> R.string.updates_download
+                UpdateCheckStatus.Failed -> R.string.duck_retry
+                else -> R.string.updates_check
+            })
+            button.isEnabled=state!=UpdateCheckStatus.Development&&(ReceiverEnvironment.checksUpdates||release==null)
         }
     }
     private fun perform() {

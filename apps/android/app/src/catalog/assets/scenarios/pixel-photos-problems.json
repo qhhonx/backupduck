@@ -9,7 +9,8 @@
     "Needs you: Live Photos card (2, View) above the could-not-save card (3, Try again), each with its thumbnails.",
     "Days Today, Yesterday, Fri Oct 16, Wed Oct 14, Sun Oct 11, newest first; each day names its senders.",
     "Tiles: a clock on the photo still arriving and the one being saved; an alert on the five that need you; no mark otherwise.",
-    "A tile opens the photo's detail: when it was taken, the three facts, Try again only on a photo that could not be saved."
+    "A tile opens the photo's detail: when it was taken, the three facts, Try again only on a photo that could not be saved.",
+    "In light and dark app appearance, the viewer information panel has only top rounded corners and its solid surface extends beneath gesture or three-button navigation; the final file line stays reachable above the system controls."
   ],
   "actions": [
     {

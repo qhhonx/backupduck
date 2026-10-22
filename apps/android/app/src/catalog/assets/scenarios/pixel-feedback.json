@@ -1,0 +1,19 @@
+{
+  "id": "pixel.feedback",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "feedback",
+  "title": "Send Feedback",
+  "expect": [
+    "Catalog starts at Settings scrolled to Help & feedback without launching an external intent. Tapping Send Feedback opens the existing user group directly while the reserved feedback email is null.",
+    "No email option or email promise is shown when the address is absent."
+  ],
+  "core": {
+    "receiver_logs": {
+      "value": {
+        "note": "Synthetic catalog diagnostics; no personal data.",
+        "logs": []
+      }
+    }
+  }
+}

@@ -172,6 +172,12 @@ class PhotosProbeService : AccessibilityService() {
                             return@withLock
                         }
                         if (bind && action in setOf("wait", "done", "finish")) error("pending")
+                        if (!bind && observed == "completed" && reason == "completed") {
+                            val nodes = snapshot.getJSONArray("nodes")
+                            val title = (0 until nodes.length()).map { nodes.getJSONObject(it) }
+                                .singleOrNull { it.optString("id").endsWith("/free_up_space_completed_title") }?.optString("text").orEmpty()
+                            cleanup.recordCompletion(CleanupCompletion.bytes(title))
+                        }
                         if (!bind) cleanup.save(state, reason)
                         updateOperation(reason, action !in setOf("stop", "finish"))
                         when (action) {

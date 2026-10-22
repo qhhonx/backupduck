@@ -1,6 +1,8 @@
 <resources>
     <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Resolve the window surface before activity scheme overlays are applied. -->
+        <item name="android:colorBackground">@color/duck_role_background</item>
+        <item name="android:windowBackground">@color/duck_role_background</item>
         <item name="colorSurface">@color/duck_m3_surface</item>
         <item name="colorPrimaryDark">?attr/colorSurface</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>

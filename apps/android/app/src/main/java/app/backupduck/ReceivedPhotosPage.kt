@@ -18,6 +18,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.widget.NestedScrollView
+import androidx.core.view.doOnPreDraw
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
@@ -54,7 +55,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         val retry: (item: HistoryItem, done: (Boolean) -> Unit) -> Unit, val connect: () -> Unit)
 
     private val images = PhotoImages(activity)
-    private val adapter = PhotoAdapter(activity, images, ::cardAction, ::showDetail, actions)
+    private val adapter = PhotoAdapter(activity, images, ::cardAction, { item, source -> open(item, source) }, actions)
     private val span = (activity.resources.displayMetrics.widthPixels / activity.dp(96)).coerceAtLeast(3)
     private val layout = GridLayoutManager(activity, span).apply {
         spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
@@ -76,6 +77,13 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
                 if (dy > 0 && layout.findLastVisibleItemPosition() >= this@ReceivedPhotosPage.adapter.itemCount - span * 4) actions.more()
             }
         })
+    }
+
+    init { if (ReceiverEnvironment.nativeLibraryChrome) adapter.enableSelection(view, "received-photos") }
+
+    private fun open(item: HistoryItem, source: ImageView?, list: RecyclerView = view) {
+        if (ReceiverEnvironment.nativeLibraryChrome) NativePhotoViewerActivity.open(activity, adapter.live(item), source, list)
+        else showDetail(item)
     }
 
     fun render(state: HistoryState) { history = state; rebuild() }
@@ -135,11 +143,21 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), 0, activity.dp(24), 0) })
         body.addView(activity.lookText(activity.getString(causeNote(group.cause)), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), activity.dp(4), activity.dp(24), activity.dp(16)) })
-        val tiles = PhotoAdapter(activity, images, { _, _ -> }, { sheet.dismiss(); showDetail(it) }, actions)
-        body.addView(RecyclerView(activity).apply {
+        lateinit var grid: RecyclerView
+        val tiles = PhotoAdapter(activity, images, { _, _ -> }, { item, source ->
+            if (ReceiverEnvironment.nativeLibraryChrome) open(item, source, grid)
+            else { sheet.dismiss(); showDetail(item) }
+        }, actions)
+        grid = RecyclerView(activity).apply {
             layoutManager = GridLayoutManager(activity, span); adapter = tiles; itemAnimator = null; isNestedScrollingEnabled = false
-        }, LinearLayout.LayoutParams(-1, -2))
+        }
+        body.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        if (ReceiverEnvironment.nativeLibraryChrome) tiles.enableSelection(grid, "cause-${group.cause}")
         tiles.submitList(group.items.map { PhotoRow.Tile(it) })
+        if (ReceiverEnvironment.nativeLibraryChrome) {
+            adapter.suspendSelection()
+            sheet.setOnDismissListener { adapter.resumeSelection() }
+        }
         sheet.show()
     }
 
@@ -150,11 +168,17 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
  * Prefer the published copy, falling back to the core's disposable preview of
  * the received original. Neither a picture nor its absence is publication evidence.
  */
-internal class PhotoImages(private val activity: MainActivity) {
-    private val permits = Semaphore(2)
-    private val cache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
-        override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompatActivity) {
+    companion object {
+        private fun imageCache() = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+            override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+        }
+        private val nativeCache = imageCache()
+        private val nativePermits = Semaphore(2)
+        fun clearCache() = nativeCache.evictAll()
     }
+    private val cache = if (ReceiverEnvironment.nativeLibraryChrome) nativeCache else imageCache()
+    private val permits = if (ReceiverEnvironment.nativeLibraryChrome) nativePermits else Semaphore(2)
     fun cached(item: HistoryItem, width: Int, height: Int): Bitmap? = cache.get(key(item, width, height))
     private fun key(item: HistoryItem, width: Int, height: Int) = "${item.id}:${item.receipt}:${item.processing}:${width}x$height"
 
@@ -200,11 +224,34 @@ private class SquareFrame(context: android.content.Context) : FrameLayout(contex
 }
 
 private class PhotoAdapter(private val activity: MainActivity, private val images: PhotoImages,
-    private val cardAction: (CauseGroup, View) -> Unit, private val open: (HistoryItem) -> Unit,
+    private val cardAction: (CauseGroup, View) -> Unit, private val open: (HistoryItem, ImageView?) -> Unit,
     private val actions: ReceivedPhotosPage.Actions) : ListAdapter<PhotoRow, RecyclerView.ViewHolder>(object : DiffUtil.ItemCallback<PhotoRow>() {
     override fun areItemsTheSame(old: PhotoRow, new: PhotoRow) = old.key == new.key
     override fun areContentsTheSame(old: PhotoRow, new: PhotoRow) = old == new
-}) {
+}), PhotoTransitionItems {
+    override fun positionOfPhoto(id: String) = currentList.indexOfFirst { it is PhotoRow.Tile && it.item.id == id }
+    private var selection: NativePhotoSelection? = null
+    private var selectionSource: List<PhotoRow>? = null
+    private var selectionRows: List<HistoryItem?> = emptyList()
+    private fun selectedRows(): List<HistoryItem?> {
+        // ListAdapter publishes its new list before dispatching diff notifications.
+        // Key lookups during those notifications must already see the new positions.
+        if (selectionSource !== currentList) {
+            selectionSource = currentList
+            selectionRows = currentList.map { (it as? PhotoRow.Tile)?.item?.let(::live) }
+        }
+        return selectionRows
+    }
+    fun enableSelection(list: RecyclerView, key: String) {
+        selection = NativePhotoSelection(activity, list, key,
+            rows = ::selectedRows,
+            open = { item ->
+                val position = currentList.indexOfFirst { it is PhotoRow.Tile && it.item.id == item.id }
+                open(live(item), (list.findViewHolderForAdapterPosition(position) as? TileHolder)?.image)
+            }, retry = actions.retry)
+    }
+    fun suspendSelection() { selection?.suspendMode() }
+    fun resumeSelection() { selection?.resumeMode() }
     var scope = PhotoScope(0, 0, null)
         set(value) { if (field != value) { field = value; currentList.indexOf(PhotoRow.Scope).takeIf { it >= 0 }?.let(::notifyItemChanged) } }
     var hasSenders = true
@@ -223,6 +270,10 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         liveProgress = if (values.isEmpty()) emptyMap() else LinkedHashMap(liveProgress).apply {
             values.forEach { (id, value) -> remove(id); put(id, value) }
             while (size > 256) remove(keys.first())
+        }
+        if (selection != null) {
+            selectionSource = null
+            selection?.rowsChanged()
         }
         for (i in 0 until list.childCount) {
             val holder = list.getChildViewHolder(list.getChildAt(i)) as? TileHolder ?: continue
@@ -261,6 +312,10 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         }
     }
 
+    override fun onCurrentListChanged(previousList: MutableList<PhotoRow>, currentList: MutableList<PhotoRow>) {
+        selection?.rowsChanged()
+    }
+
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         (holder as? TileHolder)?.cancel()
         (holder as? CauseHolder)?.cancel()
@@ -296,7 +351,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
     }
 
     inner class TileHolder(private val activity: MainActivity) : RecyclerView.ViewHolder(SquareFrame(activity)) {
-        private val image = ImageView(activity).apply {
+        val image = ImageView(activity).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         private val badge = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
@@ -308,21 +363,35 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             (itemView as FrameLayout).apply {
                 setPadding(activity.dp(1), activity.dp(1), activity.dp(1), activity.dp(1))
                 addView(image, FrameLayout.LayoutParams(-1, -1))
+                if (ReceiverEnvironment.nativeLibraryChrome) addView(android.widget.CheckBox(activity).apply {
+                    tag = "photo-selection"; isClickable = false; isFocusable = false
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO; visibility = View.GONE
+                }, FrameLayout.LayoutParams(activity.dp(48), activity.dp(48), Gravity.TOP or Gravity.END))
                 addView(badge, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, activity.dp(2), activity.dp(2)) })
                 isFocusable = true; isClickable = true
                 val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
                 foreground = activity.getDrawable(out.resourceId)
-                setOnClickListener { item?.let(open) }
+                if (ReceiverEnvironment.nativeLibraryChrome) setOnLongClickListener {
+                    item?.let { selection?.select(it.id) } == true
+                }
+                setOnClickListener {
+                    item?.let { current ->
+                        if (selection?.toggleIfSelecting(current.id) != true) open(current, image)
+                    }
+                }
             }
         }
         fun cancel() { signal?.cancel(); work?.cancel(); signal = null; work = null; bound = null }
         fun bind(item: HistoryItem) {
             this.item = item
+            image.transitionName = photoTransitionName(item.id)
+            selection?.bind(itemView, item.id)
             mark(item)
             val size = (activity.resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)
             val key = "${item.id}:${item.receipt}:${item.processing}"
             if (bound == key) return
             cancel(); bound = key
+            if (ReceiverEnvironment.nativeLibraryChrome) image.setTag(R.id.photo_transition_ready, null)
             pictured = false
             images.cached(item, size, size)?.let { show(it); return }
             placeholder(image, loading = true); mark(item)
@@ -336,6 +405,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         private var pictured = false
         private fun show(bitmap: Bitmap) {
             image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
+            if (ReceiverEnvironment.nativeLibraryChrome) image.setTag(R.id.photo_transition_ready, item?.id)
             pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true) }
         }
         fun mark(item: HistoryItem) {
@@ -449,41 +519,106 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
  * times, at most one action, the file, and one line on Google Photos, whose
  * backup BackupDuck cannot see.
  */
-private class PhotoDetail(private val activity: MainActivity, private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
+internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompatActivity, private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
     fun show(item: HistoryItem): Unit = with(activity) {
         val dark = darkLook()
         val page = androidx.appcompat.app.AppCompatDialog(dark, R.style.DuckFullPage)
         trackNotificationWindow(page)
+        val content = content(item, dismiss = { page.dismiss() }, isShowing = { page.isShowing })
+        page.setContentView(content.root)
+        page.setOnDismissListener { content.cancel() }
+        page.show()
+        page.window?.let { window ->
+            window.setLayout(-1, -1)
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.statusBarColor = dark.getColor(android.R.color.transparent)
+            window.navigationBarColor = dark.getColor(android.R.color.transparent)
+            if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
+            androidx.core.view.WindowCompat.getInsetsController(window, content.root).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+            }
+            androidx.core.view.ViewCompat.requestApplyInsets(content.root)
+        }
+    }
+
+    internal class Content(val root: View, val preview: ImageView, val cancel: () -> Unit)
+
+    fun content(item: HistoryItem, dismiss: () -> Unit, isShowing: () -> Boolean,
+        sharedName: String? = null, poster: Bitmap? = null, ready: (Boolean) -> Unit = {},
+        afterEnter: (() -> Unit) -> Unit = { it() }): Content = with(activity) {
+        val dark = darkLook()
         val canvas = dark.getColor(R.color.duck_role_background)
-        val root = LinearLayout(dark).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
-        root.addView(android.widget.ImageButton(dark).apply {
+        val root = LinearLayout(dark).apply {
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas)
+            if (sharedName != null) isTransitionGroup = false
+        }
+        if (sharedName != null) {
+            root.addView(com.google.android.material.appbar.MaterialToolbar(dark).apply {
+                setNavigationIcon(R.drawable.ic_close)
+                setNavigationContentDescription(R.string.connect_close)
+                setNavigationOnClickListener { dismiss() }
+            }, LinearLayout.LayoutParams(-1, resources.getDimensionPixelSize(M.dimen.m3_appbar_size_compact)))
+        } else root.addView(android.widget.ImageButton(dark).apply {
             setImageResource(R.drawable.ic_close); contentDescription = getString(R.string.connect_close)
             imageTintList = ColorStateList.valueOf(dark.getColor(R.color.duck_role_primary_text))
             val out = android.util.TypedValue(); dark.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, out, true)
-            setBackgroundResource(out.resourceId); setOnClickListener { page.dismiss() }
+            setBackgroundResource(out.resourceId); setOnClickListener { dismiss() }
         }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { setMargins(token(R.dimen.duck_space_xx_small), token(R.dimen.duck_space_xx_small), 0, 0) })
         val width = resources.displayMetrics.widthPixels.coerceIn(320, 1440)
         val height = (resources.displayMetrics.heightPixels * .6f).toInt()
-        val preview = ImageView(dark).apply { contentDescription = kindLabel(activity, item) }
+        val preview = ImageView(dark).apply {
+            contentDescription = kindLabel(activity, item); transitionName = sharedName
+        }
         root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
         // Keep the same space when neither the published copy nor a received preview is available.
         placeholder(preview, loading = true)
+        var hasPreview = false
+        if (sharedName != null) (poster ?: images.cached(item, (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384),
+            (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)))?.let {
+            preview.background = null; preview.imageTintList = null
+            preview.setPadding(0, 0, 0, 0)
+            preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(it)
+            hasPreview = true
+        }
+        // A retained tile poster can start the flight immediately. Do not replace its
+        // drawable mid-flight; publish the full rendition once Android settles it.
+        if (hasPreview) preview.doOnPreDraw { ready(true) }
         val signal = CancellationSignal()
         val work = images.load(item, width, height, signal) { bitmap ->
-            if (bitmap != null && page.isShowing) { preview.background = null; preview.imageTintList = null; preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap) }
-            else if (page.isShowing) placeholder(preview)
+            if (bitmap != null && isShowing()) {
+                fun publish() {
+                    if (!isShowing()) return
+                    preview.background = null; preview.imageTintList = null
+                    if (sharedName != null) preview.setPadding(0, 0, 0, 0)
+                    preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap)
+                }
+                if (sharedName != null && hasPreview) afterEnter(::publish) else publish()
+            } else if (isShowing() && !hasPreview) placeholder(preview)
+            if (!hasPreview) {
+                if (sharedName != null) preview.doOnPreDraw { ready(bitmap != null) } else ready(bitmap != null)
+            }
         }
         val panel = LinearLayout(dark).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_large), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_medium))
         }
-        root.addView(BoundedScroll(dark, .6f).apply {
+        val information = BoundedScroll(dark, .6f).apply {
             addView(panel)
             background = GradientDrawable().apply {
                 val r = dp(28).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
                 setColor(dark.getColor(R.color.duck_m3_surface_container_low))
             }
-        }, LinearLayout.LayoutParams(-1, -2))
+        }
+        root.addView(information, LinearLayout.LayoutParams(-1, -2))
+        // A8: the panel background reaches the window edge; only content avoids system bars.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                androidx.core.view.WindowInsetsCompat.Type.displayCutout())
+            root.setPadding(bars.left, bars.top, bars.right, 0)
+            information.setPadding(0, 0, 0, bars.bottom)
+            insets
+        }
         panel.addView(dark.lookText(item.capturedAtMs?.let { getString(R.string.photos_taken, fullDate(this, it)) } ?: getString(R.string.photos_taken_unknown),
             M.style.TextAppearance_Material3_TitleMedium).apply { isAccessibilityHeading = true; setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0) })
         val facts = dark.lookGroup(panel)
@@ -514,7 +649,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
                 retry.isEnabled = false; failure.visibility = View.GONE
                 actions.retry(item) { ok ->
                     retry.isEnabled = true
-                    if (ok) { page.dismiss() } else failure.visibility = View.VISIBLE
+                    if (ok) { dismiss() } else failure.visibility = View.VISIBLE
                 }
             }
             action.addView(retry, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
@@ -522,7 +657,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
         // Open the photo only once its copy in Photos is found; never offer a dead button.
         val lookup = if (item.processing == "complete") lifecycleScope.launch {
             val copy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() } ?: return@launch
-            if (!page.isShowing) return@launch
+            if (!isShowing()) return@launch
             action.addView(dark.lookButton(getString(R.string.photos_open), LookButton.TONAL) {
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(copy.uri, copy.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
                     .onFailure { failure.setText(R.string.photos_open_failed); failure.visibility = View.VISIBLE }
@@ -534,12 +669,7 @@ private class PhotoDetail(private val activity: MainActivity, private val images
         panel.addView(dark.lookText(getString(R.string.photos_detail_cloud), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
             setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0)
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
-        page.setContentView(root)
-        page.setOnDismissListener { signal.cancel(); work.cancel(); lookup?.cancel() }
-        page.show()
-        page.window?.let { window ->
-            window.setLayout(-1, -1)
-        }
+        Content(root, preview) { signal.cancel(); work.cancel(); lookup?.cancel() }
     }
 
     /** One fact: its glyph in the state color, the sentence, and its time below when known. */

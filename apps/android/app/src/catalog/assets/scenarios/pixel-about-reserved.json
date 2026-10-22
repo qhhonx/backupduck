@@ -1,0 +1,10 @@
+{
+  "id": "pixel.about-reserved",
+  "extends": "pixel.about",
+  "title": "About — reserved author content",
+  "show_reserved": true,
+  "expect": [
+    "Catalog-only show_reserved flag fills the From the author card with placeholder content resolved in the current page language. The version row shows the inherited settled Up to date fixture.",
+    "The version row still opens the status-only update page; production never shows missing reserved content."
+  ]
+}

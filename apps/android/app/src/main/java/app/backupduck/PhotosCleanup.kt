@@ -18,6 +18,13 @@ internal class PhotosCleanup(private val context: Context) {
     val pending: Boolean get() = state.optString("phase") in setOf("pending", "returning")
     val held: Boolean get() = pending || PhotosProbeService.cleanupRunning
     val reason: String get() = prefs.getString("reason", "ready").orEmpty()
+    val lastFreedBytes: Long? get() = prefs.getLong("last_freed_bytes", 0).takeIf { it > 0 }
+    val lastCompletedAt: Long? get() = prefs.getLong("last_completed_at", 0).takeIf { it > 0 }
+    fun recordCompletion(bytes: Long?) {
+        val edit = prefs.edit().putLong("last_completed_at", System.currentTimeMillis())
+        if (bytes == null) edit.remove("last_freed_bytes") else edit.putLong("last_freed_bytes", bytes)
+        check(edit.commit())
+    }
     fun save(state: JSONObject, reason: String) {
         check(prefs.edit().putString("state", state.toString()).putString("reason", reason).commit())
     }

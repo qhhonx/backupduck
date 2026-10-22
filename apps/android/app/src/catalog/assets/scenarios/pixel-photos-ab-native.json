@@ -1,0 +1,24 @@
+{
+  "id": "pixel.photos-ab-native",
+  "extends": "pixel.photos-problems",
+  "title": "Received photos \u00b7 native library chrome",
+  "libraryChrome": "native",
+  "expect": [
+    "Default launch keeps current library chrome.",
+    "Grid paging, media keys and scroll survive viewing and returning."
+  ],
+  "actions": [
+    {
+      "action": "Long-press a tile",
+      "result": "System selection and contextual View, applicable Retry and Share."
+    },
+    {
+      "action": "Open a tile, then Back",
+      "result": "System shared-element flight returns to the same tile."
+    },
+    {
+      "action": "Open a cause group, select and view a tile, then Back",
+      "result": "Cause grid stays open with independent selection and scroll."
+    }
+  ]
+}

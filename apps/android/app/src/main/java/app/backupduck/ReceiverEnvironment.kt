@@ -15,10 +15,24 @@ internal object ReceiverEnvironment {
     @Volatile var checksUpdates = true
     /** Explicit update checks; the catalog supplies a result without network or downloads. */
     @Volatile var latestUpdate: suspend (Context) -> AppRelease? = { AppUpdates.latest(it) }
+    /** Catalog scenarios may fill reserved content; production keeps the optional values unset. */
+    @Volatile var reservedSettings = ReservedSettingsContent()
     /** The redesigned pages (design/redesign-roadmap.md, step 6). The catalog can switch back to the earlier ones. */
     @Volatile var proposedDesign = true
+    /** Owner D1 comparison only. Production always keeps the current library chrome. */
+    @Volatile var nativeLibraryChrome = false
     /** The device's own storage reading; the catalog fixes it per scenario. */
     @Volatile var deviceStorage: (Context) -> DeviceStorage = { DeviceStorage.read(it) }
+    /** Read the same system value as first run; null means the state could not be read. */
+    @Volatile var smartStorage: (Context) -> Boolean? = {
+        runCatching { android.provider.Settings.Secure.getInt(it.contentResolver, "automatic_storage_manager_enabled", 0) == 1 }.getOrNull()
+    }
+    @Volatile var cleanupAccess: (Context) -> Boolean = { context ->
+        val expected = android.content.ComponentName(context, PhotosProbeService::class.java)
+        android.provider.Settings.Secure.getInt(context.contentResolver, android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1 &&
+            android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                .orEmpty().split(':').any { android.content.ComponentName.unflattenFromString(it) == expected }
+    }
     /** BackupDuck's files in the Pixel's Photos, read from the media index; the catalog fixes it per scenario. */
     @Volatile var galleryUsage: suspend (Context) -> GalleryUsage = { GalleryInventory.read(it) }
     /** The clock that decides Today and Yesterday; the catalog fixes it per scenario. */

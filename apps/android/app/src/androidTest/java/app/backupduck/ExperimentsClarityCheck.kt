@@ -48,34 +48,50 @@ internal fun Instrumentation.checkExperimentsClarity(args:Bundle):String {
         };settle();main {
             val dot=all(home.window.decorView).single {it.tag=="duck.discovery"}
             check(dot.width>0&&dot.height>0)
-            val row=dot.parent.parent.parent as View
+            val row=dot.parent as View
             row.requestRectangleOnScreen(Rect(0,0,row.width,row.height),true)
         };settle();main {
             val dot=all(home.window.decorView).single {it.tag=="duck.discovery"}
-            val row=dot.parent.parent.parent as View
+            val row=dot.parent as View
             val visible=Rect()
             check(row.getGlobalVisibleRect(visible)&&visible.height()==row.height&&visible.width()==row.width)
         };shot("discovery-settings")
-        val landing=startActivitySync(Intent(targetContext,ExperimentsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also {pages+=it}
-        settle();main {check(texts(landing,R.string.cleanup_title).size==1);check(texts(landing,R.string.photos_diagnostics_title).isEmpty());check(!FeatureDiscovery(targetContext).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP));check(!PhotosCleanup(targetContext).enabled)};shot("landing")
-        main {landing.finish()}
-        settle();main {check(navigation.getBadge(4)==null);check(all(home.window.decorView).single {it.tag=="duck.discovery"}.visibility==View.GONE);home.finish()}
+        main { home.openCleanup() };settle()
+        main {
+            check(texts(home,R.string.storage_automatic).size==1)
+            check(!FeatureDiscovery(targetContext).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP))
+            check(!PhotosCleanup(targetContext).enabled)
+            check(navigation.getBadge(4)==null)
+            val screen=MainActivity::class.java.getDeclaredField("storageScreen").apply {isAccessible=true}.get(home) as StorageScreen
+            screen.showCleanupConsent()
+            val sheet=StorageScreen::class.java.getDeclaredField("consentSheet").apply {isAccessible=true}.get(screen) as LookSheet
+            val labels=all(sheet.window!!.decorView).filterIsInstance<TextView>()
+            check(labels.count {it.text.toString()==home.getString(R.string.storage_cleanup_consent_access)}==1)
+            check(labels.none {it.text.toString()==home.getString(R.string.photos_probe_start)})
+            labels.single {it.text.toString()==home.getString(R.string.onb_later)}.performClick()
+            check(!PhotosCleanup(targetContext).enabled)
+            home.onBackPressedDispatcher.onBackPressed()
+        };settle()
+        main {
+            check(all(home.window.decorView).single {it.tag=="duck.discovery"}.visibility==View.GONE)
+            home.finish()
+        }
         val reopened=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         pages+=reopened;settle();main {check(reopened.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.main_navigation).getBadge(4)==null);check(!PhotosCleanup(targetContext).enabled);reopened.finish()}
         val page=startActivitySync(Intent(targetContext,PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as PhotosProbeActivity
         pages+=page;settle()
         fun render(s:PhotosProbeState)=main {PhotosProbeActivity::class.java.getDeclaredMethod("render",PhotosProbeState::class.java).apply {isAccessible=true}.invoke(page,s);Unit}
         fun reveal(id:Int)=main {val v=texts(page,id).single();v.requestRectangleOnScreen(Rect(0,0,v.width,v.height),true)}
-        main {check(texts(page,R.string.experiment_permission_off).isNotEmpty());check(texts(page,R.string.cleanup_now).isEmpty());check(!all(page.window.decorView).filterIsInstance<MaterialSwitch>().single().isEnabled)}
+        main {check(texts(page,R.string.experiment_permission_off).isNotEmpty());check(texts(page,R.string.cleanup_now).isEmpty());check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().isEmpty())}
         shot("setup")
         val cleanup=PhotosCleanup(targetContext);cleanup.account="synthetic-account-fingerprint";cleanup.report("bound")
-        render(PhotosProbeState(connected=true));main {check(texts(page,R.string.experiment_account_on).size==1);check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().single().isEnabled)}
+        render(PhotosProbeState(connected=true));main {check(texts(page,R.string.experiment_account_on).size==1);check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().isEmpty())}
         reveal(R.string.cleanup_now);shot("ready")
         render(PhotosProbeState(connected=true,running=true,observation="opening_cleanup",mode="cleanup"))
         main {check(texts(page,R.string.cleanup_stop).size==1);check(!(texts(page,R.string.experiment_account).single().parent.parent as View).isEnabled)}
         reveal(R.string.cleanup_stop);shot("running")
         cleanup.report("account_changed");render(PhotosProbeState(connected=true))
-        main {check(texts(page,R.string.experiment_account_changed).size==1);check(texts(page,R.string.cleanup_now).isEmpty());check(!all(page.window.decorView).filterIsInstance<MaterialSwitch>().single().isEnabled)}
+        main {check(texts(page,R.string.experiment_account_changed).size==1);check(texts(page,R.string.cleanup_now).isEmpty());check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().isEmpty())}
         reveal(R.string.experiment_account_changed);shot("account-changed")
         cleanup.save(JSONObject().put("phase","pending"),"pending");render(PhotosProbeState(connected=true))
         main {check(texts(page,R.string.cleanup_check_pending).size==1);check(texts(page,R.string.cleanup_reviewed).size==1)}
@@ -98,7 +114,7 @@ internal fun Instrumentation.checkExperimentsClarity(args:Bundle):String {
             check(texts(progress,R.string.cleanup_reviewed).isEmpty())
         }
         shot("result-empty")
-        return "PASS: discovery propagates to Settings; Settings does not acknowledge; overview clears both marks across restart without enabling cleanup; purpose entry; ordered setup; prerequisite gating; confirmed account; running stop control; changed-account recovery; pending result/review and binding fence; optional read-only troubleshooting steps; single-result page without redundant technical notices; unobstructed active app screenshots. No Google Photos operation executed."
+        return "PASS: Storage acknowledges discovery across restart without enabling cleanup; shared consent cancels without granting access; Storage owns the sole switch; technical setup retains account checks, running stop, changed-account recovery, pending review and probe/result pages. No Google Photos operation executed."
     } finally {
         main {pages.forEach {it.finish()};localeManager.applicationLocales=oldLocales}
         val e=prefs.edit();for(key in listOf("account","enabled","state","reason")){e.remove(key);when(val value=old[key]){is String->e.putString(key,value);is Boolean->e.putBoolean(key,value)}};e.commit()

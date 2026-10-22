@@ -169,6 +169,26 @@ tracked resources or package them in the APK.
 
 These scenarios use production Material pages and dialogs (A2/A4/A5, I8):
 
+- `pixel.settings`: Settings bottom has Help & feedback, the separate About row
+  and centered Diagnostics · Advanced settings links (诊断信息 · 高级设置). Every
+  preference row centers its monochrome icon with the complete text block; the
+  footer has 48 dp touch targets.
+- `pixel.about`: the production pushed About page has one Version row with the
+  package version in its title and a settled Up to date fixture underneath.
+  It opens the existing update page, which contains status, the check/download
+  action and the automatic-check switch, with no installed-version line.
+  Privacy, source repository and website rows remain. No bundled license viewer
+  exists in this host.
+- `pixel.feedback`: opens Settings scrolled to Help & feedback without launching
+  an external app. With no configured mailbox, tapping Send Feedback still opens
+  the existing user group directly; the settings subtitle offers only that group.
+- `pixel.about-reserved` and `pixel.feedback-reserved`: `show_reserved: true`
+  supplies a titled, localized author placeholder card and an `example.invalid` mailbox
+  for design review. Production uses the two optional values in
+  `ReservedSettingsContent`; null omits the author card or email action entirely.
+  The reserved email flow exports a visible diagnostics document before composing
+  a draft with that attachment and the configured recipient. Cancellation/failure
+  preserves the page and exported document. `receiver_logs` is synthetic here.
 - `pixel.help`: searchable task/problem index; `pixel.help-connection`,
   `pixel.help-results`, `pixel.help-storage`, `pixel.help-background` and
   `pixel.help-recovery`: the existing read-only receiver articles.
@@ -182,8 +202,89 @@ These scenarios use production Material pages and dialogs (A2/A4/A5, I8):
   available and failed explicit update checks. The catalog supplies these
   results without network access and disables update downloads/installation.
 
-All use `page: settings` and `surface` to open the production destination.
+All use `page: settings` and `surface` to open the production destination,
+except the single-option feedback preview, which shows its Settings entry.
 The optional `updates` object accepts `state: current|available|failed` and
-`delay_ms` for an explicit update check. Review each in light/dark, English/Chinese,
+`delay_ms` for an explicit update check. Current fixtures also seed the shared
+settled observation so About never waits for an automatic check. Review each in light/dark, English/Chinese,
 normal/large text, and with both toolbar and system Back. A compiled scenario is
 not native visual or physical-device acceptance.
+
+## Library chrome A/B (D1)
+
+`pixel.photos-ab-current` and `pixel.photos-ab-native` share the same problem,
+receipt and publication fixtures. `--es libraryChrome current|native` overrides
+that scenario's choice. MainActivity also accepts the extra in debug builds;
+ordinary production launches always retain current behavior. This is temporary
+comparison infrastructure, not a preference or an approved default migration.
+
+```bash
+adb shell am start -S -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario pixel.photos-ab-current --es libraryChrome current
+adb shell am start -S -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario pixel.photos-ab-native --es libraryChrome native
+```
+
+The native branch uses AndroidX SelectionTracker with stable media ID keys and
+AppCompat overlay ActionMode, styled by the Material 3 theme. The contextual bar
+covers the top app bar without changing the grid bounds or scroll offset.
+View requires one item; Retry applies only to retryable
+publication failures; Share uses verified published copies or isolated synthetic
+catalog JPEGs. A missing copy leaves the selection and an actionable failure in
+the contextual bar. Each cause grid owns its selection separately. Long press
+starts selection without opening the viewer; taps toggle while selection is active.
+Back exits selection. View preserves selection on return.
+
+The viewer is an Activity destination using Android shared-element transitions,
+with the source tile's actual ImageView and a stable transition name per media ID.
+Entry is postponed until the fitted image's first laid-out frame; a retained tile
+poster prevents a blank frame and stays unchanged during the flight. Full-size
+image publication waits until entry settles. Loading is cancelled on destruction.
+The source grid remains mounted. Return sends the displayed media ID, scrolls its
+tile into view if needed and postpones reentry until its thumbnail is laid out
+(with a bounded wait). A removed/unavailable tile uses a short snapshot fade.
+Animator duration scale zero removes both shared-element motion and fallback fades.
+Photos opened from a separate dialog window keep that grid and selection but
+use the platform activity fallback (the tile is outside the source Activity
+window). The current Dialog and cause-sheet dismissal remain unchanged in the current
+branch. Both destinations use the same docked information content (A8).
+
+Native review still needs Release recordings: start at a mid-library tile,
+long-press, add/remove a selection, view and reverse to the same tile; repeat in
+a cause group. Check a held/cancelled long press, Back during image loading,
+missing media, Retry/Share failure, paging during background updates, rotation,
+light/dark, large text, TalkBack and disabled system animations. Build success
+does not establish motion or device acceptance.
+
+## Grayscale preview regression
+
+The optional media pool maps `catalog-1981` to `photos/0528.jpg`, a grayscale
+street scene with a gray ICC profile. On the review device, decoding its pixels
+was correct, but scaling the bitmap with the decoder's unknown RGB profile before
+JPEG export produced an almost-white preview. `CatalogMedia` requests sRGB at
+decode time so the bounded scaling/export path retains luminance. The pool,
+ID mapping, publication facts and production media loader are unchanged.
+
+A standalone device graphics probe (no app installation) reproduced the full
+512-by-769 decode, 340-by-512 scaling, JPEG round trip and hardware draw. The
+unconverted preview had 99.95% near-white pixels; the sRGB preview had 3.27%,
+with mean luminance 85.83 instead of 254.88. These are decoder/draw observations,
+not visual acceptance of the new settings pages. Local generated evidence is in
+`apps/android/build/reports/settings-feedback/` and is not source material.
+
+### Automatic cleanup (D2)
+
+Storage is the canonical automatic-cleanup switch. First run and the hub's
+low-space card open that same destination; opening Storage acknowledges its
+feature-discovery mark without enabling cleanup. Technical setup, account
+binding, probe and progress pages are under Diagnostics.
+
+- `pixel.storage`: automatic cleanup off, system Smart Storage on.
+- `pixel.storage-on`: on, with a synthetic recorded 2.3 GB completion on October 20.
+- `pixel.storage-cleanup-failed`: changed-page cause and one inline recovery action.
+- `pixel.cleanup-consent`: shared application-consent sheet, three disclosures,
+  experiment note, Not now and Go to settings.
+
+`storage.smart_storage` and `storage.cleanup_access` replace system readings in
+Catalog only. Production checks actual accessibility access on return from
+Settings; the consent itself never grants system access. Recorded completion
+bytes come only from a recognized completion amount; unknown amounts stay
+unknown. Binding and the cleanup state machine retain their existing fences.

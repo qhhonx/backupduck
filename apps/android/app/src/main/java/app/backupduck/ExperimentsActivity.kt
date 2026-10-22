@@ -16,13 +16,8 @@ class ExperimentsActivity:BackupDuckActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
-        nativeDetailPage(R.string.experiments_title) {panel ->
-            panel.addView(duckParagraph(getString(R.string.duck_experiments_intro)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(20)})
-            val group=duckGroup(panel)
-            duckSetting(group,getString(R.string.cleanup_title),getString(R.string.duck_experiments_cleanup_note)) {startActivity(Intent(this,PhotosProbeActivity::class.java))}
-            panel.addView(duckParagraph(getString(R.string.experiment_compatibility)))
-        }
-        FeatureDiscovery(this).acknowledge(FeatureDiscovery.PHOTOS_CLEANUP)
+        startActivity(Intent(this,MainActivity::class.java).putExtra("destination","storage"))
+        finish()
     }
 }
 class PhotosProbeActivity:BackupDuckActivity() {
@@ -65,7 +60,7 @@ class PhotosProbeActivity:BackupDuckActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
-        nativeDetailPage(when(route) {"diagnostics"->R.string.photos_diagnostics_title;"bind"->R.string.cleanup_bind;"progress"->R.string.cleanup_now;else->R.string.cleanup_title}) {panel ->
+        nativeDetailPage(when(route) {"diagnostics"->R.string.photos_diagnostics_title;"bind"->R.string.cleanup_bind;"progress"->R.string.cleanup_now;else->R.string.receiver_records_exports}) {panel ->
             statePanel=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
             if(route!="cleanup")panel.addView(statePanel)
             when(route) {
@@ -96,15 +91,6 @@ class PhotosProbeActivity:BackupDuckActivity() {
         permissionNote=(permission.parent as LinearLayout).getChildAt(1) as TextView
         bind=duckSetting(setup,getString(R.string.experiment_account),getString(R.string.experiment_account_off)) {consent(true) {openFlow(if(cleanup.pending) "progress" else "bind")}}
         accountNote=(bind!!.parent as LinearLayout).getChildAt(1) as TextView
-        val toggle=duckSwitch(cleanup.enabled) {value ->
-            if(!restoringToggle&&value!=cleanup.enabled) {
-                if(value) {restoreToggle();consent(true) {cleanup.enabled=true;restoreToggle()}}
-                else {cleanup.enabled=false;PhotosProbeService.stop()}
-            }
-        };automatic=toggle
-        val autoGroup=duckGroup(panel,getString(R.string.experiment_auto))
-        val autoTitle=duckSetting(autoGroup,getString(R.string.cleanup_automatic),getString(R.string.experiment_auto_setup),toggle)
-        automaticNote=(autoTitle.parent as LinearLayout).getChildAt(1) as TextView
         panel.addView(statePanel)
         clean=duckButton(getString(R.string.cleanup_now),true) {consent(true) {openFlow("progress")}}.also {panel.addView(it,LinearLayout.LayoutParams(-1,-2))}
         stop=duckButton(getString(R.string.cleanup_stop)) {PhotosProbeService.stop()}.also {panel.addView(it,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16)})}
@@ -112,11 +98,7 @@ class PhotosProbeActivity:BackupDuckActivity() {
         duckSection(panel,getString(R.string.experiment_troubleshoot))
         panel.addView(duckParagraph(getString(R.string.experiment_troubleshoot_note)))
         panel.addView(duckButton(getString(R.string.photos_diagnostics_title)) {startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("diagnostics",true))},LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(16)})
-        lifecycleScope.launch {
-            val reserve=withContext(Dispatchers.IO) {runCatching {(NativeBridge.request(org.json.JSONObject().put("op","receiver_settings").put("root","$filesDir/receiver")) as org.json.JSONObject).getJSONObject("settings").getLong("min_free_bytes")}.getOrNull()}
-            thresholdText=if(reserve==null)getString(R.string.cleanup_threshold_unavailable) else getString(R.string.cleanup_threshold,android.text.format.Formatter.formatFileSize(this@PhotosProbeActivity,cleanup.trigger(reserve)))
-            render(PhotosProbeService.state.value)
-        }
+
     }
     private fun diagnosticsContent(panel:LinearLayout) {
         panel.addView(duckParagraph(getString(R.string.experiment_probe_intro)))

@@ -1,0 +1,16 @@
+{
+  "id": "pixel.about",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "about",
+  "title": "About BackupDuck",
+  "expect": [
+    "About has one Version row including package version in its title and a settled Up to date update fixture as its subtitle. Tapping opens the update page.",
+    "There is no author card while the reserved author text is null, and no separate Check for Updates row.",
+    "Every row centers its icon with the complete text block, including wrapped English/Chinese and large text. Back preserves Settings."
+  ],
+  "updates": {
+    "state": "current",
+    "delay_ms": 300
+  }
+}

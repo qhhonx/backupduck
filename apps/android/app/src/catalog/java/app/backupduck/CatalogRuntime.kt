@@ -17,6 +17,7 @@ internal class CatalogScenario(json: JSONObject) {
     val page: String = json.getString("page")
     /** For onboarding: the screen to start on. */
     val step: String? = json.optString("step").ifEmpty { null }
+    val libraryChrome: String = json.optString("libraryChrome", "current")
     val title: String = json.optString("title", id)
     val expect: List<String> = json.optJSONArray("expect").strings()
     val actions: List<Pair<String, String>> = json.optJSONArray("actions").objects().map { it.optString("action") to it.optString("result") }
@@ -31,6 +32,8 @@ internal class CatalogScenario(json: JSONObject) {
     val nowMs: Long? = json.optLong("now_ms").takeIf { it > 0 }
     /** A sheet or page to open over [page]: `pairing`, `connect-mac` or `devices`. */
     val surface: String? = json.optString("surface").ifEmpty { null }
+    /** Single-option feedback is reviewed at its Settings entry without launching another app. */
+    val launchSurface: String? get() = if (surface == "feedback" && !showReserved) "settings-bottom" else surface
     /** What the camera reads when the page scans a code, after a short pause. Unset, the real camera opens. */
     val scan: String? = json.optString("scan").ifEmpty { null }
     /**
@@ -39,6 +42,8 @@ internal class CatalogScenario(json: JSONObject) {
      * pages read the device's own space and the catalog's own files in Photos.
      */
     val storage: JSONObject? = json.optJSONObject("storage")
+    /** Supplies reserved placeholder content for review only. */
+    val showReserved: Boolean = json.optBoolean("show_reserved", false)
     /** Explicit update-check result, never a network request or downloadable package. */
     val updates: JSONObject = json.optJSONObject("updates") ?: JSONObject().put("state","current")
     val core: Map<String, List<Answer>> = (json.optJSONObject("core") ?: JSONObject()).let { core ->
@@ -113,7 +118,13 @@ internal object CatalogRuntime {
     /** Makes [scenario] current: resets this app's preferences, seeds the scenario's and publishes its snapshot. */
     fun apply(context: Context, scenario: CatalogScenario) {
         CatalogMedia.reload(context)
+        PhotoImages.clearCache()
         synchronized(lock) { cursor = HashMap(); missing.clear(); current = scenario }
+        AppUpdates.resetStatus(if (scenario.updates.optString("state") == "current") UpdateCheckStatus.Current else null)
+        ReceiverEnvironment.reservedSettings = if (scenario.showReserved) ReservedSettingsContent(
+            authorTextResource = R.string.about_author_placeholder,
+            feedbackEmail = "feedback@example.invalid",
+        ) else ReservedSettingsContent()
         File(context.applicationInfo.dataDir, "shared_prefs").listFiles().orEmpty().forEach { file ->
             context.getSharedPreferences(file.nameWithoutExtension, Context.MODE_PRIVATE).edit().clear().commit()
         }
@@ -130,6 +141,8 @@ internal object CatalogRuntime {
             editor.commit()
         }
         ReceiverProgress.mutable.value = emptyMap()
+        ReceiverEnvironment.smartStorage = { scenario.storage?.optBoolean("smart_storage", true) }
+        ReceiverEnvironment.cleanupAccess = { scenario.storage?.optBoolean("cleanup_access", true) == true }
         ReceiverEnvironment.now = scenario.nowMs?.let { fixed -> { fixed } } ?: System::currentTimeMillis
         val storage = scenario.storage
         ReceiverEnvironment.deviceStorage = if (storage == null) { context -> DeviceStorage.read(context) }

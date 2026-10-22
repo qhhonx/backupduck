@@ -1,15 +1,19 @@
 {
   "id": "pixel.storage-on",
   "page": "storage",
-  "title": "Storage, both switches on",
+  "title": "Storage, automatic cleanup on with recorded result",
   "extends": "pixel.storage",
   "prefs": {
     "photos_cleanup": {
-      "enabled": true
+      "enabled": true,
+      "account": "catalog-synthetic-digest",
+      "last_freed_bytes": 2300000000,
+      "last_completed_at": 1792454400000
     }
   },
   "expect": [
-    "Both switches on; BackupDuck and all three kept-file categories show known zero values. The free-space sentence is hidden because the reclaimable value is zero."
+    "Automatic cleanup on with a neutral Experiment label. Last freed 2.3 GB · Oct 20 comes from seeded completion facts, not a live cleanup or cloud inference.",
+    "All temporary-file categories measure 0 B, so their rows, section heading and notes are hidden. The existing free-after-saving switch remains visible."
   ],
   "core": {
     "receiver_settings": {

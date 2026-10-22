@@ -1,7 +1,7 @@
 # Settings
 
-Status: proposed, under review in the design catalogs. Production apps keep
-their current settings until migration step 6 in `constitution.md`.
+Status: in effect (redesign default since step 6). The bottom of Settings and
+the About page were revised on October 22, 2026.
 
 This is the product-layer contract for Settings: what it holds, in which order
 and in which words. Each platform draws it in its own dialect (P2).
@@ -18,10 +18,44 @@ and in which words. Each platform draws it in its own dialect (P2).
 3. **Category rows.** Short nouns with their current value. Details live one
    level down. Only a choice that needs no explanation (appearance) is edited
    in place. Problems are marked on the row they belong to.
-4. **Help** comes last.
-5. **Footer.** The version, plus a quiet link to diagnostics. These are not rows.
+4. **Help and feedback** comes after the categories: Help Center, Send
+   Feedback, and Rate BackupDuck where a store listing exists.
+5. **About BackupDuck** is a group of its own, one row whose value is the
+   version. The version appears nowhere else on the root.
+6. **Footer links.** One centered line of small text, "Diagnostics ·
+   Advanced", for the few people who need them. They are not rows.
 
-Groups keep the constitution's order: the role first, then general, then help.
+Groups keep the constitution's order: the role first, then general, then help,
+then About.
+
+### About BackupDuck
+
+1. The author's words (reserved, see below).
+2. **Version**, with the update status as its value where the app manages its
+   own updates ("Up to date", "Update available", "Checking…"). Tapping it
+   opens the update detail: status, Check for Updates and the automatic
+   updates switch, without repeating the version. Store and TestFlight builds
+   show the version only; the store manages updates.
+3. **Privacy**: photos travel only between your own devices; BackupDuck has no
+   cloud of its own.
+4. **Open source & licenses**, **Website**. Rows that leave the app end with an
+   outgoing arrow; rows that push end with the platform's disclosure.
+
+### Send Feedback
+
+One row that looks like its neighbours. It offers joining the user group and
+emailing us with diagnostics attached; the person sees the attachment before
+sending. With a single option available it opens that option directly.
+
+### Reserved items
+
+Some parts are designed and built but wait for content the product does not
+have yet: the author's words, the feedback email address and the App Store
+listing (for Rate BackupDuck). Each is driven by one optional value in one
+place in code, marked TODO. While the value is missing the part is not shown
+in production at all, with no placeholder; the design catalogs can show it with
+sample content (`*-reserved` scenarios) for review. Add the value, review the
+catalog scenario, and the part appears.
 
 ## Sender (iPhone, iPad, Mac)
 
@@ -35,11 +69,12 @@ so they have no rows.
 | Appearance | System / Light / Dark | In place |
 | Language | Current language | The system's per-app language setting |
 | Help Center | — | Help, by task |
-| Feedback Group | Telegram | The tester group, while it is offered |
-| About BackupDuck | — | Version, website, Check for Updates (Mac) |
+| Send Feedback | — | Menu: user group; email with diagnostics (reserved) |
+| Rate BackupDuck | — | The store's review page (reserved) |
+| About BackupDuck | "0.4.1" | About |
 
-Footer: "BackupDuck 0.4.1 (88)" · "Diagnostics" (activity log) · "Advanced"
-(clear temporary files, only specific albums).
+Footer links: "Diagnostics" (activity log) · "Advanced" (clear temporary files,
+only specific albums).
 
 Moved elsewhere: backing up earlier photos, pausing and keeping the screen on
 during a large batch move to the hub.
@@ -48,17 +83,21 @@ during a large batch move to the hub.
 
 | Section | Row | Supporting text | Opens |
 | --- | --- | --- | --- |
-| General | Connected Devices | "1 · Lin's iPhone" | Connected devices |
-| | Appearance | Current mode | Sheet |
+| Receiving | Connected Devices | "1 · Lin's iPhone" | Connected devices |
+| | Storage | "6.7 GB free · Auto cleanup off" (discovery dot) | Storage |
+| General | Appearance | Current mode | Sheet |
 | | Language | Current language | Sheet |
-| Help | Help Center | — | Help, by task |
-| | Experiments | — (discovery dot) | Experiments |
+| Help & feedback | Help Center | — | Help, by task |
+| | Send Feedback | "Join the user group, or email us with diagnostics" | Menu |
+| (own group) | About BackupDuck | "Version 0.4.1" | About |
 
-Footer: "BackupDuck 0.4.1" · "Check for Updates" · "Diagnostics" (log report) ·
-"Advanced" (format conversion, browser access, stop receiving).
+Footer links: "Diagnostics · Advanced settings" (log report; format
+conversion, browser access, stop receiving).
 
 Resume after restart and heat protection are automatic. Freeing space after
-saving to Photos is a switch on the Storage page, not in Settings.
+saving to Photos and the experimental automatic cleanup are on the Storage
+page, under "Free up space automatically", not in Settings. There is no
+Experiments page.
 
 ## Platform dialects
 

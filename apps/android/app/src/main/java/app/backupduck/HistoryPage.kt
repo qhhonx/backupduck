@@ -40,7 +40,7 @@ internal class HistoryPage(private val activity: MainActivity, private val model
     private val chips=linkedMapOf<String,com.google.android.material.chip.Chip>()
     private var allCount=0; private var savedCount=0
     init {
-        orientation=VERTICAL;setBackgroundColor(activity.getColor(R.color.duck_surface))
+        orientation=VERTICAL;setBackgroundColor(activity.getColor(R.color.duck_role_background))
         val accessibleHeading=activity.resources.configuration.fontScale>1.3f
         val heading=LinearLayout(activity).apply {orientation=if(accessibleHeading)VERTICAL else HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL;minimumHeight=activity.dp(56);setPadding(activity.dp(16),if(accessibleHeading)activity.dp(8) else 0,activity.dp(16),if(accessibleHeading)activity.dp(8) else 0) }
         count=activity.duckText("",13,true);heading.addView(count,if(accessibleHeading)LayoutParams(-1,-2) else LayoutParams(0,-2,1f))

@@ -24,15 +24,17 @@ internal fun Instrumentation.checkUpdatesLayout(args:Bundle):String {
         var result:Result<Unit>?=null
         runOnMainSync {result=runCatching {
             val actions=views(page.window.decorView).filterIsInstance<MaterialButton>()
-            val upper=actions.single {it.text.toString()==page.getString(R.string.updates_check)}
-            val lower=actions.single {it.text.toString()==page.getString(R.string.official_website)}
-            lower.requestRectangleOnScreen(Rect(0,0,lower.width,lower.height),true)
-            val top=IntArray(2);val bottom=IntArray(2)
-            upper.getLocationOnScreen(top);lower.getLocationOnScreen(bottom)
-            check(bottom[1]-(top[1]+upper.height)>=page.dp(8)) {"Update actions touch or overlap"}
-            check(top[0]==bottom[0]&&upper.width==lower.width)
-            check(upper.height>=page.dp(48)&&lower.height>=page.dp(48))
-            check(!upper.isEnabled&&lower.isEnabled) {"Validation app must not download production updates"}
+            val action=actions.single {it.text.toString()==page.getString(R.string.updates_check)}
+            val text=views(page.window.decorView).filterIsInstance<android.widget.TextView>()
+            check(text.none {it.text.toString()==page.getString(R.string.updates_installed)}) {"Installed version must appear only in About"}
+            check(actions.size==1) {"Update page must have only its check/download action"}
+            val toggle=views(page.window.decorView).filterIsInstance<com.google.android.material.materialswitch.MaterialSwitch>().single()
+            check(toggle.contentDescription==page.getString(R.string.updates_automatic))
+            val status=text.single {it.text.toString()==page.getString(R.string.duck_update_development)}
+            action.requestRectangleOnScreen(Rect(0,0,action.width,action.height),true)
+            check(action.height>=page.dp(48))
+            check(status.visibility==View.VISIBLE)
+            check(!action.isEnabled&&toggle.isEnabled) {"Validation app must not download production updates"}
         }}
         result!!.getOrThrow();waitForIdleSync()
         runOnMainSync {views(page.window.decorView).filterIsInstance<android.widget.ScrollView>().single().fullScroll(View.FOCUS_DOWN)}
@@ -40,7 +42,7 @@ internal fun Instrumentation.checkUpdatesLayout(args:Bundle):String {
         val image=checkNotNull(uiAutomation.takeScreenshot())
         File(targetContext.cacheDir,"updates-layout-${if(dark)"dark" else "light"}.png").outputStream().use {image.compress(Bitmap.CompressFormat.PNG,100,it)}
         image.recycle()
-        return "PASS: update actions separated by 8dp, equal width, 48dp minimum targets; validation update disabled"
+        return "PASS: one update action with 48dp target, status and automatic switch; no installed-version line; validation update disabled"
     } finally {
         runOnMainSync {page.finish()}
         if(oldMode<0)prefs.edit().remove("mode").commit() else prefs.edit().putInt("mode",oldMode).commit()

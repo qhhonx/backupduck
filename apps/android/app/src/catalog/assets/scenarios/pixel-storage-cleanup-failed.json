@@ -1,0 +1,16 @@
+{
+  "id": "pixel.storage-cleanup-failed",
+  "extends": "pixel.storage-on",
+  "page": "storage",
+  "title": "Storage, Google Photos changed",
+  "prefs": {
+    "photos_cleanup": {
+      "enabled": true,
+      "account": "catalog-synthetic-digest",
+      "reason": "unrecognized"
+    }
+  },
+  "expect": [
+    "Automatic cleanup stays enabled; subtitle names the changed Google Photos page and offers one action to open Google Photos. No failure dialog."
+  ]
+}

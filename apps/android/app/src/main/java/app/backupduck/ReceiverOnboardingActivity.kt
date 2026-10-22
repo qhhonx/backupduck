@@ -169,7 +169,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
             Step.SPACE -> {
                 content.addView(marks(3))
                 title(getString(R.string.onb_space_title))
-                val smart = Settings.Secure.getInt(contentResolver, "automatic_storage_manager_enabled", 0) == 1
+                val smart = ReceiverEnvironment.smartStorage(this) == true
                 lead(getString(if (smart) R.string.onb_space_smart_lead_on else R.string.onb_space_smart_lead_off))
                 if (!smart) {
                     val group = lookGroup(content)
@@ -185,7 +185,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 card.addView(heading)
                 card.addView(lookText(getString(R.string.onb_space_auto_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
                     LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
-                action(R.string.onb_space_enable) { startActivity(Intent(this, ExperimentsActivity::class.java)); finish() }
+                action(R.string.onb_space_enable) { startActivity(Intent(this, MainActivity::class.java).putExtra("destination","storage").putExtra("surface","cleanup")); finish() }
                 secondary(R.string.onb_later) { finish() }
             }
         }

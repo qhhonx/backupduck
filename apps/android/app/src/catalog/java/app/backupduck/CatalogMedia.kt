@@ -1,6 +1,7 @@
 package app.backupduck
 
 import android.content.Context
+import android.graphics.ColorSpace
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.util.Log
@@ -99,6 +100,8 @@ internal object CatalogMedia {
                         2048.0 / maxOf(size.width, size.height))
                     decoder.setTargetSize(ceil(size.width * scale).toInt().coerceAtLeast(1),
                         ceil(size.height * scale).toInt().coerceAtLeast(1))
+                    // Normalize grayscale ICC profiles before JPEG export and subsequent decoding.
+                    decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB))
                     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                 }
             }.getOrNull()

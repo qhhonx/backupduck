@@ -1,0 +1,12 @@
+<resources>
+    <!-- D1 only: AppCompat owns an overlay contextual bar, using Material 3 roles. -->
+    <style name="ThemeOverlay.BackupDuck.NativeLibrary" parent="">
+        <item name="actionModeStyle">@style/Widget.BackupDuck.PhotoActionMode</item>
+        <item name="actionModeCloseDrawable">@drawable/ic_close</item>
+    </style>
+    <style name="Widget.BackupDuck.PhotoActionMode" parent="Widget.Material3.ActionMode">
+        <item name="background">?attr/colorSurfaceContainerHighest</item>
+        <item name="titleTextStyle">@style/TextAppearance.Material3.TitleLarge</item>
+        <item name="subtitleTextStyle">@style/TextAppearance.Material3.BodyMedium</item>
+    </style>
+</resources>

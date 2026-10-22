@@ -7,8 +7,9 @@
     "Free space and capacity from measured readings, with a bar legend for Photos, BackupDuck and other space.",
     "Kept by BackupDuck: 734003200 bytes total, split into 314572800 Live Photo original bytes with an explanation of the converted Photos copy, 104857600 bytes still arriving or being saved, and 314572800 other kept file bytes.",
     "A sentence below the group says about 524 MB can be freed because Photos already has these files; this overlaps the categories and adds no cleanup action. The footer counts only files BackupDuck keeps, excluding photos in Photos.",
-    "Two switches with their consequences: auto cleanup (off) and free up space after saving to Photos (off).",
-    "Free up space now: one sentence on what Google Photos removes, then the tonal action."
+    "Free up space now: one sentence on what Google Photos removes, then the tonal action.",
+    "Free space automatically comes before kept files: real system Smart Storage state, then Automatic cleanup off with a neutral Experiment label and its consequence.",
+    "The cleanup switch opens the shared consent sheet. Not now keeps it off; only Go to settings opens system accessibility settings."
   ],
   "core": {
     "receiver_storage_breakdown": {
@@ -27,6 +28,8 @@
   "storage": {
     "total_bytes": 68719476736,
     "free_bytes": 6657199308,
-    "photos_bytes": 42949672960
+    "photos_bytes": 42949672960,
+    "smart_storage": true,
+    "cleanup_access": true
   }
 }

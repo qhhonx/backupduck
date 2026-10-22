@@ -50,8 +50,8 @@ class MainActivity : BackupDuckActivity() {
         rootBack.isEnabled = supportFragmentManager.backStackEntryCount == 0 && selectedPage != 1
     }
     private lateinit var navigation: BottomNavigationView
-    private var experimentsDiscoveryDot: View? = null
-    private var experimentsDiscoveryTitle: TextView? = null
+    private var storageDiscoveryDot: View? = null
+    private var storageDiscoveryTitle: TextView? = null
     internal lateinit var receiverHome: ReceiverHomeSurface
         private set
     private lateinit var storagePage: StoragePage
@@ -73,7 +73,7 @@ class MainActivity : BackupDuckActivity() {
         if (uri != null) lifecycleScope.launch {
             reportBusy()
             val result = withContext(Dispatchers.IO) { runCatching {
-                val data = NativeBridge.request(JSONObject().put("op", "receiver_logs").put("root", receiverRoot)).toString().toByteArray(Charsets.UTF_8)
+                val data = receiverDiagnostics(receiverRoot)
                 checkNotNull(contentResolver.openOutputStream(uri, "wt")).use { it.write(data) }
             } }
             reportResult(result.isSuccess)
@@ -94,6 +94,15 @@ class MainActivity : BackupDuckActivity() {
         if(Build.VERSION.SDK_INT<33) getSharedPreferences("appearance",MODE_PRIVATE).getString("language",null)?.let {
             AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it))
         }
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 || packageName.endsWith(".catalog")) {
+            ReceiverEnvironment.nativeLibraryChrome = (intent.getStringExtra("libraryChrome")
+                ?: savedInstanceState?.getString("libraryChrome")) == "native"
+        }
+        if (ReceiverEnvironment.nativeLibraryChrome) {
+            window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
+            supportRequestWindowFeature(androidx.appcompat.app.AppCompatDelegate.FEATURE_ACTION_MODE_OVERLAY)
+            theme.applyStyle(R.style.ThemeOverlay_BackupDuck_NativeLibrary, true)
+        }
         super.onCreate(savedInstanceState)
         RelayMaintenance.schedule(this)
         devicePanels = DevicePanels(this) {
@@ -107,7 +116,7 @@ class MainActivity : BackupDuckActivity() {
             scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.receiver_scan_prompt)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
         }
         selectedPage = savedInstanceState?.getInt("page", 1) ?: 1
-        val canvas = getColor(if (look) R.color.duck_role_background else R.color.duck_surface)
+        val canvas = getColor(R.color.duck_role_background)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         val toolbar = MaterialToolbar(this).apply {
             menu.add(0,100,0,R.string.receiver_help_title).apply {
@@ -233,6 +242,11 @@ class MainActivity : BackupDuckActivity() {
         if (isChangingConfigurations) { connectPage?.dismiss(); devicesPage?.dismiss(); storageScreen?.dismiss() }
         super.onDestroy()
     }
+    internal var restorePhotoAnchor: ((Intent?) -> Unit)? = null
+    override fun onActivityReenter(resultCode: Int, data: Intent?) {
+        super.onActivityReenter(resultCode, data)
+        restorePhotoAnchor?.invoke(data)
+    }
     override fun onNewIntent(next:Intent) {super.onNewIntent(next);setIntent(next);handleDestination(next)}
     override fun onResume() {
         super.onResume()
@@ -240,9 +254,10 @@ class MainActivity : BackupDuckActivity() {
     }
     private fun refreshDiscovery() {
         val unseen = FeatureDiscovery(this).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP)
-        experimentsDiscoveryDot?.visibility = if (unseen) View.VISIBLE else View.GONE
-        experimentsDiscoveryTitle?.contentDescription = if (unseen)
-            getString(R.string.discovery_entry_label, getString(R.string.experiments_title)) else null
+        storageDiscoveryDot?.visibility = if (unseen) View.VISIBLE else View.GONE
+        storageDiscoveryTitle?.contentDescription = if (unseen)
+            getString(R.string.discovery_entry_label, getString(R.string.pref_storage)) else null
+        if (!::navigation.isInitialized) return
         if (unseen) navigation.getOrCreateBadge(4).apply {
             clearNumber()
             backgroundColor = getColor(R.color.duck_brand_accent)
@@ -289,12 +304,20 @@ class MainActivity : BackupDuckActivity() {
                 openHelp(ReceiverHelpTopic.entries.first {it.key==next.getStringExtra("surface")!!.removePrefix("help-")})
             "browser"->startActivity(Intent(this,BrowserManagementActivity::class.java))
             "updates"->startActivity(Intent(this,UpdatesActivity::class.java))
+            "about"->createAboutPage().show()
+            "feedback"->showFeedback()
+            "settings-bottom"->findViewById<androidx.core.widget.NestedScrollView>(R.id.settings_scroll)?.let { scroll ->
+                scroll.post {scroll.fullScroll(View.FOCUS_DOWN)}
+            }
             "diagnostics"->showDiagnostics()
+            "cleanup-consent"->{openStorage();storageScreen?.showCleanupConsent()}
+            "cleanup"->openCleanup()
         }
         next.removeExtra("surface");next.removeExtra("destination")
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("page", selectedPage)
+        outState.putString("libraryChrome", if (ReceiverEnvironment.nativeLibraryChrome) "native" else "current")
         super.onSaveInstanceState(outState)
     }
     private var updateFeedback: android.widget.TextView? = null
@@ -307,7 +330,7 @@ class MainActivity : BackupDuckActivity() {
         if (ReceiverEnvironment.checksUpdates && !packageName.endsWith(".validation") && updates.getBoolean("automatic", true) && now - updates.getLong("checked", 0) > 86_400_000L) {
             updates.edit().putLong("checked", now).apply()
             lifecycleScope.launch {
-                val next = withContext(Dispatchers.IO) { runCatching { AppUpdates.latest(this@MainActivity) }.getOrNull() }
+                val next = (AppUpdates.check(this@MainActivity) as? UpdateCheckStatus.Available)?.release
                 if (next != null && !isFinishing && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                     updateFeedback?.text = getString(R.string.updates_available,next.version)
                 }
@@ -423,17 +446,7 @@ class MainActivity : BackupDuckActivity() {
         receiverSetting(device,getString(R.string.settings_appearance),control=appearanceValue) {chooseAppearance()}
         receiverSetting(device,getString(R.string.duck_language),control=duckText(languageLabel(),13,true)) {chooseLanguage()}  // design-exception: legacy settings row, replaced by proposedDesignPage
         recordsAndExports(panel)
-        val experiments=duckGroup(panel,getString(R.string.experiments_title))
-        val experimentTitle=receiverSetting(experiments,getString(R.string.experiments_title)) {startActivity(Intent(this,ExperimentsActivity::class.java))}
-        val words=experimentTitle.parent as LinearLayout
-        words.removeView(experimentTitle)
-        val discoveryHeading=LinearLayout(this).apply {gravity=android.view.Gravity.CENTER_VERTICAL}
-        discoveryHeading.addView(experimentTitle,LinearLayout.LayoutParams(0,-2,1f))
-        experimentsDiscoveryDot=duckDiscoveryDot().also {dot ->
-            discoveryHeading.addView(dot,LinearLayout.LayoutParams(dp(8),dp(8)).apply {marginStart=dp(8)})
-        }
-        words.addView(discoveryHeading,0)
-        experimentsDiscoveryTitle=experimentTitle
+        receiverSetting(duckGroup(panel),getString(R.string.pref_storage),action=::openStorage)
         val help=duckGroup(panel,getString(R.string.receiver_application_help))
         receiverSetting(help,getString(R.string.updates_title),control=duckText(receiverDisplayVersion(),13,true).apply {
             tag="duck.version"
@@ -486,29 +499,25 @@ class MainActivity : BackupDuckActivity() {
         lookSection(panel,getString(R.string.pref_section_receive))
         val receive=lookGroup(panel)
         val devices=lookRow(receive,R.drawable.ic_receiver,getString(R.string.pref_devices),"") {openDevices()}
-        val storage=lookRow(receive,R.drawable.ic_storage,getString(R.string.pref_storage),"") {openStorage()}
+        val storage=lookRow(receive,R.drawable.ic_storage,getString(R.string.pref_storage),"", trailing=duckDiscoveryDot().also { storageDiscoveryDot=it }) {openStorage()}
+        storageDiscoveryTitle=(storage.parent as LinearLayout).getChildAt(0) as TextView
+        refreshDiscovery()
         lookSection(panel,getString(R.string.pref_section_general))
         val general=lookGroup(panel)
         val appearance=lookRow(general,R.drawable.ic_contrast,getString(R.string.pref_appearance),appearanceLabel()) {chooseAppearance()}
         lookRow(general,R.drawable.ic_globe,getString(R.string.pref_language),languageLabel()) {chooseLanguage()}
-        lookSection(panel,getString(R.string.pref_section_help))
+        lookSection(panel,getString(R.string.pref_help_feedback))
         val help=lookGroup(panel)
         lookRow(help,R.drawable.ic_help,getString(R.string.pref_help)) {openHelp()}
-        // V1: the discovery dot is one of duck yellow's brand moments.
-        val dot=View(this).apply {background=android.graphics.drawable.GradientDrawable().apply {shape=android.graphics.drawable.GradientDrawable.OVAL;setColor(getColor(R.color.duck_brand_duck_yellow))}}
-        val experiments=lookRow(help,R.drawable.ic_flask,getString(R.string.pref_experiments),trailing=FrameLayout(this).apply {addView(dot,FrameLayout.LayoutParams(dp(8),dp(8),android.view.Gravity.CENTER))}) {startActivity(Intent(this,ExperimentsActivity::class.java))}
-        experimentsDiscoveryDot=dot;experimentsDiscoveryTitle=(experiments.parent as LinearLayout).getChildAt(0) as TextView
-        val footer=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;gravity=android.view.Gravity.CENTER_HORIZONTAL;setPadding(0,token(R.dimen.duck_space_large),0,0)}
-        footer.addView(lookText(getString(R.string.pref_version,receiverDisplayVersion()),com.google.android.material.R.style.TextAppearance_Material3_BodySmall,secondary=true))
-        val links=FlowRow(this,0)
-        fun link(text:Int,action:()->Unit)=links.addView(lookButton(getString(text),LookButton.TEXT,action=action))
-        updateFeedback = lookButton(getString(R.string.pref_check_updates), LookButton.TEXT) {
-            startActivity(Intent(this@MainActivity, UpdatesActivity::class.java))
-        }.also { links.addView(it) }
-        link(R.string.pref_diagnostics) {showReportExport(false)}
-        link(R.string.pref_advanced) {proposedAdvancedPage()}
-        footer.addView(links,LinearLayout.LayoutParams(-2,-2))
-        panel.addView(footer)
+        lookRow(help,R.drawable.ic_feedback,getString(R.string.pref_send_feedback),feedbackSummary()) {showFeedback()}
+        val more=lookGroup(panel)
+        (more.parent as View).let {card ->
+            card.layoutParams=(card.layoutParams as LinearLayout.LayoutParams).apply {topMargin=token(R.dimen.duck_space_large)}
+        }
+        lookRow(more,R.drawable.ic_info,getString(R.string.pref_about),getString(R.string.pref_version_value,receiverAppVersion())) {
+            createAboutPage().show()
+        }
+        settingsFooter(panel, {showDiagnostics()}, {proposedAdvancedPage()})
         fun refresh() {
             deviceName.text=devicePanels.name ?: Build.MODEL
             val senders=devicePanels.senderNames
@@ -521,7 +530,7 @@ class MainActivity : BackupDuckActivity() {
         }
         refresh();proposedRefresh=::refresh
         currentSettingValues+=status to {refresh();status.text.toString()}
-    }
+    }.apply {id=R.id.settings_scroll}
     /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
     private fun proposedAdvancedPage() { createAdvancedPage().show() }
     private fun createAdvancedPage(): LookPage {
@@ -556,6 +565,19 @@ class MainActivity : BackupDuckActivity() {
     private fun createDiagnosticsPage(): DuckPage {
         val page=DuckPage(this,getString(R.string.receiver_records_exports), "diagnostics")
         recordsAndExports(page.body,false)
+        val cleanup=duckGroup(page.body,getString(R.string.storage_cleanup))
+        receiverSetting(cleanup,getString(R.string.experiment_setup)) {
+            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("route","cleanup"))
+        }
+        receiverSetting(cleanup,getString(R.string.photos_diagnostics_title)) {
+            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("diagnostics",true))
+        }
+        receiverSetting(cleanup,getString(R.string.cleanup_bind)) {
+            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("route","bind"))
+        }
+        receiverSetting(cleanup,getString(R.string.cleanup_now)) {
+            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("route","progress"))
+        }
         return page
     }
     private fun confirmStopReceiving() {
@@ -612,15 +634,18 @@ class MainActivity : BackupDuckActivity() {
     internal fun openSettings() { navigation.selectedItemId = 4 }
     /** Storage is a tab in the current design and a page opened from Settings and the hub in the redesign. */
     internal fun openStorage() {
-        if (!ReceiverEnvironment.proposedDesign) { navigation.selectedItemId = 3; return }
+        storageScreen?.takeIf { it.isShowing }?.let { return }
         createStoragePage().show()
     }
-    private fun createStoragePage() = StorageScreen(this, receiverRoot, ::openPhotos, ::openCleanup) { proposedRefresh?.invoke() }.also { storageScreen = it }
+    private fun createStoragePage(state: Bundle = Bundle()) = StorageScreen(this, receiverRoot, ::openPhotos, state) {
+        proposedRefresh?.invoke(); refreshDiscovery()
+    }.also { storageScreen = it }
     private var storageScreen: StorageScreen? = null
     internal override fun restorePage(route: String, state: Bundle): PageDestination = when (route) {
         "connect" -> createConnectPage(state)
         "devices" -> createDevicesPage().page
-        "storage" -> createStoragePage().page
+        "storage" -> createStoragePage(state).page
+        "about" -> createAboutPage()
         "advanced" -> createAdvancedPage()
         "conversion" -> conversionSettingsPage()
         "diagnostics" -> createDiagnosticsPage()
@@ -631,7 +656,7 @@ class MainActivity : BackupDuckActivity() {
         "legacy-scan" -> pairingUI.scanning(show = false)
         else -> super.restorePage(route, state)
     }
-    internal fun openCleanup() { startActivity(Intent(this, ExperimentsActivity::class.java)) }
+    internal fun openCleanup() { openStorage(); storageScreen?.focusCleanup() }
     private fun showDashboardAccess() {DashboardAccessUI(this).access()}
     private fun openHelp(topic: ReceiverHelpTopic? = null) {
         startActivity(Intent(this, ReceiverHelpActivity::class.java).apply { topic?.let { putExtra("topic", it.key) } })

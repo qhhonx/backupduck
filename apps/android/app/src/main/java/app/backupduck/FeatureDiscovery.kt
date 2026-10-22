@@ -10,6 +10,6 @@ internal class FeatureDiscovery(context: Context) {
     fun acknowledge(feature: String) { preferences.edit().putBoolean(feature, true).apply() }
 
     companion object {
-        const val PHOTOS_CLEANUP = "photos_cleanup_introduction_v1"
+        const val PHOTOS_CLEANUP = "photos_cleanup_storage_introduction_v1"
     }
 }

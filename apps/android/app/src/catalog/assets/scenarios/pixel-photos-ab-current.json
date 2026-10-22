@@ -1,0 +1,24 @@
+{
+  "id": "pixel.photos-ab-current",
+  "extends": "pixel.photos-problems",
+  "title": "Received photos \u00b7 current library chrome",
+  "libraryChrome": "current",
+  "expect": [
+    "Default launch keeps current library chrome.",
+    "Grid paging, media keys and scroll survive viewing and returning."
+  ],
+  "actions": [
+    {
+      "action": "Long-press a tile",
+      "result": "Current behavior; no selection mode."
+    },
+    {
+      "action": "Open a tile, then Back",
+      "result": "Current full-screen dialog closes; grid stays in place."
+    },
+    {
+      "action": "Open a cause group, select and view a tile, then Back",
+      "result": "Current cause sheet dismisses before opening detail."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "pixel.cleanup-consent",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "cleanup-consent",
+  "title": "Automatic cleanup application consent",
+  "expect": [
+    "Shared Material consent sheet: three lines explain action, cloud retention and limited accessibility use; experiment note; Not now and Go to settings.",
+    "Dismissal leaves cleanup off. Only Go to settings opens system settings. Real access is checked on return in production; Catalog supplies synthetic access."
+  ]
+}

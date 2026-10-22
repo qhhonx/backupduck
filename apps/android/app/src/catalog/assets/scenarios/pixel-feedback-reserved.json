@@ -1,0 +1,10 @@
+{
+  "id": "pixel.feedback-reserved",
+  "extends": "pixel.feedback",
+  "title": "Send Feedback \u2014 reserved email",
+  "show_reserved": true,
+  "expect": [
+    "Catalog-only show_reserved flag supplies a non-deliverable example.invalid mailbox.",
+    "The production Material sheet offers the user group and email. Export diagnostics, view the saved file, then compose a draft addressed to the placeholder mailbox; nothing is sent automatically."
+  ]
+}

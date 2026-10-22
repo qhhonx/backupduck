@@ -4,4 +4,6 @@
     <item name="receiver_photos_list" type="id" />
     <item name="page_destinations" type="id" />
     <item name="destination_scroll" type="id" />
+    <item name="settings_scroll" type="id" />
+    <item name="photo_transition_ready" type="id" />
 </resources>

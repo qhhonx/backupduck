@@ -68,7 +68,8 @@ class CatalogActivity : BackupDuckActivity() {
         if (scenario.page == "onboarding") {
             startActivity(Intent(this, ReceiverOnboardingActivity::class.java).putExtra("step", scenario.step))
         } else {
-            startActivity(Intent(this, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.surface))
+            startActivity(Intent(this, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface)
+                .putExtra("libraryChrome", intent.getStringExtra("libraryChrome") ?: scenario.libraryChrome))
         }
     }
 }
@@ -103,7 +104,8 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
         AlertDialog.Builder(activity).setTitle("Scenario").setMessage(text)
             .setPositiveButton("Restart") { _, _ ->
                 CatalogRuntime.apply(activity, scenario)
-                activity.startActivity(Intent(activity, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.surface)
+                activity.startActivity(Intent(activity, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface)
+                    .putExtra("libraryChrome", if (ReceiverEnvironment.nativeLibraryChrome) "native" else "current")
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                 activity.finish()
             }
