@@ -646,4 +646,15 @@
     <string name="about_update_current">已是最新版本</string>
     <string name="about_update_available">有可用更新</string>
     <string name="about_update_failed">无法检查更新</string>
+    <string name="viewer_back">返回</string>
+    <string name="viewer_more">更多选项</string>
+    <string name="viewer_details">详情</string>
+    <string name="viewer_history">在历史记录中显示</string>
+    <string name="viewer_open_photos">在 Google 相册中打开</string>
+    <string name="viewer_save_failed">没能存进相册 · 重试</string>
+    <string name="viewer_retrying">正在请求重试…</string>
+    <string name="viewer_file_details">文件详情</string>
+    <string name="viewer_storage_full">Pixel 可用空间不足。</string>
+    <string name="viewer_save_reason_unknown">相册暂时无法保存这个文件，请重试。</string>
+    <string name="viewer_gallery_action">Google 相册</string>
 </resources>

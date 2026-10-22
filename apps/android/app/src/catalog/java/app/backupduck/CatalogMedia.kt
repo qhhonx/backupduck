@@ -17,6 +17,7 @@ import kotlin.math.ceil
 
 /** Optional, local-only sample media. This source is compiled into the catalog alone. */
 internal object CatalogMedia {
+    private var appContext: Context? = null
     private data class Photo(val file: File, val takenMs: Long?)
     private class Pool(val photos: List<Photo>) {
         // Share decoded pool photos across scenario IDs without retaining full-size originals.
@@ -41,6 +42,7 @@ internal object CatalogMedia {
 
     /** Reload on scenario entry so a newly pushed pool needs only a scenario restart. */
     fun reload(context: Context) {
+        appContext = context.applicationContext
         pool = runCatching {
             val external = context.getExternalFilesDir(null) ?: return@runCatching null
             val root = File(external, "catalog-media").canonicalFile
@@ -84,6 +86,12 @@ internal object CatalogMedia {
     fun draw(item: HistoryItem, width: Int, height: Int): Bitmap = draw(item.id, width, height)
 
     private fun draw(id: String, width: Int, height: Int): Bitmap {
+        // A granted, read-only reference remains in MediaStore; never copy it into Photos.
+        CatalogRuntime.referenceUri?.let { uri -> appContext?.let { context ->
+            runCatching { GalleryPreview.decode(context, GalleryPreviewCopy(uri, context.contentResolver.getType(uri) ?: "image/png", null),
+                android.util.Size(width, height), android.os.CancellationSignal()) }.getOrNull()?.let { return it }
+        } }
+
         // Bucket nearby cell sizes; cap viewer decode size and memory on older devices.
         fun target(size: Int) = ((size.coerceIn(1, 2048) + 63) / 64) * 64
         val w = target(width)

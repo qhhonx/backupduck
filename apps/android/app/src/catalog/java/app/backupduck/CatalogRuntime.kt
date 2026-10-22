@@ -17,7 +17,6 @@ internal class CatalogScenario(json: JSONObject) {
     val page: String = json.getString("page")
     /** For onboarding: the screen to start on. */
     val step: String? = json.optString("step").ifEmpty { null }
-    val libraryChrome: String = json.optString("libraryChrome", "current")
     val title: String = json.optString("title", id)
     val expect: List<String> = json.optJSONArray("expect").strings()
     val actions: List<Pair<String, String>> = json.optJSONArray("actions").objects().map { it.optString("action") to it.optString("result") }
@@ -65,6 +64,7 @@ private fun JSONArray?.objects() = if (this == null) emptyList() else (0 until l
  */
 internal object CatalogRuntime {
     private const val TAG = "DuckCatalog"
+    var referenceUri: android.net.Uri? = null
     private val main = Handler(Looper.getMainLooper())
     private val lock = Any()
     private var cursor = HashMap<String, Int>()
@@ -190,6 +190,8 @@ internal object CatalogRuntime {
     private fun answer(request: String): String {
         val query = runCatching { JSONObject(request) }.getOrNull()
         val op = query?.optString("op") ?: "?"
+        if (op == "gallery_evidence" && referenceUri != null) return JSONObject().put("ok", true)
+            .put("value", JSONObject().put("copy", JSONObject().put("locator", referenceUri.toString()))).toString()
         val scenario = current
         val answer = synchronized(lock) {
             val list = scenario?.core?.get(op)

@@ -35,6 +35,7 @@ class CatalogApplication : Application() {
 class CatalogActivity : BackupDuckActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CatalogRuntime.referenceUri = intent.data?.takeIf { it.scheme == "content" && it.authority == "media" }
         val scenarios = runCatching { CatalogRuntime.loadAll(this) }
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
         list.addView(TextView(this).apply { text = "Design catalog"; textSize = 24f; setTypeface(typeface, Typeface.BOLD) })
@@ -70,8 +71,7 @@ class CatalogActivity : BackupDuckActivity() {
         if (scenario.page == "onboarding") {
             startActivity(Intent(this, ReceiverOnboardingActivity::class.java).putExtra("step", scenario.step))
         } else {
-            startActivity(Intent(this, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface)
-                .putExtra("libraryChrome", intent.getStringExtra("libraryChrome") ?: scenario.libraryChrome))
+            startActivity(Intent(this, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface))
         }
     }
 }
@@ -113,7 +113,6 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
             .setPositiveButton("Restart") { _, _ ->
                 CatalogRuntime.apply(activity, scenario)
                 activity.startActivity(Intent(activity, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface)
-                    .putExtra("libraryChrome", if (ReceiverEnvironment.nativeLibraryChrome) "native" else "current")
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                 activity.finish()
             }

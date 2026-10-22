@@ -40,7 +40,7 @@ internal fun ImageView.photoPoster(id: String): Bitmap? =
 internal fun Context.photoAnimationsEnabled() = ValueAnimator.areAnimatorsEnabled() &&
     Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
 
-/** D1 only. Android moves the actual tile ImageView to the fitted media ImageView. */
+/** Android moves the actual tile ImageView to the fitted media ImageView. */
 class NativePhotoViewerActivity : BackupDuckActivity() {
     private var content: PhotoDetail.Content? = null
     private var shared = false
@@ -48,12 +48,8 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
     private var publishAfterEnter: (() -> Unit)? = null
     private var initialId = ""
 
-    // Fix the viewer's dark mode before the base context is attached. Setting it
-    // in onCreate makes AppCompat recreate the activity, and the recreated one
-    // has no scene-transition options, so the photo would cut in instead of flying.
-    init { delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES }
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         window.requestFeature(Window.FEATURE_ACTIVITY_TRANSITIONS)
         super.onCreate(savedInstanceState)
         // Install the decor/theme defaults before configuring transitions. A null
@@ -109,7 +105,7 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                 content?.preview?.post { startPostponedEnterTransition() }
             }, afterEnter = { publish -> if (entered) publish() else publishAfterEnter = publish })
         setContentView(content!!.root)
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(darkLook().getColor(R.color.duck_role_background)))
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(getColor(android.R.color.black)))
         // Never fade a parent of the shared image: it would also fade the photo
         // out before its return flight has reached the grid.
         window.enterTransition = photoChromeFade(this, content!!.root)
@@ -122,7 +118,7 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
             isAppearanceLightStatusBars = false; isAppearanceLightNavigationBars = false
         }
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() { finishAfterTransition() }
+            override fun handleOnBackPressed() { if (content?.closePanel?.invoke() != true) finishAfterTransition() }
         })
     }
     private fun finishEntry() {
@@ -284,7 +280,7 @@ private fun RecyclerView.awaitTransitionImage(name: String, exists: Boolean, rea
     postDelayed(timeout, 1000)
     requestLayout()
 }
-private fun HistoryItem.toBundle() = Bundle().apply {
+internal fun HistoryItem.toBundle() = Bundle().apply {
     putLong("cursor", cursor); putString("id", id); putString("filename", filename); putString("kind", kind)
     putLong("total", totalBytes); putLong("confirmed", confirmedBytes); putString("receipt", receipt)
     putString("processing", processing); putString("error", processingError); putBoolean("released", originalsReleased)
@@ -292,7 +288,7 @@ private fun HistoryItem.toBundle() = Bundle().apply {
     capturedAtMs?.let { putLong("captured", it) }; receivedAtMs?.let { putLong("received", it) }
     publishedAtMs?.let { putLong("published", it) }; burstPrimary?.let { putBoolean("burst", it) }
 }
-private fun Bundle.toPhoto() = HistoryItem(getLong("cursor"), getString("id")!!, getString("filename")!!,
+internal fun Bundle.toPhoto() = HistoryItem(getLong("cursor"), getString("id")!!, getString("filename")!!,
     getString("kind")!!, getLong("total"), getLong("confirmed"), getString("receipt")!!,
     getString("processing")!!, getString("error"), getBoolean("released"), getString("releaseReason"), getString("senders").orEmpty(),
     getLong("captured").takeIf { containsKey("captured") }, getBoolean("burst").takeIf { containsKey("burst") },

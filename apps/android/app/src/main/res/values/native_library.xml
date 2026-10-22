@@ -1,5 +1,5 @@
 <resources>
-    <!-- D1 only: AppCompat owns an overlay contextual bar, using Material 3 roles. -->
+    <!-- AppCompat owns an overlay contextual bar, using Material 3 roles. -->
     <style name="ThemeOverlay.BackupDuck.NativeLibrary" parent="">
         <item name="android:windowActivityTransitions">true</item>
         <item name="actionBarTheme">@style/ThemeOverlay.BackupDuck.PhotoActionMode</item>

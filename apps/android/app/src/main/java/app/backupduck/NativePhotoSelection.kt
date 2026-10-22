@@ -23,7 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** D1 opt-in: each grid owns its stable media keys and a system contextual action mode. */
+/** Stable media selection: each grid owns its stable media keys and a system contextual action mode. */
 internal class NativePhotoSelection(
     private val activity: MainActivity,
     private val list: RecyclerView,

@@ -94,15 +94,9 @@ class MainActivity : BackupDuckActivity() {
         if(Build.VERSION.SDK_INT<33) getSharedPreferences("appearance",MODE_PRIVATE).getString("language",null)?.let {
             AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it))
         }
-        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 || packageName.endsWith(".catalog")) {
-            ReceiverEnvironment.nativeLibraryChrome = (intent.getStringExtra("libraryChrome")
-                ?: savedInstanceState?.getString("libraryChrome")) == "native"
-        }
-        if (ReceiverEnvironment.nativeLibraryChrome) {
-            window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
-            supportRequestWindowFeature(androidx.appcompat.app.AppCompatDelegate.FEATURE_ACTION_MODE_OVERLAY)
-            theme.applyStyle(R.style.ThemeOverlay_BackupDuck_NativeLibrary, true)
-        }
+        window.requestFeature(android.view.Window.FEATURE_ACTIVITY_TRANSITIONS)
+        supportRequestWindowFeature(androidx.appcompat.app.AppCompatDelegate.FEATURE_ACTION_MODE_OVERLAY)
+        theme.applyStyle(R.style.ThemeOverlay_BackupDuck_NativeLibrary, true)
         super.onCreate(savedInstanceState)
         RelayMaintenance.schedule(this)
         devicePanels = DevicePanels(this) {
@@ -284,6 +278,9 @@ class MainActivity : BackupDuckActivity() {
             "settings"->navigation.selectedItemId=4
         }
         when(next.getStringExtra("surface")) {
+            "photo-history" -> {
+                next.getBundleExtra("record")?.let { createPhotoHistory(it).show() }
+            }
             "pairing"->choosePairing()
             "connect-mac"->openConnect(mac=true)
             "devices"->openDevices()
@@ -312,7 +309,6 @@ class MainActivity : BackupDuckActivity() {
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("page", selectedPage)
-        outState.putString("libraryChrome", if (ReceiverEnvironment.nativeLibraryChrome) "native" else "current")
         super.onSaveInstanceState(outState)
     }
     private var updateFeedback: android.widget.TextView? = null
@@ -636,7 +632,21 @@ class MainActivity : BackupDuckActivity() {
         proposedRefresh?.invoke(); refreshDiscovery()
     }.also { storageScreen = it }
     private var storageScreen: StorageScreen? = null
+    private fun createPhotoHistory(record: Bundle): DuckPage {
+        val item = record.toPhoto()
+        val page = DuckPage(this, getString(R.string.viewer_history), "photo-history")
+        page.state.putAll(record)
+        val records = TransferAdapter(this, ::showPhoto).apply { submitList(listOf(item)) }
+        val list = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@MainActivity)
+            adapter = records
+        }
+        page.root.removeViewAt(1)
+        page.root.addView(list, 1, LinearLayout.LayoutParams(-1, 0, 1f))
+        return page
+    }
     internal override fun restorePage(route: String, state: Bundle): PageDestination = when (route) {
+        "photo-history" -> createPhotoHistory(state)
         "connect" -> createConnectPage(state)
         "devices" -> createDevicesPage().page
         "storage" -> createStoragePage(state).page

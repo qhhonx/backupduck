@@ -19,8 +19,6 @@ internal object ReceiverEnvironment {
     @Volatile var reservedSettings = ReservedSettingsContent()
     /** The redesigned pages (design/redesign-roadmap.md, step 6). The catalog can switch back to the earlier ones. */
     @Volatile var proposedDesign = true
-    /** Owner D1 comparison only. Production always keeps the current library chrome. */
-    @Volatile var nativeLibraryChrome = false
     /** The device's own storage reading; the catalog fixes it per scenario. */
     @Volatile var deviceStorage: (Context) -> DeviceStorage = { DeviceStorage.read(it) }
     /** Read the same system value as first run; null means the state could not be read. */

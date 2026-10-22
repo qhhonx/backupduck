@@ -79,11 +79,10 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         })
     }
 
-    init { if (ReceiverEnvironment.nativeLibraryChrome) adapter.enableSelection(view, "received-photos") }
+    init { adapter.enableSelection(view, "received-photos") }
 
     private fun open(item: HistoryItem, source: ImageView?, list: RecyclerView = view) {
-        if (ReceiverEnvironment.nativeLibraryChrome) NativePhotoViewerActivity.open(activity, adapter.live(item), source, list)
-        else showDetail(item, source?.photoPoster(item.id))
+        NativePhotoViewerActivity.open(activity, adapter.live(item), source, list)
     }
 
     fun render(state: HistoryState) { history = state; rebuild() }
@@ -145,23 +144,22 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), activity.dp(4), activity.dp(24), activity.dp(16)) })
         lateinit var grid: RecyclerView
         val tiles = PhotoAdapter(activity, images, { _, _ -> }, { item, source ->
-            if (ReceiverEnvironment.nativeLibraryChrome) open(item, source, grid)
-            else { val poster = source?.photoPoster(item.id); sheet.dismiss(); showDetail(item, poster) }
+            open(item, source, grid)
         }, actions)
         grid = RecyclerView(activity).apply {
             layoutManager = GridLayoutManager(activity, span); adapter = tiles; itemAnimator = null; isNestedScrollingEnabled = false
         }
         body.addView(grid, LinearLayout.LayoutParams(-1, -2))
-        if (ReceiverEnvironment.nativeLibraryChrome) tiles.enableSelection(grid, "cause-${group.cause}")
+        tiles.enableSelection(grid, "cause-${group.cause}")
         tiles.submitList(group.items.map { PhotoRow.Tile(it) })
-        if (ReceiverEnvironment.nativeLibraryChrome) {
+        run {
             adapter.suspendSelection()
             sheet.setOnDismissListener { adapter.resumeSelection() }
         }
         sheet.show()
     }
 
-    fun showDetail(item: HistoryItem, poster: Bitmap? = null) { PhotoDetail(activity, images, actions).show(adapter.live(item), poster) }
+    fun showDetail(item: HistoryItem) { NativePhotoViewerActivity.open(activity, adapter.live(item), null, view) }
 }
 
 /**
@@ -177,8 +175,8 @@ internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompa
         private val nativePermits = Semaphore(2)
         fun clearCache() = nativeCache.evictAll()
     }
-    private val cache = if (ReceiverEnvironment.nativeLibraryChrome) nativeCache else imageCache()
-    private val permits = if (ReceiverEnvironment.nativeLibraryChrome) nativePermits else Semaphore(2)
+    private val cache = nativeCache
+    private val permits = nativePermits
     fun cached(item: HistoryItem, width: Int, height: Int): Bitmap? = cache.get(key(item, width, height))
     private fun key(item: HistoryItem, width: Int, height: Int) = "${item.id}:${item.receipt}:${item.processing}:${width}x$height"
 
@@ -368,7 +366,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             (itemView as FrameLayout).apply {
                 setPadding(activity.dp(1), activity.dp(1), activity.dp(1), activity.dp(1))
                 addView(image, FrameLayout.LayoutParams(-1, -1))
-                if (ReceiverEnvironment.nativeLibraryChrome) addView(NativePhotoSelectionMark(image),
+                addView(NativePhotoSelectionMark(image),
                     FrameLayout.LayoutParams(activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_large),
                         Gravity.TOP or Gravity.START).apply {
                         topMargin = activity.token(R.dimen.duck_space_xx_small)
@@ -378,7 +376,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                 isFocusable = true; isClickable = true
                 val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
                 foreground = activity.getDrawable(out.resourceId)
-                if (ReceiverEnvironment.nativeLibraryChrome) setOnLongClickListener {
+                setOnLongClickListener {
                     item?.let { selection?.select(it.id) } == true
                 }
                 setOnClickListener {
@@ -526,196 +524,6 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
  * times, at most one action, the file, and one line on Google Photos, whose
  * backup BackupDuck cannot see.
  */
-internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompatActivity, private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
-    fun show(item: HistoryItem, poster: Bitmap? = null): Unit = with(activity) {
-        val dark = darkLook()
-        val page = androidx.appcompat.app.AppCompatDialog(dark, R.style.DuckFullPage)
-        trackNotificationWindow(page)
-        val content = content(item, dismiss = { page.dismiss() }, isShowing = { page.isShowing }, poster = poster)
-        page.setContentView(content.root)
-        page.setOnDismissListener { content.cancel() }
-        if (!photoAnimationsEnabled()) page.window?.setWindowAnimations(0)
-        page.show()
-        page.window?.let { window ->
-            window.setLayout(-1, -1)
-            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-            window.statusBarColor = dark.getColor(android.R.color.transparent)
-            window.navigationBarColor = dark.getColor(android.R.color.transparent)
-            if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
-            androidx.core.view.WindowCompat.getInsetsController(window, content.root).apply {
-                val surface = (content.root.background as android.graphics.drawable.ColorDrawable).color
-                val light = androidx.core.graphics.ColorUtils.calculateLuminance(surface) > 0.5
-                isAppearanceLightStatusBars = light
-                isAppearanceLightNavigationBars = light
-            }
-            androidx.core.view.ViewCompat.requestApplyInsets(content.root)
-        }
-    }
-
-    internal class Content(val root: View, val preview: ImageView, val cancel: () -> Unit)
-
-    fun content(item: HistoryItem, dismiss: () -> Unit, isShowing: () -> Boolean,
-        sharedName: String? = null, poster: Bitmap? = null, ready: (Boolean) -> Unit = {},
-        afterEnter: (() -> Unit) -> Unit = { it() }): Content = with(activity) {
-        val dark = darkLook()
-        val canvas = dark.getColor(R.color.duck_role_background)
-        val root = LinearLayout(dark).apply {
-            orientation = LinearLayout.VERTICAL
-            // A shared-element viewer paints its canvas on the window instead, so the
-            // activity transition can fade it in over the grid rather than cutting to it.
-            if (sharedName != null) isTransitionGroup = false else setBackgroundColor(canvas)
-        }
-        if (sharedName != null) {
-            root.addView(com.google.android.material.appbar.MaterialToolbar(dark).apply {
-                setNavigationIcon(R.drawable.ic_close)
-                setNavigationContentDescription(R.string.connect_close)
-                setNavigationOnClickListener { dismiss() }
-            }, LinearLayout.LayoutParams(-1, resources.getDimensionPixelSize(M.dimen.m3_appbar_size_compact)))
-        } else root.addView(android.widget.ImageButton(dark).apply {
-            setImageResource(R.drawable.ic_close); contentDescription = getString(R.string.connect_close)
-            imageTintList = ColorStateList.valueOf(dark.getColor(R.color.duck_role_primary_text))
-            val out = android.util.TypedValue(); dark.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, out, true)
-            setBackgroundResource(out.resourceId); setOnClickListener { dismiss() }
-        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { setMargins(token(R.dimen.duck_space_xx_small), token(R.dimen.duck_space_xx_small), 0, 0) })
-        val width = resources.displayMetrics.widthPixels.coerceIn(320, 1440)
-        val height = (resources.displayMetrics.heightPixels * .6f).toInt()
-        val preview = ImageView(dark).apply {
-            contentDescription = kindLabel(activity, item); transitionName = sharedName
-        }
-        root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
-        // Keep the same space when neither the published copy nor a received preview is available.
-        placeholder(preview, loading = true)
-        var hasPreview = false
-        (poster ?: images.cached(item, (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384),
-            (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)))?.let {
-            preview.background = null; preview.imageTintList = null
-            preview.setPadding(0, 0, 0, 0)
-            preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(it)
-            hasPreview = true
-        }
-        // A retained tile poster can start the flight immediately. Do not replace its
-        // drawable mid-flight; publish the full rendition once Android settles it.
-        val signal = CancellationSignal()
-        var work: Job? = null
-        fun loadFullImage() {
-            if (signal.isCanceled) return
-            work = images.load(item, width, height, signal) { bitmap ->
-                if (bitmap != null && isShowing()) {
-                    fun publish() {
-                        if (!isShowing()) return
-                        preview.background = null; preview.imageTintList = null
-                        if (sharedName != null) preview.setPadding(0, 0, 0, 0)
-                        preview.scaleType = ImageView.ScaleType.FIT_CENTER; preview.setImageBitmap(bitmap)
-                    }
-                    if (sharedName != null && hasPreview) afterEnter(::publish) else publish()
-                } else if (isShowing() && !hasPreview) placeholder(preview)
-                if (!hasPreview) {
-                    if (sharedName != null) preview.doOnPreDraw { ready(bitmap != null) } else ready(bitmap != null)
-                }
-            }
-        }
-        if (hasPreview && sharedName != null) {
-            // The first fitted poster frame releases entry. Even a cache hit or
-            // a slow decoder cannot delay it or change the flying drawable.
-            preview.doOnPreDraw {
-                ready(true)
-                afterEnter { loadFullImage() }
-            }
-        } else {
-            // Preserve the current dialog's loading and publication order.
-            if (hasPreview) preview.doOnPreDraw { ready(true) }
-            loadFullImage()
-        }
-        val panel = LinearLayout(dark).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(token(R.dimen.duck_space_medium), token(R.dimen.duck_space_large), token(R.dimen.duck_space_medium), token(R.dimen.duck_space_medium))
-        }
-        val information = BoundedScroll(dark, .6f).apply {
-            addView(panel)
-            background = GradientDrawable().apply {
-                val r = dp(28).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
-                setColor(dark.getColor(R.color.duck_m3_surface_container_low))
-            }
-        }
-        root.addView(information, LinearLayout.LayoutParams(-1, -2))
-        // A8: the panel background reaches the window edge; only content avoids system bars.
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or
-                androidx.core.view.WindowInsetsCompat.Type.displayCutout())
-            root.setPadding(bars.left, bars.top, bars.right, 0)
-            information.setPadding(0, 0, 0, bars.bottom)
-            insets
-        }
-        panel.addView(dark.lookText(item.capturedAtMs?.let { getString(R.string.photos_taken, fullDate(this, it)) } ?: getString(R.string.photos_taken_unknown),
-            M.style.TextAppearance_Material3_TitleMedium).apply { isAccessibilityHeading = true; setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0) })
-        val facts = dark.lookGroup(panel)
-        (facts.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_small) }
-        val sender = item.senders.joinToString(getString(R.string.photos_list_separator)).ifEmpty { null }
-        if (item.receipt == "received") fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_state_received),
-            sender?.let { getString(R.string.photos_received_from, it) } ?: getString(R.string.photos_received), item.receivedAtMs?.let { shortTime(this, it) })
-        else fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_role_accent),
-            sender?.let { getString(R.string.photos_receiving_from, it) } ?: getString(R.string.photos_receiving),
-            java.text.NumberFormat.getPercentInstance().format(item.confirmedBytes.toDouble() / item.totalBytes.coerceAtLeast(1)))
-        val attention = dark.getColor(R.color.duck_state_attention)
-        when {
-            item.processing == "complete" -> fact(dark, facts, R.drawable.ic_check, dark.getColor(R.color.duck_state_saved), getString(R.string.photos_in_photos), item.publishedAtMs?.let { shortTime(this, it) })
-            item.cause == PhotoCause.LIVE_PHOTO -> fact(dark, facts, R.drawable.ic_alert, attention, getString(R.string.photos_live_cause), null)
-            item.cause == PhotoCause.NOT_SAVED -> fact(dark, facts, R.drawable.ic_alert, attention, getString(R.string.photos_not_saved), null)
-            item.receipt == "received" -> fact(dark, facts, R.drawable.ic_clock, dark.getColor(R.color.duck_role_accent), getString(R.string.photos_saving), null)
-            else -> fact(dark, facts, R.drawable.ic_photo, dark.getColor(R.color.duck_role_secondary_text), getString(R.string.photos_after_arrival), null)
-        }
-        val failure = dark.lookText(getString(R.string.photos_retry_failed), M.style.TextAppearance_Material3_BodyMedium, color = dark.getColor(R.color.duck_state_failure)).apply {
-            visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
-        panel.addView(failure, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
-        val action = LinearLayout(dark).apply { orientation = LinearLayout.VERTICAL }
-        panel.addView(action, LinearLayout.LayoutParams(-1, -2))
-        if (item.cause == PhotoCause.NOT_SAVED) {
-            lateinit var retry: View
-            retry = dark.lookButton(getString(R.string.photos_try_again), LookButton.TONAL) {
-                retry.isEnabled = false; failure.visibility = View.GONE
-                actions.retry(item) { ok ->
-                    retry.isEnabled = true
-                    if (ok) { dismiss() } else failure.visibility = View.VISIBLE
-                }
-            }
-            action.addView(retry, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
-        }
-        // Open the photo only once its copy in Photos is found; never offer a dead button.
-        val lookup = if (item.processing == "complete") lifecycleScope.launch {
-            val copy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() } ?: return@launch
-            if (!isShowing()) return@launch
-            action.addView(dark.lookButton(getString(R.string.photos_open), LookButton.TONAL) {
-                runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(copy.uri, copy.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
-                    .onFailure { failure.setText(R.string.photos_open_failed); failure.visibility = View.VISIBLE }
-            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
-        } else null
-        val quiet = LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) }
-        panel.addView(dark.lookText(listOf(item.filename, Formatter.formatFileSize(this, item.totalBytes), kindLabel(activity, item)).joinToString(" · "),
-            M.style.TextAppearance_Material3_BodySmall, secondary = true).apply { setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0) }, quiet)
-        panel.addView(dark.lookText(getString(R.string.photos_detail_cloud), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
-            setPadding(token(R.dimen.duck_space_xx_small), 0, 0, 0)
-        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
-        Content(root, preview) { signal.cancel(); work?.cancel(); lookup?.cancel() }
-    }
-
-    /** One fact: its glyph in the state color, the sentence, and its time below when known. */
-    private fun fact(dark: android.content.Context, group: LinearLayout, icon: Int, tint: Int, text: String, time: String?) {
-        val support = dark.lookRow(group, icon, text, time)
-        val row = support.parent.parent as LinearLayout
-        (row.getChildAt(0) as ImageView).imageTintList = ColorStateList.valueOf(tint)
-    }
-}
-
-/** A scroll view no taller than [fraction] of the screen, so the photo above keeps its room at any text size. */
-private class BoundedScroll(context: android.content.Context, private val fraction: Float) : NestedScrollView(context) {
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val limit = (resources.displayMetrics.heightPixels * fraction).toInt()
-        val size = MeasureSpec.getSize(heightMeasureSpec)
-        super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) limit else minOf(size, limit), MeasureSpec.AT_MOST))
-    }
-}
-
 /** Loading is a quiet neutral tile; only an unavailable preview shows the photo glyph. */
 private fun placeholder(view: ImageView, loading: Boolean = false) = with(view.context) {
     if (loading) view.setImageDrawable(null) else view.setImageResource(R.drawable.ic_photo)

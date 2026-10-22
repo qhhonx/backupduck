@@ -254,20 +254,12 @@ settled observation so About never waits for an automatic check. Review each in 
 normal/large text, and with both toolbar and system Back. A compiled scenario is
 not native visual or physical-device acceptance.
 
-## Library chrome A/B (D1)
+## Photo viewer and selection (D1)
 
-`pixel.photos-ab-current` and `pixel.photos-ab-native` share the same problem,
-receipt and publication fixtures. `--es libraryChrome current|native` overrides
-that scenario's choice. MainActivity also accepts the extra in debug builds;
-ordinary production launches always retain current behavior. This is temporary
-comparison infrastructure, not a preference or an approved default migration.
+`pixel.photos` and the `pixel.photos-*` family use the production viewer and
+contextual selection. There is no library-chrome override.
 
-```bash
-adb shell am start -S -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario pixel.photos-ab-current --es libraryChrome current
-adb shell am start -S -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario pixel.photos-ab-native --es libraryChrome native
-```
-
-The native branch uses AndroidX SelectionTracker with stable media ID keys and
+The grid uses AndroidX SelectionTracker with stable media ID keys and
 AppCompat overlay ActionMode, styled by the Material 3 theme. The contextual bar
 covers the top app bar without changing the grid bounds or scroll offset.
 View requires one item; Retry applies only to retryable
@@ -301,11 +293,10 @@ tile into view if needed and postpones reentry until its thumbnail is laid out
 Animator duration scale zero removes both shared-element motion and fallback fades.
 Photos opened from a separate dialog window keep that grid and selection but
 use the platform activity fallback (the tile is outside the source Activity
-window). The current Dialog and cause-sheet dismissal remain unchanged in the current
-branch. Both destinations use the same docked information content (A8).
-Both variants hand the displayed tile bitmap directly to the viewer, independently
+window). The cause grid remains mounted. All entry points use the same information panel (A8).
+All entry points hand the displayed tile bitmap directly to the viewer, independently
 of cache eviction or animation settings, and retain it until full-image decode
-succeeds. The current variant still opens the viewer after a long press. Review
+succeeds. Long press starts contextual selection. Review
 that interaction with deliberately slow decode: the photo must remain visible
 from the first viewer frame, including when full-image loading fails.
 
@@ -367,7 +358,18 @@ with the Storage row visible in both languages and appearances.
 
 The Chinese photo-scope summary puts source/count and saved-to-Photos on separate
 lines and keeps the two characters of Photos together with a word joiner. Review `pixel.transfers` and `pixel.transfers-failed` in light/dark.
-The current viewer selects system-bar icon contrast from the actual canvas color,
-including a light dialog canvas. This does not change its photo or navigation
+The viewer uses white system-bar indicators over dark scrims. This does not change its photo or navigation
 behavior. Preview cancellation through Android's signal is an expected discarded
 result, including when it arrives before or after decoding.
+
+### Viewer composition
+
+The viewer overlays date/time, Back and More on a black full-window media canvas.
+Only failed gallery publication adds a retry pill. Share, Open in Google Photos
+(only for a resolved published content URI), and Details use equal-width columns.
+Information opens in a draggable, theme-aware panel inside the viewer and translates
+the photo upward. Immersion hides application and system bars without resizing media.
+Receipt and gallery publication keep their own recorded times; unknown metadata is omitted.
+`pixel.photos-viewer` and `pixel.photos-viewer-failed` cover normal and failed publication.
+For local same-item comparisons, CatalogActivity accepts a granted read-only MediaStore
+URI as Intent data; this changes only catalog data providers and never writes media.

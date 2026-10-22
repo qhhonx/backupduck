@@ -1,10 +1,9 @@
 {
-  "id": "pixel.photos-ab-native",
+  "id": "pixel.photos",
   "extends": "pixel.photos-problems",
   "title": "Received photos \u00b7 native library chrome",
-  "libraryChrome": "native",
   "expect": [
-    "Default launch keeps current library chrome.",
+    "Production uses tile transitions and contextual selection.",
     "Grid paging, media keys and scroll survive viewing and returning.",
     "Only the photo changes bounds between tile and viewer; no whole-page scale or photo fade.",
     "Contextual title, menu and close icon use readable surface/on-surface roles in light and dark.",

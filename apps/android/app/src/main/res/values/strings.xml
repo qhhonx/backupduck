@@ -651,4 +651,15 @@
     <string name="about_update_current">Up to date</string>
     <string name="about_update_available">Update available</string>
     <string name="about_update_failed">Could not check for updates</string>
+    <string name="viewer_back">Back</string>
+    <string name="viewer_more">More options</string>
+    <string name="viewer_details">Details</string>
+    <string name="viewer_history">Show in history</string>
+    <string name="viewer_open_photos">Open in Google Photos</string>
+    <string name="viewer_save_failed">Couldn\'t save to Photos · Retry</string>
+    <string name="viewer_retrying">Requesting retry…</string>
+    <string name="viewer_file_details">File details</string>
+    <string name="viewer_storage_full">The Pixel has too little free space.</string>
+    <string name="viewer_save_reason_unknown">Photos could not accept this file. Try again.</string>
+    <string name="viewer_gallery_action">Google Photos</string>
 </resources>
