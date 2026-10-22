@@ -112,12 +112,17 @@ Follow the source audit's priority order, with completed work removed:
 9. **Technical pages — Apple Diagnostics built (`3ee7b96`), Pixel not started.** Was: redesign diagnostics (log, entry detail, exports) on all
    three platforms and the Pixel compatibility/archive routes for their
    technical audience: the same components and standards, exact detail kept.
-10. **Release/native/device acceptance:** real pairing, notifications/Live
+10. **Website:** the official site (`site/`) is redesigned with the apps, as
+   the first public face of the brand: fresh structure and copy from
+   `product-brief.md` (bold benefit, conditions in small print), current app
+   imagery and the same visual language. Update feeds (`site/api/`) and
+   download links keep working; publishing waits for the owner.
+11. **Release/native/device acceptance:** real pairing, notifications/Live
    Activity, gesture reversal/anchors, settings persistence, update handoffs and
    failure recovery. Check light/dark, narrow layouts, large text and long copy;
    measure Release motion from recordings. Catalog/build checks do not replace
    physical-device observations.
-11. **Legacy removal:** after production review and acceptance, remove remaining
+12. **Legacy removal:** after production review and acceptance, remove remaining
     superseded pages and resolve compatibility routes explicitly.
 
 ## Later (after the roadmap)
