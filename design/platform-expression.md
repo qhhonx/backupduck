@@ -43,7 +43,7 @@ bottom capsule.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Top-level pages: system large title. Pushed pages: inline title and the system back button. At most one or two borderless symbol items on the trailing side; the system groups them on glass. Photos tab: the title floats over the grid, as in the system photo library | One unified toolbar: sidebar toggle, title (under 15 characters), at most three groups. Symbols without borders; one primary action on the trailing edge when there is one. Every toolbar item also exists as a menu bar command | Top app bar: large title on top-level pages, collapsing on scroll; small bar with back arrow on pushed pages. At most two action icons, the rest in the overflow menu |
+| Top-level pages: system large title. Pushed pages: inline title and the system back button. At most one or two borderless symbol items on the trailing side; the system groups them on glass. Photos tab: the title floats over the grid, as in the system photo library | One unified toolbar: sidebar toggle, title (under 15 characters), at most three groups. Symbols without borders; one primary action on the trailing edge when there is one. Every toolbar item also exists as a menu bar command | Receive and Photos use a compact top app bar with a small title and trailing actions so the state card and grid lead immediately; only Settings keeps a large collapsing title to orient its long preference list, while pushed pages use a compact bar with Back |
 
 ## A3 Moving between positions
 

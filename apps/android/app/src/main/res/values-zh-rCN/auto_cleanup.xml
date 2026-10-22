@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auto_cleanup_idle">空间不够时自动释放</string>
+    <string name="auto_cleanup_running">正在释放空间…</string>
+    <string name="auto_cleanup_review">请在 Google 相册里看一下结果</string>
+    <string name="auto_cleanup_account">Google 相册换了账号</string>
+    <string name="auto_cleanup_access">无障碍权限已关闭</string>
+    <string name="auto_cleanup_locked">Pixel 解锁后继续</string>
+    <string name="auto_cleanup_unavailable">打不开 Google 相册</string>
+    <string name="auto_cleanup_stopped">已停止，Google 相册可能还在释放空间</string>
+    <string name="auto_cleanup_setup_stopped">设置已停止，自动回收未开启</string>
+    <string name="auto_cleanup_failed">未能完成，请重试</string>
+    <string name="auto_cleanup_waiting_access">等待开启无障碍权限</string>
+    <string name="auto_cleanup_binding">正在确认 Google 相册账号…</string>
+    <string name="auto_cleanup_binding_note">只确认账号，不会释放空间。</string>
+    <string name="auto_cleanup_access_return">开启权限后，回到这里确认账号。</string>
+    <string name="auto_cleanup_consent_check">这是一项实验功能。返回后会短暂打开 Google 相册确认账号，确认成功后才开启。</string>
+    <string name="auto_cleanup_stop">停止</string>
+    <string name="auto_cleanup_open_photos">打开 Google 相册</string>
+    <string name="auto_cleanup_reviewed">我看过了</string>
+    <string name="auto_cleanup_reviewed_note">这会记下你已核对，让自动回收稍后再试；不会确认释放结果，也不会撤销 Google 相册已开始的操作。</string>
+    <string name="auto_cleanup_confirm">确认账号</string>
+    <string name="auto_cleanup_confirm_again">重新确认账号</string>
+    <string name="auto_cleanup_turn_on">去开启</string>
+    <string name="auto_cleanup_retry">重试</string>
+    <string name="auto_cleanup_run">现在释放空间</string>
+    <string name="auto_cleanup_check_result">检查结果</string>
+    <string name="auto_cleanup_stop_note">停止会结束备份鸭的操作，Google 相册可能仍会继续。</string>
+    <string name="auto_cleanup_account_confirmed">账号已确认</string>
+    <string name="auto_cleanup_last_result">上次结果</string>
+    <string name="auto_cleanup_no_result">还没有结果记录</string>
+    <string name="auto_cleanup_nothing">没有可释放的空间</string>
+    <string name="auto_cleanup_result_unknown">已完成 · %1$s，释放量未知</string>
+    <string name="auto_cleanup_how_title">如何释放空间</string>
+    <string name="auto_cleanup_how">空间不够时，备份鸭通过无障碍权限在 Google 相册中点按“释放空间”。由 Google 相册决定哪些照片可从 Pixel 移除，它们仍留在云端。备份鸭看不到哪些照片已备份。</string>
+    <string name="auto_cleanup_diagnostics">诊断</string>
+</resources>

@@ -14,6 +14,18 @@ internal class PhotosCleanup(private val context: Context) {
     var account: String
         get() = prefs.getString("account", "").orEmpty()
         set(value) { check(prefs.edit().putString("account", value).commit()) }
+    /** Durable setup intent; enabling follows a successful bounded account check only. */
+    var journey: String
+        get() = prefs.getString("journey", "").orEmpty()
+        set(value) { check(prefs.edit().putString("journey", value).commit()) }
+    var enableAfterBinding: Boolean
+        get() = prefs.getBoolean("enable_after_binding", false)
+        set(value) { check(prefs.edit().putBoolean("enable_after_binding", value).commit()) }
+    val lastResult: String get() = prefs.getString("last_result", "").orEmpty()
+    fun recordNothingToFree() {
+        check(prefs.edit().putString("last_result", "nothing_to_free").putLong("last_completed_at", System.currentTimeMillis())
+            .remove("last_freed_bytes").commit())
+    }
     val state: JSONObject get() = runCatching { JSONObject(prefs.getString("state", "{}").orEmpty()) }.getOrDefault(JSONObject())
     val pending: Boolean get() = state.optString("phase") in setOf("pending", "returning")
     val held: Boolean get() = pending || PhotosProbeService.cleanupRunning
@@ -21,7 +33,7 @@ internal class PhotosCleanup(private val context: Context) {
     val lastFreedBytes: Long? get() = prefs.getLong("last_freed_bytes", 0).takeIf { it > 0 }
     val lastCompletedAt: Long? get() = prefs.getLong("last_completed_at", 0).takeIf { it > 0 }
     fun recordCompletion(bytes: Long?) {
-        val edit = prefs.edit().putLong("last_completed_at", System.currentTimeMillis())
+        val edit = prefs.edit().putString("last_result", "completed").putLong("last_completed_at", System.currentTimeMillis())
         if (bytes == null) edit.remove("last_freed_bytes") else edit.putLong("last_freed_bytes", bytes)
         check(edit.commit())
     }

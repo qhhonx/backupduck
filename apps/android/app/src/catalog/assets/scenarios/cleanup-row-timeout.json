@@ -1,0 +1,12 @@
+{
+  "id": "cleanup.row-timeout",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "cleanup": {
+    "enabled": true,
+    "reason": "expired"
+  },
+  "expect": [
+    "One supporting state and at most one tonal recovery button. Text opens Auto cleanup."
+  ]
+}

@@ -84,7 +84,9 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         state.counts?.let { totals(it.published, it.total, it.failed) }
         // Only photos already in the Pixel's Photos have a picture to show.
         photos = state.items.filter { it.processing == "complete" }.take(8)
-        mosaic.bind(photos, images, { tileDescription(activity, it) }) { activity.showPhoto(it) }
+        mosaic.bind(photos, images, { tileDescription(activity, it) }) { item, tile, collection ->
+            NativePhotoViewerActivity.open(activity, item, tile, mosaic, collection)
+        }
         rendered = null
         render(ReceiverState.snapshot.value, null, false)
     }

@@ -1,0 +1,11 @@
+{
+  "id": "cleanup.page-running",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "auto-cleanup",
+  "cleanup": {
+    "enabled": true,
+    "running": true,
+    "reason": "opening_cleanup"
+  }
+}

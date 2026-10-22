@@ -25,9 +25,24 @@ internal object CatalogTextAudit {
                 val secure = android.view.WindowManager.LayoutParams.FLAG_SECURE
                 if (staticCapture && activity.window.attributes.flags and secure != 0) activity.window.clearFlags(secure)
                 val texts = JSONArray()
+                val geometry = JSONArray()
                 fun visit(view: View) {
                     val visible = Rect()
                     if (!view.isShown || !view.getGlobalVisibleRect(visible)) return
+                    if (view is DuckStepMark || view is DuckStepProgress ||
+                        view is com.google.android.material.appbar.MaterialToolbar ||
+                        view is com.google.android.material.navigation.NavigationBarView) {
+                        val entry = JSONObject().put("class", view.javaClass.simpleName)
+                            .put("bounds", JSONArray(listOf(visible.left, visible.top, visible.right, visible.bottom)))
+                            .put("description", view.contentDescription)
+                        if (view is DuckStepMark) {
+                            val mark = view.getChildAt(0) as android.widget.ImageView
+                            val rect = Rect(); mark.getGlobalVisibleRect(rect)
+                            entry.put("imageBounds", JSONArray(listOf(rect.left, rect.top, rect.right, rect.bottom)))
+                                .put("alpha", mark.alpha).put("contrastTint", mark.imageTintList != null)
+                        }
+                        geometry.put(entry)
+                    }
                     if (view is TextView) view.layout?.let { layout ->
                         val lines = JSONArray()
                         for (line in 0 until layout.lineCount) {
@@ -43,7 +58,7 @@ internal object CatalogTextAudit {
                 val page = (activity as? BackupDuckActivity)?.supportFragmentManager?.primaryNavigationFragment?.view
                 visit(page ?: root)
                 val result = JSONObject().put("scenario", CatalogRuntime.current?.id)
-                    .put("capturedAt", System.currentTimeMillis()).put("texts", texts)
+                    .put("capturedAt", System.currentTimeMillis()).put("texts", texts).put("geometry", geometry)
                 val directory = activity.getExternalFilesDir(null) ?: return@Runnable
                 val temporary = File(directory, "text-layout.tmp")
                 temporary.writeText(result.toString(2))

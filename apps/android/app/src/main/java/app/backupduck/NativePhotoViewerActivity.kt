@@ -25,19 +25,24 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.core.view.doOnNextLayout
+import androidx.core.view.doOnLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 internal fun photoTransitionName(id: String) = "received-photo:$id"
-internal interface PhotoTransitionItems { fun positionOfPhoto(id: String): Int }
+internal interface PhotoTransitionItems {
+    fun positionOfPhoto(id: String): Int
+    fun photoItems(): List<HistoryItem>
+}
 
 /** Use the pixels already displayed, including when the image cache has evicted them. */
 internal fun ImageView.photoPoster(id: String): Bitmap? =
     (drawable as? BitmapDrawable)?.bitmap?.takeIf { getTag(R.id.photo_transition_ready) == id }
 
-internal fun Context.photoAnimationsEnabled() = ValueAnimator.areAnimatorsEnabled() &&
+internal fun Context.photoAnimationsEnabled() = ReceiverEnvironment.allowsPhotoMotion && ValueAnimator.areAnimatorsEnabled() &&
     Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
 
 /** Android moves the actual tile ImageView to the fitted media ImageView. */
@@ -47,6 +52,10 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
     private var entered = false
     private var publishAfterEnter: (() -> Unit)? = null
     private var initialId = ""
+    private lateinit var pager: PhotoPager
+    private lateinit var pages: PhotoPages
+    private var currentPosition = 0
+    private var closing = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
@@ -55,9 +64,14 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
         // Install the decor/theme defaults before configuring transitions. A null
         // transition set before decor installation can be replaced by theme defaults.
         window.decorView
-        val item = intent.getBundleExtra("photo")?.toPhoto() ?: run { finish(); return }
+        val item = (savedInstanceState?.getBundle("currentPhoto") ?: intent.getBundleExtra("photo"))?.toPhoto() ?: run { finish(); return }
         initialId = item.id
-        shared = intent.getBooleanExtra("shared", false) && photoAnimationsEnabled()
+        val collection = (pendingCollection ?: retainedCollection)?.takeIf { photos -> photos.any { it.id == item.id } } ?: listOf(item)
+        pendingCollection = null
+        retainedCollection = collection
+        currentPosition = savedInstanceState?.getInt("page")?.coerceIn(collection.indices)
+            ?: collection.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+        shared = savedInstanceState == null && intent.getBooleanExtra("shared", false) && photoAnimationsEnabled()
         setResult(RESULT_OK, Intent().putExtra(RETURN_ID, item.id))
         val poster = pendingPoster?.takeIf { it.first == item.id }?.second
         pendingPoster = null
@@ -92,39 +106,93 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                 done(ok)
             }
         }, {})
-        content = PhotoDetail(this, PhotoImages(this), actions).content(item,
-            dismiss = ::finishAfterTransition, isShowing = { !isFinishing && !isDestroyed },
-            sharedName = photoTransitionName(item.id), poster = poster,
-            ready = { hasImage ->
-                if (!hasImage) {
-                    shared = false; window.sharedElementEnterTransition = null
-                    window.sharedElementReturnTransition = null; finishEntry()
+        val images = PhotoImages(this)
+        pager = PhotoPager(this).apply {
+            layoutManager = object : androidx.recyclerview.widget.LinearLayoutManager(this@NativePhotoViewerActivity, HORIZONTAL, false) {
+                override fun calculateExtraLayoutSpace(state: RecyclerView.State, extra: IntArray) {
+                    extra[0] = width; extra[1] = width
                 }
-                // Post out of pre-draw so the destination's image matrix and
-                // insets are committed before the coordinator captures its bounds.
-                content?.preview?.post { startPostponedEnterTransition() }
-            }, afterEnter = { publish -> if (entered) publish() else publishAfterEnter = publish })
-        setContentView(content!!.root)
+            }
+            itemAnimator = null; setItemViewCacheSize(0); isTransitionGroup = false
+        }
+        pages = PhotoPages(collection) { photo, position, alive ->
+            val initial = photo.id == initialId && !entered
+            PhotoDetail(this, images, actions).content(photo,
+                dismiss = ::finishAfterTransition, isShowing = { alive() && !closing && !isDestroyed },
+                sharedName = photoTransitionName(photo.id), poster = poster.takeIf { photo.id == initialId },
+                ready = { hasImage ->
+                    if (initial) {
+                        if (!hasImage) {
+                            shared = false; window.sharedElementEnterTransition = null
+                            window.sharedElementReturnTransition = null; finishEntry()
+                        }
+                        pager.post { startPostponedEnterTransition() }
+                    }
+                }, afterEnter = { publish -> if (entered || !initial) publish() else publishAfterEnter = publish },
+                isCurrent = { position == currentPosition && !closing }).also {
+                    if (position == currentPosition) content = it
+                }
+        }
+        pager.adapter = pages
+        val snap = androidx.recyclerview.widget.PagerSnapHelper()
+        snap.attachToRecyclerView(pager)
+        fun selectCurrent() {
+            val manager = pager.layoutManager ?: return
+            val page = snap.findSnapView(manager) ?: return
+            val position = manager.getPosition(page)
+            if (position != currentPosition) {
+                content?.reset?.invoke()
+                currentPosition = position
+                content = pages.contentAt(position)
+                content?.reset?.invoke()
+                setResult(RESULT_OK, Intent().putExtra(RETURN_ID, collection[position].id))
+                updateChromeTransitions()
+            }
+        }
+        pager.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, state: Int) {
+                if (state == RecyclerView.SCROLL_STATE_IDLE) selectCurrent()
+            }
+        })
+        pager.jump = { direction ->
+            val next = (currentPosition + direction).coerceIn(collection.indices)
+            pager.doOnNextLayout { selectCurrent() }
+            pager.scrollToPosition(next)
+        }
+        pager.scrollToPosition(currentPosition)
+        setContentView(pager)
+        pager.doOnLayout { updateChromeTransitions() }
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(getColor(android.R.color.black)))
         // Never fade a parent of the shared image: it would also fade the photo
         // out before its return flight has reached the grid.
-        window.enterTransition = photoChromeFade(this, content!!.root)
-        window.returnTransition = photoChromeFade(this, content!!.root)
+        window.enterTransition = null
+        window.returnTransition = null
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = getColor(android.R.color.transparent)
         window.navigationBarColor = getColor(android.R.color.transparent)
         if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
-        androidx.core.view.WindowCompat.getInsetsController(window, content!!.root).apply {
+        androidx.core.view.WindowCompat.getInsetsController(window, pager).apply {
             isAppearanceLightStatusBars = false; isAppearanceLightNavigationBars = false
         }
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { if (content?.closePanel?.invoke() != true) finishAfterTransition() }
         })
     }
+    private fun updateChromeTransitions() {
+        content?.let {
+            window.enterTransition = photoChromeFade(this, it.root)
+            window.returnTransition = photoChromeFade(this, it.root)
+        }
+    }
     private fun finishEntry() {
         entered = true; publishAfterEnter?.invoke(); publishAfterEnter = null
     }
     override fun finishAfterTransition() {
+        if (closing) return
+        pager.stopScroll()
+        // Return the settled page with fit geometry, never a magnified crop.
+        content?.reset?.invoke()
+        closing = true
         val id = content?.preview?.transitionName?.removePrefix("received-photo:") ?: initialId
         setResult(RESULT_OK, Intent().putExtra(RETURN_ID, id))
         publishAfterEnter = null
@@ -142,8 +210,14 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
             finish(); overridePendingTransition(0, R.anim.photo_fade_out)
         } else super.finishAfterTransition()
     }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("page", currentPosition)
+        retainedCollection?.getOrNull(currentPosition)?.let { outState.putBundle("currentPhoto", it.toBundle()) }
+        super.onSaveInstanceState(outState)
+    }
     override fun onDestroy() {
-        publishAfterEnter = null; content?.cancel?.invoke(); content = null
+        publishAfterEnter = null; if (::pages.isInitialized) pages.cancelAll(); content = null
+        if (isFinishing) retainedCollection = null
         super.onDestroy()
     }
     companion object {
@@ -152,7 +226,11 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
         private const val RETURN_LIGHT_NAVIGATION = "returnLightNavigation"
         // One bounded poster handoff, consumed by onCreate. No Bitmap goes through Binder.
         private var pendingPoster: Pair<String, Bitmap>? = null
-        internal fun open(activity: MainActivity, item: HistoryItem, source: ImageView?, list: RecyclerView) {
+        private var retainedCollection: List<HistoryItem>? = null
+        private var pendingCollection: List<HistoryItem>? = null
+        internal fun open(activity: MainActivity, item: HistoryItem, source: ImageView?, list: View,
+            collection: List<HistoryItem>) {
+            pendingCollection = collection.distinctBy { it.id }.takeIf { photos -> photos.any { it.id == item.id } } ?: listOf(item)
             val name = photoTransitionName(item.id)
             var returnId = item.id
             val animate = activity.photoAnimationsEnabled()
@@ -175,7 +253,9 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                     // The framework has already captured the outgoing view. Do not
                     // replace it with a visibility-dependent return lookup.
                     if (!returning) return
-                    val tile = list.transitionImage(photoTransitionName(returnId))
+                    val items = (list as? RecyclerView)?.adapter as? PhotoTransitionItems
+                    val exists = items == null || items.positionOfPhoto(returnId) >= 0
+                    val tile = if (exists) list.transitionImage(photoTransitionName(returnId)) else null
                     elements.clear()
                     if (tile != null) names.firstOrNull()?.let { elements[it] = tile } else names.clear()
                 }
@@ -197,8 +277,15 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
             activity.restorePhotoAnchor = { data ->
                 returning = true
                 returnId = data?.getStringExtra(RETURN_ID) ?: item.id
-                val manager = list.layoutManager as? GridLayoutManager
-                val position = (list.adapter as? PhotoTransitionItems)?.positionOfPhoto(returnId) ?: -1
+                val grid = list as? RecyclerView
+                val manager = grid?.layoutManager as? GridLayoutManager
+                val items = grid?.adapter as? PhotoTransitionItems
+                val fallbackPosition = items?.positionOfPhoto(returnId) ?: -1
+                // A cause can show the same asset again in the timeline. Keep an
+                // already visible originating tile instead of leaving its context.
+                val visiblePosition = if (fallbackPosition >= 0) list.transitionImage(photoTransitionName(returnId))
+                    ?.let { grid?.findContainingViewHolder(it)?.bindingAdapterPosition } else null
+                val position = visiblePosition?.takeIf { it >= 0 } ?: fallbackPosition
                 if (shared != null) {
                     activity.postponeEnterTransition()
                     val tile = manager?.findViewByPosition(position)
@@ -208,7 +295,10 @@ class NativePhotoViewerActivity : BackupDuckActivity() {
                     }
                     // Await both layout and the rebound thumbnail. A removed item or
                     // unavailable rendition clears the mapping and uses the short fade.
-                    list.awaitTransitionImage(photoTransitionName(returnId), position >= 0) {
+                    if (grid == null) list.transitionImage(photoTransitionName(returnId))?.let { tile ->
+                        tile.requestRectangleOnScreen(Rect(0, 0, tile.width, tile.height), true)
+                    }
+                    list.awaitTransitionImage(photoTransitionName(returnId), if (grid != null) position >= 0 else true) {
                         activity.startPostponedEnterTransition()
                     }
                 }
@@ -260,7 +350,7 @@ private fun View.transitionImage(name: String): ImageView? {
     }
     return null
 }
-private fun RecyclerView.awaitTransitionImage(name: String, exists: Boolean, ready: () -> Unit) {
+private fun View.awaitTransitionImage(name: String, exists: Boolean, ready: () -> Unit) {
     var completed = false
     lateinit var listener: android.view.ViewTreeObserver.OnPreDrawListener
     val timeout = Runnable {

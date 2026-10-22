@@ -68,7 +68,8 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
     private lateinit var cleanupFootnote: TextView
     private lateinit var smartSupport: TextView
     private lateinit var cleanupGroup: LinearLayout
-    private var consentSheet: LookSheet? = null
+    private lateinit var journey: CleanupJourney
+    private lateinit var cleanupAction: com.google.android.material.button.MaterialButton
     private lateinit var relay: MaterialSwitch
     private lateinit var relaySupport: TextView
     private val failure = activity.duckError(activity.getString(R.string.storage_save_failed))
@@ -107,13 +108,17 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         }
         val cleanupRow = lookSwitchRow(cleanupGroup, R.drawable.ic_bolt, getString(R.string.storage_cleanup),
             getString(R.string.storage_cleanup_note), PhotosCleanup(this).enabled, getString(R.string.storage_cleanup_experimental)) { on ->
-            if (on) { cleanup.restore(false); showCleanupConsent() }
-            else {
-                page.state.remove("cleanup-awaiting-access")
-                PhotosCleanup(this).enabled = false; PhotosProbeService.stop(); refreshCleanup(); changed()
-            }
+            cleanup.restore(false)
+            journey.setEnabled(on)
         }
         cleanup = cleanupRow.toggle; cleanupSupport = cleanupRow.supporting
+        // Text navigates; the trailing switch keeps its own immediate action.
+        (cleanupSupport.parent.parent as View).setOnClickListener { openAutoCleanup() }
+        cleanupAction = lookButton("", LookButton.TONAL) {}.apply { visibility = View.GONE }
+        cleanupGroup.addView(cleanupAction, LinearLayout.LayoutParams(-2, -2).apply {
+            marginStart = token(R.dimen.duck_space_medium); bottomMargin = token(R.dimen.duck_space_small)
+        })
+        journey = CleanupJourney(this, page) { refreshCleanup(); changed() }
         automatic.addView(failure, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = token(LookSectionMetrics.footnoteGap)
             marginStart = token(LookSectionMetrics.inset); marginEnd = token(LookSectionMetrics.inset)
@@ -135,19 +140,12 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         page.resumed = {
             FeatureDiscovery(this).acknowledge(FeatureDiscovery.PHOTOS_CLEANUP)
-            if (page.state.getBoolean("cleanup-awaiting-access")) {
-                page.state.remove("cleanup-awaiting-access")
-                if (ReceiverEnvironment.cleanupAccess(this)) PhotosCleanup(this).enabled = true
-            }
+            journey.resumed()
             refreshCleanup(); reload(); changed()
             if (page.state.getBoolean("cleanup-consent")) showCleanupConsent()
         }
-        page.setOnDismissListener { load?.cancel(); observation?.cancel(); consentSheet?.dismiss() }
-        observation = lifecycleScope.launch {
-            page.activity.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                PhotosProbeService.state.collect { if (page.isShowing) refreshCleanup() }
-            }
-        }
+        page.setOnDismissListener { load?.cancel(); observation?.cancel(); journey.close() }
+
     } }
 
     fun show() { page.show(); reload() }
@@ -164,67 +162,15 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         }
     }
 
-    fun showCleanupConsent() = with(activity) {
-        if (consentSheet?.isShowing == true) return@with
-        page.state.putBoolean("cleanup-consent", true)
-        val sheet = lookConsentSheet(getString(R.string.storage_cleanup_consent_title), listOf(
-            getString(R.string.storage_cleanup_consent_action), getString(R.string.storage_cleanup_consent_photos),
-            getString(R.string.storage_cleanup_consent_access)), getString(R.string.storage_cleanup_consent_experiment),
-            getString(R.string.onb_later), getString(R.string.storage_cleanup_go_settings)) {
-            runCatching {
-                // Existing disclosure key is shared with the technical setup pages.
-                getSharedPreferences("photos_probe", Context.MODE_PRIVATE).edit().putBoolean("cleanup_disclosure_v2", true).apply()
-                page.state.putBoolean("cleanup-awaiting-access", true)
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            }.onFailure {
-                page.state.remove("cleanup-awaiting-access")
-                cleanupSupport.setSupporting(getString(R.string.storage_cleanup_settings_failed))
-            }
-        }
-        consentSheet = sheet
-        sheet.setOnDismissListener { page.state.remove("cleanup-consent"); consentSheet = null; cleanup.requestFocus() }
-        sheet.show()
-    }
+    fun showCleanupConsent() = journey.enable()
 
     private fun refreshCleanup() = with(activity) {
-        val facts = PhotosCleanup(this)
-        cleanup.restore(facts.enabled)
-        val reason = facts.reason
-        var recovery: (() -> Unit)? = null
-        val subtitle = when {
-            !facts.enabled -> getString(R.string.storage_cleanup_note)
-            reason == "unrecognized" -> {
-                recovery = openPhotos; getString(R.string.storage_cleanup_changed)
-            }
-            reason in setOf("manual_review_required", "pending", "return_home_failed") -> {
-                recovery = openPhotos; getString(R.string.storage_cleanup_review)
-            }
-            reason == "expired" -> {
-                recovery = openPhotos; getString(R.string.storage_cleanup_timeout)
-            }
-            reason == "account_changed" -> {
-                recovery = { showDiagnostics() }; getString(R.string.storage_cleanup_account_changed)
-            }
-            facts.account.isEmpty() -> {
-                recovery = { showDiagnostics() }; getString(R.string.storage_cleanup_account)
-            }
-            !ReceiverEnvironment.cleanupAccess(this) -> {
-                recovery = { showCleanupConsent() }; getString(R.string.storage_cleanup_access_off)
-            }
-            else -> getString(R.string.storage_cleanup_note)
-        }
-        val lastFreed = facts.lastCompletedAt?.let { completedAt ->
-            facts.lastFreedBytes?.let { bytes ->
-                val locale = resources.configuration.locales[0]
-                val date = java.text.SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "MMMd"), locale)
-                    .format(java.util.Date(completedAt))
-                getString(R.string.storage_cleanup_last_freed, size(bytes), date)
-            }
-        }
-        cleanupFootnote.text = listOfNotNull(getString(R.string.storage_cleanup_footnote), lastFreed).joinToString("\n")
-        cleanupSupport.setSupporting(subtitle)
-        cleanupSupport.isClickable = recovery != null; cleanupSupport.isFocusable = recovery != null
-        cleanupSupport.setOnClickListener(recovery?.let { run -> View.OnClickListener { run() } })
+        cleanup.restore(PhotosCleanup(this).enabled)
+        cleanupSupport.setSupporting(journey.text())
+        val action = journey.action()
+        cleanupAction.visibility = if (action == null) View.GONE else View.VISIBLE
+        action?.let { (label, run) -> cleanupAction.setText(label); cleanupAction.setOnClickListener { run() } }
+        cleanupFootnote.setText(R.string.storage_cleanup_footnote)
     }
 
     private fun reload() {

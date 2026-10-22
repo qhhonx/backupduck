@@ -452,7 +452,7 @@ internal class PhotoMosaic(context: Context) : ViewGroup(context) {
         clipToOutline = true
     }
 
-    fun bind(items: List<HistoryItem>, images: PhotoImages, describe: (HistoryItem) -> String, open: (HistoryItem) -> Unit) {
+    fun bind(items: List<HistoryItem>, images: PhotoImages, describe: (HistoryItem) -> String, open: (HistoryItem, ImageView, List<HistoryItem>) -> Unit) {
         val shown = items.take(if (items.size >= 8) 8 else if (items.size >= 4) 4 else items.size)
         val ids = shown.map { it.id }
         if (ids == tag) return
@@ -464,11 +464,14 @@ internal class PhotoMosaic(context: Context) : ViewGroup(context) {
             val image = ImageView(context).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP; contentDescription = describe(item)
                 setBackgroundColor(context.getColor(R.color.duck_role_elevated_surface)); foreground = context.selectableBackground()
-                setOnClickListener { open(item) }
+                transitionName = photoTransitionName(item.id)
+                setOnClickListener { open(item, this, shown) }
             }
             addView(image)
             val signal = CancellationSignal()
-            images.load(item, size, size, signal) { bitmap -> if (bitmap != null) image.setImageBitmap(bitmap) } to signal
+            images.load(item, size, size, signal) { bitmap -> if (bitmap != null) {
+                image.setImageBitmap(bitmap); image.setTag(R.id.photo_transition_ready, item.id)
+            } } to signal
         }
         requestLayout()
     }

@@ -1,0 +1,12 @@
+{
+  "id": "cleanup.row-stopped",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "cleanup": {
+    "enabled": true,
+    "reason": "stopped"
+  },
+  "expect": [
+    "One supporting state and at most one tonal recovery button. Text opens Auto cleanup."
+  ]
+}

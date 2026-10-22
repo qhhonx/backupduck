@@ -1,0 +1,11 @@
+{
+  "id": "cleanup.page-pending",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "auto-cleanup",
+  "cleanup": {
+    "enabled": true,
+    "pending": true,
+    "reason": "pending"
+  }
+}

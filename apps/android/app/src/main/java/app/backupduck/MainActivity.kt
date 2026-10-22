@@ -164,7 +164,19 @@ class MainActivity : BackupDuckActivity() {
             setOnItemSelectedListener { item ->
                 selectedPage = item.itemId
                 updateRootBack()
-                collapsing.title = getString(pageTitles[selectedPage - 1])
+                // Working tabs lead with their card/grid. Only the preference
+                // list benefits from a large, collapsing orientation title.
+                val largeTitle = !proposed || selectedPage == 4
+                collapsing.isTitleEnabled = largeTitle
+                val pageTitle = getString(pageTitles[selectedPage - 1])
+                collapsing.title = if (largeTitle) pageTitle else null
+                toolbar.title = if (largeTitle) null else pageTitle
+                collapsing.layoutParams = (collapsing.layoutParams as com.google.android.material.appbar.AppBarLayout.LayoutParams).apply {
+                    height = resources.getDimensionPixelSize(if (largeTitle) com.google.android.material.R.dimen.m3_appbar_size_large
+                        else com.google.android.material.R.dimen.m3_appbar_size_compact)
+                    scrollFlags = if (largeTitle) com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+                        com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED else 0
+                }
                 appBar.setExpanded(true, false)
                 toolbar.menu.findItem(100).apply {isVisible=selectedPage==2&&receivedPhotos==null;setIcon(R.drawable.ic_more);setTitle(R.string.duck_advanced_filters)}
                 pages.forEachIndexed { index, page -> page.visibility = if (index + 1 == selectedPage) View.VISIBLE else View.GONE }
@@ -279,7 +291,7 @@ class MainActivity : BackupDuckActivity() {
         }
         when(next.getStringExtra("surface")) {
             "photo-history" -> {
-                next.getBundleExtra("record")?.let { createPhotoHistory(it).show() }
+                openTransfers()
             }
             "pairing"->choosePairing()
             "connect-mac"->openConnect(mac=true)
@@ -304,6 +316,7 @@ class MainActivity : BackupDuckActivity() {
             "diagnostics"->showDiagnostics()
             "cleanup-consent"->{openStorage();storageScreen?.showCleanupConsent()}
             "cleanup"->openCleanup()
+            "auto-cleanup"->openAutoCleanup()
         }
         next.removeExtra("surface");next.removeExtra("destination")
     }
@@ -632,24 +645,15 @@ class MainActivity : BackupDuckActivity() {
         proposedRefresh?.invoke(); refreshDiscovery()
     }.also { storageScreen = it }
     private var storageScreen: StorageScreen? = null
-    private fun createPhotoHistory(record: Bundle): DuckPage {
-        val item = record.toPhoto()
-        val page = DuckPage(this, getString(R.string.viewer_history), "photo-history")
-        page.state.putAll(record)
-        val records = TransferAdapter(this, ::showPhoto).apply { submitList(listOf(item)) }
-        val list = androidx.recyclerview.widget.RecyclerView(this).apply {
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@MainActivity)
-            adapter = records
-        }
-        page.root.removeViewAt(1)
-        page.root.addView(list, 1, LinearLayout.LayoutParams(-1, 0, 1f))
-        return page
+    private fun createPhotosRedirect(): DuckPage = DuckPage(this, getString(R.string.nav_photos), "photo-history").also { page ->
+        page.root.post { page.dismiss(); openTransfers() }
     }
     internal override fun restorePage(route: String, state: Bundle): PageDestination = when (route) {
-        "photo-history" -> createPhotoHistory(state)
+        "photo-history" -> createPhotosRedirect()
         "connect" -> createConnectPage(state)
         "devices" -> createDevicesPage().page
         "storage" -> createStoragePage(state).page
+        "auto-cleanup" -> AutoCleanupScreen(this, state).page
         "about" -> createAboutPage()
         "advanced" -> createAdvancedPage()
         "conversion" -> conversionSettingsPage()
@@ -661,6 +665,7 @@ class MainActivity : BackupDuckActivity() {
         "legacy-scan" -> pairingUI.scanning(show = false)
         else -> super.restorePage(route, state)
     }
+    internal fun openAutoCleanup() { AutoCleanupScreen(this).page.show() }
     internal fun openCleanup() { openStorage(); storageScreen?.focusCleanup() }
     private fun showDashboardAccess() {DashboardAccessUI(this).access()}
     private fun openHelp(topic: ReceiverHelpTopic? = null) {

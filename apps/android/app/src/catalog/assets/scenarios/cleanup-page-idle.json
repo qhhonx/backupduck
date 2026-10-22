@@ -1,0 +1,9 @@
+{
+  "id": "cleanup.page-idle",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "auto-cleanup",
+  "cleanup": {
+    "enabled": true
+  }
+}

@@ -30,15 +30,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /** One shared viewer composition for grids, recent photos and history. */
 internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompatActivity,
     private val images: PhotoImages, private val actions: ReceivedPhotosPage.Actions) {
-    internal class Content(val root: View, val preview: ImageView, val closePanel: () -> Boolean, val cancel: () -> Unit)
+    internal class Content(val root: View, val preview: ImageView, val closePanel: () -> Boolean,
+        val reset: () -> Unit, val cancel: () -> Unit)
 
     fun content(initialItem: HistoryItem, dismiss: () -> Unit, isShowing: () -> Boolean,
         sharedName: String? = null, poster: Bitmap? = null, ready: (Boolean) -> Unit = {},
-        afterEnter: (() -> Unit) -> Unit = { it() }): Content = with(activity) {
+        afterEnter: (() -> Unit) -> Unit = { it() }, isCurrent: () -> Boolean = { true }): Content = with(activity) {
         var item = initialItem
         // design-exception: media canvas and overlay controls are always black/white, independent of app appearance.
         val black = getColor(android.R.color.black)
@@ -96,19 +98,6 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(copy.uri, copy.mime)
                 .setPackage("com.google.android.apps.photos").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
                 .onFailure { message(R.string.photos_open_failed) }
-        }
-        val more = icon(R.drawable.ic_viewer_more, R.string.viewer_more) {}
-        bar.addView(more, FrameLayout.LayoutParams(dp(48), -1, Gravity.END))
-        more.setOnClickListener {
-            androidx.appcompat.widget.PopupMenu(this, more).apply {
-                menu.add(R.string.viewer_history).setOnMenuItemClickListener {
-                    startActivity(Intent(activity, MainActivity::class.java).putExtra("destination", "transfers")
-                        .putExtra("surface", "photo-history").putExtra("record", item.toBundle())
-                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
-                    dismiss(); true
-                }
-                menu.add(R.string.viewer_open_photos).apply { isVisible = openCopy != null }.setOnMenuItemClickListener { openPhotos(); true }
-            }.show()
         }
         val pill = lookButton(getString(R.string.viewer_save_failed), LookButton.TONAL) {}.apply {
             setText(R.string.viewer_save_failed); visibility = if (item.cause == PhotoCause.NOT_SAVED) View.VISIBLE else View.GONE
@@ -169,7 +158,10 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             addView(panel); isFillViewport = false; clipToPadding = true
         }
         sheet.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        val behavior = BottomSheetBehavior<LinearLayout>().apply { isHideable = true; skipCollapsed = true; isFitToContents = true }
+        var behavior = BottomSheetBehavior<LinearLayout>().apply {
+            isHideable = true; skipCollapsed = true; isFitToContents = true
+            isDraggable = photoAnimationsEnabled()
+        }
         // BottomSheetBehavior owns the vertical offset. Bottom gravity would apply it
         // twice whenever asynchronous metadata or inline feedback requests layout.
         root.addView(sheet, CoordinatorLayout.LayoutParams(-1, -1).apply { this.behavior = behavior })
@@ -179,9 +171,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         val navigationSurface = View(this).apply { setBackgroundColor(sheetSurface); visibility = View.GONE }
         root.addView(navigationSurface, CoordinatorLayout.LayoutParams(-1, 0).apply { gravity = Gravity.BOTTOM })
         // Keep a native Back control above the photo while information replaces the app bar.
-        val detailBack = lookButton("", LookButton.TONAL, icon = R.drawable.ic_back) {
-            behavior.state = BottomSheetBehavior.STATE_HIDDEN
-        }.apply {
+        val detailBack = lookButton("", LookButton.TONAL, icon = R.drawable.ic_back) {}.apply {
             contentDescription = getString(R.string.viewer_back)
             iconPadding = 0; iconSize = dp(24)
             // There is no label: text-relative gravity can shift the icon outside
@@ -211,6 +201,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             if (scroll.paddingBottom != inset) scroll.setPadding(0, 0, 0, inset)
         }
         fun bars() {
+            if (!isCurrent()) return
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             if (immersive) controller.hide(WindowInsetsCompat.Type.systemBars()) else controller.show(WindowInsetsCompat.Type.systemBars())
             statusScrim.visibility = if (sheetOpen && isDarkAppearance() && !immersive) View.VISIBLE else View.GONE
@@ -225,10 +216,16 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             sheetViewport()
             // FIT_CENTER uses the visible viewport, following the native sheet in both
             // directions. Moving a full-screen image instead can send it offscreen.
-            val mediaTop = if (fraction > 0f) systemTop else 0
+            // Both viewport edges follow the same native sheet fraction. Keeping
+            // the whole status inset until the hidden state moves the fitted
+            // photo by half that inset on the last frame (and overshoots on close).
+            val mediaTop = (systemTop * fraction).roundToInt()
             val mediaBottom = if (fraction > 0f) (root.height - sheet.top).coerceIn(0, root.height) else 0
             if (preview.paddingTop != mediaTop || preview.paddingBottom != mediaBottom) {
                 preview.setPadding(0, mediaTop, 0, mediaBottom)
+                // ImageView recomputes FIT_CENTER in setFrame, not setPadding.
+                // Commit the unchanged frame now, including immediate sheet states.
+                if (preview.isLaidOut) preview.layout(preview.left, preview.top, preview.right, preview.bottom)
             }
             detailBack.alpha = fraction
             detailBack.visibility = if (fraction > 0f && !immersive) View.VISIBLE else View.GONE
@@ -242,7 +239,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         sheet.viewTreeObserver.addOnGlobalLayoutListener {
             if (sheetOpen && behavior.state == BottomSheetBehavior.STATE_EXPANDED) chrome(1f) else sheetViewport()
         }
-        behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+        val sheetCallback = object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onSlide(bottomSheet: View, offset: Float) { chrome(((root.height - sheet.top).toFloat() / sheetHeight.coerceAtLeast(1)).coerceIn(0f, 1f)) }
             override fun onStateChanged(bottomSheet: View, state: Int) {
                 sheetOpen = state != BottomSheetBehavior.STATE_HIDDEN
@@ -252,7 +249,43 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                     chrome(0f); date.requestFocus()
                 }
             }
-        })
+        }
+        behavior.addBottomSheetCallback(sheetCallback)
+        fun setSheetState(state: Int) {
+            if (photoAnimationsEnabled()) behavior.state = state else {
+                // A new native behavior adopts state before attachment, avoiding
+                // ViewDragHelper's independent settling animation at scale zero.
+                behavior.removeBottomSheetCallback(sheetCallback)
+                behavior = BottomSheetBehavior<LinearLayout>().apply {
+                    isHideable = true; skipCollapsed = true; isFitToContents = true
+                    isDraggable = false
+                    this.state = state
+                    addBottomSheetCallback(sheetCallback)
+                }
+                sheet.layoutParams = (sheet.layoutParams as CoordinatorLayout.LayoutParams).apply { this.behavior = behavior }
+                sheetOpen = state != BottomSheetBehavior.STATE_HIDDEN
+                if (!sheetOpen) { metadataSignal.cancel(); metadataWork?.cancel(); date.requestFocus() }
+                bars()
+                sheet.doOnPreDraw { chrome(if (sheetOpen) 1f else 0f) }
+            }
+        }
+        detailBack.setOnClickListener { setSheetState(BottomSheetBehavior.STATE_HIDDEN) }
+        var handleDownY = 0f
+        handle.setOnTouchListener { _, event ->
+            if (photoAnimationsEnabled()) false else {
+                // Reduced motion retains the dismiss gesture without native
+                // drag/settle travel, including ViewDragHelper's own animator.
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> handleDownY = event.rawY
+                    MotionEvent.ACTION_UP -> if (event.rawY - handleDownY > dp(48)) {
+                        setSheetState(BottomSheetBehavior.STATE_HIDDEN)
+                    } else if (kotlin.math.abs(event.rawY - handleDownY) < dp(16)) {
+                        setSheetState(BottomSheetBehavior.STATE_HIDDEN)
+                    }
+                }
+                true
+            }
+        }
         fun group(): LinearLayout = lookGroup(panel).also {
             (it.parent as View).let { card -> (card.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_large) }
         }
@@ -319,9 +352,11 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             (files.parent as View).visibility = if (files.childCount == 0) View.GONE else View.VISIBLE
         }
         renderMetadata(PhotoMetadata())
+        var resetMedia: () -> Unit = {}
         fun showDetails() {
+            resetMedia()
             immersive = false; sheetOpen = true; bars()
-            behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            setSheetState(BottomSheetBehavior.STATE_EXPANDED)
             if (!metadataLoaded && metadataWork?.isActive != true) {
                 metadataSignal = CancellationSignal()
                 val readSignal = metadataSignal
@@ -338,23 +373,13 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }
         date.setOnClickListener { showDetails() }
         action(R.drawable.ic_info, R.string.viewer_details, ::showDetails)
-        var downX = 0f; var downY = 0f
-        preview.setOnTouchListener { _, e ->
-            when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; true }
-                MotionEvent.ACTION_UP -> {
-                    val dy = e.y - downY; val dx = e.x - downX
-                    when {
-                        dy < -dp(48) && kotlin.math.abs(dy) > kotlin.math.abs(dx) -> showDetails()
-                        dy > dp(48) && sheetOpen -> behavior.state = BottomSheetBehavior.STATE_HIDDEN
-                        kotlin.math.abs(dy) < dp(16) && kotlin.math.abs(dx) < dp(16) -> {
-                            preview.performClick(); immersive = !immersive; chrome(0f); bars()
-                        }
-                    }; true
-                }
-                else -> true
-            }
-        }
+        val zoom = PhotoZoom(preview, tap = {
+            if (sheetOpen) setSheetState(BottomSheetBehavior.STATE_HIDDEN)
+            else { immersive = !immersive; chrome(0f); bars() }
+        }, swipeUp = ::showDetails, swipeDown = {
+            if (sheetOpen) setSheetState(BottomSheetBehavior.STATE_HIDDEN) else dismiss()
+        }, canZoom = { !sheetOpen })
+        resetMedia = zoom::reset
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val safe = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             systemTop = safe.top
@@ -378,7 +403,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         fun load() {
             work = images.load(item, resources.displayMetrics.widthPixels.coerceAtMost(1440), resources.displayMetrics.heightPixels.coerceAtMost(2560), signal) { bitmap ->
                 if (bitmap != null && isShowing()) {
-                    fun publish() { if (isShowing()) preview.setImageBitmap(bitmap) }
+                    fun publish() { if (isShowing()) { preview.setImageBitmap(bitmap); zoom.refresh() } }
                     if (hasPreview) afterEnter(::publish) else publish()
                 } else if (!hasPreview && isShowing()) {
                     preview.scaleType = ImageView.ScaleType.CENTER
@@ -418,8 +443,12 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             }
         }
         Content(root, preview, {
-            if (sheetOpen) { behavior.state = BottomSheetBehavior.STATE_HIDDEN; true }
+            if (sheetOpen) { setSheetState(BottomSheetBehavior.STATE_HIDDEN); true }
             else if (immersive) { immersive = false; chrome(0f); bars(); true } else false
+        }, {
+            zoom.reset(); immersive = false
+            setSheetState(BottomSheetBehavior.STATE_HIDDEN)
+            chrome(0f); bars()
         }) { signal.cancel(); observations.cancel(); work?.cancel(); lookup?.cancel(); metadataSignal.cancel(); metadataWork?.cancel(); shareWork?.cancel() }
     }
 }

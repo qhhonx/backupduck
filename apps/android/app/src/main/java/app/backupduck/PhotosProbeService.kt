@@ -178,6 +178,7 @@ class PhotosProbeService : AccessibilityService() {
                                 .singleOrNull { it.optString("id").endsWith("/free_up_space_completed_title") }?.optString("text").orEmpty()
                             cleanup.recordCompletion(CleanupCompletion.bytes(title))
                         }
+                        if (!bind && reason == "nothing_to_free") cleanup.recordNothingToFree()
                         if (!bind) cleanup.save(state, reason)
                         updateOperation(reason, action !in setOf("stop", "finish"))
                         when (action) {
@@ -205,14 +206,15 @@ class PhotosProbeService : AccessibilityService() {
                 // User-initiated flows return to their result page. Automatic
                 // runs do not open our UI, and leaving Photos or locking the
                 // device suppresses the return so we do not steal focus.
-                if (returnRoute in setOf("bind", "progress") &&
+                if (returnRoute in setOf("bind", "progress", "storage", "auto-cleanup") &&
                     !getSystemService(KeyguardManager::class.java).isKeyguardLocked) {
                     val root = rootInActiveWindow
                     val photosIsForeground = try { root?.packageName?.toString() == PHOTOS_PACKAGE }
                         finally { @Suppress("DEPRECATION") root?.recycle() }
                     if (photosIsForeground) runCatching {
-                        startActivity(Intent(this@PhotosProbeService, PhotosProbeActivity::class.java)
-                            .putExtra("route", returnRoute)
+                        val ordinary = returnRoute in setOf("storage", "auto-cleanup")
+                        startActivity(Intent(this@PhotosProbeService, if (ordinary) MainActivity::class.java else PhotosProbeActivity::class.java)
+                            .apply { if (ordinary) putExtra("cleanup-return", true) else putExtra("route", returnRoute) }
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
                     }
                 }

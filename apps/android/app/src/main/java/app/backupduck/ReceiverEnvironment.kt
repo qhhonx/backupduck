@@ -19,6 +19,10 @@ internal object ReceiverEnvironment {
     @Volatile var reservedSettings = ReservedSettingsContent()
     /** The redesigned pages (design/redesign-roadmap.md, step 6). The catalog can switch back to the earlier ones. */
     @Volatile var proposedDesign = true
+    /** Catalog may suppress viewer motion without changing the device settings. */
+    @Volatile var allowsPhotoMotion = true
+    /** Catalog-only contrast injection; null reads the user's system preference. */
+    @Volatile var stepMarkHighContrast: Boolean? = null
     /** The device's own storage reading; the catalog fixes it per scenario. */
     @Volatile var deviceStorage: (Context) -> DeviceStorage = { DeviceStorage.read(it) }
     /** Read the same system value as first run; null means the state could not be read. */
@@ -31,6 +35,7 @@ internal object ReceiverEnvironment {
             android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
                 .orEmpty().split(':').any { android.content.ComponentName.unflattenFromString(it) == expected }
     }
+    @Volatile var cleanupOperations: CleanupOperations = LiveCleanupOperations
     /** BackupDuck's files in the Pixel's Photos, read from the media index; the catalog fixes it per scenario. */
     @Volatile var galleryUsage: suspend (Context) -> GalleryUsage = { GalleryInventory.read(it) }
     /** The clock that decides Today and Yesterday; the catalog fixes it per scenario. */

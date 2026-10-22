@@ -36,7 +36,7 @@ therefore never opens a receiver port, never restarts on boot and does not
 affect a production receiver on the same device.
 
 `CatalogActivity` lists the scenarios. `--ez proposed true`, or "Design" in
-the ⓘ options, shows the redesign, built from the shared components in
+the explicit scenario dialog options, shows the redesign, built from the shared components in
 `DuckLook.kt`: `ReceiverHub` on the receive page, Received photos
 (`ReceivedPhotosPage`, design/records.md) on the transfers page, the redesigned
 settings page, and Storage (`StorageScreen`) for the `storage` page. The
@@ -46,8 +46,8 @@ covers a hub state (receiving, all saved, all received with some not saved,
 space running low, waiting, no device, stopped, paused, space full, too hot, no
 Wi‑Fi, other problem), and `pixel.storage*` covers Storage. Opening one resets the catalog app's own
 preferences, seeds the scenario's preferences and snapshot, and starts the
-production `MainActivity` at the scenario's page. The ⓘ button in a reserved bottom strip outside the page
-shows the scenario details and the unscripted core commands. It also restarts
+production `MainActivity` at the scenario's page. The explicit `--ez catalogInfo true`
+Intent extra shows the scenario details and unscripted core commands. It also restarts
 the scenario, switches between dark and light, or closes the page.
 
 ## Scenario files
@@ -344,8 +344,8 @@ unknown. Binding and the cleanup state machine retain their existing fences.
 
 ## Layout and recreation regressions
 
-Scenario controls reserve a separate bottom strip; they never cover the page's
-navigation title or content. Non-onboarding fixtures seed first-run completion,
+Scenario controls are absent by default and reserve no space; the explicit
+Catalog information Intent opens a dialog without modifying the page layout. Non-onboarding fixtures seed first-run completion,
 including `pixel.devices-none`, so an empty peer list stays on Connected devices.
 Theme recreation retains FragmentManager-owned destinations without dismissing
 them during Activity destruction. Review direct dark launches and the Catalog
@@ -364,7 +364,7 @@ result, including when it arrives before or after decoding.
 
 ### Viewer composition
 
-The viewer overlays date/time, Back and More on a black full-window media canvas.
+The viewer overlays date/time and Back on a black full-window media canvas.
 Only failed gallery publication adds a retry pill. Share, Open in Google Photos
 (only for a resolved published content URI), and Details use equal-width columns.
 Information opens in a draggable, theme-aware panel inside the viewer and translates
@@ -413,3 +413,84 @@ surface as the panel in both appearances. The scroll viewport excludes the
 navigation inset and the panel's offscreen portion during a drag, so content
 remains above the system buttons or gesture area. Closing information restores
 the viewer's transparent navigation region and light indicators.
+
+### Collection paging and return
+
+The Photos grid opens its current ordered tile collection, a cause opens its
+affected photos, and the Receive mosaic opens only its displayed items. A native
+horizontal RecyclerView with PagerSnapHelper retains one neighbouring viewport
+on each side, uses stable media identities and cancels recycled image/metadata
+requests. The current page owns date/time, publication failure, details and
+resolved Google Photos action. There is no viewer overflow or separate History
+destination; old photo-history Intent and restoration routes select Photos.
+
+Pinch and double-tap magnify the image; magnified media owns horizontal pan.
+Paging resets zoom. A tap above open information retracts it; taps toggle
+immersion only with information closed. Back or a downward photo swipe returns
+the current image to its tile, revealing and awaiting its thumbnail first.
+Removed/unavailable targets use a short fade. Animator scale zero adopts the
+selected page without scrolling or transition animation.
+
+Review grid → two pages forward → information → photo tap → immersion → restore
+→ Back, and Receive mosaic → viewer → Back. Inspect original recording frames
+for page continuity, sheet reversal, no blank frames and the third tile landing;
+also check double-tap/pan/reset, a cancelled partial page drag and cause scope.
+
+Catalog review options: `--ez reduceMotion true` suppresses viewer motion through
+the same motion gate without changing Android settings. `--es viewerProbe pinch`
+sends a native two-pointer gesture to the next opened viewer after entry and
+saves its media identity and resulting matrix to `viewer-probe.json` in the
+Catalog external-files directory. This is synthetic native input, separately
+labelled from physical touch observations.
+
+While the Catalog viewer is visible, a Catalog-only broadcast can audit the
+current photo or inject a native double tap: `am broadcast -a
+app.backupduck.catalog.VIEWER_PROBE -p app.backupduck.catalog --es gesture
+audit` (or `doubleTap`). The isolated Catalog writes the resulting geometry
+and matrix beside `viewer-probe.json`; production does not register this hook.
+
+Information fitting interpolates both viewport edges from the native sheet's
+position. The status inset reaches zero with the sheet, so the final animated
+fit and the hidden-state fit are identical; no second photo animator owns the
+settle. Reduced motion adopts both states immediately, including handle swipes.
+Review portrait and landscape media with handle drag, photo tap and Back.
+The Catalog-only `VIEWER_PROBE` gestures `settleStart` / `settleStop` record fitted
+photo bounds and sheet state per rendered frame in `sheet-trace.json`. A tiny
+binary counter outside the media keeps idle screenrecord frames observable;
+record source timestamps and missed vsyncs rather than inventing duplicate frames.
+
+
+### Unobstructed layout and first-run marks
+
+Catalog adds no page controls, bottom band, margins or touch targets by default.
+Use the existing scenario/appearance/language Intent extras to navigate review;
+`--ez catalogInfo true` explicitly opens the scenario information dialog. Its
+Options action remains available there. Normal captures use the production view
+tree without a visible or invisible Catalog button.
+
+First run uses the shared numeral-free `DuckStepMark` and `DuckStepProgress`.
+The welcome uses three full-strength marks in equal centre slots; later steps
+retain one fixed header with three marks, one current and two at 25 percent.
+The row exposes one localized step announcement. With high-contrast text,
+inactive silhouettes use the semantic foreground at 55 percent so their shapes
+remain distinguishable; `--ez highContrastText true` exercises this fallback in
+Catalog without changing the device setting. `--ez auditText true --ez
+staticCapture true` captures synthetic pairing screens without progression.
+
+### Auto cleanup journey
+
+`cleanup.row-*` covers idle/off, running, pending/review/unrecognized/return-failed/
+timeout, changed/unknown account, access off, locked, unavailable, stopped and
+unexpected failure. Storage text opens `auto-cleanup`; its switch owns the
+consent → accessibility return → bounded account confirmation journey.
+`cleanup.journey-{consent,waiting,confirming,confirm-failed,success,access-denied}`
+starts at consent; accept to play the scripted handoff. `cleanup.page-*` covers
+idle, running, pending, recorded amount/date, nothing to free and unknown amount.
+
+All ordinary cleanup operations use `CatalogCleanup` in this source set. Settings
+and Photos handoffs are callbacks; binding/run/check/stop are scripted state
+changes, never real Google Photos actions. `auditText=true` also writes
+`cleanup-state.json` and the operation adapter records `cleanup-actions.txt` in
+Catalog external files. Neither contains an account address. The same production
+UI owns consent, switch adoption, result review and navigation. Technical probe
+pages remain under Diagnostics and are not used for these fixtures.

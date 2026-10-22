@@ -1,0 +1,13 @@
+{
+  "id": "cleanup.row-unknown",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "cleanup": {
+    "enabled": true,
+    "account": false,
+    "reason": "account_unavailable"
+  },
+  "expect": [
+    "One supporting state and at most one tonal recovery button. Text opens Auto cleanup."
+  ]
+}

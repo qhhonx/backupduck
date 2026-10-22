@@ -40,6 +40,8 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     enum class Step { WELCOME, RUNNING, CODE, CONNECTED, GPHOTOS, SPACE }
 
     private lateinit var band: FrameLayout
+    private lateinit var progress: FrameLayout
+    private lateinit var pageScroll: ScrollView
     private lateinit var content: LinearLayout
     private lateinit var fine: TextView
     private lateinit var primary: MaterialButton
@@ -55,7 +57,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     private val connect by lazy {
         ConnectFlow(this, content, primary, secondary, window, ::scanCode, {
             ReceiverPreferences.setEnabled(this, true); runCatching { ReceiverEnvironment.startService(this) }
-        }, R.string.onb_next, { show(Step.GPHOTOS) }) { it.addView(marks(2)) }
+        }, R.string.onb_next, { show(Step.GPHOTOS) }) { showProgress(2) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,14 +66,17 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         val background = getColor(R.color.duck_role_background)
         step = intent.getStringExtra("step")?.let { name -> Step.values().firstOrNull { it.name.equals(name, true) } } ?: Step.WELCOME
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(background) }
+        val margin = token(R.dimen.duck_space_large)
+        progress = FrameLayout(this).apply { setPadding(margin, margin, margin, 0) }
+        root.addView(progress, LinearLayout.LayoutParams(-1, -2))
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         band = FrameLayout(this)
         // The band gives way to the words at large text sizes, so the welcome still fits one screen.
-        page.addView(band, LinearLayout.LayoutParams(-1, dp(if (resources.configuration.fontScale > 1.15f) 140 else 200)))
-        val margin = token(R.dimen.duck_space_large)
+        page.addView(band, LinearLayout.LayoutParams(-1, DuckFirstRunMetrics.heroHeight(this)))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(margin, margin, margin, token(R.dimen.duck_space_medium)) }
         page.addView(content, LinearLayout.LayoutParams(-1, -2))
-        root.addView(ScrollView(this).apply { addView(page) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        pageScroll = ScrollView(this).apply { addView(page) }
+        root.addView(pageScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(margin, token(R.dimen.duck_space_x_small), margin, token(R.dimen.duck_space_medium)) }
         fine = lookText(getString(R.string.onb_fine_print), M.style.TextAppearance_Material3_BodySmall, secondary = true)
         actions.addView(fine, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = token(R.dimen.duck_space_small) })
@@ -108,17 +113,21 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         connect.stop()
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         content.removeAllViews(); band.removeAllViews()
+        progress.removeAllViews()
+        progress.visibility = if (next == Step.WELCOME) View.GONE else View.VISIBLE
+        content.setPadding(content.paddingLeft, if (next == Step.WELCOME) token(R.dimen.duck_space_large) else 0,
+            content.paddingRight, content.paddingBottom)
+        pageScroll.scrollTo(0, 0)
         band.visibility = if (next == Step.WELCOME) View.VISIBLE else View.GONE
         fine.visibility = if (next == Step.WELCOME) View.VISIBLE else View.GONE
         secondary.visibility = View.GONE
         primary.visibility = View.VISIBLE
         when (next) {
             Step.WELCOME -> {
-                // The welcome's brand moment: the duck on duck yellow's tint (V1, V6); a quiet surface in dark mode.
-                val night = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-                band.setBackgroundColor(getColor(if (night) R.color.duck_role_grouped_surface else R.color.duck_illustration_duck_yellow_tint))
+                // V1: brand colour belongs to the illustration, never the canvas.
+                band.setBackgroundColor(getColor(R.color.duck_role_background))
                 band.addView(ImageView(this).apply { setImageResource(R.drawable.duck_welcome); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-                    FrameLayout.LayoutParams(dp(144), dp(144), Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM).apply { bottomMargin = token(R.dimen.duck_space_medium) })
+                    FrameLayout.LayoutParams(DuckFirstRunMetrics.heroSize(this), DuckFirstRunMetrics.heroSize(this), Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM).apply { bottomMargin = token(R.dimen.duck_space_medium) })
                 title(getString(R.string.onb_title))
                 lead(getString(R.string.onb_subtitle))
                 stepRow(1, R.string.onb_step_install)
@@ -127,7 +136,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 action(R.string.onb_start) { show(Step.RUNNING) }
             }
             Step.RUNNING -> {
-                content.addView(marks(1))
+                showProgress(1)
                 title(getString(R.string.onb_running_title))
                 lead(getString(R.string.onb_running_lead))
                 val group = lookGroup(content)
@@ -148,7 +157,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
             Step.CODE -> connect.showCode()
             Step.CONNECTED -> connect.showConnected(senderName, mac = false)
             Step.GPHOTOS -> {
-                content.addView(marks(3))
+                showProgress(3)
                 title(getString(R.string.onb_gphotos_title))
                 lead(getString(R.string.onb_gphotos_body))
                 val card = lookCard(content, params = LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_large) })
@@ -167,7 +176,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 secondary(R.string.onb_gphotos_done) { show(Step.SPACE) }
             }
             Step.SPACE -> {
-                content.addView(marks(3))
+                showProgress(3)
                 title(getString(R.string.onb_space_title))
                 val smart = ReceiverEnvironment.smartStorage(this) == true
                 lead(getString(if (smart) R.string.onb_space_smart_lead_on else R.string.onb_space_smart_lead_off))
@@ -213,39 +222,16 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     /** One step of the journey beside its mark, in a single line so the welcome fits one screen. */
     private fun stepRow(number: Int, title: Int) {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        row.addView(mark(number), LinearLayout.LayoutParams(dp(48), dp(36)).apply { marginEnd = token(R.dimen.duck_space_small) })
+        row.addView(DuckStepMark(this, number), LinearLayout.LayoutParams(dp(54), dp(44)).apply { marginEnd = token(R.dimen.duck_space_small) })
         val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         words.addView(lookText(getString(title), M.style.TextAppearance_Material3_BodyLarge))
         row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
     }
 
-    /** One current step mark (V6: one at a time on later steps). */
-    private fun marks(current: Int): View = LinearLayout(this).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        contentDescription = getString(R.string.onb_step_of, current); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-        listOf(Triple(R.drawable.mark_circle, 20, 20), Triple(R.drawable.mark_wing, 28, 14), Triple(R.drawable.mark_sparkle, 22, 22)).forEachIndexed { index, (drawable, w, h) ->
-            if (index + 1 == current) addView(ImageView(context).apply { setImageResource(drawable); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
-                LinearLayout.LayoutParams(dp(w), dp(h)).apply { marginEnd = token(R.dimen.duck_space_small) })
-        }
-    }.also { it.layoutParams = LinearLayout.LayoutParams(-2, dp(28)) }
-
-    /**
-     * A step mark with its numeral, for the welcome's list: yellow circle, blue
-     * wing, orange sparkle at the same visual weight. The wing is shifted so its
-     * thick front carries the numeral.
-     */
-    private fun mark(number: Int): View {
-        val frame = FrameLayout(this).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
-        val (drawable, w, h) = when (number) { 1 -> Triple(R.drawable.mark_circle, 34, 34); 2 -> Triple(R.drawable.mark_wing, 42, 21); else -> Triple(R.drawable.mark_sparkle, 38, 38) }
-        frame.addView(ImageView(this).apply { setImageResource(drawable); if (number == 2) translationX = dp(7).toFloat() },
-            FrameLayout.LayoutParams(dp(w), dp(h), Gravity.CENTER))
-        frame.addView(lookText(number.toString(), M.style.TextAppearance_Material3_TitleMedium,
-            // Numerals on brand marks use the illustration ink on yellow and the paper color on the others, as on Apple.
-            color = getColor(if (number == 1) R.color.duck_illustration_ink else R.color.duck_illustration_paper)).apply {
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            if (number == 2) translationY = dp(3).toFloat()
-        }, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        return frame
+    /** A fixed header shared by every screen in the first-run flow. */
+    private fun showProgress(current: Int) {
+        progress.removeAllViews()
+        progress.addView(DuckStepProgress(this, current), FrameLayout.LayoutParams(-2, dp(44)))
     }
 }

@@ -1,0 +1,12 @@
+{
+  "id": "cleanup.page-result",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "auto-cleanup",
+  "cleanup": {
+    "enabled": true,
+    "last_result": "completed",
+    "last_bytes": 2469606195,
+    "last_at": 1792360800000
+  }
+}

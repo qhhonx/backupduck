@@ -82,7 +82,8 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
     init { adapter.enableSelection(view, "received-photos") }
 
     private fun open(item: HistoryItem, source: ImageView?, list: RecyclerView = view) {
-        NativePhotoViewerActivity.open(activity, adapter.live(item), source, list)
+        NativePhotoViewerActivity.open(activity, adapter.live(item), source, list,
+            (list.adapter as? PhotoTransitionItems)?.photoItems().orEmpty())
     }
 
     fun render(state: HistoryState) { history = state; rebuild() }
@@ -159,7 +160,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         sheet.show()
     }
 
-    fun showDetail(item: HistoryItem) { NativePhotoViewerActivity.open(activity, adapter.live(item), null, view) }
+    fun showDetail(item: HistoryItem) { open(item, null) }
 }
 
 /**
@@ -232,7 +233,9 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
     override fun areItemsTheSame(old: PhotoRow, new: PhotoRow) = old.key == new.key
     override fun areContentsTheSame(old: PhotoRow, new: PhotoRow) = old == new
 }), PhotoTransitionItems {
+    override fun photoItems() = currentList.filterIsInstance<PhotoRow.Tile>().map { live(it.item) }
     override fun positionOfPhoto(id: String) = currentList.indexOfFirst { it is PhotoRow.Tile && it.item.id == id }
+        .takeIf { it >= 0 } ?: currentList.indexOfFirst { it is PhotoRow.Cause && it.group.items.any { photo -> photo.id == id } }
     private var selection: NativePhotoSelection? = null
     private var selectionSource: List<PhotoRow>? = null
     private var selectionRows: List<HistoryItem?> = emptyList()
@@ -476,8 +479,14 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                     placeholder(loading = true)
                     fun show(bitmap: Bitmap) {
                         image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
-                        image.contentDescription = null
-                        image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        image.transitionName = photoTransitionName(item.id)
+                        image.setTag(R.id.photo_transition_ready, item.id)
+                        image.contentDescription = tileDescription(activity, item)
+                        image.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                        image.setOnClickListener {
+                            val list = itemView.parent as? RecyclerView ?: return@setOnClickListener
+                            NativePhotoViewerActivity.open(activity, live(item), image, list, group.items.map(::live))
+                        }
                     }
                     val cached = images.cached(item, size, size)
                     if (cached != null) show(cached) else {

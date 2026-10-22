@@ -1,0 +1,12 @@
+{
+  "id": "cleanup.journey-confirm-failed",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "cleanup-consent",
+  "cleanup": {
+    "enabled": false,
+    "access": false,
+    "account": false,
+    "bind_result": "account_unavailable"
+  }
+}

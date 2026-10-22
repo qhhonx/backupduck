@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -22,6 +21,7 @@ class CatalogApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         CatalogRuntime.install()
+        CatalogViewerProbe.install(this)
         registerActivityLifecycleCallbacks(CatalogOverlay)
     }
 }
@@ -54,6 +54,10 @@ class CatalogActivity : BackupDuckActivity() {
         setContentView(ScrollView(this).apply { addView(list) })
         // `--ez proposed true` shows the proposed redesign instead of the current page.
         ReceiverEnvironment.proposedDesign = intent.getBooleanExtra("proposed", ReceiverEnvironment.proposedDesign)
+        ReceiverEnvironment.allowsPhotoMotion = !intent.getBooleanExtra("reduceMotion", false)
+        CatalogViewerProbe.pending = intent.getStringExtra("viewerProbe")
+        ReceiverEnvironment.stepMarkHighContrast = if (intent.hasExtra("highContrastText")) intent.getBooleanExtra("highContrastText", false) else null
+        CatalogOverlay.showInfo = intent.getBooleanExtra("catalogInfo", false)
         CatalogTextAudit.enabled = intent.getBooleanExtra("auditText", false)
         CatalogTextAudit.staticCapture = intent.getBooleanExtra("staticCapture", false)
         // `--es language zh-CN` shows the pages in that language for this process.
@@ -87,10 +91,12 @@ class CatalogActivity : BackupDuckActivity() {
     }
 }
 
-/** Scenario controls occupy their own strip outside the production page. */
+/** Scenario review is opt-in via Intent; the production view tree receives no controls or margins. */
 internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
+    var showInfo = false
     override fun onActivityResumed(activity: Activity) {
         CatalogTextAudit.attach(activity)
+        if (activity is NativePhotoViewerActivity) CatalogViewerProbe.attach(activity)
         if (activity is NativePhotoViewerActivity && CatalogRuntime.current?.surface == "metadata") {
             val root = activity.window.decorView
             if (root.tag != "metadata-opened") {
@@ -106,23 +112,10 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
             }
         }
         if (activity !is MainActivity) return
-        val content = activity.findViewById<FrameLayout>(android.R.id.content)
-        if (content.findViewWithTag<View>("catalog") != null) return
+        if (!showInfo) return
         val scenario = CatalogRuntime.current ?: return
-        val button = Button(activity).apply {
-            tag = "catalog"; text = "ⓘ"; textSize = 16f; alpha = 0.85f
-            minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
-            setPadding(activity.dp(12), activity.dp(6), activity.dp(12), activity.dp(6))
-            contentDescription = "Scenario"
-            setOnClickListener { details(activity, scenario) }
-        }
-        val stripHeight = activity.token(R.dimen.duck_space_xx_large)
-        for (index in 0 until content.childCount) {
-            val child = content.getChildAt(index)
-            child.layoutParams = (child.layoutParams as FrameLayout.LayoutParams).apply { bottomMargin = stripHeight }
-        }
-        content.addView(button, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, stripHeight,
-            Gravity.BOTTOM or Gravity.END))
+        showInfo = false
+        activity.window.decorView.post { if (!activity.isFinishing) details(activity, scenario) }
     }
 
     private fun details(activity: MainActivity, scenario: CatalogScenario) {

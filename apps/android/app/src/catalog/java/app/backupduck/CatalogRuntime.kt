@@ -41,6 +41,7 @@ internal class CatalogScenario(json: JSONObject) {
      * pages read the device's own space and the catalog's own files in Photos.
      */
     val storage: JSONObject? = json.optJSONObject("storage")
+    val cleanup: JSONObject? = json.optJSONObject("cleanup")
     /** Supplies reserved placeholder content for review only. */
     val showReserved: Boolean = json.optBoolean("show_reserved", false)
     /** Explicit update-check result, never a network request or downloadable package. */
@@ -152,6 +153,11 @@ internal object CatalogRuntime {
         ReceiverProgress.mutable.value = emptyMap()
         ReceiverEnvironment.smartStorage = { scenario.storage?.optBoolean("smart_storage", true) }
         ReceiverEnvironment.cleanupAccess = { scenario.storage?.optBoolean("cleanup_access", true) == true }
+        ReceiverEnvironment.cleanupOperations = CatalogCleanup(context, scenario.cleanup ?: JSONObject().apply {
+            val saved = PhotosCleanup(context)
+            put("enabled", saved.enabled); put("account", saved.account.isNotEmpty()); put("reason", saved.reason)
+            put("pending", saved.pending); put("access", scenario.storage?.optBoolean("cleanup_access", true) ?: true)
+        })
         ReceiverEnvironment.now = scenario.nowMs?.let { fixed -> { fixed } } ?: System::currentTimeMillis
         val storage = scenario.storage
         ReceiverEnvironment.deviceStorage = if (storage == null) { context -> DeviceStorage.read(context) }
