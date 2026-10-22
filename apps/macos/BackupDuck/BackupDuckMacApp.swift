@@ -22,6 +22,8 @@ enum MacDestination: String, CaseIterable, Identifiable {
 struct MacWorkspace: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var library: PhotoLibraryModel
+  @ObservedObject private var notifier = BackupEnvironment.activeNotifier()
+  @StateObject private var notificationPhotos = BackupPhotoRouter()
   @State private var destination: MacDestination? = .backup
   private var initialSettingsRoute: MacSettingsRoute?
   private var initialSettingsPage: MacSettings.Page?
@@ -113,6 +115,9 @@ struct MacWorkspace: View {
         destination = .sources
       }
     }
+    .onChange(of: notifier.route, initial: true) { _, _ in consumeNotification() }
+    .onChange(of: model.ready) { _, _ in consumeNotification() }
+    .onChange(of: model.pairing?.receiverID) { _, _ in consumeNotification() }
     .onChange(of: model.autoBackup) { _, enabled in folders.followAutoBackup(enabled) }
     .onChange(of: folders.selectedSourceID) { _, _ in columnVisibility = .all }
     .task { await model.open(); await folders.open() }
@@ -184,7 +189,8 @@ struct MacWorkspace: View {
             library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
         }
         if destination == .transfers && DesignPreview.proposedDesign {
-          BackupHistoryView(model: model, initialFocus: historyFocus).id(historyFocus?.id)
+          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus)
+            .id(transferFilter + "|" + (historyFocus?.id ?? ""))
         } else if destination == .transfers {
           MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
         }
@@ -330,7 +336,31 @@ struct MacWorkspace: View {
   private func sidebarRow(_ item: MacDestination, title: String? = nil) -> some View {
     Label(LocalizedStringKey(title ?? item.title), systemImage: item.icon).tag(item)
   }
+  private func consumeNotification() {
+    guard model.ready, let route = notifier.route,
+      notifier.takeRoute(receiver: model.pairing?.receiverID) != nil else { return }
+    closeViewer()
+    columnVisibility = .all
+    switch route.destination {
+    case .overview: destination = .backup
+    case .needsYou: showTransfers("attention")
+    case .photo:
+      destination = .backup
+      guard let source = route.source else { destination = .backup; return }
+      Task {
+        let data = try? await Bridge.call(["op": "source_job", "receiver_id": route.receiver, "source_id": source])
+        guard model.pairing?.receiverID == route.receiver else { return }
+        let job = data.flatMap { try? JSONDecoder().decode(BackupJob.self, from: $0) }
+          ?? model.jobs.first(where: { $0.asset.source_id == source && $0.receiverID == route.receiver })
+        guard let job, job.asset.source_id == source,
+          job.receiverID == nil || job.receiverID == route.receiver else { destination = .backup; return }
+        notificationPhotos.macPresent = { externalViewer = $0 }
+        notificationPhotos.open(HistoryPhoto(job: job), collection: [HistoryPhoto(job: job)], frame: .zero)
+      }
+    }
+  }
   private func showTransfers(_ filter: String) {
+    historyFocus = nil
     transferFilter = filter
     destination = .transfers
   }

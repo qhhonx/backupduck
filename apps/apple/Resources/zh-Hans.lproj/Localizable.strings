@@ -1286,6 +1286,7 @@
 "settings_albums" = "相簿";
 "onboarding_title" = "比 iCloud 大，\n比 NAS 简单，\n而且免费。";
 "onboarding_subtitle" = "一台旧 Pixel，把你所有的照片备份进 Google 相册，原画质、不限量。";
+"onboarding_step_progress" = "第 %d 步，共 %d 步";
 "onboarding_step_install" = "在 Pixel 上装好备份鸭";
 "onboarding_step_install_note" = "一台旧 Pixel 就够";
 "onboarding_step_connect" = "扫码连接两台设备";
@@ -1535,7 +1536,7 @@
 "folders_date_fallback" = "未找到拍摄日期，显示的是文件修改日期。";
 "folders_saved_confirmed" = "确认时间：%@";
 
-"notifications_title" = "重要提醒";
+"notifications_title" = "备份通知";
 
 "notifications_allow" = "允许通知";
 
@@ -1679,3 +1680,28 @@
 "folders_inventory_count" = "%ld 个文件夹 · %llu 张照片";
 "folders_scope_count" = "%@ · %llu 张照片";
 "folders_search_results" = "搜索结果";
+
+"notifications_off" = "通知已关闭";
+
+"notifications_settings_failed" = "未能打开通知设置，请重试。";
+
+// First-run waiting and recovery.
+"onboarding_first_sending" = "正在把第一张照片送到 Pixel…";
+"onboarding_first_saving" = "Pixel 已收到，正在存进相册…";
+"onboarding_background" = "在后台继续";
+"onboarding_pixel_unreachable" = "Pixel 不在同一个 Wi‑Fi 上";
+"onboarding_access_limited" = "只能备份你允许访问的照片，其余照片仍留在 iPhone 上。";
+"onboarding_access_none" = "尚未允许访问照片，请在设置中允许备份鸭读取照片。";
+"onboarding_no_photos" = "还没有可备份的照片";
+
+"records_attention_scope" = "%@ · %@ 张照片需要处理";
+
+"onboarding_first_heading" = "送出第一张照片";
+"onboarding_first_preparing" = "正在准备第一张照片…";
+"onboarding_first_failed" = "第一张照片没有送到";
+"onboarding_first_save_failed" = "照片没能存进 Pixel 相册";
+"onboarding_first_limited" = "只能备份你允许的照片";
+"onboarding_first_limited_note" = "未允许的照片不会备份。";
+"onboarding_first_denied" = "备份鸭还不能读取照片";
+"onboarding_first_denied_note" = "请在设置中允许备份鸭读取照片。";
+"onboarding_first_incomplete" = "文件没有完整送到。";

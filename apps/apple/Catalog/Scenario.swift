@@ -30,6 +30,7 @@ struct Scenario: Identifiable {
   let step: String?
   /// The records list to open from the hub: all, active, attention or saved.
   let records: String?
+  let notificationAuthorization: String?
   /// Photo access the scenario reports: full (default), limited, denied or undetermined.
   let photoAccess: PhotoAccess
   let title: String
@@ -94,6 +95,7 @@ struct Scenario: Identifiable {
     self.page = page
     step = object["step"] as? String
     records = object["records"] as? String
+    notificationAuthorization = object["notification_authorization"] as? String
     photoAccess = PhotoAccess(rawValue: object["photo_access"] as? String ?? "") ?? .full
     title = object["title"] as? String ?? id
     expect = object["expect"] as? [String] ?? []
@@ -203,6 +205,7 @@ final class ScenarioCore: CoreTransport, @unchecked Sendable {
       responses = scenario?.core ?? [:]
       cursor = [:]
       missing = []
+      observedCommands = []
       generation += 1
     }
   }
@@ -220,10 +223,13 @@ final class ScenarioCore: CoreTransport, @unchecked Sendable {
   }
 
   var unscripted: [String] { lock.withLock { missing } }
+  private var observedCommands: [String] = []
+  var commands: [String] { lock.withLock { observedCommands } }
 
   func call(_ command: String) async throws -> Data {
     let object = (try? JSONSerialization.jsonObject(with: Data(command.utf8))) as? [String: Any]
     let op = object?["op"] as? String ?? "?"
+    lock.withLock { observedCommands.append(command) }
     if let object, let value = library?.answer(object) {
       return try JSONSerialization.data(withJSONObject: ["ok": true, "value": value], options: [.fragmentsAllowed])
     }

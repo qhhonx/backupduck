@@ -85,12 +85,14 @@ enum DuckSettingsMetrics {
   static let rowHeight: CGFloat = 41
   static let iconSide: CGFloat = 24
   static let listWidth: CGFloat = 290
-  /// A one-line row in a Mac grouped Form is about 37 pt with the form's own
+  /// A one-line row in a Mac grouped Form is about 36 pt with the form's own
   /// insets (macOS 26); this padding brings it to `rowHeight`.
-  static let formRowPadding: CGFloat = 2
+  static let formRowPadding: CGFloat = 2.5
 }
 
-/// Rows in the Mac's grouped settings forms at `DuckSettingsMetrics.rowHeight`.
+#endif
+
+/// Shared leading-label preference rows, growing with wrapped or accessibility text.
 /// Padding rather than a fixed minimum, so wrapped text still grows.
 struct DuckPreferenceRowStyle: LabeledContentStyle {
   func makeBody(configuration: Configuration) -> some View {
@@ -99,7 +101,11 @@ struct DuckPreferenceRowStyle: LabeledContentStyle {
       Spacer(minLength: 12)
       configuration.content.foregroundStyle(.secondary)
     }
+    #if os(macOS)
     .padding(.vertical, DuckSettingsMetrics.formRowPadding)
+    #else
+    .frame(minHeight: DuckPreferenceMetrics.rowHeight)
+    #endif
   }
 }
 
@@ -111,10 +117,16 @@ struct DuckPreferenceToggleStyle: ToggleStyle {
       Spacer(minLength: 12)
       Toggle("", isOn: configuration.$isOn).toggleStyle(.switch).labelsHidden()
     }
+    #if os(macOS)
     .padding(.vertical, DuckSettingsMetrics.formRowPadding)
+    #else
+    .frame(minHeight: DuckPreferenceMetrics.rowHeight)
+    #endif
+    .accessibilityRepresentation {
+      Toggle(isOn: configuration.$isOn) { configuration.label }.toggleStyle(.switch)
+    }
   }
 }
-#endif
 
 /// Which design a host shows. The app keeps the current pages until roadmap
 /// step 6; the design catalog switches to the redesigned ones.

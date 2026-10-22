@@ -98,8 +98,12 @@ grids use 2 pt gaps and no radius; photos inside a card take the card radius.
 - Problems, warnings, permissions and working screens never show the duck
   (owner default, October 19; this replaces the earlier "duck accompanies
   problems"). Calm hubs show photos, not the duck.
-- The three step marks (yellow circle, blue wing, orange sparkle) appear
-  together on the welcome screen and one at a time on later steps.
+- The three step marks (yellow circle, blue wing, orange sparkle) carry no
+  numerals; their shapes and order tell the steps apart. The welcome screen
+  lists all three at full strength beside their sentences. Every later
+  first-run step shows the same row of three at the top, the current mark at
+  full strength and the others faint (about 25 % opacity). Assistive
+  technology reads "Step 2 of 3".
 - Animations play once, stop when the page is left, show a still frame under
   Reduce Motion, and are hidden from assistive technology.
 

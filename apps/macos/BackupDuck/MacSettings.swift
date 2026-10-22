@@ -204,6 +204,7 @@ private struct MacAutoBackupSettings: View {
               .foregroundStyle(.secondary)
           }
         }
+        BackupNotificationPreferences()
         Section("settings_includes") {
           NavigationLink(value: BackupScopeDestination.types) {
             LabeledContent("settings_media_types", value: scope.typesSummary)

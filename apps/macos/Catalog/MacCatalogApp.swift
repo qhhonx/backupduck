@@ -2,6 +2,7 @@ import AppKit
 import ScreenCaptureKit
 import SwiftUI
 import Photos
+import UserNotifications
 
 /// Mac design catalog: the production workspace window driven by scenario data
 /// instead of the Rust core, the keychain and the network. It never ships; see
@@ -39,8 +40,15 @@ import Photos
   let model: BackupModel
   let library = PhotoLibraryModel()
   let folders: FolderSources
+  let notifier: BackupNotifier
   let scope: ScopeCatalogFixture?
   init(_ scenario: Scenario) {
+    let authorization: UNAuthorizationStatus = scenario.notificationAuthorization == "denied" ? .denied
+      : scenario.notificationAuthorization == "authorized" ? .authorized : .notDetermined
+    notifier = BackupNotifier(catalogAuthorization: authorization)
+    let notifications = notifier
+    BackupEnvironment.activeNotifier = { notifications }
+    if MacCatalogLaunch.value("-route-timing") != "warm" { notifier.route = Self.route(scenario) }
     scope = scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil
     model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
     if scenario.id == "library.synthetic" {
@@ -61,6 +69,15 @@ import Photos
     folders.previewRows = []
     if scenario.id.hasPrefix("folders.") || scenario.id.hasPrefix("settings.folder") {
       FolderCatalog.install(scenario.id, folders: folders, sheet: MacCatalogLaunch.value("-sheet"))
+    }
+  }
+  static func route(_ scenario: Scenario) -> BackupNotifier.Route? {
+    let receiver = MacCatalogLaunch.value("-route-receiver") ?? "catalog-pixel"
+    switch scenario.step {
+    case "notificationNeedsYou": return .init(notice: .convert, receiver: receiver)
+    case "notificationPhoto": return .init(notice: .earlier, receiver: receiver, source: "a8-synthetic-photo")
+    case "notificationOverview": return .init(notice: .full, receiver: receiver)
+    default: return nil
     }
   }
 }
@@ -231,10 +248,11 @@ private struct MacScenarioRun: View {
         folderSources: session.folders, initialTransferFilter: scenario.records ?? "all",
         initialSettingsPage: scenario.step == "about" ? .about : nil,
         scopeStore: session.scope?.store ?? .shared, albumsModel: session.scope?.albums ?? .shared,
-        initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "")
+        initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "",
+        initialViewerInfo: scenario.id == "folders.viewer-received")
         .background {
-          if scenario.id == "folders.viewer", MacCatalogLaunch.value("-folder-viewer-state") != "browse" {
-            FolderViewerCatalogOpening()
+          if scenario.id.hasPrefix("folders.viewer"), MacCatalogLaunch.value("-folder-viewer-state") != "browse" {
+            FolderViewerCatalogOpening(source: scenario.id == "folders.viewer-received" ? "fixture-photo-0-4" : nil)
           }
         }
       }
@@ -248,6 +266,7 @@ private struct MacScenarioRun: View {
 /// Opens through the mounted production grid after its browsing toolbar exists.
 /// This synthetic scenario never sends pointer or keyboard input.
 private struct FolderViewerCatalogOpening: NSViewRepresentable {
+  var source: String?
   func makeNSView(context: Context) -> NSView {
     let view = NSView()
     Task { @MainActor [weak view] in
@@ -263,7 +282,13 @@ private struct FolderViewerCatalogOpening: NSViewRepresentable {
         if let coordinator = grid(in: root), coordinator.photo(IndexPath(item: 0, section: 0)) != nil {
           // Let AppKit finish installing the browsing search field first.
           try? await Task.sleep(for: .milliseconds(500))
-          coordinator.open(IndexPath(item: 0, section: 0)); return
+          var target = IndexPath(item: 0, section: 0)
+          if let source {
+            guard let section = coordinator.sections.firstIndex(where: { $0.photos.contains(where: { $0.source_id == source }) }),
+              let item = coordinator.sections[section].photos.firstIndex(where: { $0.source_id == source }) else { return }
+            target = IndexPath(item: item, section: section)
+          }
+          coordinator.open(target); return
         }
       }
     }
@@ -361,6 +386,10 @@ private struct MacScenarioControls: View {
   var body: some View {
     HStack(spacing: 8) {
       Text(scenario.id).font(.caption.monospaced()).foregroundStyle(.secondary)
+      if scenario.step?.hasPrefix("notification") == true {
+        Button("Simulate notification") { BackupEnvironment.activeNotifier().route = MacScenarioSession.route(scenario) }
+          .accessibilityIdentifier("catalog.notification")
+      }
       Button("Scenario…") { info = true }
         .popover(isPresented: $info, arrowEdge: .top) {
           MacScenarioInfo(scenario: scenario, scheme: $scheme, restart: restart).frame(width: 420, height: 520)
@@ -435,9 +464,10 @@ enum MacWindowSnapshot {
     if MacCatalogLaunch.value("-photo-info") != nil, viewer == nil {
       throw SnapshotError("The photo viewer is not visible.")
     }
-    guard let window = viewer ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.contentView != nil }) else {
+    guard let candidate = viewer ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain && $0.contentView != nil }) else {
       throw SnapshotError("The catalog window is not visible (\(NSApp.windows.count) windows).")
     }
+    let window = candidate.sheetParent ?? candidate
     let bitmap: NSBitmapImageRep
     if #available(macOS 14.4, *) {
       // Restrict capture to this process; no screen-recording consent is needed.
@@ -467,6 +497,15 @@ enum MacWindowSnapshot {
     }
     try png.write(to: url, options: .atomic)
     // The unscripted list goes next to the image for the same run.
+    let notifier = BackupEnvironment.activeNotifier()
+    let notificationEvidence: [String: Any] = ["authorization": notifier.authorization.rawValue,
+      "enabled": notifier.enabled, "permissionRequests": notifier.permissionRequests,
+      "settingsRequests": notifier.settingsRequests, "usesSystem": notifier.usesSystem,
+      "routePending": notifier.route != nil, "settingsURL": notifier.settingsURL?.absoluteString ?? ""]
+    try JSONSerialization.data(withJSONObject: notificationEvidence, options: [.prettyPrinted, .sortedKeys])
+      .write(to: url.deletingPathExtension().appendingPathExtension("notifications.json"))
+    try MacCatalogApp.core.commands.joined(separator: "\n")
+      .write(to: url.deletingPathExtension().appendingPathExtension("commands.jsonl"), atomically: true, encoding: .utf8)
     try MacCatalogApp.core.unscripted.joined(separator: "\n")
       .write(to: url.deletingPathExtension().appendingPathExtension("unscripted.txt"), atomically: true, encoding: .utf8)
   }

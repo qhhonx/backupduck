@@ -15,31 +15,70 @@ struct DuckIllustration: View {
   }
 }
 
-/// First-run step marks: a yellow circle, the blue wing and an orange sparkle,
-/// sized to the same visual weight. The numeral sits on each mark's horizontal
-/// shared axis so the three line up (the wing is shifted so its thick front
-/// carries the numeral), and keeps one size across marks.
+/// Catalog-only opt-in to the same solid-mark fallback, without changing OS settings.
+private struct DuckStepMarkReducedTransparencyKey: EnvironmentKey {
+  static let defaultValue = false
+}
+extension EnvironmentValues {
+  var duckStepMarkReducedTransparency: Bool {
+    get { self[DuckStepMarkReducedTransparencyKey.self] }
+    set { self[DuckStepMarkReducedTransparencyKey.self] = newValue }
+  }
+}
+
+/// V6: numeral-free marks, optically balanced within one shared centre slot.
+/// The source wing keeps its original aspect ratio and has no positional offset.
 struct DuckStepMark: View {
   let number: Int
   var scale: CGFloat = 1
+  var strength: Double = 1
   @ScaledMetric(relativeTo: .body) private var unit: CGFloat = 1
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.duckStepMarkReducedTransparency) private var previewReduceTransparency
+  @Environment(\.colorSchemeContrast) private var contrast
 
+  private var color: Color {
+    switch number {
+    case 1: DuckBrand.duckYellow
+    case 2: DuckBrand.wingBlue
+    default: DuckBrand.beakOrange
+    }
+  }
   var body: some View {
     let s = unit * scale
+    let weight = strength < 1 && (reduceTransparency || previewReduceTransparency || contrast == .increased) ? 0.55 : strength
+    // Blend onto the opaque page role before masking: faint marks never rely on
+    // translucent material, and accessibility modes strengthen their silhouette.
     ZStack {
-      switch number {
-      case 1: Image("MarkCircle").resizable().frame(width: 36 * s, height: 36 * s)
-      // The wing's thick front sits on the shared axis, so its numeral stays inside the shape.
-      case 2: Image("MarkWing").resizable().frame(width: 44 * s, height: 22 * s).offset(x: 7.8 * s)
-      default: Image("MarkSparkle").resizable().frame(width: 40 * s, height: 40 * s)
-      }
-      Text(number.formatted())
-        .font(.system(size: 17 * s, weight: .bold, design: .rounded)) // design-exception: numeral sized to its mark, scaled with Dynamic Type
-        .foregroundStyle(number == 1 ? DuckBrand.Illustration.ink : .white) // design-exception: numeral on a brand mark
-        .offset(y: number == 2 ? 3 * s : 0)
+      DuckRole.background
+      color.opacity(weight)
     }
-    .frame(width: 54 * s, height: 40 * s)
+    .mask {
+      switch number {
+      case 1: Image("MarkCircle").resizable().frame(width: 32 * s, height: 32 * s)
+      case 2: Image("MarkWing").resizable().scaledToFit().frame(width: 48 * s, height: 24 * s)
+      default: Image("MarkSparkle").resizable().frame(width: 44 * s, height: 44 * s)
+      }
+    }
+    .frame(width: 54 * s, height: 44 * s)
     .accessibilityHidden(true)
+  }
+}
+
+/// One stable row, with a single localized progress element for assistive technology.
+struct DuckStepProgress: View {
+  let current: Int
+  var body: some View {
+    HStack(spacing: DuckSpacing.small) {
+      ForEach(1...3, id: \.self) { number in
+        DuckStepMark(number: number, strength: number == current ? 1 : 0.25)
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(Self.label(current))
+  }
+  static func label(_ step: Int) -> String {
+    String(format: NSLocalizedString("onboarding_step_progress", comment: ""), step, 3)
   }
 }
 

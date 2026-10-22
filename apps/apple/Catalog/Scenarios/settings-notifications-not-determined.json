@@ -1,0 +1,12 @@
+{
+  "id": "settings.notifications.not-determined",
+  "page": "settings",
+  "title": "Backup notifications \u00b7 not-determined",
+  "extends": "settings.autoBackup",
+  "mac_only": true,
+  "notification_authorization": "not-determined",
+  "expect": [
+    "One shared preference row reflects system authorization.",
+    "Catalog requests are simulated; no system prompt or settings changes."
+  ]
+}

@@ -13,6 +13,8 @@ struct MacHub: View {
   var sources: () -> Void
   var showTransfers: (String) -> Void
   @State private var offlineHelp = false
+  @StateObject private var photoRouter = BackupPhotoRouter()
+  @Environment(\.macViewerPresentation) private var presentPhoto
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
@@ -27,7 +29,11 @@ struct MacHub: View {
         if connected, !recentSources.isEmpty {
           VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
             DuckSectionHeader(title: "hub_recent", link: "hub_see_all") { showTransfers("all") }
-            DuckPhotoMosaic(sources: recentSources)
+            DuckPhotoMosaic(sources: recentSources, open: { source, frame in
+              guard let photo = recentPhotos.first(where: { $0.source == source }) else { return }
+              photoRouter.macPresent = presentPhoto
+              photoRouter.open(photo, collection: recentPhotos, frame: frame)
+            })
           }
         }
         if connected { summaryRows }
@@ -170,10 +176,14 @@ struct MacHub: View {
   }
 
   /// Photos the Pixel has received, newest change first.
-  private var recentSources: [String] {
-    model.jobs.filter { $0.state == "received" }
+  private var recentPhotos: [HistoryPhoto] {
+    var seen = Set<String>()
+    return model.jobs.filter { $0.state == "received" && ($0.receiverID == nil || $0.receiverID == model.pairing?.receiverID) }
       .sorted { ($0.stateChangedAt ?? 0) > ($1.stateChangedAt ?? 0) }
-      .prefix(5).map(\.asset.source_id)
+      .filter { seen.insert($0.asset.source_id).inserted }
+      .prefix(5).map(HistoryPhoto.init(job:))
+  }
+  private var recentSources: [String] { recentPhotos.map(\.source)
   }
 
   private var summaryRows: some View {
@@ -182,6 +192,7 @@ struct MacHub: View {
       if attention > 0 {
         row(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
           symbol: "exclamationmark.triangle.fill") { showTransfers("attention") }
+          .accessibilityIdentifier("hub.needsYou")
         Divider().padding(.leading, DuckSpacing.small)
       }
       row(Text("records_title"), value: model.summary.total.formatted(), symbol: nil) { showTransfers("all") }

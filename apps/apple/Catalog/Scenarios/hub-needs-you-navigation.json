@@ -1,0 +1,50 @@
+{
+  "id": "hub.needs-you-navigation",
+  "page": "backup",
+  "step": "overview",
+  "title": "Overview \u00b7 Needs You navigation and recent mosaic",
+  "extends": "records-base",
+  "mac_only": true,
+  "expect": [
+    "Needs You opens attention-only records at the first photo.",
+    "Recent photos open the shared photo viewer and retain Overview."
+  ],
+  "core": {
+    "source_job": [
+      {
+        "when": {
+          "source_id": "synthetic-103"
+        },
+        "value": {
+          "id": 103,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-103",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_5103.HEIC",
+                "size": 4100000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1789880620000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4100000,
+          "error_code": null,
+          "processing": "pending",
+          "processing_error": null,
+          "state_changed_at_ms": 1792299820000,
+          "sort_value": 1792299820000,
+          "receiver_id": "catalog-pixel"
+        }
+      },
+      {
+        "value": null
+      }
+    ]
+  }
+}

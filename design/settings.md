@@ -94,6 +94,48 @@ during a large batch move to the hub.
 Footer links: "Diagnostics · Advanced settings" (log report; format
 conversion, browser access, stop receiving).
 
+### Help Center
+
+One structure on every platform: a searchable list in two groups, "Things
+to do" and "When something's wrong", each article a few short paragraphs in the
+person's words, read-only (it explains and names the page where the action
+lives; it starts nothing). Engineering detail and identifiers stay in
+Diagnostics.
+
+| Group | Sender (iPhone, iPad, Mac) | Receiver (Pixel) |
+| --- | --- | --- |
+| Things to do | Check that photos are safe · Back up faster · Switch to another Pixel · Back up only some photos · Free up space on the Pixel | Check that photos are saved · Keep receiving in the background · Free up space on this Pixel · Connect another iPhone or Mac |
+| When something's wrong | Can't reach the Pixel · Some photos aren't backed up · A Live Photo can't be saved · Backup stopped | An iPhone or Mac can't connect · A photo wasn't saved to Photos · Storage is full and receiving paused · Receiving stopped · Auto cleanup didn't run |
+
+Articles keep receipt, saving to Photos and Google's cloud upload apart and say
+that BackupDuck cannot see the last. "An iPhone or Mac can't connect" may show
+this Pixel's current address in a quiet line for someone helping.
+
+### Diagnostics (technical audience)
+
+For someone troubleshooting, or helping a person troubleshoot. It keeps exact
+detail but follows every standard of the other pages. Same structure on every
+platform, in each platform's components:
+
+1. **One line at the top**: what this is and the privacy promise ("For
+   troubleshooting. Exports contain no photos.").
+2. **Activity log**: newest first, grouped by day. Each row: time, the event in
+   plain words, and its code in a quiet label. Search and a small set of
+   filters (All, Problems, Transfers, Storage). A row opens the entry: every
+   recorded field (time, code, job, size, context) with Copy and Copy All.
+   Empty and failed-to-read states say so with a retry.
+3. **Exports**: each export is one row naming what the file contains and its
+   format; the system save or share sheet chooses where; success names the
+   file; failure keeps the row with Retry. Pixel: Diagnostics report and Photos
+   saving receipts.
+4. **Settings for the log**: how many days and entries are kept, with the
+   consequence stated once ("Older entries are removed and can't be restored").
+5. **Pixel tools**: the Google Photos compatibility check (observation only),
+   and the cleanup technical tools that the Storage journey does not need.
+
+Copy uses the same short register as other pages; codes are shown, not
+explained in prose. Nothing here starts work silently.
+
 Resume after restart and heat protection are automatic. Freeing space after
 saving to Photos and the experimental automatic cleanup are on the Storage
 page, under "Free up space automatically", not in Settings. There is no

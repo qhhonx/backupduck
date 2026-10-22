@@ -1,0 +1,33 @@
+{
+  "id": "onboarding.first-photo-slow-limited",
+  "page": "onboarding",
+  "step": "first",
+  "extends": "base-paired",
+  "ios_only": true,
+  "title": "First photo: slow-limited",
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1,
+        "received": 0,
+        "published": 0,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 0
+      }
+    },
+    "jobs": {
+      "value": []
+    }
+  },
+  "expect": [
+    "Primary action stays in the shared bottom slot; background exit stays available while waiting."
+  ],
+  "photo_access": "limited"
+}

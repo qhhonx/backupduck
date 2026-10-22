@@ -1,0 +1,27 @@
+{
+  "id": "onboarding.connect",
+  "page": "onboarding",
+  "step": "connect",
+  "ios_only": true,
+  "extends": "base-paired",
+  "title": "First run: connect",
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 0,
+        "received": 0,
+        "published": 0,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 0
+      }
+    }
+  },
+  "pairing": null
+}

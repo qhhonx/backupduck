@@ -115,24 +115,26 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
   @Published private(set) var loading = false
   @Published private(set) var failed = false
   private var receiver: String?
+  private var state = "all"
   private var generation = 0
   static let pageSize = 200
 
   private struct Page: Decodable { let items: [BackupTaskItem]; let summary: SenderSummary }
 
-  func reload(receiver: String?) async {
+  func reload(receiver: String?, state: String = "all") async {
     self.receiver = receiver
+    self.state = state
     generation += 1
     let current = generation
     guard let receiver else { photos = []; attention = []; total = 0; return }
     loading = true; failed = false
     do {
-      let first = try await page(receiver: receiver, state: "all", after: nil)
-      let problems = try await page(receiver: receiver, state: "attention", after: nil)
+      let first = try await page(receiver: receiver, state: state, after: nil)
+      let problems = state == "attention" ? first : try await page(receiver: receiver, state: "attention", after: nil)
       guard current == generation else { return }
       photos = first.items.compactMap(HistoryPhoto.init)
       attention = problems.items.compactMap(HistoryPhoto.init)
-      total = first.summary.total
+      total = first.summary.count(for: state)
       hasMore = first.items.count == Self.pageSize
     } catch { if current == generation { failed = true } }
     if current == generation { loading = false }
@@ -144,10 +146,11 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
     loading = true
     defer { if current == generation { loading = false } }
     do {
-      let next = try await page(receiver: receiver, state: "all", after: (last.cursor, last.sortValue ?? 0))
+      let next = try await page(receiver: receiver, state: state, after: (last.cursor, last.sortValue ?? 0))
       guard current == generation else { return }
       let known = Set(photos.map(\.id))
       photos += next.items.compactMap(HistoryPhoto.init).filter { !known.contains($0.id) }
+      if state == "attention" { attention = photos }
       hasMore = next.items.count == Self.pageSize
     } catch { if current == generation { failed = true } }
   }
@@ -173,10 +176,12 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
 
 struct BackupHistoryView: View {
   @ObservedObject var model: BackupModel
+  var filter = "all"
   var initialFocus: HistoryPhoto? = nil
   @StateObject private var history = BackupHistoryModel()
   @StateObject private var photoRouter = BackupPhotoRouter()
   @State private var retrying: HistoryCause?
+  @State private var didFocus = false
   @Environment(\.dynamicTypeSize) private var textSize
   #if os(iOS)
     private let spacing: CGFloat = 2
@@ -192,10 +197,15 @@ struct BackupHistoryView: View {
     ScrollViewReader { position in
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-        Text(String(format: NSLocalizedString("records_scope", comment: ""), receiverName, history.total.formatted()))
+        Text(String(format: NSLocalizedString(filter == "attention" ? "records_attention_scope" : "records_scope", comment: ""), receiverName, history.total.formatted()))
           .font(.subheadline).foregroundStyle(.secondary)
           .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
-        if !history.attention.isEmpty { needsYou }
+        if filter == "attention" {
+          HStack {
+            Text("records_needs_you").font(.headline)
+            Spacer()
+          }.padding(.horizontal, DuckSpacing.medium).padding(.bottom, DuckSpacing.small)
+        } else if !history.attention.isEmpty { needsYou }
         if history.failed && history.photos.isEmpty {
           ContentUnavailableView {
             Label("records_load_failed", systemImage: "exclamationmark.triangle")
@@ -242,14 +252,20 @@ struct BackupHistoryView: View {
     .background(DuckRole.background)
     .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") {
       await reload()
-      if let initialFocus {
+      if !didFocus, let initialFocus {
         // A deep entry may be beyond the first page; retain the core's ordering.
         while !history.photos.contains(where: { $0.id == initialFocus.id }), history.hasMore, !Task.isCancelled {
           let count = history.photos.count
           await history.loadMore()
           if history.photos.count == count { break }
         }
-        position.scrollTo(initialFocus.id, anchor: .center)
+        await Task.yield()
+        position.scrollTo(initialFocus.id, anchor: .top)
+        didFocus = true
+      } else if !didFocus, filter == "attention", let first = history.photos.first {
+        await Task.yield()
+        position.scrollTo(first.id, anchor: .top)
+        didFocus = true
       }
     }
     .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
@@ -261,7 +277,7 @@ struct BackupHistoryView: View {
     // Do not replace paged history membership under a presented photo.
     guard photoRouter.preview == nil, photoRouter.fallback == nil else { return }
     #endif
-    await history.reload(receiver: model.pairing?.receiverID)
+    await history.reload(receiver: model.pairing?.receiverID, state: filter)
   }
 
   private var needsYou: some View {

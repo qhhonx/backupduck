@@ -1286,6 +1286,7 @@
 "settings_albums" = "Albums";
 "onboarding_title" = "Bigger than iCloud.\nSimpler than a NAS.\nAnd free.";
 "onboarding_subtitle" = "One old Pixel backs up all your photos to Google Photos, full quality, without limits.";
+"onboarding_step_progress" = "Step %d of %d";
 "onboarding_step_install" = "Install BackupDuck on a Pixel";
 "onboarding_step_install_note" = "An old Pixel is all it takes";
 "onboarding_step_connect" = "Connect the two devices";
@@ -1535,7 +1536,7 @@
 "folders_date_fallback" = "No capture date was available. Showing the file’s modification date.";
 "folders_saved_confirmed" = "Confirmed %@";
 
-"notifications_title" = "Important notifications";
+"notifications_title" = "Backup notifications";
 
 "notifications_allow" = "Allow notifications";
 
@@ -1679,3 +1680,28 @@
 "folders_inventory_count" = "%ld folders · %llu photos";
 "folders_scope_count" = "%@ · %llu photos";
 "folders_search_results" = "Search results";
+
+"notifications_off" = "Notifications are off";
+
+"notifications_settings_failed" = "Notification settings could not be opened. Try again.";
+
+// First-run waiting and recovery.
+"onboarding_first_sending" = "Sending your first photo to the Pixel…";
+"onboarding_first_saving" = "Pixel received it; saving to Photos…";
+"onboarding_background" = "Continue in the Background";
+"onboarding_pixel_unreachable" = "Pixel is not on the same Wi‑Fi";
+"onboarding_access_limited" = "Only the photos you allow can be backed up. Other photos stay on your iPhone.";
+"onboarding_access_none" = "Photo access is off. Allow access in Settings to back up your photos.";
+"onboarding_no_photos" = "No photos to back up yet";
+
+"records_attention_scope" = "%@ · %@ photos need you";
+
+"onboarding_first_heading" = "Sending Your First Photo";
+"onboarding_first_preparing" = "Preparing your first photo…";
+"onboarding_first_failed" = "Your first photo did not arrive";
+"onboarding_first_save_failed" = "The photo could not be saved to the Pixel’s Photos";
+"onboarding_first_limited" = "Only allowed photos can be backed up";
+"onboarding_first_limited_note" = "Photos you haven’t allowed won’t back up.";
+"onboarding_first_denied" = "BackupDuck cannot read your photos yet";
+"onboarding_first_denied_note" = "Allow photo access in Settings to continue.";
+"onboarding_first_incomplete" = "The file was not received in full.";

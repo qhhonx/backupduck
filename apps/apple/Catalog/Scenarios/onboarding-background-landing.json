@@ -1,0 +1,137 @@
+{
+  "id": "onboarding.background-landing",
+  "page": "onboarding",
+  "step": "first",
+  "ios_only": true,
+  "extends": "onboarding.first",
+  "title": "First photo: leave before landing, invite on the hub",
+  "core": {
+    "jobs": [
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "onboarding-sample-1",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "FIRST.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "running",
+            "confirmed_bytes": 0,
+            "error_code": null
+          }
+        ]
+      },
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "onboarding-sample-1",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "FIRST.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          }
+        ]
+      }
+    ],
+    "sender_revision": [
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 2
+      }
+    ],
+    "backup_summary": [
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 1,
+          "received": 0,
+          "published": 0,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 0,
+          "running": 1,
+          "paused": 0,
+          "confirmed_bytes": 0
+        }
+      },
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 1,
+          "received": 1,
+          "published": 1,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 0,
+          "running": 0,
+          "paused": 0,
+          "confirmed_bytes": 3400000
+        },
+        "delay": 45
+      }
+    ]
+  },
+  "expect": [
+    "Continue in the Background opens the hub immediately. Publication later invites notifications once. Dismissal and relaunch do not invite again.",
+    "Publication responses wait 45 seconds, leaving time to observe explicit departure and the pre-publication hub."
+  ]
+}

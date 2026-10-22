@@ -52,7 +52,7 @@
     ]
   },
   "expect": [
-    "'Sending your first photo…' with a spinner, then the done duck and 'Your first photo is in the Pixel's Photos'.",
+    "The thumbnail idles while sending, flies once after observed publication, then shows the saved title and notification invitation.",
     "Notifications are asked only after it lands."
   ]
 }

@@ -1,0 +1,54 @@
+{
+  "id": "onboarding.first-photo-slow-unreachable",
+  "page": "onboarding",
+  "step": "first",
+  "extends": "base-paired",
+  "ios_only": true,
+  "title": "First photo: slow-unreachable",
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": "receiver_unavailable",
+        "next_retry_at": null,
+        "total": 1,
+        "received": 0,
+        "published": 0,
+        "publication_failed": 0,
+        "waiting": 1,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 0
+      }
+    },
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "receiver_id": "catalog-pixel",
+          "asset": {
+            "kind": "photo",
+            "source_id": "onboarding-sample-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "FIRST.JPG",
+                "size": 3400000
+              }
+            ]
+          },
+          "state": "waiting",
+          "confirmed_bytes": 0,
+          "error_code": null
+        }
+      ]
+    },
+    "check_pairing": {
+      "error": "network"
+    }
+  },
+  "expect": [
+    "Primary action stays in the shared bottom slot; background exit stays available while waiting."
+  ]
+}

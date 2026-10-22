@@ -1,0 +1,14 @@
+{
+  "id": "notifications.route.overview",
+  "page": "settings",
+  "step": "notificationOverview",
+  "title": "Notification route \u00b7 overview",
+  "extends": "base-paired",
+  "mac_only": true,
+  "notification_authorization": "authorized",
+  "expect": [
+    "Cold startup consumes the receiver-scoped route after the model opens.",
+    "Use -route-timing warm and Simulate notification for a warm route.",
+    "Use -route-receiver former-pixel to verify stale receiver rejection."
+  ]
+}

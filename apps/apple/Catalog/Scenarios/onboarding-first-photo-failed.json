@@ -1,0 +1,54 @@
+{
+  "id": "onboarding.first-photo-failed",
+  "page": "onboarding",
+  "step": "first",
+  "extends": "base-paired",
+  "ios_only": true,
+  "title": "First photo: failed",
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1,
+        "received": 0,
+        "published": 0,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 1,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 0
+      }
+    },
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "receiver_id": "catalog-pixel",
+          "asset": {
+            "kind": "photo",
+            "source_id": "onboarding-sample-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "FIRST.JPG",
+                "size": 3400000
+              }
+            ]
+          },
+          "state": "failed",
+          "confirmed_bytes": 0,
+          "error_code": "integrity"
+        }
+      ]
+    },
+    "retry": {
+      "value": null
+    }
+  },
+  "expect": [
+    "Primary action stays in the shared bottom slot; background exit stays available while waiting."
+  ]
+}

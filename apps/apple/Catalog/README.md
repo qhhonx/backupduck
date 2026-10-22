@@ -52,6 +52,32 @@ Repeat with `-appearance light` / `dark` and `-AppleLanguages '(zh-Hans)'`.
 Check the disabled first line, the single Pause/Resume item, separators, shortcuts
 and the static activity symbol; the idle icon uses the exported duck template.
 
+### Mac notification and Overview routes
+
+`settings.notifications.not-determined`, `.denied` and `.authorized` render the
+shared notification preference with injected system authorization. Allow first
+opens `DuckSheetLayout`; its confirmation simulates one system request. Denied
+records the app-specific settings URL, and authorized edits an in-memory switch.
+These fixtures never ask for system permission or open System Settings.
+
+`notifications.route.needs-you`, `.photo` and `.overview` queue a receiver-scoped
+route before workspace startup. Add `-route-timing warm` and activate Simulate
+notification to exercise the observer after startup. Add
+`-route-receiver former-pixel` to check that an old receiver is ignored.
+Photo routes carry `source_id`; aggregate conversion notices open Needs You,
+and other aggregate notices open Overview. This reviews routing only, not real
+system delivery or notification taps.
+
+`hub.needs-you-navigation` opens Overview with mixed records. Needs You requests
+only attention records, including subsequent pages; recent mosaic photos use
+the shared viewer. `folders.viewer-received` opens the mounted Folders grid's
+received-but-not-published photo with the shared A8 inspector. Receipt has its
+recorded time; publication has no invented completion or time.
+
+Mac `-snapshot` captures the parent window while a sheet is attached. Each PNG
+has adjacent notification-state JSON, core-command JSONL and unscripted-command
+text for inspecting the synthetic boundary.
+
 ### One photo's information (A8)
 
 Launch `-scenario photo.info -photo-info panel` on iPhone, or
@@ -188,6 +214,20 @@ it needs no Sparkle framework. Its update settings show the store note.
   review day.
 - **First run** (iPhone) has `onboarding.*` scenarios. `onboarding.first` plays
   the first-photo flight once its scripted summary reports a saved photo.
+  `onboarding.photos` and `onboarding.scope` cover the permission explanation
+  and backup decisions. `onboarding.first-photo-sending`,
+  `onboarding.first-photo-slow-unreachable`, `onboarding.first-photo-slow-limited`,
+  `onboarding.first-photo-none`, `onboarding.first-photo-failed` and
+  `onboarding.first-photo-landed` use the production waiting/recovery projection.
+  Slow scenarios seed a start time more than 20 seconds ago; sending never
+  invents byte progress or runs the flight before observed publication.
+  `onboarding.resume-mid-flow` retains its isolated first-run defaults across
+  termination and relaunch. Advance from Photos to scope, change the switch,
+  then relaunch the same scenario to verify both step and decision.
+  `onboarding.background-landing` also retains intent to check the deferred
+  hub invitation and its once-only dismissal. `-onboarding-session <name>`
+  selects a separate fixture record without removing an existing one.
+  Other first-run scenarios start with fresh presentation intent each launch.
 
 The info sheet's Design picker switches between the current page and the
 proposed redesign (`IOSHub`, `IOSSettings`, `MacSettings`); `-proposed` starts
@@ -446,3 +486,17 @@ selection and scroll state. `-window-width <points>` sizes only the catalog
 window for captures. Widths below the production minimum of 900 points (down to
 640) additionally exercise native toolbar overflow. Search remains a system
 search item, reachable from Edit > Search and Command-F.
+
+First-run marks follow V6: the welcome list shares one centre column, and each
+later page keeps the same three-mark row above the scrolling content. Only its
+current mark is full strength; the row exposes one localized step count. The
+`-reduce-transparency` iOS catalog argument injects the shared mark fallback
+environment for repeatable review without changing a device setting. In that
+mode inactive marks use stronger opaque color blends on the system page role.
+
+First-photo fixtures share a leading title directly below the step marks, a
+centred decorative flight, and one factual status with at most one supporting
+sentence. Known blocking causes replace the sending message immediately; slow
+recovery actions retain their 20-second gate. Receipt and publication remain
+separate. The flight is hidden from accessibility because the adjacent text
+owns the fact. Sending is shown only for observed running work.

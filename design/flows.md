@@ -10,8 +10,10 @@ Copy is quoted in English; the Chinese copy reviewed with the owner is in
 ## Principles
 
 - **Say the whole journey first.** One screen names the three steps with three
-  distinct marks that recur on every later step: a yellow circle, the blue wing
-  and an orange sparkle, sized to the same visual weight.
+  distinct marks: a yellow circle, the blue wing and an orange sparkle, sized to
+  the same visual weight and without numerals. Every later step shows the row of
+  three with the current mark at full strength and the others faint, so the
+  person always sees where they are in the journey.
 - **One decision per screen, primary action in a fixed place.**
 - **Explain before the system asks.** Camera, photos and notifications each get
   one sentence of why, then the system prompt. Refusing never blocks the
@@ -163,3 +165,36 @@ Google Photos has backed up, so only Google's own tools can remove them safely:
 
 BackupDuck's own copy is freed separately by "free up space after saving to
 Photos" (`feature-triage.md`).
+
+### Auto cleanup journey (Pixel, Storage)
+
+Everything an ordinary person needs for auto cleanup lives on the Storage page;
+Diagnostics keeps only technical probes and reports.
+
+- **Turning it on** is one journey from the Storage switch: the consent sheet,
+  then the system Accessibility setting, then, on return, BackupDuck confirms
+  which Google Photos account it will act in by opening Google Photos for a few
+  seconds ("Checking your Google Photos account…"). Only then is the switch on.
+  The account is shown as confirmed, never by its address (BackupDuck keeps
+  only a fingerprint). Leaving any step leaves the switch off and says why.
+- **The switch row's supporting line** is the one place for its state, in the
+  same short register as its neighbours. When the person must act, one tonal
+  button sits under the row:
+
+  | State | Supporting line | Action |
+  | --- | --- | --- |
+  | On, idle | Frees space when it runs low | — |
+  | Running | Freeing space… | Stop |
+  | Result uncertain (pending, needs review, not recognised, could not return, timed out) | Check the result in Google Photos | Open Google Photos, then "I've checked" once back |
+  | Account changed or unknown | Google Photos is using another account | Confirm account |
+  | Accessibility turned off | Accessibility access is off | Turn on |
+  | Pixel locked | Waits until the Pixel is unlocked | — |
+  | Google Photos unavailable | Can't open Google Photos | Open Google Photos |
+
+- **Tapping the row** (not the switch) opens an Auto cleanup page: the same
+  state, the last result ("Freed 2.3 GB · Oct 19" or "Nothing to free"), Run
+  now, Confirm account again, one paragraph on how it works and what Google
+  decides, and a quiet link to Diagnostics.
+- Stopping never undoes what Google Photos already started; "I've checked"
+  records the person's review, not a result. No amounts are invented.
+

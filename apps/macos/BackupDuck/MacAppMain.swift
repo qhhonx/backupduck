@@ -5,6 +5,7 @@ import SwiftUI
   @Environment(\.openWindow) private var openWindow
   @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var delegate
   @StateObject private var model = BackupModel.shared
+  @StateObject private var notifier = BackupNotifier.shared
   @StateObject private var library = PhotoLibraryModel()
   @AppStorage("duckAppearance") private var appearance = "system"
   private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
@@ -12,6 +13,7 @@ import SwiftUI
   /// redesigned pages are the app (design/redesign-roadmap.md, step 6).
   init() {
     DesignPreview.proposedDesign = true
+    BackupNotifier.shared.configure()
     PhotoLibraryModel.prewarm()
   }
   var body: some Scene {
@@ -43,6 +45,13 @@ import SwiftUI
       MacStatusMenu(model: model)
     } label: {
       Image(nsImage: MacMenuStatus(model: model).isBackingUp ? MacMenuBarIcon.activeImage : MacMenuBarIcon.image).renderingMode(.template).accessibilityLabel(Text("brand_name"))
+        // The menu-bar label stays mounted after the workspace window closes.
+        // Reveal that same scene before its receiver-scoped consumer takes a tap.
+        .onChange(of: notifier.route, initial: true) { _, route in
+          guard route != nil else { return }
+          openWindow(id: "main")
+          NSApp.activate(ignoringOtherApps: true)
+        }
     }.menuBarExtraStyle(.menu)
   }
 }

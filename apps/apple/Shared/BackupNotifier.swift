@@ -17,12 +17,51 @@ import UIKit
     let id = UUID()
     let notice: Notice
     let receiver: String
+    /// A named photo keeps stable source identity; aggregate notices have none.
+    var source: String? = nil
+    enum Destination { case needsYou, photo, overview }
+    var destination: Destination { source != nil ? .photo : notice == .convert ? .needsYou : .overview }
   }
   @Published var route: Route?
   @Published private(set) var authorization: UNAuthorizationStatus = .notDetermined
   @Published private(set) var permissionError: String?
   private var watching: AnyCancellable?
-  private let defaults = UserDefaults.standard
+  private let defaults: UserDefaults
+  private let simulated: Bool
+  @Published var enabled: Bool {
+    didSet {
+      guard !simulated else { return }
+      defaults.set(enabled, forKey: "notify.v3.enabled")
+      if !enabled { withdraw(Notice.allCases) }
+    }
+  }
+  @Published private(set) var requestingPermission = false
+  @Published private(set) var permissionRequests = 0
+  @Published private(set) var settingsRequests = 0
+  private(set) var explained: Bool
+
+  init(catalogAuthorization: UNAuthorizationStatus? = nil, defaults: UserDefaults = .standard) {
+    self.defaults = defaults
+    simulated = catalogAuthorization != nil
+    enabled = catalogAuthorization != nil ? true : defaults.object(forKey: "notify.v3.enabled") as? Bool ?? true
+    explained = catalogAuthorization != nil ? false : defaults.bool(forKey: "notify.v3.explained")
+    super.init()
+    if let catalogAuthorization { authorization = catalogAuthorization }
+  }
+  var usesSystem: Bool { !simulated && BackupEnvironment.usesPhotoLibrary }
+  func acknowledgeExplanation() {
+    explained = true
+    if usesSystem { defaults.set(true, forKey: "notify.v3.explained") }
+  }
+  var settingsURL: URL? {
+    #if os(macOS)
+    URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(simulated ? "app.backupduck" : Bundle.main.bundleIdentifier ?? "app.backupduck")")
+    #else
+    URL(string: UIApplication.openNotificationSettingsURLString)
+    #endif
+  }
+  func recordSettingsRequest() { settingsRequests += 1 }
+
   private let center = UNUserNotificationCenter.current()
   private var evaluating = false
   private var needsEvaluation = false
@@ -91,6 +130,7 @@ import UIKit
   }
 
   func configure() {
+    guard usesSystem else { return }
     center.delegate = self
     // Remove the interrupted implementation's unverified scheduled reminders.
     if !defaults.bool(forKey: "notify.v2.migrated") {
@@ -113,11 +153,18 @@ import UIKit
   }
 
   func refreshAuthorization() async {
+    guard usesSystem else { return }
     let value = await center.notificationSettings().authorizationStatus
     if authorization != value { authorization = value }
   }
   func requestPermission() async {
+    await refreshAuthorization()
+    guard authorization == .notDetermined, !requestingPermission else { return }
+    requestingPermission = true
+    defer { requestingPermission = false }
     permissionError = nil
+    permissionRequests += 1
+    if !usesSystem { authorization = .authorized; return }
     do { _ = try await center.requestAuthorization(options: [.alert, .sound]) }
     catch { permissionError = NSLocalizedString("notifications_permission_failed", comment: "") }
     await refreshAuthorization()
@@ -149,7 +196,7 @@ import UIKit
       return
     }
     guard model.queueRevision >= 0 else { return }
-    let allowed = authorization == .authorized || authorization == .provisional
+    let allowed = enabled && (authorization == .authorized || authorization == .provisional)
     let changes = Self.changes(status: model.hubStatus, earlier: model.historicalImport,
       connection: model.receiverConnection, now: Date(), allowed: allowed, memory: &memory)
     for change in changes {
@@ -202,33 +249,65 @@ import UIKit
       let notice = response.notification.request.content.userInfo["notice"] as? String,
       let receiver = response.notification.request.content.userInfo["receiver"] as? String,
       let value = Notice(rawValue: notice) else { return }
-    await MainActor.run { route = Route(notice: value, receiver: receiver) }
+    let source = response.notification.request.content.userInfo["source_id"] as? String
+    await MainActor.run {
+      route = Route(notice: value, receiver: receiver, source: source)
+      #if os(macOS)
+      NSApp.activate(ignoringOtherApps: true)
+      NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
+      #endif
+    }
   }
 }
 
-/// One explicit system-owned setting, available after skipping first run.
-/// Passive notification evaluation never prompts for permission.
+/// Shared preference and explicit permission flow; passive observation never prompts.
 struct BackupNotificationPreferences: View {
-  @ObservedObject private var notifier = BackupNotifier.shared
+  @ObservedObject var notifier = BackupEnvironment.activeNotifier()
   @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
+  @State private var explanation = false
+  @State private var settingsFailure = false
   var body: some View {
     Section {
-      Button(notifier.authorization == .notDetermined ? "notifications_allow" : "notifications_settings") {
-        Task {
-          if notifier.authorization == .notDetermined { await notifier.requestPermission() }
-          else {
-            #if os(macOS)
-            if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { openURL(url) }
-            #else
-            if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
-            #endif
-          }
+      if notifier.authorization == .authorized || notifier.authorization == .provisional {
+        Toggle("notifications_title", isOn: $notifier.enabled)
+          .toggleStyle(DuckPreferenceToggleStyle())
+          .accessibilityIdentifier("notifications.preference")
+      } else {
+        LabeledContent(notifier.authorization == .denied ? "notifications_off" : "notifications_title") {
+          Button(notifier.authorization == .notDetermined ? "notifications_allow" : "notifications_settings") {
+            if notifier.authorization == .notDetermined {
+              if notifier.explained { Task { await notifier.requestPermission() } }
+              else { explanation = true }
+            } else if let url = notifier.settingsURL {
+              notifier.recordSettingsRequest()
+              guard notifier.usesSystem else { return }
+              openURL(url) { accepted in settingsFailure = !accepted }
+            }
+          }.buttonStyle(.borderless).foregroundStyle(DuckRole.accent)
+            .disabled(notifier.requestingPermission)
+            .accessibilityIdentifier("notifications.permission")
         }
       }
-    } header: { Text("notifications_title") }
-    footer: {
-      Text(notifier.permissionError ?? NSLocalizedString("notifications_note", comment: ""))
+    } footer: {
+      Text(settingsFailure ? NSLocalizedString("notifications_settings_failed", comment: "")
+        : notifier.permissionError ?? NSLocalizedString("notifications_note", comment: ""))
     }
+    .labeledContentStyle(DuckPreferenceRowStyle())
     .task { await notifier.refreshAuthorization() }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active { Task { await notifier.refreshAuthorization() } }
+    }
+    .sheet(isPresented: $explanation) {
+      DuckSheetLayout(title: "notifications_title", desktopFitsContent: true, cancel: { explanation = false }) {
+        Text("notifications_note").font(.body).fixedSize(horizontal: false, vertical: true)
+      } actions: {
+        Button("notifications_allow") {
+          notifier.acknowledgeExplanation(); explanation = false
+          Task { await notifier.requestPermission() }
+        }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+          .accessibilityIdentifier("notifications.consent.allow")
+      }
+    }
   }
 }

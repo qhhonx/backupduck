@@ -39,6 +39,10 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
     view.accessibilityLabel = NSLocalizedString("apple_scan_frame_note", comment: "")
     errorObserver = NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError,
       object: session, queue: nil) { [weak self] _ in self?.report(.unavailable) }
+    #if targetEnvironment(simulator)
+    // No camera hardware exists here; do not ask for an unusable permission.
+    report(.unavailable)
+    #else
     AVCaptureDevice.requestAccess(for: .video) { [weak self] allowed in
       // A permission reply may arrive after Cancel has dismantled the scanner.
       // Serialize the visibility check with stop() on the main thread before
@@ -49,6 +53,7 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
         else { self.report(.permission) }
       }
     }
+    #endif
   }
   private func report(_ failure: PairingCameraFailure) {
     DispatchQueue.main.async { [weak self] in

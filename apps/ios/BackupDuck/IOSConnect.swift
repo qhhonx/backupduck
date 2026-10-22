@@ -1,61 +1,77 @@
 import SwiftUI
 import UIKit
 
-/// Scanning the Pixel's code, shared by first run and every later connect or
-/// reconnect (design/navigation.md, design/flows.md § First run step 3). It owns
-/// the camera states and the one action each needs: try again, or open Settings
-/// when camera access is off.
+/// The scanner and a guided flow can share recovery intent so the flow keeps
+/// its primary action in the same bottom slot as its other steps.
+@MainActor final class IOSPixelScannerState: ObservableObject {
+  @Published var scanError: String?
+  @Published var cameraFailure: PairingCameraFailure?
+  @Published var scannerID = UUID()
+  @Published var working = false
+  var needsRecovery: Bool { scanError != nil || cameraFailure != nil }
+  func retry() { scanError = nil; cameraFailure = nil; scannerID = UUID() }
+}
+
+/// Shared by first run and later connect/reconnect. Camera recovery stays in
+/// the scanner by default; guided flows can place it in their fixed footer.
 struct IOSPixelScanner: View {
   @ObservedObject var model: BackupModel
   var connected: () -> Void
   @Environment(\.openURL) private var openURL
-  @State private var scanError: String?
-  @State private var cameraFailure: PairingCameraFailure?
-  @State private var scannerID = UUID()
-  @State private var working = false
+  @StateObject private var state: IOSPixelScannerState
+  var showsRecoveryActions: Bool
+
+  init(model: BackupModel, state: IOSPixelScannerState? = nil,
+    showsRecoveryActions: Bool = true, connected: @escaping () -> Void) {
+    self.model = model; self.connected = connected
+    self.showsRecoveryActions = showsRecoveryActions
+    _state = StateObject(wrappedValue: state ?? IOSPixelScannerState())
+  }
 
   var body: some View {
     Group {
-      if let cameraFailure {
+      if let cameraFailure = state.cameraFailure {
         ContentUnavailableView {
           Label(cameraFailure == .permission ? "apple_camera_restricted" : "apple_camera_unavailable", systemImage: "camera")
         } description: {
           Text(cameraFailure == .permission ? "apple_camera_restricted_note" : "apple_camera_unavailable_note")
         } actions: {
-          if cameraFailure == .permission {
-            Button("photos_open_settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
-              .duckPrimaryButton()
-          } else { retryButton }
+          if showsRecoveryActions {
+            if cameraFailure == .permission {
+              Button("photos_open_settings") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
+                .duckPrimaryButton()
+            } else { retryButton }
+          }
         }
-      } else if let scanError {
+      } else if let scanError = state.scanError {
         ContentUnavailableView {
           Label("desktop_pair_failed", systemImage: "exclamationmark.triangle")
         } description: {
           Text(scanError)
-        } actions: { retryButton }
+        } actions: { if showsRecoveryActions { retryButton } }
       } else {
-        PairingScanner(scanned: accept, failed: { cameraFailure = $0 })
-          .id(scannerID).frame(height: 300)
+        PairingScanner(scanned: accept, failed: { state.cameraFailure = $0 })
+          .id(state.scannerID).frame(height: 300)
           .clipShape(RoundedRectangle(cornerRadius: DuckRadius.card))
-          .overlay { if working { ProgressView().controlSize(.large) } }
+          .overlay { if state.working { ProgressView().controlSize(.large) } }
       }
     }
   }
   private var retryButton: some View {
-    Button("apple_scan_again") { scanError = nil; cameraFailure = nil; scannerID = UUID() }.duckPrimaryButton()
+    Button("apple_scan_again") { state.retry() }.duckPrimaryButton()
   }
 
   private func accept(_ payload: String) {
-    guard !working else { return }
-    working = true
-    scanError = nil
+    guard !state.working else { return }
+    state.working = true
+    state.scanError = nil
     Task {
       let paired = await model.pair(payload)
-      working = false
+      state.working = false
       if paired { connected() }
       else {
         let parseable = (try? JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))) != nil
-        scanError = parseable ? model.pairingError ?? NSLocalizedString("desktop_pair_failed", comment: "")
+        state.scanError = parseable ? model.pairingError ?? NSLocalizedString("desktop_pair_failed", comment: "")
           : NSLocalizedString("connect_code_unreadable", comment: "")
       }
     }

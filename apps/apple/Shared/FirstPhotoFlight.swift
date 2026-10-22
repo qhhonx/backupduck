@@ -47,8 +47,8 @@ struct FirstPhotoFlight: View {
       .font(.caption).foregroundStyle(.secondary).lineLimit(1)
       .frame(width: Self.width + 24)
     }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(Text(arrived ? "onboarding_first_title" : "onboarding_first_waiting"))
+    // The adjacent status block owns the current fact, including blocked states.
+    .accessibilityHidden(true)
     .onAppear { if landed { fly() } }
     .onChange(of: landed) { _, value in if value { fly() } }
   }

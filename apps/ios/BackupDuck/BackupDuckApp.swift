@@ -25,8 +25,9 @@ import SwiftUI
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
   @AppStorage("duckAppearance") private var appearance = "system"
-  /// First run is shown once, to people who have not connected a Pixel yet.
+  /// Compatibility marker for installations that already finished setup.
   @AppStorage("firstRunDone") private var firstRunDone = false
+  @StateObject private var firstRun = IOSFirstRunProgress()
   private var colorScheme: ColorScheme? {
     appearance == "dark" ? .dark : appearance == "light" ? .light : nil
   }
@@ -39,9 +40,8 @@ import SwiftUI
   /// Undecided until the engine has opened, so people who already connected a
   /// Pixel never see first run flash by.
   private var needsFirstRun: Bool? {
-    if firstRunDone { return false }
-    guard model.ready else { return nil }
-    return model.pairing == nil
+    guard model.ready, let record = firstRun.record else { return nil }
+    return !record.completed
   }
   private var tabs: some View {
     TabView(selection: $selectedTab) {
@@ -63,8 +63,10 @@ import SwiftUI
         // First run stands alone until it ends; nothing behind it reads the
         // photo library before the user has heard why (design/flows.md).
         switch needsFirstRun {
-        case .some(true): IOSOnboarding(model: model) { firstRunDone = true }
-        case .some(false): tabs
+        case .some(true): IOSOnboarding(model: model, progress: firstRun) {
+          firstRunDone = true; selectedTab = IOSAppTab.backup.rawValue
+        }
+        case .some(false): tabs.modifier(IOSFirstRunNotificationInvitation(progress: firstRun, model: model))
         case .none:
           if let message = model.message {
             ContentUnavailableView {
@@ -77,8 +79,9 @@ import SwiftUI
           } else { DuckLoadingState("hub_opening") }
         }
       }
-        .onChange(of: model.ready) { _, ready in
-          if ready && model.pairing != nil { firstRunDone = true }
+        .onChange(of: model.ready, initial: true) { _, ready in
+          if ready { firstRun.resolve(legacyDone: firstRunDone, paired: model.pairing != nil) }
+          if ready { Task { await firstRun.registerScope(model: model) } }
           consumeNotification()
           consumeActivityLink()
         }
@@ -103,7 +106,7 @@ import SwiftUI
           if phase == .active {
             BackgroundTransfer.shared.enteredForeground()
             Task { await library.open() }
-            Task { await model.becameActive() }
+            Task { await model.becameActive(); await firstRun.registerScope(model: model) }
             Task { await BackupLiveActivity.shared.synchronize(model) }
           }
           if phase == .background {

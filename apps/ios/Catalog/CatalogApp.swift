@@ -91,7 +91,7 @@ private struct ScenarioStage: View {
   @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
-    if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
+    if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" {
       _scheme = State(initialValue: catalogViewerStyle(scenario) == .light ? .light : .dark)
     }
     _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope.") || ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id))
@@ -101,9 +101,10 @@ private struct ScenarioStage: View {
   var body: some View {
     Group { if let run { ScenarioRun(scenario: scenario, proposed: proposed).id(run) } else { DuckRole.background.ignoresSafeArea() } }
       .preferredColorScheme(scheme)
+      .environment(\.duckStepMarkReducedTransparency, ProcessInfo.processInfo.arguments.contains("-reduce-transparency"))
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
       .overlay(alignment: .bottomTrailing) {
-        if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
+        if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" {
         // Above the tab bar, clear of navigation bar items.
         Button { info = true } label: {
           Image(systemName: "info.circle.fill").font(.title2)
@@ -160,7 +161,7 @@ private struct ScenarioRun: View {
     } else if scenario.page == "connect" {
       IOSConnectSheet(model: model).task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "onboarding" {
-      IOSOnboarding(model: model, start: IOSOnboarding.Step(rawValue: scenario.step ?? "") ?? .welcome)
+      OnboardingCatalog(scenario: scenario, model: model)
         .task { await model.open() }
         .onDisappear { model.stop() }
     } else {
@@ -471,6 +472,45 @@ private struct IOSScopeCatalog: View {
           BackupScopeEditor(destination: destination, store: fixture.store, model: fixture.albums,
             search: destination == .albums ? fixture.search : "")
         }
+    }
+  }
+}
+
+/// The same durable state/root transition as production, with isolated defaults.
+/// Resume and deferred-notification fixtures retain intent across launches.
+private struct OnboardingCatalog: View {
+  let scenario: Scenario
+  @ObservedObject var model: BackupModel
+  @StateObject private var progress: IOSFirstRunProgress
+  init(scenario: Scenario, model: BackupModel) {
+    self.scenario = scenario; self.model = model
+    let arguments = ProcessInfo.processInfo.arguments
+    let session = arguments.firstIndex(of: "-onboarding-session").flatMap { index in
+      arguments.indices.contains(index + 1) ? arguments[index + 1] : nil
+    } ?? "default"
+    let suite = "catalog.firstRun." + scenario.id + "." + session
+    let defaults = UserDefaults(suiteName: suite)!
+    let progress = IOSFirstRunProgress(defaults: defaults)
+    if !["onboarding.resume-mid-flow", "onboarding.background-landing"].contains(scenario.id) || progress.record == nil {
+      progress.update {
+        $0 = IOSFirstRunProgress.Record()
+        $0.step = scenario.step ?? "welcome"
+        $0.receiver = "catalog-pixel"
+        if $0.step == "first" {
+          let slow = scenario.id.contains("slow") || scenario.id.hasSuffix("none")
+          $0.firstPhotoStarted = Date().addingTimeInterval(slow ? -21 : 0)
+        }
+      }
+    }
+    _progress = StateObject(wrappedValue: progress)
+  }
+  var body: some View {
+    Group {
+      if progress.record?.completed == true {
+        IOSHub(model: model).modifier(IOSFirstRunNotificationInvitation(progress: progress, model: model))
+      } else {
+        IOSOnboarding(model: model, progress: progress)
+      }
     }
   }
 }

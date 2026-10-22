@@ -25,17 +25,18 @@ import SwiftUI
       for index in 0..<[18, 24, 48][folder] {
         let sourceID = "fixture-photo-\(folder)-\(index)"
         let fallback = Date().addingTimeInterval(-Double(folder * 86400 + index * 3600))
-        let capture = SampleImages.takenDate(for: sourceID) ?? fallback
+        let capture = id == "folders.viewer-received" && sourceID == "fixture-photo-0-4"
+          ? Date(timeIntervalSince1970: 1_792_495_800) : SampleImages.takenDate(for: sourceID) ?? fallback
         let date = UInt64(max(0, capture.timeIntervalSince1970 * 1000))
         let saved = UInt64(max(0, fallback.timeIntervalSince1970 * 1000)) + 60_000
         photos.append(FolderPhoto(relative: "\(index < 4 ? "Coast" : "Mountains")/IMG_\(1000 + folder * 100 + index).jpg", source_id: sourceID, revision: "fixture-v1", size: 8_000_000, media_type: "image/jpeg", modified_ms: date,
           folder_id: "fixture-\(folder)", capture_ms: date, date_source: "embedded",
-          backup: folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? "saved" : folder == 1 ? "sending" : "not_backed_up", saved_at_ms: folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? saved : nil))
+          backup: id == "folders.viewer-received" && sourceID == "fixture-photo-0-4" ? "saving" : folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? "saved" : folder == 1 ? "sending" : "not_backed_up", saved_at_ms: id == "folders.viewer-received" && sourceID == "fixture-photo-0-4" ? nil : folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? saved : nil))
       }
     }
     folders.previewRows = photos
     folders.previewImage = image
-    if id == "folders.viewer" {
+    if id.hasPrefix("folders.viewer") {
       folders.browser.search = "Mountains"
       folders.browser.searchExpanded = true
       folders.browser.selection = ["fixture-2|fixture-photo-2-40"]

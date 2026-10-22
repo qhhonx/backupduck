@@ -214,6 +214,7 @@ private struct DuckMosaicPhoto: View {
       if let open {
         Button { open(source, frame) } label: { thumbnail }.buttonStyle(.plain)
           .accessibilityLabel(Text("library_preview"))
+          .accessibilityIdentifier("hub.recent.\(source)")
       } else { thumbnail }
     }
     .background(GeometryReader { proxy in

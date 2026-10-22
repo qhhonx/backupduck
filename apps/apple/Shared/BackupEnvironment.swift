@@ -24,6 +24,7 @@ enum BackupEnvironment {
   /// The model whose pairing a photo's backup facts are read for. The catalog
   /// points it at the scenario's model.
   nonisolated(unsafe) static var activeModel: @MainActor () -> BackupModel = { .shared }
+  nonisolated(unsafe) static var activeNotifier: @MainActor () -> BackupNotifier = { .shared }
   /// Bonjour browsing proposes new receiver routes. Off where no real receiver exists.
   nonisolated(unsafe) static var discoversReceivers = true
   /// Reading and observing the photo library (thumbnails, change observers).
