@@ -45,7 +45,9 @@ just the selected photos, for selections that span far apart in the library.
 The page answers one question: are these the photos I mean to back up?
 
 - A standard system sheet (system corner radius and grabber, large detent),
-  titled with the count ("已选 12 张"), Done on the trailing side.
+  titled with the count ("已选 12 张"), Done on the trailing side and, as the
+  system photo library's selection review does, a leading button that browses
+  the selected photos one at a time in the viewer.
 - The selected photos in the library's grid density, each with its selection
   mark. Tapping a photo deselects it in place (it stays, unmarked, until the
   sheet closes, so a mistaken tap is undone with another tap). Long press opens
