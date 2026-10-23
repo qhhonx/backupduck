@@ -128,7 +128,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 band.setBackgroundColor(getColor(R.color.duck_role_background))
                 band.addView(ImageView(this).apply { setImageResource(R.drawable.duck_welcome); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO },
                     FrameLayout.LayoutParams(DuckFirstRunMetrics.heroSize(this), DuckFirstRunMetrics.heroSize(this), Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM).apply { bottomMargin = token(R.dimen.duck_space_medium) })
-                title(getString(R.string.onb_title))
+                title(getString(R.string.onb_title), centered = true)
                 lead(getString(R.string.onb_subtitle))
                 stepRow(1, R.string.onb_step_install)
                 stepRow(2, R.string.onb_step_connect)
@@ -211,9 +211,12 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         contentDescription = getString(R.string.onb_allowed)
     }.also { it.layoutParams = LinearLayout.LayoutParams(dp(24), dp(24)) }
 
-    /** Guided-flow title: Headline medium (V2). */
-    private fun title(text: String) {
-        content.addView(lookText(text, M.style.TextAppearance_Material3_HeadlineSmall).apply { isAccessibilityHeading = true },
+    /** Guided-flow title: balanced wrapping preserves explicit paragraph breaks in the copy. */
+    private fun title(text: String, centered: Boolean = false) {
+        content.addView(lookText(text, M.style.TextAppearance_Material3_HeadlineSmall).apply {
+            isAccessibilityHeading = true
+            if (centered) gravity = Gravity.CENTER_HORIZONTAL
+        },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium); bottomMargin = token(R.dimen.duck_space_small) })
     }
 

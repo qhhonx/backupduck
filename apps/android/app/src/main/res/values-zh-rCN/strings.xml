@@ -384,7 +384,7 @@
     <string name="pref_status_receiving">正在接收</string>
     <string name="pref_status_paused">已暂停接收</string>
     <string name="pref_status_off">接收已停止</string>
-    <string name="onb_title">比 iCloud 大，比 NAS 简单，而且免费。</string>
+    <string name="onb_title">比 iCloud 大，\n比 NAS 简单，\n而且免费。</string>
     <string name="onb_subtitle">这台旧 Pixel 接收你 iPhone 里的照片，原画质备份进 Google 相册，不限量。</string>
     <string name="onb_step_install">装好备份鸭</string>
     <string name="onb_step_install_note">你已经完成这一步</string>
