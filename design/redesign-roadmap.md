@@ -5,7 +5,7 @@ next. Start with "Current step" and update this file with each milestone,
 decision or page status. Page detail lives in `page-register.md`; rules live in
 `constitution.md`, `visual-language.md` and `interaction.md`.
 
-Last updated: October 22, 2026.
+Last updated: October 23, 2026.
 
 ## Goal
 
@@ -54,7 +54,9 @@ in parallel sessions because they touch separate folders; shared Apple code
 
 ## Current step
 
-Step 6 is in effect on all three apps (the redesigned pages are the default).
+Step 6 is in effect on all three apps, and the superseded pages are removed
+(October 23). The current step is local device acceptance (Next item 11);
+the website stays paused.
 
 October 21, 2026: the owner approved `platform-expression.md` (which native
 container and control expresses each task; chrome is the system's, content is
@@ -119,13 +121,19 @@ Follow the source audit's priority order, with completed work removed:
    `product-brief.md` (bold benefit, conditions in small print), current app
    imagery and the same visual language. Update feeds (`site/api/`) and
    download links keep working; publishing waits for the owner.
-11. **Release/native/device acceptance:** real pairing, notifications/Live
+11. **Release/native/device acceptance — next, on local Release builds
+   (iPhone over the installed app, Mac fresh, Pixel validation package beside
+   the production receiver); publishing waits for the owner:** real pairing, notifications/Live
    Activity, gesture reversal/anchors, settings persistence, update handoffs and
    failure recovery. Check light/dark, narrow layouts, large text and long copy;
    measure Release motion from recordings. Catalog/build checks do not replace
    physical-device observations.
-12. **Legacy removal:** after production review and acceptance, remove remaining
-    superseded pages and resolve compatibility routes explicitly.
+12. **Legacy removal — done (`2413496`, `894ccd5`), moved before acceptance so
+    the device pass covers the final code.** Compatibility routes resolve to
+    current pages first; superseded pages, the Mac Settings window, the catalog
+    design switch, the Pixel probe tool and unreferenced strings are removed.
+    Remaining legacy: the Pixel waking/unlocking screen and the generic
+    operation-failed sheet (`page-register.md`).
 
 ## Later (after the roadmap)
 

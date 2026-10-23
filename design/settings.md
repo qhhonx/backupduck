@@ -23,7 +23,9 @@ and in which words. Each platform draws it in its own dialect (P2).
 5. **About BackupDuck** is a group of its own, one row whose value is the
    version. The version appears nowhere else on the root.
 6. **Footer links.** One centered line of small text, "Diagnostics ·
-   Advanced", for the few people who need them. They are not rows.
+   Advanced Settings" (Chinese 诊断信息 · 高级设置; Pixel sentence case
+   "Advanced settings"), for the few people who need them. They are not rows.
+   Each page they open uses the same name as its link.
 
 Groups keep the constitution's order: the role first, then general, then help,
 then About.
@@ -73,8 +75,12 @@ so they have no rows.
 | Rate BackupDuck | — | The store's review page (reserved) |
 | About BackupDuck | "0.4.1" | About |
 
-Footer links: "Diagnostics" (activity log) · "Advanced" (clear temporary files,
+Footer links: "Diagnostics" (export and recent activity) · "Advanced Settings" (clear temporary files,
 only specific albums).
+
+In Advanced Settings, a failed clear replaces the group's footer with one line
+in the failure tone, "Couldn't clear: <reason>". The row's own Clear Now is the
+retry; there is no second Retry button.
 
 Moved elsewhere: backing up earlier photos, pausing and keeping the screen on
 during a large batch move to the hub.
@@ -91,7 +97,7 @@ during a large batch move to the hub.
 | | Send Feedback | "Join the user group, or email us with diagnostics" | Menu |
 | (own group) | About BackupDuck | "Version 0.4.1" | About |
 
-Footer links: "Diagnostics · Advanced settings" (log report; format
+Footer links: "Diagnostics · Advanced settings" (export and recent activity; format
 conversion, browser access, stop receiving).
 
 ### Help Center
@@ -121,7 +127,8 @@ structure on every platform:
    goes wrong, send us this file. It contains no photos.").
 2. **Export diagnostics**: the main row, with a small line naming the contents;
    it opens the system share or save sheet (on the Pixel the file includes the
-   record of photos saved to Photos). Afterwards the line names the file, or
+   record of photos saved to Photos and what automatic cleanup observed, never
+   the account name). Afterwards the line names the file, or
    says it failed and the row retries. Send Feedback offers the same file.
 3. **Recent activity**: a short read-only list of the latest events in plain
    words with their time, newest first, grouped by day, so a person can see
@@ -131,7 +138,7 @@ structure on every platform:
    section headers below it.
 
 The log keeps 14 days automatically. Technical probes and developer tools are
-not part of the product: they live only in debug builds and the design catalog.
+not part of the product, and no other page links to Diagnostics.
 
 Resume after restart and heat protection are automatic. Freeing space after
 saving to Photos and the experimental automatic cleanup are on the Storage
