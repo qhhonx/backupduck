@@ -30,10 +30,11 @@ punctuation. Shared text components use the platform's balanced line breaking
 for body, supporting and footnote text (Android `BREAK_STRATEGY_BALANCED`; Apple
 text already avoids short last lines) instead of rewording individual strings.
 
-Chinese display headlines made of short clauses break only at clause
-punctuation, never inside a clause ("比 iCloud 大，/比 NAS 简单，/而且免费。", not
-"比 iCloud 大，比 / NAS 简单"). Keep each clause together and let the clauses
-wrap as the width allows.
+A display headline made of parallel short clauses sets one clause per line,
+centred, in every language ("比 iCloud 大，/比 NAS 简单，/而且免费。" and "Bigger
+than iCloud. / Simpler than a NAS. / And free."). The line structure comes from
+the copy, not the screen width; a clause too long for one line wraps with
+balanced breaking inside its own line.
 
 Errors remain visible with a recovery action. Routine persistence and preparation
 use neutral busy feedback, not warnings. Only an unfinished operation after
