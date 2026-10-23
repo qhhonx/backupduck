@@ -38,6 +38,25 @@ twice, with two scroll positions, two sets of gestures and two places to look.
 - **Pixel unchanged.** The Pixel has no library of its own; Received photos is
   its only photo grid and stays as built.
 
+### Reviewing a selection (iPhone)
+
+While selecting, the selection count in the selection bar opens a review of
+just the selected photos, for selections that span far apart in the library.
+The page answers one question: are these the photos I mean to back up?
+
+- A standard system sheet (system corner radius and grabber, large detent),
+  titled with the count ("已选 12 张"), Done on the trailing side.
+- The selected photos in the library's grid density, each with its selection
+  mark. Tapping a photo deselects it in place (it stays, unmarked, until the
+  sheet closes, so a mistaken tap is undone with another tap). Long press opens
+  the same system context menu and full-aspect preview as the library; tapping
+  the preview opens the viewer.
+- A system bottom toolbar: Deselect All (leading, plain) and the primary
+  "备份 12 张" (trailing, prominent), the same durable action as the library's
+  selection bar, with the same in-place feedback.
+- Closing keeps the selection. No custom buttons, floating controls or corner
+  radii.
+
 ## 4. Constraints
 
 - The library grid is the performance-critical native grid with the calendar
