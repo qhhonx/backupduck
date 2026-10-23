@@ -27,23 +27,23 @@ internal class DuckStepMark(context: Context, number: Int, private val current: 
     init {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         val (drawable, width, height) = when (number) {
-            1 -> Triple(R.drawable.mark_circle, 32, 32)
-            2 -> Triple(R.drawable.mark_wing, 48, 24)
-            else -> Triple(R.drawable.mark_sparkle, 44, 44)
+            1 -> Triple(R.drawable.mark_circle, if (compact) 32 else 24, if (compact) 32 else 24)
+            2 -> Triple(R.drawable.mark_wing, if (compact) 48 else 36, if (compact) 24 else 18)
+            else -> Triple(R.drawable.mark_sparkle, if (compact) 44 else 34, if (compact) 44 else 34)
         }
         image.setImageResource(drawable)
         val scale = if (compact) 0.8f else 1f
         addView(image, LayoutParams(context.dp((width * scale).toInt()), context.dp((height * scale).toInt()), Gravity.CENTER))
-        layoutParams = LinearLayout.LayoutParams(context.dp(54), context.dp(44))
+        layoutParams = LinearLayout.LayoutParams(context.dp(36), context.dp(36))
         updateContrast()
     }
     private fun updateContrast() {
         val high = ReceiverEnvironment.stepMarkHighContrast ?: (Settings.Secure.getInt(context.contentResolver,
             "high_text_contrast_enabled", 0) == 1)
-        // Material's outline is the tertiary neutral emphasis on Android; do not
-        // fade the brand colours. Increased contrast uses the stronger text role.
+        // V6: inactive silhouettes use the faint neutral text role, with the
+        // stronger secondary text fallback for increased contrast.
         image.imageTintList = if (current) null else ColorStateList.valueOf(context.getColor(
-            if (high) R.color.duck_role_secondary_text else R.color.duck_m3_outline))
+            if (high) R.color.duck_role_secondary_text else R.color.duck_role_tertiary_text))
         image.alpha = 1f
     }
     override fun onAttachedToWindow() {
@@ -65,7 +65,7 @@ internal class DuckStepProgress(context: Context, current: Int) : LinearLayout(c
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         isFocusable = true
         for (number in 1..3) addView(DuckStepMark(context, number, number == current),
-            LayoutParams(context.dp(54), context.dp(44)).apply {
+            LayoutParams(context.dp(36), context.dp(36)).apply {
                 if (number < 3) marginEnd = context.token(R.dimen.duck_space_small)
             })
     }

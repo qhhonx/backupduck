@@ -470,9 +470,12 @@ tree without a visible or invisible Catalog button.
 
 First run uses the shared numeral-free `DuckStepMark` and `DuckStepProgress`.
 The welcome uses three full-strength marks in equal centre slots; later steps
-retain one fixed header with three marks, one current and two at 25 percent.
+retain one fixed header with 36 dp optical slots and the shared small gap,
+matching the Apple row. Circle, wing and sparkle frames are 24, 36 × 18 and
+34 dp; the welcome's existing 40 dp columns and silhouettes stay independent.
+One mark is current; two use the faint neutral tertiary text role in both themes.
 The row exposes one localized step announcement. With high-contrast text,
-inactive silhouettes use the semantic foreground at 55 percent so their shapes
+inactive silhouettes use the secondary text role so their shapes
 remain distinguishable; `--ez highContrastText true` exercises this fallback in
 Catalog without changing the device setting. `--ez auditText true --ez
 staticCapture true` captures synthetic pairing screens without progression.

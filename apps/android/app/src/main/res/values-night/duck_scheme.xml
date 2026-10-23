@@ -47,4 +47,5 @@
     <color name="duck_state_failure">#FFB3AF</color>
     <color name="duck_state_failure_container">#623D3B</color>
     <color name="duck_state_on_failure_container">#FFDAD7</color>
+    <color name="duck_role_tertiary_text">#47E2E2E9</color>
 </resources>

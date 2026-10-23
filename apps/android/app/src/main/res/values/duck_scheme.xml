@@ -65,4 +65,5 @@
     <color name="duck_role_primary_text">@color/duck_m3_on_surface</color>
     <color name="duck_role_secondary_text">@color/duck_m3_on_surface_variant</color>
     <color name="duck_role_separator">@color/duck_m3_outline_variant</color>
+    <color name="duck_role_tertiary_text">#471A1B20</color>
 </resources>

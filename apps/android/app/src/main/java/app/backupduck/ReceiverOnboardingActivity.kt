@@ -237,6 +237,6 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     /** A fixed header shared by every screen in the first-run flow. */
     private fun showProgress(current: Int) {
         progress.removeAllViews()
-        progress.addView(DuckStepProgress(this, current), FrameLayout.LayoutParams(-2, dp(44)))
+        progress.addView(DuckStepProgress(this, current), FrameLayout.LayoutParams(-2, dp(36)))
     }
 }
