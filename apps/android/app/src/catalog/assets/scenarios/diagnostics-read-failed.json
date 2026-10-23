@@ -1,8 +1,8 @@
 {
-  "id": "diagnostics.log-failed",
+  "id": "diagnostics.read-failed",
   "extends": "diagnostics.base",
   "page": "settings",
-  "surface": "diagnostics-log",
+  "surface": "diagnostics",
   "core": {
     "receiver_logs": [
       {

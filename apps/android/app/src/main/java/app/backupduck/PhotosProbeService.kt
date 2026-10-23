@@ -212,7 +212,7 @@ class PhotosProbeService : AccessibilityService() {
                     val photosIsForeground = try { root?.packageName?.toString() == PHOTOS_PACKAGE }
                         finally { @Suppress("DEPRECATION") root?.recycle() }
                     if (photosIsForeground) runCatching {
-                        val ordinary = returnRoute in setOf("storage", "auto-cleanup")
+                        val ordinary = !DiagnosticRoutes.toolsEnabled || returnRoute in setOf("storage", "auto-cleanup")
                         startActivity(Intent(this@PhotosProbeService, if (ordinary) MainActivity::class.java else PhotosProbeActivity::class.java)
                             .apply { if (ordinary) putExtra("cleanup-return", true) else putExtra("route", returnRoute) }
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))

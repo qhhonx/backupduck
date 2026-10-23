@@ -1,6 +1,0 @@
-{
-  "id": "diagnostics.detail",
-  "extends": "diagnostics.base",
-  "page": "settings",
-  "surface": "diagnostics-detail"
-}

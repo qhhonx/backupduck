@@ -58,6 +58,11 @@ class PhotosProbeActivity:BackupDuckActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         delegate.localNightMode=getSharedPreferences("appearance",MODE_PRIVATE).getInt("mode",AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
+        if (!DiagnosticRoutes.toolsEnabled) {
+            startActivity(Intent(this, MainActivity::class.java).putExtra("destination", "storage"))
+            finish()
+            return
+        }
         nativeDetailPage(when(route) {"diagnostics"->R.string.diag_probe;"bind"->R.string.diag_bind;"progress"->R.string.diag_progress;else->R.string.diag_setup}) {panel ->
             statePanel=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
             if(route!="cleanup")panel.addView(statePanel)
@@ -80,7 +85,7 @@ class PhotosProbeActivity:BackupDuckActivity() {
         // Launch the external app after our own resume has finished. Starting it
         // during onCreate can let this Activity resume over Google Photos.
         window.decorView.post {
-            if (!isFinishing && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            if (DiagnosticRoutes.toolsEnabled && !isFinishing && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
                 && intent.getBooleanExtra("start_flow",false)) {
                 intent.removeExtra("start_flow")
                 if(!operations.start(this, bind=route=="bind",route=route))showUnavailable()

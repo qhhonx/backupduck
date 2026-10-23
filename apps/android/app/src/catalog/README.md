@@ -328,7 +328,7 @@ not visual acceptance of the new settings pages. Local generated evidence is in
 Storage is the canonical automatic-cleanup switch. First run and the hub's
 low-space card open that same destination; opening Storage acknowledges its
 feature-discovery mark without enabling cleanup. Technical setup, account
-binding, probe and progress pages are under Diagnostics.
+binding, probe and progress pages are available only through debug/catalog deep links.
 
 - `pixel.storage`: automatic cleanup off, system Smart Storage on.
 - `pixel.storage-on`: on, with a synthetic recorded 2.3 GB completion on October 20 in the section footnote.
@@ -493,7 +493,7 @@ changes, never real Google Photos actions. `auditText=true` also writes
 `cleanup-state.json` and the operation adapter records `cleanup-actions.txt` in
 Catalog external files. Neither contains an account address. The same production
 UI owns consent, switch adoption, result review and navigation. Technical probe
-pages remain under Diagnostics and are not used for these fixtures.
+pages are debug/catalog-only and are not used for these fixtures.
 
 ### Advanced settings and browser access
 
@@ -535,3 +535,18 @@ about private originals, Photos copies and conversion remain.
 stop and adopts the saved off state, without starting the listener again.
 
 `pixel.ordering` seeds a Catalog-only SQLite fixture with 411 interleaved arrival/change records and two failures. It calls the real `receiver_history_latest` Rust operation (five pages) while keeping previews synthetic; no receiver, gallery publication, or cleanup runs. `ordering-pages.jsonl` records the core replies; the opt-in text audit includes loaded photo IDs/day groups and visible adapter positions.
+
+### Diagnostics
+
+`diagnostics.index`, `diagnostics.empty`, `diagnostics.loading`, and
+`diagnostics.read-failed` exercise the ordinary page and its short read-only
+recent activity list (at most 12 events, grouped by day). `diagnostics.export-*`
+cover the single combined JSON export, including its real document-picker retry.
+The retired `diagnostics-log` and `diagnostics-detail` surfaces open Diagnostics.
+
+Technical `diagnostics-probe`, `diagnostics-setup`, `diagnostics-bind`, and
+`diagnostics-progress` surfaces remain available only in debug and catalog builds.
+Their `diagnostics.probe-*`, `diagnostics.setup-*`, `diagnostics.bind-*`, and
+`diagnostics.progress-*` fixtures remain scripted technical specimens. Production
+maps all four surfaces to Storage and does not register PhotosProbeActivity.
+There is no technical-tools group on the ordinary Diagnostics page.

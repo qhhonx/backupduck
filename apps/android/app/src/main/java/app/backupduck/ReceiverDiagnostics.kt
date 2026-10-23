@@ -1,12 +1,16 @@
 package app.backupduck
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.view.View
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
 import com.google.android.material.R as M
@@ -44,6 +48,9 @@ internal fun Context.combinedDiagnostics(root: String): ByteArray = JSONObject()
 internal class DiagnosticsScreen(private val activity: MainActivity, restored: Bundle, private val export: (DiagnosticsScreen) -> Unit) {
     val page = LookPage(activity, activity.getString(R.string.pref_diagnostics), "diagnostics")
     private val support: TextView
+    private val recent = RecentActivityAdapter(activity)
+    private val feedback = activity.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true)
+    private var loading: Job? = null
     init { with(activity) {
         page.state.putAll(restored)
         if (page.state.getString("export") == "busy") page.state.putString("export", "failure")
@@ -51,22 +58,42 @@ internal class DiagnosticsScreen(private val activity: MainActivity, restored: B
         page.body.addView(lookText(getString(R.string.diag_intro), M.style.TextAppearance_Material3_BodyMedium, secondary = true))
         val log = lookGroup(page.body)
         ((log.parent as android.view.View).layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_large)
-        lookRow(log, R.drawable.ic_document, getString(R.string.diag_log)) {
-            startActivity(Intent(this, ReceiverActivityLogActivity::class.java))
-        }
         support = lookRow(log, R.drawable.ic_document, getString(R.string.diag_export), getString(R.string.diag_contents)) {
             if (page.state.getString("export") != "busy") export(this@DiagnosticsScreen)
         }
-        lookSection(page.body, getString(R.string.diag_tools))
-        val tools = lookGroup(page.body)
-        lookRow(tools, R.drawable.ic_photo, getString(R.string.diag_probe), getString(R.string.diag_probe_note)) { probe("diagnostics") }
-        lookRow(tools, R.drawable.ic_settings, getString(R.string.diag_cleanup)) { probe("cleanup") }
-        lookRow(tools, R.drawable.ic_check, getString(R.string.diag_bind)) { probe("bind") }
-        lookRow(tools, R.drawable.ic_clock, getString(R.string.diag_progress)) { probe("progress") }
+        lookSection(page.body, getString(R.string.diag_recent))
+        page.body.addView(feedback)
+        page.body.addView(RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@with)
+            adapter = recent
+            itemAnimator = null
+            isNestedScrollingEnabled = false
+        }, LinearLayout.LayoutParams(-1, -2))
+        page.setOnDismissListener { loading?.cancel() }
         render()
+        loadRecent()
     } }
-    private fun probe(route: String) { activity.startActivity(Intent(activity, PhotosProbeActivity::class.java)
-        .putExtra("route", route).putExtra("diagnostics", route == "diagnostics")) }
+    private fun loadRecent() {
+        loading?.cancel()
+        loading = activity.lifecycleScope.launch {
+            feedback.setText(R.string.diag_loading)
+            val result = withContext(Dispatchers.IO) { runCatching {
+                val raw = ReceiverLogPolicy.read("${activity.filesDir}/receiver")
+                (0 until raw.length()).map { DiagnosticEntry(raw.getJSONObject(it)) }
+                    .sortedWith(compareByDescending<DiagnosticEntry> { it.timestamp }.thenByDescending { it.id })
+                    .take(12)
+            } }
+            ensureActive()
+            feedback.visibility = View.GONE
+            result.onSuccess { entries ->
+                recent.submit(entries)
+                if (entries.isEmpty()) { feedback.setText(R.string.diag_empty); feedback.visibility = View.VISIBLE }
+            }.onFailure {
+                feedback.setText(R.string.diag_read_failed)
+                feedback.visibility = View.VISIBLE
+            }
+        }
+    }
     fun result(state: String, name: String? = null) {
         page.state.putString("export", state); name?.let { page.state.putString("file", it) }; render()
     }

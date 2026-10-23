@@ -314,10 +314,11 @@ class MainActivity : BackupDuckActivity() {
                 scroll.post {scroll.fullScroll(View.FOCUS_DOWN)}
             }
             "diagnostics", "logs-retention"->showDiagnostics()
-            "diagnostics-log", "diagnostics-detail" -> startActivity(Intent(this, ReceiverActivityLogActivity::class.java).putExtra("detail", next.getStringExtra("surface") == "diagnostics-detail"))
+            "diagnostics-log", "diagnostics-detail" -> showDiagnostics()
             "diagnostics-probe", "diagnostics-setup", "diagnostics-bind", "diagnostics-progress" -> {
-                val route = when(next.getStringExtra("surface")) { "diagnostics-probe" -> "diagnostics"; "diagnostics-setup" -> "cleanup"; "diagnostics-bind" -> "bind"; else -> "progress" }
-                startActivity(Intent(this, PhotosProbeActivity::class.java).putExtra("route", route).putExtra("diagnostics", route == "diagnostics"))
+                val route = DiagnosticRoutes.technicalRoute(next.getStringExtra("surface").orEmpty())
+                if (route == null) openStorage()
+                else startActivity(Intent(this, PhotosProbeActivity::class.java).putExtra("route", route).putExtra("diagnostics", route == "diagnostics"))
             }
             "cleanup-consent"->{openStorage();storageScreen?.showCleanupConsent()}
             "cleanup"->openCleanup()

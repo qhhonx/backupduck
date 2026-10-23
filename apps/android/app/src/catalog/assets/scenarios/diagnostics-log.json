@@ -1,6 +1,0 @@
-{
-  "id": "diagnostics.log",
-  "extends": "diagnostics.base",
-  "page": "settings",
-  "surface": "diagnostics-log"
-}
