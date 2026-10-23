@@ -47,6 +47,8 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     private lateinit var primary: MaterialButton
     private lateinit var secondary: MaterialButton
     private var step = Step.WELCOME
+    private var askedNotify = false
+    private var askedBattery = false
     private var watcher: Job? = null
     private var senderName: String? = null
     private var connectScan: ((String?) -> Unit)? = null
@@ -95,7 +97,15 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         if (step == Step.SPACE || step == Step.RUNNING) show(step)
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (step == Step.RUNNING) show(Step.RUNNING)
+    }
+
     override fun onDestroy() { watcher?.cancel(); connect.stop(); super.onDestroy() }
+
+    private val firstRun get() = getSharedPreferences("first_run", MODE_PRIVATE)
+    private fun complete() { firstRun.edit().putBoolean("done", true).remove("step").apply() }
 
     private fun scanCode(done: (String?) -> Unit) {
         ReceiverEnvironment.scanOverride?.let { it(done); return }
@@ -109,6 +119,9 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
 
     private fun show(next: Step) {
         step = next
+        // The connected screen needs the live sender, so an interruption resumes after it.
+        // Catalog scenarios open single steps and must not leave a flow to resume.
+        if (!packageName.endsWith(".catalog")) firstRun.edit().putString("step", (if (next == Step.CONNECTED) Step.GPHOTOS else next).name).apply()
         watcher?.cancel()
         connect.stop()
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -146,12 +159,26 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 lookRow(group, R.drawable.ic_bell, getString(R.string.onb_running_notify), getString(R.string.onb_running_notify_note), done(notifying))
                 lookRow(group, R.drawable.ic_bolt, getString(R.string.onb_running_battery), getString(R.string.onb_running_battery_note), done(unrestricted))
                 lookRow(group, R.drawable.ic_wifi, getString(R.string.onb_running_wifi), getString(R.string.onb_running_power))
-                action(R.string.onb_allow) {
-                    if (!notifying) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-                    if (!unrestricted) runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-                    ReceiverPreferences.setEnabled(this, true)
-                    runCatching { ReceiverEnvironment.startService(this) }
-                    show(Step.CODE)
+                // One system confirmation at a time; the step re-renders when each
+                // returns, and moves on once each missing item has been asked once.
+                val pending = (!notifying && !askedNotify) || (!unrestricted && !askedBattery)
+                action(if (pending) R.string.onb_allow else R.string.onb_next) {
+                    when {
+                        !notifying && !askedNotify -> {
+                            askedNotify = true
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+                        }
+                        !unrestricted && !askedBattery -> {
+                            askedBattery = true
+                            runCatching { startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:$packageName"))) }
+                                .onFailure { runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } }
+                        }
+                        else -> {
+                            ReceiverPreferences.setEnabled(this, true)
+                            runCatching { ReceiverEnvironment.startService(this) }
+                            show(Step.CODE)
+                        }
+                    }
                 }
             }
             Step.CODE -> connect.showCode()
@@ -194,8 +221,8 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 card.addView(heading)
                 card.addView(lookText(getString(R.string.onb_space_auto_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
                     LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
-                action(R.string.onb_space_enable) { startActivity(Intent(this, MainActivity::class.java).putExtra("destination","storage").putExtra("surface","cleanup")); finish() }
-                secondary(R.string.onb_later) { finish() }
+                action(R.string.onb_space_enable) { complete(); startActivity(Intent(this, MainActivity::class.java).putExtra("destination","storage").putExtra("surface","cleanup")); finish() }
+                secondary(R.string.onb_later) { complete(); finish() }
             }
         }
     }

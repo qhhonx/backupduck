@@ -15,7 +15,7 @@ android {
         // Install native acceptance tests beside the user's real receiver.
         if (project.hasProperty('validationApp')) {
             applicationId 'app.backupduck.validation'
-            versionName releaseInfo.version + '-ui1.2.10'
+            versionName releaseInfo.version + '-validation'
         }
         // Isolated update-verification host; never changes the production package.
         if (project.hasProperty('updateFixture')) {

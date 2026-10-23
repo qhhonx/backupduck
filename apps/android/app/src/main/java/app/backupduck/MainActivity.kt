@@ -76,6 +76,9 @@ class MainActivity : BackupDuckActivity() {
         supportRequestWindowFeature(androidx.appcompat.app.AppCompatDelegate.FEATURE_ACTION_MODE_OVERLAY)
         theme.applyStyle(R.style.ThemeOverlay_BackupDuck_NativeLibrary, true)
         super.onCreate(savedInstanceState)
+        // A new install opens first run before the hub draws; the device list
+        // arrives later and must not reveal the hub first.
+        if (savedInstanceState == null) startFirstRunAtLaunch()
         RelayMaintenance.schedule(this)
         devicePanels = DevicePanels(this) {
             if(::receiverHome.isInitialized) receiverHome.render(ReceiverState.snapshot.value,devicePanels.name,false)
@@ -345,12 +348,24 @@ class MainActivity : BackupDuckActivity() {
         ReceiverRecovery.CONNECTION_HELP -> openHelp(ReceiverHelpTopic.CONNECTION)
         ReceiverRecovery.DIAGNOSTICS_HELP -> openHelp(ReceiverHelpTopic.RECOVERY)
     }
-    /** First run (design/flows.md) once, for a Pixel that has never been connected. */
+    /** First run (design/flows.md) for a Pixel that has never been connected. It
+     *  stays until it is completed: an interrupted flow reopens at its saved step. */
+    private var firstRunShown = false
+    private fun startFirstRunAtLaunch() {
+        val prefs = getSharedPreferences("first_run", MODE_PRIVATE)
+        val saved = prefs.getString("step", null)
+        if (packageName.endsWith(".catalog") || prefs.getBoolean("done", false)) return
+        if (saved == null && java.io.File(filesDir, "receiver").exists()) return
+        firstRunShown = true
+        startActivity(Intent(this, ReceiverOnboardingActivity::class.java).apply { saved?.let { putExtra("step", it) } })
+        overridePendingTransition(0, 0)
+    }
     private fun maybeStartFirstRun() {
         val prefs = getSharedPreferences("first_run", MODE_PRIVATE)
-        if (prefs.getBoolean("done", false) || devicePanels.hasSenders != false) return
-        prefs.edit().putBoolean("done", true).apply()
-        startActivity(Intent(this, ReceiverOnboardingActivity::class.java))
+        val saved = prefs.getString("step", null)
+        if (firstRunShown || prefs.getBoolean("done", false) || (saved == null && devicePanels.hasSenders != false)) return
+        firstRunShown = true
+        startActivity(Intent(this, ReceiverOnboardingActivity::class.java).apply { saved?.let { putExtra("step", it) } })
     }
     private fun choosePairing() { openConnect() }
     private var connectPage:ConnectPage?=null

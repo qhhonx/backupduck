@@ -31,6 +31,13 @@ Copy is quoted in English; the Chinese copy reviewed with the owner is in
 
 ## 1. First run
 
+First run stays until it is completed. An interrupted flow (the app killed,
+Back, a restart) reopens at the step it reached, before the hub draws. A
+reinstall starts at Welcome: a pairing left in the keychain by a deleted
+installation is discarded. The app touches the network only once a receiver
+is paired or the connect step starts, so the system's network prompt appears
+there.
+
 ### iPhone (and Mac)
 
 | Step | Screen | Primary action | Notes |
@@ -48,7 +55,7 @@ Copy is quoted in English; the Chinese copy reviewed with the owner is in
 | Step | Screen | Primary action | Notes |
 | --- | --- | --- | --- |
 | 1 | **Welcome.** The same headline as the iPhone, "Bigger than iCloud. Simpler than a NAS. And free." Subline: "This old Pixel receives the photos on your iPhone and backs them up to Google Photos, full quality, without limits." The same three marks and small print | Get Started | |
-| 2 | **Keep it running.** Stay on Wi‑Fi; allow notifications and battery exemption so receiving keeps going. Plugging in is suggested as optional | Allow | Each system prompt explained first |
+| 2 | **Keep it running.** Stay on Wi‑Fi; allow notifications and battery exemption so receiving keeps going. Plugging in is suggested as optional | Allow | Each system prompt explained first, then asked one at a time (battery uses the system's per-app dialog, not the settings list); each row shows Allowed when granted; Next once each missing item has been asked |
 | 3 | **Pairing code**, full screen: "Scan with BackupDuck on your iPhone". Secondary: Connect a Mac instead (scan the Mac's code) | — | The screen blocks screenshots, as today |
 | 4 | **Connected.** "Connected to Lin's iPhone" | Next | |
 | 5 | **Google Photos.** "Photos are saved to this Pixel's Photos. They upload once backup is on in Google Photos." | Open Google Photos | Secondary: It's already on. We cannot read Google Photos' backup state, so we never claim it is on |
