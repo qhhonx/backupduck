@@ -25,13 +25,15 @@ a visitor asks: what is this, is it true for me, how do I start, is it safe.
 ## Sections
 
 1. **Header**: the duck mark and name; Download; language switch (中文 / EN).
-2. **Promise.** "比 iCloud 大，比 NAS 简单，而且免费。" / "Bigger than iCloud.
-   Simpler than a NAS. And free." Below: "一台旧 Pixel，把你所有的照片备份进
-   Google 相册，原画质、不限量。" Primary action: Download (the visitor's
-   platform). Small print: "一代 Pixel 原画质无限，二到五代"节省空间"画质无限，权益由
-   Google 提供。" Image: the iPhone hub beside the Pixel receive page.
-3. **Three steps**, with the three marks: 在 Pixel 上装好备份鸭 · 扫码连接两台设备
-   · 照片自动备份到 Google 相册. One line each, as in first run.
+2. **Promise.** "Bigger than iCloud. Simpler than a NAS. And free." Below: "One
+   old Pixel backs up all your photos to Google Photos, full quality, without
+   limits." Primary action: Download (the visitor's platform). Small print:
+   "Original Pixel: unlimited Original quality. Pixel 2 to 5: unlimited Storage
+   saver. The offer is Google's." The Chinese copy is the first-run welcome copy
+   (`flows.zh.md`). Image: the iPhone hub beside the Pixel receive page.
+3. **Three steps**, with the three marks: Install BackupDuck on a Pixel ·
+   Connect the two devices · Photos back up to Google Photos. One line each, as
+   in first run.
 4. **Why an old Pixel.** The Google Photos offer for original Pixels, in plain
    words and a small table (Pixel / Pixel XL: Original quality, unlimited;
    Pixel 2–5: Storage saver, unlimited), and that the Pixel frees its own space.
