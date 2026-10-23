@@ -53,13 +53,13 @@ internal fun Instrumentation.checkReceiverSurface(args: Bundle): String {
         waitForIdleSync()
         ReceiverPreferences.setEnabled(targetContext, true)
         val waiting = ReceiverSnapshot(phase = "waiting", error = "wifi_required")
-        runOnMainSync { activity.receiverHome.render(waiting, "Synthetic Pixel", false) }
+        runOnMainSync { ReceiverState.mutable.value = waiting; activity.receiverHome.render(waiting, "Synthetic Pixel", false) }
         waitForIdleSync()
         val root = activity.receiverHome.view
         val drawables = all(root).filter { it.background != null }.associateWith { it.background }
         runOnMainSync {
             repeat(12) { activity.receiverHome.render(waiting.startingIfRequested(false), "Synthetic Pixel", false) }
-            check(all(root).filterIsInstance<TextView>().any { it.text.toString() == activity.getString(R.string.receiver_waiting) })
+            check(all(root).filterIsInstance<TextView>().any { it.text.toString() == activity.getString(R.string.rhub_no_wifi) })
             check(drawables.all { (view, background) -> view.background === background }) { "Stable polling recreated visual surfaces" }
         }
         waitForIdleSync()
@@ -97,18 +97,7 @@ internal fun Instrumentation.checkReceiverSurface(args: Bundle): String {
         }
         screenshot("home", activity.window.decorView)
         runOnMainSync {
-            val readings = DuckReadings(activity, listOf("A long caption that wraps", "Short", "Another caption"))
-            readings.render("5", "5", "0")
-            readings.view.measure(View.MeasureSpec.makeMeasureSpec(activity.dp(288), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-            readings.view.layout(0, 0, readings.view.measuredWidth, readings.view.measuredHeight)
-            val baselines = (0 until readings.view.childCount).mapNotNull {
-                val column = readings.view.getChildAt(it) as? android.widget.LinearLayout
-                val value = column?.getChildAt(0) as? TextView
-                if (column != null && value != null) column.top + value.top + value.baseline else null
-            }
-            check(baselines.max() - baselines.min() <= 1) { "Wrapping captions misalign value baselines" }
-            screenshot("readings", readings.view)
-            val button = activity.duckButton("Action", true) {}
+            val button = activity.lookButton("Action", LookButton.FILLED) {}
             button.measure(View.MeasureSpec.makeMeasureSpec(activity.dp(240), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(activity.dp(48), View.MeasureSpec.EXACTLY))
             button.layout(0, 0, button.measuredWidth, button.measuredHeight)
             fun paintedBackground(): Int {

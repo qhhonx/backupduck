@@ -1,18 +1,2 @@
 <resources>
-<string name="storage_flow_original_definition">中转原件是备份鸭在应用内保留的接收文件，与 Pixel 系统相册副本独立。</string>
-<string name="storage_flow_policy_note">自动回收先核对系统相册副本，再释放符合条件的中转原件。未保存、校验失败或正在使用的文件会保留。系统相册副本不会删除，云端备份需另行确认。</string>
-<string name="storage_flow_scope_caption">选择本次设置影响的接收记录，保存后生效。</string>
-<string name="storage_flow_change_scope">调整自动回收范围</string>
-<string name="storage_flow_history_effect">保存后也会核对已有接收原件，符合条件的会自动回收。</string>
-<string name="storage_flow_history_empty">没有可回收的中转原件。</string>
-<string name="storage_flow_history_boundary">只回收重新校验通过的中转原件，保留系统相册副本和接收记录；本次检查不会开启自动回收，也不确认云端备份。</string>
-<string name="storage_flow_album_export">相册与导出</string>
-<string name="storage_flow_close">完成</string>
-<string name="storage_flow_stop_reclaim">停止后续回收</string>
-<string name="storage_flow_reclaim_stopped">已停止后续回收，已回收的文件不会恢复。</string>
-<string name="storage_flow_originals_stat">已接收的中转原件</string>
-<string name="storage_flow_gallery_ready">已保存的相册副本</string>
-<string name="storage_flow_gallery_pending">未完成的相册副本</string>
-<string name="storage_flow_gallery_summary">只统计备份鸭保存到系统相册的副本。</string>
-<string name="storage_flow_policy_entry">原件处理方式</string>
 </resources>

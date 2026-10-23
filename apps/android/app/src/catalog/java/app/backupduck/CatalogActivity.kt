@@ -22,6 +22,7 @@ class CatalogApplication : Application() {
         super.onCreate()
         CatalogRuntime.install()
         CatalogViewerProbe.install(this)
+        CatalogCompatibility.install(this)
         registerActivityLifecycleCallbacks(CatalogOverlay)
     }
 }
@@ -52,8 +53,7 @@ class CatalogActivity : BackupDuckActivity() {
             })
         }
         setContentView(ScrollView(this).apply { addView(list) })
-        // `--ez proposed true` shows the proposed redesign instead of the current page.
-        ReceiverEnvironment.proposedDesign = intent.getBooleanExtra("proposed", ReceiverEnvironment.proposedDesign)
+        // The historical `proposed` extra is intentionally ignored.
         ReceiverEnvironment.allowsPhotoMotion = !intent.getBooleanExtra("reduceMotion", false)
         CatalogViewerProbe.pending = intent.getStringExtra("viewerProbe")
         ReceiverEnvironment.stepMarkHighContrast = if (intent.hasExtra("highContrastText")) intent.getBooleanExtra("highContrastText", false) else null
@@ -72,6 +72,7 @@ class CatalogActivity : BackupDuckActivity() {
             val mode = if (it == "dark") AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
             getSharedPreferences("appearance", MODE_PRIVATE).edit().putInt("mode", mode).commit()
         }
+        CatalogCompatibility.configure(this, intent, scenario)
         if (scenario.surface == "metadata") {
             val row = (CatalogMedia.history(scenario.core.getValue("receiver_history").first().value) as org.json.JSONObject).getJSONArray("items").getJSONObject(0)
             val item = HistoryItem(row.getLong("cursor"), row.getString("id"), row.getString("filename"), row.getString("kind"),
@@ -135,20 +136,15 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
                 activity.finish()
             }
             .setNegativeButton("Close") { _, _ -> activity.finish() }
-            .setNeutralButton("Options") { _, _ -> options(activity, scenario) }
+            .setNeutralButton("Options") { _, _ -> options(activity) }
             .show()
     }
 
-    private fun options(activity: MainActivity, scenario: CatalogScenario) {
-        val design = if (ReceiverEnvironment.proposedDesign) "Design: show current" else "Design: show proposed"
-        AlertDialog.Builder(activity).setTitle("Review").setItems(arrayOf(design, "Dark / light")) { _, which ->
-            if (which == 0) {
-                ReceiverEnvironment.proposedDesign = !ReceiverEnvironment.proposedDesign
-            } else {
-                val prefs = activity.getSharedPreferences("appearance", Activity.MODE_PRIVATE)
-                val dark = prefs.getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) == AppCompatDelegate.MODE_NIGHT_YES
-                prefs.edit().putInt("mode", if (dark) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES).commit()
-            }
+    private fun options(activity: MainActivity) {
+        AlertDialog.Builder(activity).setTitle("Review").setItems(arrayOf("Dark / light")) { _, _ ->
+            val prefs = activity.getSharedPreferences("appearance", Activity.MODE_PRIVATE)
+            val dark = prefs.getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) == AppCompatDelegate.MODE_NIGHT_YES
+            prefs.edit().putInt("mode", if (dark) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES).commit()
             activity.recreate()
         }.show()
     }

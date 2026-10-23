@@ -51,7 +51,7 @@ private class ReceiverCopyStorage(private val data: JSONObject) {
  * Storage (design/flows.md § How the Pixel keeps space free; P7): how much is
  * free, what uses the space, the three automatic ways to keep space free with
  * their consequences, and freeing space in Google Photos now. A page opened from
- * Settings and the hub; replaces the current Storage tab at migration step 6.
+ * Settings and the hub.
  */
 internal class StorageScreen(private val activity: MainActivity, private val root: String, private val openPhotos: () -> Unit,
     restored: Bundle = Bundle(), private val changed: () -> Unit) {

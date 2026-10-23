@@ -172,7 +172,6 @@ internal object CatalogRuntime {
         ReceiverEnvironment.diagnosticInitialState = scenario.diagnostics?.let { data -> android.os.Bundle().apply {
             data.optString("export").takeIf { it.isNotEmpty() }?.let { putString("export", it) }
             data.optString("file").takeIf { it.isNotEmpty() }?.let { putString("file", it) }
-            data.optString("probe_report").takeIf { it.isNotEmpty() }?.let { putString("probe-report", it) }
         } }
         var exportFailures = scenario.diagnostics?.optInt("export_failures") ?: 0
         ReceiverEnvironment.diagnosticReceipts = { _, _ ->

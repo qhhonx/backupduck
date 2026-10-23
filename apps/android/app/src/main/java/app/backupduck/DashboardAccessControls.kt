@@ -75,8 +75,6 @@ internal class DashboardAccessUI(private val activity:AppCompatActivity,
     }
 
 }
-internal fun MainActivity.manageDashboardCode() {DashboardAccessUI(this).code()}
-internal fun MainActivity.revokeDashboardLogins() {DashboardAccessUI(this).revoke()}
 
 /** PasswordTransformationMethod normally echoes the last digit briefly; review screenshots must never do that. */
 internal class AlwaysMaskedPassword:android.text.method.PasswordTransformationMethod() {

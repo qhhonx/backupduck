@@ -16,7 +16,6 @@ internal fun Context.themeColor(attribute: Int): Int {
     return if (value.resourceId != 0) getColor(value.resourceId) else value.data
 }
 internal fun Context.secondaryColor() = themeColor(android.R.attr.textColorSecondary)
-internal fun Context.accentColor() = themeColor(com.google.android.material.R.attr.colorPrimary)
 internal fun Context.label(parent: LinearLayout, value: String, size: Int, color: Int = themeColor(android.R.attr.textColorPrimary)) = TextView(this).also {
     it.text = value; it.textSize = size.toFloat(); it.setTextColor(color)
     it.balanceLines()

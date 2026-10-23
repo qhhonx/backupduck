@@ -2,7 +2,6 @@
     <!-- Design catalog: production pages on scenario data. It never runs a receiver,
          restarts on boot or offers the accessibility service. -->
     <application android:name=".CatalogApplication">
-        <activity android:name=".PhotosProbeActivity" android:exported="false" />
         <activity android:name=".CatalogActivity" android:exported="true" android:label="${appLabel}">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>

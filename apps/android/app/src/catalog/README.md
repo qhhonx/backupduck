@@ -35,8 +35,7 @@ accessibility service, and moves the launcher to `CatalogActivity`. The catalog
 therefore never opens a receiver port, never restarts on boot and does not
 affect a production receiver on the same device.
 
-`CatalogActivity` lists the scenarios. `--ez proposed true`, or "Design" in
-the explicit scenario dialog options, shows the redesign, built from the shared components in
+`CatalogActivity` lists the scenarios and always shows the current pages, built from the shared components in
 `DuckLook.kt`: `ReceiverHub` on the receive page, Received photos
 (`ReceivedPhotosPage`, design/records.md) on the transfers page, the redesigned
 settings page, and Storage (`StorageScreen`) for the `storage` page. The
@@ -57,8 +56,8 @@ Apple scenarios (`id`, `page`, `title`, `extends`, `core`, `expect`, `actions`),
 except that `core` delays are written as `delay_ms`. These fields are specific
 to the receiver:
 
-- `page` is a bottom navigation destination: `receive`, `transfers`, `storage`
-  or `settings`, or `onboarding` for first run (`ReceiverOnboardingActivity`),
+- `page` selects a destination: `receive`, `transfers`, `storage`
+  (a secondary page), or `settings`, or `onboarding` for first run (`ReceiverOnboardingActivity`),
   with `step` naming the screen to start on (`welcome`, `running`, `code`,
   `connected`, `gphotos`, `space`).
 - `prefs` maps a preference file to its values. For example,
@@ -101,8 +100,8 @@ adb install -r app/build/outputs/apk/catalog/app-catalog.apk
 adb shell am start -n app.backupduck.catalog/app.backupduck.CatalogActivity --es scenario pixel.receiving --es appearance dark
 ```
 
-Add `--ez proposed true` for the redesigned pages and `--es language zh-CN` for
-Chinese. Re-identify the device before installing. The catalog installs beside the
+Use `--es language zh-CN` for Chinese. The historical `--ez proposed true` extra
+is accepted as a harmless no-op; the Options dialog only switches dark and light appearance. Re-identify the device before installing. The catalog installs beside the
 production receiver and never touches its data. The pairing code sheet sets
 `FLAG_SECURE`, so screenshots of it are blank. Use `uiautomator dump` to check
 its content.
@@ -547,9 +546,26 @@ recent activity list (at most 12 events, grouped by day). `diagnostics.export-*`
 cover the single combined JSON export, including its real document-picker retry.
 The retired `diagnostics-log` and `diagnostics-detail` surfaces open Diagnostics.
 
-Technical `diagnostics-probe`, `diagnostics-setup`, `diagnostics-bind`, and
-`diagnostics-progress` surfaces remain available only in debug and catalog builds.
-Their `diagnostics.probe-*`, `diagnostics.setup-*`, `diagnostics.bind-*`, and
-`diagnostics.progress-*` fixtures remain scripted technical specimens. Production
-maps all four surfaces to Storage and does not register PhotosProbeActivity.
-There is no technical-tools group on the ordinary Diagnostics page.
+The retired `diagnostics-probe`, `diagnostics-setup`, `diagnostics-bind`, and
+`diagnostics-progress` surfaces all open Storage. The standalone technical probe
+activity and its specimens have been removed. Ordinary automatic cleanup retains
+its accessibility service, account check, wake lease and recovery pages.
+
+The combined JSON includes `photos_cleanup`: Google Photos version, the last
+observation, recognized screens seen, enabled/pending state, last result/reason,
+last freed bytes/completion time, and an `account_bound` Boolean. Missing facts
+are JSON null; account identifiers are never exported and
+`cloud_backup_verified` is always false.
+
+## Compatibility fixtures
+
+`--ez compatibilityProbe true` opts a scenario into Catalog-only route and process
+restoration checks. Its scenario, app language and appearance survive process death.
+The Catalog external-files directory accepts an atomic `compat-command.json` with
+an `id` and an `action`: `snapshot`, `saved-root` (`page`), or `seed-route` (`route`,
+optional `scan`). `compat-result.json` records the selected stable root ID,
+canonical and incoming restored routes, loaded photo IDs and compiled legacy-type
+absence. `compat-pending-result.json` with synthetic `contents` delivers a pending
+camera Activity result before STARTED on the next restored MainActivity. Query
+traces log operation names and caller types, never pairing contents. A normal
+scenario launch ends the probe. These fixtures are absent from production builds.

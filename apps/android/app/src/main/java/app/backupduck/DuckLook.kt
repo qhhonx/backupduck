@@ -47,19 +47,6 @@ internal object DuckLook {
     fun applyScheme(context: Context) { context.theme.applyStyle(R.style.ThemeOverlay_BackupDuck_Scheme, true) }
 }
 
-/**
- * The same scheme in its dark variant, for surfaces that are dark in every
- * theme: the photo viewer, as photo viewers are.
- */
-internal fun Context.darkLook(): Context {
-    val night = android.content.res.Configuration(resources.configuration).apply {
-        uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or android.content.res.Configuration.UI_MODE_NIGHT_YES
-    }
-    return androidx.appcompat.view.ContextThemeWrapper(this, R.style.AppTheme).apply {
-        applyOverrideConfiguration(night); DuckLook.applyScheme(this)
-    }
-}
-
 /** A spacing or radius token in pixels. */
 internal fun Context.token(@DimenRes id: Int) = resources.getDimensionPixelSize(id)
 

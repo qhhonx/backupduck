@@ -5,7 +5,7 @@ import android.view.View
 import android.widget.LinearLayout
 import com.google.android.material.R as M
 
-/** Ordinary cleanup controls; the technical tools remain behind the quiet diagnostics link. */
+/** Ordinary cleanup controls over the shared journey and service. */
 internal class AutoCleanupScreen(private val activity: MainActivity, restored: Bundle = Bundle()) {
     val page = LookPage(activity, activity.getString(R.string.storage_cleanup), "auto-cleanup")
     private val state = activity.lookText("", M.style.TextAppearance_Material3_TitleLarge)

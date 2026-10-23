@@ -1,18 +1,2 @@
 <resources>
-<string name="storage_flow_original_definition">Relay originals are received files kept inside BackupDuck, separate from the Pixel system-gallery copies.</string>
-<string name="storage_flow_policy_note">Automatic reclamation verifies the gallery copy before releasing eligible relay originals. Unpublished, unverified or in-use files are kept. Gallery copies are kept; cloud backup is checked separately.</string>
-<string name="storage_flow_scope_caption">Choose the records affected by this change. It takes effect only after saving.</string>
-<string name="storage_flow_change_scope">Adjust automatic reclamation</string>
-<string name="storage_flow_history_effect">Saving this choice also checks existing received originals for eligible reclamation.</string>
-<string name="storage_flow_history_empty">No eligible relay originals were found.</string>
-<string name="storage_flow_history_boundary">Only verified relay originals are reclaimed. Gallery copies and records are kept; this does not enable automatic reclamation or confirm cloud backup.</string>
-<string name="storage_flow_album_export">Gallery and export</string>
-<string name="storage_flow_close">Done</string>
-<string name="storage_flow_stop_reclaim">Stop further reclamation</string>
-<string name="storage_flow_reclaim_stopped">Further reclamation stopped. Already reclaimed files are not restored.</string>
-<string name="storage_flow_originals_stat">Received relay originals</string>
-<string name="storage_flow_gallery_ready">Saved gallery copies</string>
-<string name="storage_flow_gallery_pending">Unfinished gallery copies</string>
-<string name="storage_flow_gallery_summary">Counts only copies saved to the system gallery by BackupDuck.</string>
-<string name="storage_flow_policy_entry">Original handling</string>
 </resources>

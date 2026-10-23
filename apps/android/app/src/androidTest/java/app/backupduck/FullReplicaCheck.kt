@@ -49,22 +49,21 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
     try {
         settle()
         var starts=0
-        val pairing=PairingUI(activity,start={starts++},scan={})
-        main {pairing.iphone()};settle();check(starts==1&&textExists(R.string.duck_pairing_starting))
-        main {pairing.update(ReceiverSnapshot(phase="waiting",error="receiver_port_in_use"))};settle()
-        check(textExists(R.string.duck_start_port_busy)||textExists(R.string.recovery_port)) {"Specific pairing failure not visible"}
-        click(R.string.duck_retry);check(starts==2);back()
-        main {current=activity.showThermalSettings()};settle()
-        check(textExists(R.string.duck_thermal_resume));shot("thermal")
-        main {
-            val choice=views(root()).filterIsInstance<TextView>().single {it.text.toString()=="43 °C"}
-            (choice.parent.parent as View).performClick()
-        };check(ReceiverThermalSettings.threshold(targetContext)==43);back()
-        main {conversion=activity.showConversionSettings()};settle()
-        check(textExists(R.string.duck_conversion_off_note))
+        val previousSnapshot=ReceiverState.snapshot.value
+        val previousPairing=ReceiverState.pairing
+        try {
+            main {ReceiverState.mutable.value=ReceiverSnapshot(phase="starting");ReceiverState.pairing=null}
+            val connect=main {ConnectPage(activity, {}, {starts++}, Bundle(), {}).also {it.show()}}
+            settle();check(starts==1&&textExists(R.string.connect_getting_ready))
+            main {ReceiverState.mutable.value=ReceiverSnapshot(phase="waiting",error="receiver_port_in_use")}
+            Thread.sleep(600);settle()
+            check(textExists(R.string.recovery_port)) {"Specific Connect failure not visible"}
+            click(R.string.connect_try_again);check(starts==2);back()
+        } finally {main {ReceiverState.mutable.value=previousSnapshot;ReceiverState.pairing=previousPairing}}
+        main {conversion=activity.restorePage("conversion",Bundle()) as LookPage;conversion!!.show()};settle()
         main {
             check(activity.supportFragmentManager.backStackEntryCount==1)
-            check(views(conversion!!.root).filterIsInstance<com.google.android.material.appbar.MaterialToolbar>().single().title==activity.getString(R.string.pref_conversion))
+            check(views(conversion!!.root).filterIsInstance<com.google.android.material.appbar.MaterialToolbar>().single().title==activity.getString(R.string.pref_advanced))
         }
         shot("conversion")
         main {views(conversion!!.root).filterIsInstance<MaterialSwitch>().single().performClick()}
@@ -79,20 +78,15 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
         check(main {views(root()).filterIsInstance<com.google.android.material.textfield.TextInputLayout>().single().error!=null})
         main {field.setText("UI Check Pixel")};shot("device-name");click(R.string.device_save);Thread.sleep(900)
         check(DeviceProfiles.read(targetContext).getJSONObject("device").getString("name")=="UI Check Pixel")
-        main {devices.showPeers()};settle();main {check(activity.supportFragmentManager.backStackEntryCount==1)};shot("devices");back()
+        main {activity.restorePage("legacy-devices",Bundle()).show()};settle();main {check(activity.supportFragmentManager.backStackEntryCount==1)};shot("devices");back()
         // Retired storage/retention/archive routes are checked as redirects in Catalog.
         main {activity.showDiagnostics()};settle();shot("diagnostics");back();main {activity.startActivity(Intent(activity,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("surface","advanced"))};settle();click(R.string.receiver_stop);settle()
         check(textExists(R.string.duck_stop_service_intro));shot("stop");back();back()
         val nav=main {activity.findViewById<BottomNavigationView>(R.id.main_navigation)}
-        main {nav.selectedItemId=3};Thread.sleep(800);shot("storage")
+        main {activity.openStorage()};Thread.sleep(800);shot("storage");back()
         main {nav.selectedItemId=4};settle();shot("settings")
         val experiments=startActivitySync(Intent(targetContext,ExperimentsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ExperimentsActivity
-        try {settle();check(textExists(R.string.cleanup_title)&&!textExists(R.string.photos_diagnostics_title));shot("experiments")} finally {main {experiments.finish()}}
-        for((route,diagnostics) in listOf("cleanup" to false,"bind" to false,"progress" to false,"diagnostics" to true)) {
-            val page=startActivitySync(Intent(targetContext,PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("route",route).putExtra("diagnostics",diagnostics)) as PhotosProbeActivity
-            try {settle();if(diagnostics)check(textExists(R.string.photos_probe_steps)&&textExists(R.string.experiment_probe_intro));shot(if(route=="diagnostics")"photos-diagnostics" else route);if(route=="cleanup") {check(textExists(R.string.experiment_setup)&&textExists(R.string.experiment_account));check(!textExists(R.string.cleanup_now));click(R.string.experiment_permission);settle();check(textExists(R.string.cleanup_disclosure));shot("cleanup-consent");back()}}
-            finally {main {page.finish()}}
-        }
+        try {settle();check(textExists(R.string.pref_storage));shot("experiments")} finally {main {experiments.finish()}}
         val updates=startActivitySync(Intent(targetContext,UpdatesActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as UpdatesActivity
         try {
             settle();check(textExists(R.string.duck_update_development))
@@ -107,7 +101,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
             }
             shot("updates")
         } finally {main {updates.finish()}}
-        return "PASS: real pairing pending/error/retry; thermal persistence; conversion; rename validation/persistence; devices; retired editor/archive surfaces omitted; stop notices; settings/storage/diagnostics/experiments/account/progress/update screens. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
+        return "PASS: current Connect pending/error/retry; retained thermal preferences; current Advanced conversion; rename validation/persistence; devices; retired editor/archive surfaces omitted; stop notices; settings/storage/diagnostics/compatibility trampoline/update screens. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
     } finally {
         RelayMaintenance.cancelAutomatic()
         NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",settingsRoot).put("settings",oldConfig))

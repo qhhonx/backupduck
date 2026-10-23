@@ -17,8 +17,6 @@ internal object ReceiverEnvironment {
     @Volatile var latestUpdate: suspend (Context) -> AppRelease? = { AppUpdates.latest(it) }
     /** Catalog scenarios may fill reserved content; production keeps the optional values unset. */
     @Volatile var reservedSettings = ReservedSettingsContent()
-    /** The redesigned pages (design/redesign-roadmap.md, step 6). The catalog can switch back to the earlier ones. */
-    @Volatile var proposedDesign = true
     /** Catalog may suppress viewer motion without changing the device settings. */
     @Volatile var allowsPhotoMotion = true
     /** Catalog-only contrast injection; null reads the user's system preference. */

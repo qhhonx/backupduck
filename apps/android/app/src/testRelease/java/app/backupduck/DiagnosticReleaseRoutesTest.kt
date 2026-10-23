@@ -4,13 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiagnosticReleaseRoutesTest {
-    @Test fun productionCannotOpenTechnicalTools() {
+    @Test fun productionDoesNotCompileTechnicalPresentation() {
         assertEquals("release", BuildConfig.BUILD_TYPE)
         assertFalse(BuildConfig.DEBUG)
-        assertFalse(DiagnosticRoutes.toolsEnabled)
-        listOf("diagnostics-probe", "diagnostics-setup", "diagnostics-bind", "diagnostics-progress").forEach {
-            // MainActivity routes a null technical destination to Storage.
-            assertNull(DiagnosticRoutes.technicalRoute(it))
+        listOf("PhotosProbeActivity", "DiagnosticRoutes", "OriginalArchive").forEach { name ->
+            try {
+                Class.forName("app.backupduck.$name", false, javaClass.classLoader)
+                fail("Retired technical presentation remains compiled: $name")
+            } catch (_: ClassNotFoundException) { /* Compatibility routes use Storage. */ }
         }
     }
 }

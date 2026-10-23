@@ -39,8 +39,7 @@ internal fun receiverHubState(enabled: Boolean, paused: Boolean, pending: Boolea
  * The receive hub (design/interaction.md I2 task center, design/flows.md §
  * Pixel hub states): one state card said once, recently saved photos as the
  * evidence, and the devices that send here while calm. Built from the shared
- * components (DuckLook.kt); the design catalog shows it until migration step 6
- * replaces [ReceiverHome].
+ * components (DuckLook.kt).
  */
 internal class ReceiverHub(private val activity: MainActivity, private val actions: Actions) : ReceiverHomeSurface {
     class Actions(val start: () -> Unit, val connect: () -> Unit, val toggleReceive: () -> Unit, val records: (failed: Boolean) -> Unit,

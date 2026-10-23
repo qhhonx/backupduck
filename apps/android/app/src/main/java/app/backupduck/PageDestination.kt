@@ -70,7 +70,11 @@ class PageFragment : Fragment() {
         val owner = requireActivity() as BackupDuckActivity
         return (page ?: owner.restorePage(requireArguments().getString("route")!!,
             savedState ?: restoredState ?: requireArguments().getBundle("state") ?: Bundle()).also { page = it })
-            .also { it.attached(this) }
+            .also {
+                it.attached(this)
+                // Save the current route after resolving a compatibility alias.
+                requireArguments().putString("route", it.route)
+            }
     }
     private var restoredState: Bundle? = null
     override fun onCreate(savedInstanceState: Bundle?) {

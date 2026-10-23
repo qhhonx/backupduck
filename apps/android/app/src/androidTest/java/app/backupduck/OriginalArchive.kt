@@ -2,9 +2,7 @@ package app.backupduck
 
 import android.content.Context
 import android.net.Uri
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File

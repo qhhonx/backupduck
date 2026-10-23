@@ -37,12 +37,33 @@ internal fun Context.diagnosticFileName(uri: Uri, fallback: String): String = ru
     }
 }.getOrNull() ?: fallback
 
-/** Preserves both existing export payloads, including unresolved publication receipts. */
+/** Read-only cleanup facts; identifiers and raw accessibility content never enter the export. */
+internal fun Context.photosCleanupDiagnostics(): JSONObject {
+    val facts = PhotosCleanup(this)
+    val saved = getSharedPreferences("photos_cleanup", Context.MODE_PRIVATE)
+    val observed = ReceiverEnvironment.cleanupOperations.state.value
+    return JSONObject()
+        .put("google_photos_app_version", ReceiverEnvironment.photosVersion(this) ?: JSONObject.NULL)
+        .put("last_observation", observed.observation.takeUnless { it.isEmpty() || it == "idle" } ?: JSONObject.NULL)
+        .put("screens_seen", observed.seen.takeIf { it.isNotEmpty() }?.let { JSONArray(it.sorted()) } ?: JSONObject.NULL)
+        .put("enabled", facts.enabled)
+        .put("pending", facts.pending)
+        .put("last_result", facts.lastResult.takeIf { it.isNotEmpty() } ?: JSONObject.NULL)
+        .put("last_reason", saved.getString("reason", null)?.takeIf { it.isNotEmpty() } ?: JSONObject.NULL)
+        .put("last_freed_bytes", if (saved.contains("last_freed_bytes"))
+            saved.getLong("last_freed_bytes", -1).takeIf { it >= 0 } ?: JSONObject.NULL else JSONObject.NULL)
+        .put("last_completed_at_ms", facts.lastCompletedAt ?: JSONObject.NULL)
+        .put("account_bound", facts.account.isNotEmpty())
+        .put("cloud_backup_verified", false)
+}
+
+/** Preserves full log payloads and unresolved publication receipts alongside cleanup observations. */
 internal fun Context.combinedDiagnostics(root: String): ByteArray = JSONObject()
     .put("schema_version", 1).put("source", "BackupDuck Pixel receiver")
     .put("exported_at_ms", ReceiverEnvironment.now())
     .put("receiver_log", ReceiverLogPolicy.read(root))
     .put("photos_saving_receipts", ReceiverEnvironment.diagnosticReceipts(this, root))
+    .put("photos_cleanup", photosCleanupDiagnostics())
     .toString(2).toByteArray(Charsets.UTF_8)
 
 internal class DiagnosticsScreen(private val activity: MainActivity, restored: Bundle, private val export: (DiagnosticsScreen) -> Unit) {

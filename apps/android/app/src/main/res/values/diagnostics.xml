@@ -6,18 +6,11 @@
     <string name="diag_saved">Saved %1$s</string>
     <string name="diag_failed">Couldn’t save the report. Tap to retry.</string>
     <string name="diag_exporting">Saving report…</string>
-    <string name="diag_probe">Google Photos compatibility check</string>
     <string name="diag_loading">Reading recent activity…</string>
     <string name="diag_empty">No activity yet</string>
     <string name="diag_read_failed">Couldn’t read recent activity. Open this page again to retry.</string>
     <string name="diag_unknown_time">Time not recorded</string>
     <string name="diag_other">Event recorded</string>
-    <string name="diag_version">Google Photos version</string>
-    <string name="diag_seen">Pages observed</string>
-    <string name="diag_setup">Cleanup setup</string>
-    <string name="diag_bind">Confirm account</string>
-    <string name="diag_progress">Cleanup progress</string>
-    <string name="diag_probe_state">Observation</string>
     <string name="diag_event_receiver_started">Receiving started</string>
     <string name="diag_event_settings_changed">Settings saved</string>
     <string name="diag_event_transfer_received">Photo received</string>
@@ -32,13 +25,5 @@
     <string name="diag_event_integrity">Integrity check failed</string>
     <string name="diag_event_cache_reclaimed">Temporary files removed</string>
     <string name="diag_event_cache_reclaim_failed">Couldn’t remove temporary files</string>
-    <string name="diag_access">Accessibility access</string>
-    <string name="diag_access_on">Enabled · Can operate Google Photos</string>
-    <string name="diag_access_off">Off · Access is required</string>
-    <string name="diag_account_changed">Account changed · Confirm it again</string>
-    <string name="diag_account_pending">Account confirmed · Check the cleanup result</string>
-    <string name="diag_account_on">Current account confirmed</string>
-    <string name="diag_account_off">No account confirmed yet</string>
     <string name="diag_recent">Recent activity</string>
-    <string name="diag_probe_note">Observe pages without tapping or freeing space</string>
 </resources>

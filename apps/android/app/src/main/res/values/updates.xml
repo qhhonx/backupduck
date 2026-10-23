@@ -1,7 +1,5 @@
 <resources>
-    <string name="updates_title">Check for updates</string>
     <string name="updates_automatic">Automatically check for updates</string>
-    <string name="updates_note">BackupDuck checks that the update is from the same source as your installed app. Android asks you to confirm installation.</string>
     <string name="updates_check">Check for updates</string>
     <string name="updates_checking">Checking for updates…</string>
     <string name="updates_current">You have the latest available version.</string>

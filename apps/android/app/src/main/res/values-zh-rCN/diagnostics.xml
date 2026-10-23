@@ -6,18 +6,11 @@
     <string name="diag_saved">已保存 %1$s</string>
     <string name="diag_failed">未能保存报告，点按重试。</string>
     <string name="diag_exporting">正在保存报告…</string>
-    <string name="diag_probe">Google 相册兼容性检查</string>
     <string name="diag_loading">正在读取最近的活动…</string>
     <string name="diag_empty">还没有活动记录</string>
     <string name="diag_read_failed">未能读取最近的活动，请稍后重新打开。</string>
     <string name="diag_unknown_time">未记录时间</string>
     <string name="diag_other">已记录事件</string>
-    <string name="diag_version">Google 相册版本</string>
-    <string name="diag_seen">已观察页面</string>
-    <string name="diag_setup">回收设置</string>
-    <string name="diag_bind">确认账号</string>
-    <string name="diag_progress">回收进度</string>
-    <string name="diag_probe_state">观察结果</string>
     <string name="diag_event_receiver_started">接收已启动</string>
     <string name="diag_event_settings_changed">设置已保存</string>
     <string name="diag_event_transfer_received">照片已收到</string>
@@ -32,13 +25,5 @@
     <string name="diag_event_integrity">完整性检查失败</string>
     <string name="diag_event_cache_reclaimed">临时文件已移除</string>
     <string name="diag_event_cache_reclaim_failed">临时文件移除失败</string>
-    <string name="diag_access">无障碍权限</string>
-    <string name="diag_access_on">已开启，可操作 Google 相册</string>
-    <string name="diag_access_off">未开启，需要允许访问</string>
-    <string name="diag_account_changed">账号已更换，请重新确认</string>
-    <string name="diag_account_pending">账号已确认，清理结果待核对</string>
-    <string name="diag_account_on">当前账号已确认</string>
-    <string name="diag_account_off">还没有确认账号</string>
     <string name="diag_recent">最近的活动</string>
-    <string name="diag_probe_note">只观察页面，不点按或释放空间</string>
 </resources>

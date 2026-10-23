@@ -13,7 +13,7 @@ internal class CatalogCleanup(private val context: Context, private val script: 
     private var generation = 0
     private var accessGranted = script.optBoolean("access", true)
     override val state = MutableStateFlow(PhotosProbeState(connected = accessGranted,
-        running = script.optBoolean("running"), mode = script.optString("mode", "cleanup"), observation = script.optString("reason", "ready"), secondsLeft = script.optInt("seconds", 90),
+        running = script.optBoolean("running"), mode = script.optString("mode", "cleanup"), observation = script.optString("reason", "ready"),
         seen = script.optJSONArray("seen")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() } ?: emptySet()))
     init {
         ReceiverEnvironment.cleanupAccess = { accessGranted }
@@ -55,12 +55,6 @@ internal class CatalogCleanup(private val context: Context, private val script: 
             facts.save(if (reason == "pending") JSONObject().put("phase", "pending") else if (reason == "nothing_to_free") JSONObject() else facts.state, reason)
             state.value = state.value.copy(running = false, observation = reason)
         }, script.optLong("operation_ms", 1600))
-        return true
-    }
-    override fun observe(context: Context): Boolean {
-        if (!accessGranted || state.value.running || script.optBoolean("photos_missing")) return false
-        record("observe-only")
-        state.value = state.value.copy(running = true, mode = "probe", observation = "waiting", secondsLeft = 120, seen = emptySet())
         return true
     }
     override fun stop() {

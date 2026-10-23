@@ -47,8 +47,7 @@ import org.json.JSONObject
 /**
  * Received photos (design/records.md): what needs the user, grouped by cause,
  * then every received photo as a grid grouped by the day of its latest change.
- * Material 3 roles; shown behind the catalog's design switch until migration
- * step 6 replaces [HistoryPage].
+ * Material 3 roles and shared photo and viewer components.
  */
 internal class ReceivedPhotosPage(private val activity: MainActivity, private val actions: Actions) {
     class Actions(val more: () -> Unit, val reload: () -> Unit, val retryAll: (done: (Boolean) -> Unit) -> Unit,
@@ -612,4 +611,3 @@ private fun formatted(context: android.content.Context, skeleton: String, ms: Lo
 internal fun shortTime(context: android.content.Context, ms: Long): String =
     dayLabel(context, epochDay(ms, ZoneId.systemDefault())) + " " + formatted(context, "jm", ms)
 
-private fun fullDate(context: android.content.Context, ms: Long): String = formatted(context, "yMMMMEEEEdjm", ms)

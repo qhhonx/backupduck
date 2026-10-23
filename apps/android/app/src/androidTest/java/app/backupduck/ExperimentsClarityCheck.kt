@@ -8,8 +8,6 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import com.google.android.material.materialswitch.MaterialSwitch
-import org.json.JSONObject
 import java.io.File
 
 /** Synthetic UI states only; never connects Accessibility or runs Google Photos cleanup. */
@@ -67,7 +65,6 @@ internal fun Instrumentation.checkExperimentsClarity(args:Bundle):String {
             val sheet=StorageScreen::class.java.getDeclaredField("consentSheet").apply {isAccessible=true}.get(screen) as LookSheet
             val labels=all(sheet.window!!.decorView).filterIsInstance<TextView>()
             check(labels.count {it.text.toString()==home.getString(R.string.storage_cleanup_consent_access)}==1)
-            check(labels.none {it.text.toString()==home.getString(R.string.photos_probe_start)})
             labels.single {it.text.toString()==home.getString(R.string.onb_later)}.performClick()
             check(!PhotosCleanup(targetContext).enabled)
             home.onBackPressedDispatcher.onBackPressed()
@@ -78,43 +75,8 @@ internal fun Instrumentation.checkExperimentsClarity(args:Bundle):String {
         }
         val reopened=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         pages+=reopened;settle();main {check(reopened.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.main_navigation).getBadge(4)==null);check(!PhotosCleanup(targetContext).enabled);reopened.finish()}
-        val page=startActivitySync(Intent(targetContext,PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as PhotosProbeActivity
-        pages+=page;settle()
-        fun render(s:PhotosProbeState)=main {PhotosProbeActivity::class.java.getDeclaredMethod("render",PhotosProbeState::class.java).apply {isAccessible=true}.invoke(page,s);Unit}
-        fun reveal(id:Int)=main {val v=texts(page,id).single();v.requestRectangleOnScreen(Rect(0,0,v.width,v.height),true)}
-        main {check(texts(page,R.string.experiment_permission_off).isNotEmpty());check(texts(page,R.string.cleanup_now).isEmpty());check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().isEmpty())}
-        shot("setup")
-        val cleanup=PhotosCleanup(targetContext);cleanup.account="synthetic-account-fingerprint";cleanup.report("bound")
-        render(PhotosProbeState(connected=true));main {check(texts(page,R.string.experiment_account_on).size==1);check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().isEmpty())}
-        reveal(R.string.cleanup_now);shot("ready")
-        render(PhotosProbeState(connected=true,running=true,observation="opening_cleanup",mode="cleanup"))
-        main {check(texts(page,R.string.cleanup_stop).size==1);check(!(texts(page,R.string.experiment_account).single().parent.parent as View).isEnabled)}
-        reveal(R.string.cleanup_stop);shot("running")
-        cleanup.report("account_changed");render(PhotosProbeState(connected=true))
-        main {check(texts(page,R.string.experiment_account_changed).size==1);check(texts(page,R.string.cleanup_now).isEmpty());check(all(page.window.decorView).filterIsInstance<MaterialSwitch>().isEmpty())}
-        reveal(R.string.experiment_account_changed);shot("account-changed")
-        cleanup.save(JSONObject().put("phase","pending"),"pending");render(PhotosProbeState(connected=true))
-        main {check(texts(page,R.string.cleanup_check_pending).size==1);check(texts(page,R.string.cleanup_reviewed).size==1)}
-        reveal(R.string.cleanup_reviewed);shot("pending")
-        val bindRow=main {texts(page,R.string.experiment_account).single().parent.parent as View}
-        main {check(bindRow.isEnabled);check(texts(page,R.string.experiment_account_pending).size==1)}
-        reveal(R.string.photos_diagnostics_title);shot("troubleshoot")
-        main {page.finish()}
-        val diagnostic=startActivitySync(Intent(targetContext,PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("diagnostics",true)).also {pages+=it}
-        settle();main {check(texts(diagnostic,R.string.photos_probe_steps).size==1);check(texts(diagnostic,R.string.experiment_probe_intro).size==1)};shot("diagnostics")
-        main {diagnostic.finish()}
-        cleanup.save(JSONObject().put("phase","finished"),"nothing_to_free")
-        val progress=startActivitySync(Intent(targetContext,PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("route","progress")) as PhotosProbeActivity
-        pages+=progress;settle()
-        main {
-            PhotosProbeActivity::class.java.getDeclaredMethod("render",PhotosProbeState::class.java).apply {isAccessible=true}.invoke(progress,PhotosProbeState(connected=true,observation="nothing_to_free",mode="cleanup"))
-            check(texts(progress,R.string.cleanup_result_nothing_to_free).size==1)
-            check(texts(progress,R.string.cleanup_now).size==2) // navigation title and action
-            check(all(progress.window.decorView).filterIsInstance<TextView>().none {it.isShown&&it.text.contains("回执")})
-            check(texts(progress,R.string.cleanup_reviewed).isEmpty())
-        }
-        shot("result-empty")
-        return "PASS: Storage acknowledges discovery across restart without enabling cleanup; shared consent cancels without granting access; Storage owns the sole switch; technical setup retains account checks, running stop, changed-account recovery, pending review and probe/result pages. No Google Photos operation executed."
+        checkOrdinaryCleanupRecovery()
+        return "PASS: ordinary cleanup preserves account/stop/pending-review recovery; Storage acknowledges discovery across restart without enabling cleanup; shared consent cancels without granting access. No Google Photos operation executed."
     } finally {
         main {pages.forEach {it.finish()};localeManager.applicationLocales=oldLocales}
         val e=prefs.edit();for(key in listOf("account","enabled","state","reason")){e.remove(key);when(val value=old[key]){is String->e.putString(key,value);is Boolean->e.putBoolean(key,value)}};e.commit()

@@ -1,15 +1,2 @@
 <resources>
-<string name="receiver_refinement_logs">Activity logs</string>
-<string name="receiver_refinement_clear_filters">Clear filters</string>
-<string name="receiver_refinement_filtered_empty">No matching records</string>
-<string name="receiver_refinement_copy_missing">The saved gallery copy is unavailable. This record does not establish cloud upload.</string>
-<string name="receiver_refinement_preview_failed">Preview unavailable. You can still open the verified local gallery copy.</string>
-<string name="receiver_refinement_staging">App relay files</string>
-<string name="receiver_refinement_originals_note">Only complete originals stored by BackupDuck are counted here.</string>
-<string name="receiver_refinement_partial">Partially received files</string>
-<string name="receiver_refinement_published">Published copies</string>
-<string name="receiver_refinement_pending">Waiting for publication</string>
-<string name="receiver_refinement_protection">Protection and reclamation</string>
-<string name="receiver_refinement_records">Records and export</string>
-<string name="receiver_refinement_reclaim_note">Reclaim only app relay originals whose gallery copy has passed verification.</string>
 </resources>

@@ -1,13 +1,8 @@
 package app.backupduck
 
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.app.Activity
 import android.app.Instrumentation
-import android.content.Intent
-import android.view.View
-import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
-import android.widget.Button
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -44,32 +39,7 @@ internal fun Instrumentation.checkPhotosProbe(): String {
     check(service.capabilities and AccessibilityServiceInfo.CAPABILITY_CAN_RETRIEVE_WINDOW_CONTENT != 0)
     check(service.capabilities and AccessibilityServiceInfo.CAPABILITY_CAN_PERFORM_GESTURES == 0)
     check(manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).none { it.id == service.id }) { "isolated_probe_service_already_enabled" }
-    var activity: Activity? = null
-    try {
-        activity = startActivitySync(Intent(targetContext, PhotosProbeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-        waitForIdleSync()
-        runOnMainSync {
-            fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-            val buttons = descendants(activity!!.window.decorView).filterIsInstance<Button>()
-            check(buttons.none { it.text == targetContext.getText(R.string.photos_probe_start) })
-            check(!buttons.single { it.text == targetContext.getText(R.string.cleanup_now) }.isEnabled)
-            check(buttons.single { it.text == targetContext.getText(R.string.photos_probe_permission) }.isEnabled)
-            check(buttons.single { it.text == targetContext.getText(R.string.photos_diagnostics_title) }.isEnabled)
-            check(!PhotosProbeService.state.value.running)
-        }
-    } finally { runOnMainSync { activity?.finish() } }
-    try {
-        activity = startActivitySync(Intent(targetContext, PhotosProbeActivity::class.java)
-            .putExtra("diagnostics", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-        waitForIdleSync()
-        runOnMainSync {
-            fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-            val buttons = descendants(activity!!.window.decorView).filterIsInstance<Button>()
-            check(buttons.none { it.text == targetContext.getText(R.string.cleanup_now) })
-            check(!buttons.single { it.text == targetContext.getText(R.string.photos_probe_start) }.isEnabled)
-            check(buttons.single { it.text == targetContext.getText(R.string.photos_probe_export) }.isEnabled)
-            check(!PhotosProbeService.state.value.running)
-        }
-    } finally { runOnMainSync { activity?.finish() } }
-    return "PASS: native classifier and pending fence; package-restricted service; default-off controls; no permissions or user media changed"
+    check(!PhotosProbeService.state.value.running)
+    checkPhotosCleanupDiagnostics()
+    return "PASS: native classifier and pending fence; package-restricted service; no permissions or user media changed"
 }

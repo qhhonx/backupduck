@@ -19,7 +19,6 @@ internal fun Instrumentation.checkPageNavigation(): String {
     val transport = NativeBridge.transport
     val start = ReceiverEnvironment.startService
     val checksUpdates = ReceiverEnvironment.checksUpdates
-    val proposed = ReceiverEnvironment.proposedDesign
     val enabled = ReceiverPreferences.enabled(targetContext)
     val latest = AtomicReference<MainActivity>()
     val application = targetContext.applicationContext as Application
@@ -38,7 +37,6 @@ internal fun Instrumentation.checkPageNavigation(): String {
         ReceiverPreferences.setEnabled(targetContext, false)
         ReceiverEnvironment.startService = {}
         ReceiverEnvironment.checksUpdates = false
-        ReceiverEnvironment.proposedDesign = true
         NativeBridge.transport = { raw ->
             if (JSONObject(raw).getString("op") == "device_status")
                 """{"ok":true,"value":{"device":{"id":"fixture","name":"Fixture Pixel"},"peers":[{"profile":{"id":"fixture-phone","name":"Fixture phone"},"last_seen":0,"enabled":true}]}}"""
@@ -55,6 +53,8 @@ internal fun Instrumentation.checkPageNavigation(): String {
             runOnMainSync {
                 check(activity.supportFragmentManager.backStackEntryCount == 1) { route }
                 check(page!!.root.isShown && page!!.root.windowToken == activity.window.decorView.windowToken)
+                if(route=="legacy-devices") check(page!!.route=="devices")
+                if(route=="legacy-scan") check(page!!.route=="connect" && page!!.saveState!!.invoke().getString("surface")=="connect-mac" && !page!!.saveState!!.invoke().getBoolean("scan"))
                 check(WindowInspector.getGlobalWindowViews().size == windows) { "Page created a dialog window: $route" }
                 val toolbar = page!!.root.getChildAt(0) as MaterialToolbar
                 check(toolbar.navigationContentDescription == activity.getString(R.string.nav_back))
@@ -87,7 +87,7 @@ internal fun Instrumentation.checkPageNavigation(): String {
         runOnMainSync {
             check(activity.supportFragmentManager.backStackEntryCount == 2)
             val top = activity.supportFragmentManager.primaryNavigationFragment as PageFragment
-            check(top.page!!.route == "logs-report" && top.page!!.state.getString("result") == "success")
+            check(top.page!!.route == "diagnostics" && top.page!!.state.getString("export") == "failure")
             activity.onBackPressedDispatcher.onBackPressed()
         }
         settle()
@@ -104,7 +104,6 @@ internal fun Instrumentation.checkPageNavigation(): String {
         NativeBridge.transport = transport
         ReceiverEnvironment.startService = start
         ReceiverEnvironment.checksUpdates = checksUpdates
-        ReceiverEnvironment.proposedDesign = proposed
         ReceiverPreferences.setEnabled(targetContext, enabled)
     }
 }

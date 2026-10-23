@@ -1,8 +1,6 @@
 package app.backupduck
 
-import android.animation.ValueAnimator
 import android.content.Context
-import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -91,9 +89,6 @@ internal fun Context.duckSwitch(on: Boolean, changed: (Boolean) -> Unit) = Mater
     isChecked = on; minimumHeight = dp(48); minimumWidth = dp(48)
     setOnCheckedChangeListener { _, value -> changed(value) }
 }
-internal fun Context.duckNote(parent: LinearLayout, text: String, icon: Int = R.drawable.ic_info) {
-    parent.addView(duckMessageRow(text,icon=icon,titleColor=R.color.duck_text_secondary,bold=false).apply {setPadding(0,dp(12),0,dp(16))})
-}
 internal fun Context.duckNotice(parent:LinearLayout,title:String,description:String?=null):View {
     val row=duckMessageRow(title,description).apply {setPadding(dp(12),dp(12),dp(12),dp(12));background=duckBackground(R.color.duck_subtle,12,false)}
     parent.addView(row,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(16)})
@@ -125,22 +120,6 @@ internal fun Context.duckMessageRow(title:String,description:String?=null,icon:I
         addView(symbol,LinearLayout.LayoutParams(dp(18),dp(18)).apply {marginEnd=dp(8)})
         addView(words,LinearLayout.LayoutParams(0,-2,1f))
     }
-}
-internal class DuckReadings(private val context: Context, labels: List<String>) {
-    val view = LinearLayout(context).apply {
-        gravity = Gravity.TOP; setPadding(context.dp(8), context.dp(16), context.dp(8), context.dp(16))
-        background = context.duckBackground()
-    }
-    private val captions = mutableListOf<TextView>()
-    private val values = labels.mapIndexed { index, label ->
-        if (index > 0) view.addView(View(context).apply { setBackgroundColor(context.getColor(R.color.duck_border)) }, LinearLayout.LayoutParams(context.dp(1), context.dp(42)))
-        val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-        val value = context.duckText("—", 16, bold = true).apply { fontFeatureSettings = "tnum";gravity=Gravity.CENTER }
-        column.addView(value); val caption=context.duckText(label,11,true).apply {gravity=Gravity.CENTER;setPadding(0,context.dp(7),0,0)}; captions+=caption;column.addView(caption)
-        view.addView(column, LinearLayout.LayoutParams(0, -2, 1f)); value
-    }
-    fun caption(index:Int,text:String) {if(captions[index].text.toString()!=text)captions[index].text=text}
-    fun render(vararg readings: String) { values.forEachIndexed { index, text -> if(text.text.toString()!=readings[index])text.text = readings[index] } }
 }
 internal class DuckSheet(context: Context, title: String) : BottomSheetDialog(context) {
     init { context.trackNotificationWindow(this) }
@@ -178,52 +157,6 @@ internal class DuckSheet(context: Context, title: String) : BottomSheetDialog(co
     fun dismissImmediately() = dismiss()
 }
 
-internal class DuckProgress(context:Context):ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal) {
-    private var motion:ValueAnimator?=null
-    init {max=1000}
-    fun render(value:Int) {
-        if(value==progress) return
-        motion?.cancel()
-        if(!ValueAnimator.areAnimatorsEnabled()||!isShown) {progress=value;return}
-        motion=ValueAnimator.ofInt(progress,value).apply {
-            duration=320;interpolator=android.view.animation.PathInterpolator(.2f,.8f,.2f,1f)
-            addUpdateListener {progress=it.animatedValue as Int};start()
-        }
-    }
-    override fun onDetachedFromWindow() {motion?.cancel();super.onDetachedFromWindow()}
-}
-
-internal fun Context.duckDefinition(parent:LinearLayout,label:String,value:String):TextView {
-    val row=LinearLayout(this).apply {gravity=Gravity.TOP;setPadding(0,dp(8),0,dp(8))}
-    row.addView(duckText(label,13,true),LinearLayout.LayoutParams(dp(88),-2))
-    val content=duckText(value,13)
-    row.addView(content,LinearLayout.LayoutParams(0,-2,1f));parent.addView(row);return content
-}
-internal fun Context.duckTimeline(parent:LinearLayout,title:String,note:String,confirmed:Boolean,color:Int=R.color.duck_saved,last:Boolean=false,glyph:Int?=null) {
-    val row=LinearLayout(this).apply {minimumHeight=dp(60);gravity=Gravity.TOP}
-    if (glyph != null) row.addView(ImageView(this).apply {
-        setImageResource(glyph)
-        imageTintList = ColorStateList.valueOf(getColor(if (confirmed) color else R.color.duck_text_secondary))
-        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        setPadding(0, 0, token(R.dimen.duck_space_x_small), 0)
-    }, LinearLayout.LayoutParams(dp(24), dp(24)))
-    else row.addView(object:View(this) {
-        private val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        override fun onDraw(canvas:android.graphics.Canvas) {
-            if(!last) {paint.color=getColor(R.color.duck_border);paint.strokeWidth=dp(1).toFloat();canvas.drawLine(dp(5).toFloat(),dp(16).toFloat(),dp(5).toFloat(),height.toFloat(),paint)}
-            paint.color=getColor(if(confirmed) color else R.color.duck_text_secondary);paint.style=if(confirmed) android.graphics.Paint.Style.FILL else android.graphics.Paint.Style.STROKE;paint.strokeWidth=dp(1).toFloat()
-            canvas.drawCircle(dp(5).toFloat(),dp(8).toFloat(),dp(4).toFloat(),paint);paint.style=android.graphics.Paint.Style.FILL
-        }
-    },LinearLayout.LayoutParams(dp(24),-1))
-    val words=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(0,0,0,dp(16))}
-    words.addView(duckText(title,15,bold=true));words.addView(duckText(note,13,true).apply {setPadding(0,dp(5),0,0)})
-    row.addView(words,LinearLayout.LayoutParams(0,-2,1f));parent.addView(row)
-}
-
-/** A single, measured sibling gap. Do not add two CSS margins together in a native column. */
-internal fun View.duckMargins(top:Int=0,bottom:Int=0):View = apply {
-    layoutParams=(layoutParams as LinearLayout.LayoutParams).apply {topMargin=context.dp(top);bottomMargin=context.dp(bottom)}
-}
 internal fun Context.duckParagraph(text:String):TextView=lookText(text, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium, secondary = true)
 
 /** Full native secondary page: toolbar, scrollable body and optional fixed action footer. */
@@ -254,24 +187,6 @@ internal class DuckField(context:Context,label:String,value:String="",numeric:Bo
     init {
         box.addView(input,LinearLayout.LayoutParams(-1,-2));view.addView(box,LinearLayout.LayoutParams(-1,-2))
     }
-}
-internal fun Context.duckSelect(parent:LinearLayout,title:String,values:List<String>,selected:Int):Spinner {
-    parent.addView(duckParagraph(title),LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(8)})
-    val container=FrameLayout(this).apply {background=duckBackground(radius=8)}
-    val spinner=Spinner(this,Spinner.MODE_DROPDOWN).apply {
-        contentDescription=title
-        adapter=object:ArrayAdapter<String>(this@duckSelect,android.R.layout.simple_spinner_dropdown_item,values) {
-            override fun getView(position:Int,convert:View?,host:android.view.ViewGroup):View = (super.getView(position,convert,host) as TextView).apply {
-                gravity=Gravity.START or Gravity.CENTER_VERTICAL;includeFontPadding=false;minimumHeight=dp(56)
-                setPadding(0,0,0,0)
-            }
-        }
-        setSelection(selected);background=null;setPadding(dp(12),0,dp(40),0)
-    }
-    container.addView(spinner,FrameLayout.LayoutParams(-1,-1))
-    container.addView(ImageView(this).apply {setImageResource(R.drawable.ic_chevron);rotation=90f;imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_text_secondary));importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO},FrameLayout.LayoutParams(dp(20),dp(20),Gravity.END or Gravity.CENTER_VERTICAL).apply {marginEnd=dp(12)})
-    parent.addView(container,LinearLayout.LayoutParams(-1,dp(56)))
-    return spinner
 }
 internal fun Context.duckWarning(parent:LinearLayout,title:String,description:String?=null):View = duckMessageRow(title,description,R.drawable.ic_alert,R.color.duck_attention).apply {
     background=duckBackground(R.color.duck_attention_background,12,false);setPadding(dp(12),dp(12),dp(12),dp(12))

@@ -19,14 +19,12 @@ internal data class PhotosProbeState(
     val running: Boolean = false,
     val observation: String = "idle",
     val seen: Set<String> = emptySet(),
-    val secondsLeft: Int = 0,
     val mode: String = "probe",
 )
 
 /** Opt-in, bounded Google Photos adapter. Rust chooses actions; Android supplies fresh UI and durable fencing. */
 class PhotosProbeService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var observationJob: Job? = null
     private var cleanupJob: Job? = null
     private val cleanup get() = PhotosCleanup(this)
     companion object {
@@ -34,7 +32,6 @@ class PhotosProbeService : AccessibilityService() {
         private var instance: PhotosProbeService? = null
         private val mutableState = MutableStateFlow(PhotosProbeState())
         internal val state = mutableState.asStateFlow()
-        internal fun begin(): Boolean = instance?.let { it.observe(); true } ?: false
         internal fun stop() { instance?.end("stopped") }
         internal val cleanupRunning: Boolean get() = mutableState.value.running && mutableState.value.mode == "cleanup"
         internal fun clean(bind: Boolean = false, returnRoute: String? = null): Boolean = instance?.let {
@@ -59,39 +56,8 @@ class PhotosProbeService : AccessibilityService() {
         super.onDestroy()
     }
     private fun end(reason: String) {
-        observationJob?.cancel(); observationJob = null
         cleanupJob?.cancel(); cleanupJob = null
-        mutableState.value = mutableState.value.copy(running = false, secondsLeft = 0, observation = reason)
-    }
-    private fun observe() {
-        if (mutableState.value.running) return
-        observationJob?.cancel()
-        mutableState.value = PhotosProbeState(connected = true, running = true, secondsLeft = 120, observation = "waiting")
-        observationJob = scope.launch {
-            val deadline = SystemClock.elapsedRealtime() + 120_000
-            while (isActive && SystemClock.elapsedRealtime() < deadline) {
-                // Only the selected UI-control texts enter memory. No screenshots, account
-                // descriptions, photo labels or raw tree data enter diagnostics or storage.
-                val snapshot = runCatching { capture() }.getOrNull()
-                if (snapshot == null) {
-                    mutableState.value = mutableState.value.copy(running = false, secondsLeft = 0, observation = "unavailable")
-                    return@launch
-                }
-                val result = withContext(Dispatchers.Default) {
-                    runCatching { NativeBridge.request(JSONObject().put("op", "photos_probe").put("snapshot", snapshot)) as String }
-                        .getOrDefault("unavailable")
-                }
-                ensureActive()
-                val old = mutableState.value
-                val seen = if (result in recognized) old.seen + result else old.seen
-                val terminal = result in setOf("locked", "confirmation", "nothing_to_free", "completed", "unavailable")
-                mutableState.value = old.copy(observation = result, seen = seen, running = !terminal,
-                    secondsLeft = if (terminal) 0 else ((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0) / 1000).toInt())
-                if (terminal) return@launch
-                delay(800)
-            }
-            mutableState.value = mutableState.value.copy(running = false, secondsLeft = 0, observation = "expired")
-        }
+        mutableState.value = mutableState.value.copy(running = false, observation = reason)
     }
     private fun operate(bind: Boolean, returnRoute: String?) {
         if (!bind && cleanup.account.isEmpty()) { cleanup.report("account_unavailable"); return }
@@ -140,6 +106,8 @@ class PhotosProbeService : AccessibilityService() {
                             NativeBridge.request(JSONObject().put("op", "photos_probe").put("snapshot", snapshot)) as String
                         }
                         ensureActive()
+                        mutableState.value = mutableState.value.copy(
+                            seen = if (observed in recognized) mutableState.value.seen + observed else mutableState.value.seen)
                         if (bind && candidateAccount.isEmpty()) {
                             if (observed == "account_entry" && snapshot.has("account")) {
                                 candidateAccount = snapshot.getString("account")
@@ -212,9 +180,8 @@ class PhotosProbeService : AccessibilityService() {
                     val photosIsForeground = try { root?.packageName?.toString() == PHOTOS_PACKAGE }
                         finally { @Suppress("DEPRECATION") root?.recycle() }
                     if (photosIsForeground) runCatching {
-                        val ordinary = !DiagnosticRoutes.toolsEnabled || returnRoute in setOf("storage", "auto-cleanup")
-                        startActivity(Intent(this@PhotosProbeService, if (ordinary) MainActivity::class.java else PhotosProbeActivity::class.java)
-                            .apply { if (ordinary) putExtra("cleanup-return", true) else putExtra("route", returnRoute) }
+                        startActivity(Intent(this@PhotosProbeService, MainActivity::class.java)
+                            .putExtra("cleanup-return", true)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
                     }
                 }

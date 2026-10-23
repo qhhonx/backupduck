@@ -1,5 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <activity android:name=".PhotosProbeActivity" android:exported="false" />
     </application>
 </manifest>

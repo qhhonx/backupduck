@@ -2,22 +2,6 @@
 <resources>
     <string name="discovery_available">New feature to explore</string>
     <string name="discovery_entry_label">%1$s, new feature to explore</string>
-    <string name="experiment_setup">First-time setup</string>
-    <string name="experiment_auto">Automatic cleanup</string>
-    <string name="experiment_permission">1. Allow Google Photos navigation</string>
-    <string name="experiment_permission_off">Not enabled · Open Android settings and enable this app’s Accessibility service.</string>
-    <string name="experiment_permission_on">Enabled · Google Photos cleanup pages can be navigated.</string>
-    <string name="experiment_account">2. Confirm the Photos account</string>
-    <string name="experiment_account_off">Not confirmed · Use the account currently signed into Google Photos on this device.</string>
-    <string name="experiment_account_on">Confirmed · Confirm again after switching accounts.</string>
-    <string name="experiment_bind_intro">Confirm the account currently signed into Google Photos on this device. Cleanup stops if the account changes; confirm it again to continue.</string>
-    <string name="experiment_auto_setup">Complete both setup steps above before enabling automatic cleanup.</string>
-    <string name="experiment_troubleshoot">Having trouble?</string>
-    <string name="experiment_troubleshoot_note">Check page recognition and export a report if Google Photos cannot be opened or recognized. This is optional troubleshooting.</string>
-    <string name="experiment_compatibility">This experiment may be affected by Google Photos updates.</string>
-    <string name="experiment_probe_intro">For page-recognition troubleshooting only. This check does not free up space.</string>
-    <string name="experiment_account_changed">Account changed · Confirm the current account again.</string>
-    <string name="experiment_account_pending">Account confirmed. Tap to check the previous cleanup result.</string>
     <string name="cleanup_result_checking_result">Opening the previous cleanup result…</string>
     <string name="cleanup_result_manual_review_required">The previous cleanup result could not be confirmed automatically. Check Google Photos, then return and choose “I checked the result”. Cleanup will not be repeated.</string>
     <string name="attention_required">Needs your attention</string>
