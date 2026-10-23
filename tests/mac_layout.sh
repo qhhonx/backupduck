@@ -8,12 +8,6 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 python3 - <<'PY'
 from pathlib import Path
 import plistlib
-source = Path('apps/macos/BackupDuck/BackupDuckMacApp.swift').read_text()
-assert source.count('@main struct BackupDuckMacApp') == 1
-# Replace only the process entry point in a generated copy. Production views
-# remain unchanged, including native controls and their asynchronous queries.
-Path('build/mac-layout-check/BackupDuckMacApp.swift').write_text(
-    source.replace('@main struct BackupDuckMacApp', 'struct BackupDuckMacApp', 1))
 Path('build/mac-layout-check/LayoutCheck.app/Contents/Info.plist').write_bytes(plistlib.dumps({
     'CFBundleIdentifier': 'app.backupduck.layout-tests',
     'CFBundleExecutable': 'LayoutCheck', 'CFBundleName': 'BackupDuck Layout Check',
@@ -34,13 +28,14 @@ cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
 cp apps/apple/Resources/DuckMenuBar.pdf "$app/Contents/Resources/"
 sources=(apps/apple/Shared/*.swift)
 for file in apps/macos/BackupDuck/*.swift; do
-  if [[ "$file" != */BackupDuckMacApp.swift ]]; then sources+=("$file"); fi
+  # The renderer owns the process entry point; all production views stay intact.
+  if [[ "$file" != */MacAppMain.swift ]]; then sources+=("$file"); fi
 done
 xcrun --sdk macosx swiftc -swift-version 5 -Onone -module-cache-path build/SwiftModuleCache-mac \
   -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos14.0 -parse-as-library \
   -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -import-objc-header crates/native/include/backupduck.h \
-  "${sources[@]}" "$work/BackupDuckMacApp.swift" tests/render_macos.swift \
+  "${sources[@]}" tests/render_macos.swift \
   "$native_library" \
   -framework Security -framework SystemConfiguration -framework AppKit -framework SwiftUI \
   -framework Photos -framework PhotosUI -framework AVKit -framework Vision -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -lsqlite3 -lz -liconv -o "$app/Contents/MacOS/LayoutCheck"

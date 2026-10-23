@@ -4,8 +4,8 @@ import UIKit
 /// The Backup tab as the hub (design/flows.md § Every day, § When something goes
 /// wrong; interaction.md I2 task center). One state card answers "are my photos
 /// safe?", recently saved photos are the evidence, and summary rows open the
-/// matching library views. No primary action while calm. Shown in the design
-/// catalog until roadmap step 6 replaces `IOSBackupPage`.
+/// matching library views. No primary action while calm. Used by the app and
+/// design catalog.
 struct IOSHub: View {
   @ObservedObject var model: BackupModel
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false

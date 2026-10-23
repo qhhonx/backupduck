@@ -12,7 +12,6 @@ import SwiftUI
   /// Starts the photo list fetch before the first window, as on iPhone. The
   /// redesigned pages are the app (design/redesign-roadmap.md, step 6).
   init() {
-    DesignPreview.proposedDesign = true
     BackupNotifier.shared.configure()
     PhotoLibraryModel.prewarm()
   }
@@ -32,15 +31,8 @@ import SwiftUI
         CommandGroup(replacing: .appInfo) {
           Button("about_title") { MacAboutNavigation.open { openWindow(id: "main") } }
         }
-        // ⌘, opens Settings in the main window, the same place as the sidebar.
-        CommandGroup(replacing: .appSettings) {
-          Button("menu_settings") { MacSettingsNavigation.open { openWindow(id: "main") } }
-            .keyboardShortcut(",", modifiers: .command)
-        }
+        MacSettingsCommands()
       }
-    Settings {
-      MacPreferences(model: model).preferredColorScheme(colorScheme).frame(width: 760, height: 700)
-    }
     MenuBarExtra {
       MacStatusMenu(model: model)
     } label: {

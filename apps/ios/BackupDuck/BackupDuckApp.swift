@@ -3,8 +3,6 @@ import SwiftUI
 @main struct BackupDuckApp: App {
   init() {
     LaunchTrace.mark("app init")
-    // The redesigned pages are the app (design/redesign-roadmap.md, step 6).
-    DesignPreview.proposedDesign = true
     PhotoLibraryModel.prewarm()
     if #available(iOS 26.0, *) { } else {
       // Legacy scroll-edge appearance must not turn transparent above media.
@@ -47,13 +45,13 @@ import SwiftUI
     TabView(selection: $selectedTab) {
       // Three positions (design/navigation.md): Photos, Backup, Settings.
       IOSLibraryPage(library: library, model: model).duckTabSurface()
-        .tabItem { IOSAppTab.library.proposedLabel }.tag(IOSAppTab.library.rawValue)
+        .tabItem { IOSAppTab.library.label }.tag(IOSAppTab.library.rawValue)
       IOSHub(model: model, notification: $notification, showLibrary: { view in
         selectedTab = IOSAppTab.library.rawValue
         Task { await library.changeBackupView(view) }
-      }).duckTabSurface().tabItem { IOSAppTab.backup.proposedLabel }.tag(IOSAppTab.backup.rawValue)
+      }).duckTabSurface().tabItem { IOSAppTab.backup.label }.tag(IOSAppTab.backup.rawValue)
       IOSSettings(model: model).duckTabSurface()
-        .tabItem { IOSAppTab.settings.proposedLabel }.tag(IOSAppTab.settings.rawValue)
+        .tabItem { IOSAppTab.settings.label }.tag(IOSAppTab.settings.rawValue)
     }
     .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
   }

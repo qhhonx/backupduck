@@ -1288,7 +1288,6 @@ private final class MacMarqueeView: NSView {
   private let selectionMark = MacBadgeLayer()
   private var selectionVisible = true
   private var statusState: String?
-  private var groupCount: Int?
   private let burstCount = MacTextBadgeLayer(weight: .medium, fill: .black.withAlphaComponent(0.45), radius: 4)
   private let duration = MacTextBadgeLayer(weight: .semibold, fill: .black.withAlphaComponent(0.55), radius: 5)
   /// Hover help for the visible status and burst badges, as tooltip rectangles
@@ -1316,15 +1315,13 @@ private final class MacMarqueeView: NSView {
       badge.cornerRadius = 12
       view.layer?.addSublayer(badge)
     }
-    if DesignPreview.proposedDesign {
-      // design/library.md § Tile marks: white glyphs with a soft shadow, no circles.
-      for badge in [media, status, cloud] {
-        badge.backgroundColor = nil
-        badge.shadowColor = NSColor.black.cgColor  // design-exception: legibility shadow on photos
-        badge.shadowOpacity = 0.45
-        badge.shadowRadius = 2
-        badge.shadowOffset = CGSize(width: 0, height: -0.5)
-      }
+    // design/library.md § Tile marks: white glyphs with a soft shadow, no circles.
+    for badge in [media, status, cloud] {
+      badge.backgroundColor = nil
+      badge.shadowColor = NSColor.black.cgColor  // design-exception: legibility shadow on photos
+      badge.shadowOpacity = 0.45
+      badge.shadowRadius = 2
+      badge.shadowOffset = CGSize(width: 0, height: -0.5)
     }
     burstCount.isHidden = true
     view.layer?.addSublayer(burstCount)
@@ -1505,9 +1502,7 @@ private final class MacMarqueeView: NSView {
     displayedImage = image
     photoLayer.contents = image.cgImage(forProposedRect: nil,context: nil,hints: nil)
   }
-  func copyDecorations(from other: PhotoCell) { setGroup(count: other.groupCount,state: other.statusState) }
   func setGroup(count: Int?, state: String?) {
-    groupCount = count
     if count != nil {
       media.symbol = "square.stack"
       media.isHidden = false

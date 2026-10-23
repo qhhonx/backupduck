@@ -5,7 +5,7 @@ import Photos
 import SwiftUI
 
 enum MacDestination: String, CaseIterable, Identifiable {
-  case library, sources, backup, transfers, receiver, settings
+  case library, sources, backup, transfers, settings
   var id: String { rawValue }
   var title: String { ["library", "sources", "backup"].contains(rawValue) ? "mac_nav_" + rawValue : "nav_" + rawValue }
   var icon: String {
@@ -14,7 +14,6 @@ enum MacDestination: String, CaseIterable, Identifiable {
     case .sources: "folder"
     case .backup: "arrow.triangle.2.circlepath"
     case .transfers: "arrow.up.arrow.down"
-    case .receiver: "externaldrive.badge.wifi"
     case .settings: "gearshape"
     }
   }
@@ -24,8 +23,8 @@ struct MacWorkspace: View {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject private var notifier = BackupEnvironment.activeNotifier()
   @StateObject private var notificationPhotos = BackupPhotoRouter()
-  @State private var destination: MacDestination? = .backup
-  private var initialSettingsRoute: MacSettingsRoute?
+  @State private var destination: MacDestination = .backup
+  @State private var sidebarSelection: MacDestination? = .backup
   private var initialSettingsPage: MacSettings.Page?
   private var initialDiagnosticsPage: String?
   private var scopeStore: BackupScopeStore
@@ -36,13 +35,11 @@ struct MacWorkspace: View {
   @State private var toolbarWidth: CGFloat = 1180
   @State private var density = MacLibraryDensity.remembered
   @State private var pairSheet = false
-  @State private var selectedPhotoDetails: PHAsset?
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var transferFilter = "all"
   @State private var historyScope = ""
   @State private var historyColumns = 6
   @State private var historyFocus: HistoryPhoto?
-  @State private var settingsTitle = "nav_settings"
   @State private var librarySelecting = false
   @State private var previewAsset: PHAsset?
   @State private var reviewAssets: [PHAsset]?
@@ -53,9 +50,8 @@ struct MacWorkspace: View {
   /// A reference, so recording a pending flight never re-renders the page.
   @State private var flightMemo = MacFlightMemo()
   @StateObject private var libraryNavigation = MacLibraryNavigation()
-  @StateObject private var activeTransfers = TaskBrowserModel()
   @StateObject private var folders: FolderSources
-  @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialSettingsRoute: MacSettingsRoute? = nil, initialTransferFilter: String = "all",
+  @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialTransferFilter: String = "all",
     initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
     albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil) {
     self.initialDiagnosticsPage = initialDiagnosticsPage
@@ -64,11 +60,11 @@ struct MacWorkspace: View {
     let navigation = MacLibraryNavigation(); navigation.viewerInfo = initialViewerInfo
     _libraryNavigation = StateObject(wrappedValue: navigation)
     self.library = library
-    self.initialSettingsRoute = initialSettingsRoute
     self.initialSettingsPage = initialSettingsPage; self.scopeStore = scopeStore ?? .shared
     self.albumsModel = albumsModel ?? .shared; self.initialScopeDestination = initialScopeDestination
     self.initialScopeSearch = initialScopeSearch
     _destination = State(initialValue: initialDestination)
+    _sidebarSelection = State(initialValue: initialDestination)
     _transferFilter = State(initialValue: initialTransferFilter)
     _folders = StateObject(wrappedValue: folderSources ?? .shared)
   }
@@ -114,10 +110,15 @@ struct MacWorkspace: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowSettings"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute")
+      closeViewer()
       destination = .settings
     }
     .onAppear {
-      if ["about", "settings"].contains(UserDefaults.standard.string(forKey: "macRequestedSettingsRoute")) { destination = .settings }
+      if let route = UserDefaults.standard.string(forKey: "macRequestedSettingsRoute"), ["about", "settings"].contains(route) {
+        destination = .settings
+        // About is consumed by its detail; Settings has no further route.
+        if route == "settings" { UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute") }
+      }
       if UserDefaults.standard.string(forKey: "macRequestedDestination") == "sources" {
         UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
         destination = .sources
@@ -133,46 +134,32 @@ struct MacWorkspace: View {
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
     .sheet(isPresented: $pairSheet) {
-      if DesignPreview.proposedDesign { MacConnectSheet(model: model) } else { MacPairingSheet(model: model) }
+      MacConnectSheet(model: model)
     }
     // Backup views of the library ask the core about the paired receiver.
     .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
-    .sheet(isPresented: Binding(get: { selectedPhotoDetails != nil }, set: { if !$0 { selectedPhotoDetails = nil } })) {
-      if let selectedPhotoDetails { DuckPhotoDetail(asset: selectedPhotoDetails) }
-    }
   }
   private var sidebar: some View {
     VStack(alignment: .leading, spacing: 0) {
-      List(selection: $destination) {
-        if DesignPreview.proposedDesign {
-          // design/navigation.md: photos, backup, settings. Devices open from Settings.
-          Section("mac_section_photos") {
-            sidebarRow(.library, title: "mac_nav_photo_library")
-            sidebarRow(.sources)
-          }
-          Section("mac_section_backup") {
-            sidebarRow(.backup, title: "mac_nav_overview")
-            sidebarRow(.transfers, title: "records_title")
-          }
-          Section { sidebarRow(.settings) }
-        } else {
-        Section("mac_sidebar_library") {
-          ForEach([MacDestination.library, .sources]) { item in
-            sidebarRow(item)
-          }
+      List(selection: $sidebarSelection) {
+        // design/navigation.md: photos, backup, settings. Devices open from Settings.
+        Section("mac_section_photos") {
+          sidebarRow(.library, title: "mac_nav_photo_library")
+          sidebarRow(.sources)
         }
-        Section("sidebar_tasks") {
-          ForEach([MacDestination.backup, .transfers]) { item in
-            sidebarRow(item)
-          }
+        Section("mac_section_backup") {
+          sidebarRow(.backup, title: "mac_nav_overview")
+          sidebarRow(.transfers, title: "records_title")
         }
-        Section("sidebar_manage") {
-          ForEach([MacDestination.receiver, .settings]) { item in
-            sidebarRow(item)
-          }
-        }
-        }
+        Section { sidebarRow(.settings) }
       }.listStyle(.sidebar)
+        .onChange(of: sidebarSelection) { _, selection in
+          // AppKit can propose deselection on empty space. Keep the page and
+          // reselect its native row without rebuilding the list or its scroll.
+          if let selection { destination = selection }
+          else { sidebarSelection = destination }
+        }
+        .onChange(of: destination) { _, destination in sidebarSelection = destination }
 
     }.navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 300)
   }
@@ -190,42 +177,19 @@ struct MacWorkspace: View {
             NotificationCenter.default.post(name: Notification.Name("BackupDuckFolderSettings"), object: id)
           })
         }
-        if destination == .backup && DesignPreview.proposedDesign {
+        if destination == .backup {
           MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
-        } else if destination == .backup {
-          MacBackupPage(model: model, folders: folders, pair: { pairSheet = true },
-            library: { destination = .library }, sources: { destination = .sources }, receiver: { destination = .receiver }, showTransfers: showTransfers)
         }
-        if destination == .transfers && DesignPreview.proposedDesign {
+        if destination == .transfers {
           BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, scopeChanged: { historyScope = $0 })
             .id(transferFilter + "|" + (historyFocus?.id ?? ""))
-        } else if destination == .transfers {
-          MacTransferPage(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
         }
         if destination == .settings {
-          if DesignPreview.proposedDesign {
-            MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
-              initialPage: initialSettingsPage, scopeStore: scopeStore, albumsModel: albumsModel,
-              initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch, initialDiagnosticsPage: initialDiagnosticsPage)
-          } else {
-            MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }, titleChanged: { settingsTitle = $0 }, initialRoute: initialSettingsRoute)
-          }
-        }
-        if destination == .receiver {
-          ScrollView { ReceiverPage(model: model, pair: { pairSheet = true }).padding(28) }
+          MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
+            initialPage: initialSettingsPage, scopeStore: scopeStore, albumsModel: albumsModel,
+            initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch, initialDiagnosticsPage: initialDiagnosticsPage)
         }
       }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      // The proposed hub states the backup once; the status footer would repeat it.
-      if destination != .settings && destination != .receiver && destination != .library && destination != .sources
-        && !([.backup, .transfers].contains(destination) && DesignPreview.proposedDesign) {
-        Divider()
-        footer.padding(.horizontal, 24).padding(.vertical, 12).background(DuckColors.surface)
-          .task(id: "\(model.queueRevision)|\(model.pairing?.receiverID ?? "")") {
-            if model.ready, let receiver = model.pairing?.receiverID {
-              await activeTransfers.refresh(filter: "running", receiver: receiver)
-            }
-          }
-      }
     }
     .allowsHitTesting(externalViewer == nil)
     .accessibilityHidden(externalViewer != nil)
@@ -255,9 +219,9 @@ struct MacWorkspace: View {
   }
   private var windowTitle: Text {
     if hasViewer { return Text(verbatim: "") }
-    if destination == .transfers && DesignPreview.proposedDesign { return Text("records_title") }
-    if destination == .library && DesignPreview.proposedDesign { return Text("mac_nav_photo_library") }
-    return Text(LocalizedStringKey(destination == .settings ? settingsTitle : (destination ?? .library).title))
+    if destination == .transfers { return Text("records_title") }
+    if destination == .library { return Text("mac_nav_photo_library") }
+    return Text(LocalizedStringKey(destination.title))
   }
   /// A subtitle replacing the visible range: empty outside the library and in
   /// the viewer, the selection count while photos are selected.
@@ -293,17 +257,14 @@ struct MacWorkspace: View {
       // One flat menu, as in Photos: everything, then each media type, with
       // a check on the current one. No nested submenu, no menu chevron.
       Menu {
-        // design/library.md: backup views of the same grid (proposed design only).
-        if DesignPreview.proposedDesign {
-          Picker("library_view_section", selection: Binding(get: { library.backupView }, set: { value in
-            Task { await library.changeBackupView(value) }
-          })) {
-            ForEach(LibraryBackupView.allCases) { view in
-              Label(LocalizedStringKey(view.title), systemImage: view.symbol).tag(view)
-            }
-          }.pickerStyle(.inline)
-          Divider()
-        }
+        Picker("library_view_section", selection: Binding(get: { library.backupView }, set: { value in
+          Task { await library.changeBackupView(value) }
+        })) {
+          ForEach(LibraryBackupView.allCases) { view in
+            Label(LocalizedStringKey(view.title), systemImage: view.symbol).tag(view)
+          }
+        }.pickerStyle(.inline)
+        Divider()
         // An inline picker keeps each item's icon next to the check mark.
         Picker("media_type", selection: Binding(get: { library.filter }, set: { value in
           Task { await library.changeFilter(value) }
@@ -535,169 +496,8 @@ struct MacWorkspace: View {
       previewAsset = nil; reviewAssets = nil
     }
   }
-  private var footer: some View {
-    MacBackupFooter(model: model, activeJob: activeTransfers.jobs.first,
-      pair: { pairSheet = true }, showTransfers: { showTransfers("all") })
-  }
 }
 
-struct MacBackupFooter: View {
-  @ObservedObject var model: BackupModel
-  var activeJob: BackupJob?
-  var pair: () -> Void
-  var showTransfers: () -> Void
-  private var progress: Double? {
-    if model.importing { return model.exportProgress }
-    guard !model.paused, let job = activeJob, job.state == "running", job.totalBytes > 0 else { return nil }
-    return model.transferProgress[job.id]?.activeFraction(confirmed: job.confirmedBytes, total: job.totalBytes)
-  }
-  private var summary: String {
-    if let message = model.message { return message }
-    if model.summary.failed + model.summary.publication_failed > 0 {
-      return String(format: NSLocalizedString("backup_status_failed_count", comment: ""), model.summary.failed + model.summary.publication_failed)
-    }
-    return String(format: NSLocalizedString("design_saved_count", comment: ""), model.summary.published, model.summary.total)
-  }
-  private var aggregate: (key: String, symbol: String, color: Color) { backupAggregateStatus(model) }
-  private var title: String { aggregate.key }
-  var body: some View {
-    HStack(spacing: 12) {
-      Image(systemName: aggregate.symbol)
-        .font(.system(size: 20)).foregroundStyle(aggregate.color)
-        .frame(width: 20, height: 20)
-      VStack(alignment: .leading, spacing: 5) {
-        HStack(spacing: 10) {
-          Text(model.summary.publication_failed > 0 ? LocalizedStringKey(String(format: NSLocalizedString("mac_backup_album_failed_count", comment: ""), model.summary.publication_failed)) : LocalizedStringKey(title))
-            .font(.system(size: 14, weight: .semibold)).lineLimit(1).layoutPriority(1)
-          Spacer(minLength: 0)
-        }
-        Group {
-          if let reason = model.compactWaitingReason {
-            Label(LocalizedStringKey("error_" + reason), systemImage: "clock")
-              .foregroundStyle(.orange).help(NSLocalizedString("error_" + reason, comment: ""))
-          } else {
-            Text(summary).foregroundStyle(.secondary).help(summary)
-          }
-        }.font(.system(size: 12)).lineLimit(1)
-      }.frame(maxWidth: .infinity, alignment: .leading)
-      if model.pairing == nil { Button("pair_receiver_desktop", action: pair) }
-      else { Button("nav_transfers", action: showTransfers).buttonStyle(.link) }
-    }.frame(minHeight: 44).overlay(alignment: .bottom) {
-      if let progress {
-        GeometryReader { geometry in
-          Rectangle().fill(DuckColors.action).frame(width: geometry.size.width * progress)
-        }.frame(height: 2).accessibilityHidden(true)
-      }
-    }.accessibilityIdentifier("backup.footer")
-  }
-}
-
-struct ReceiverPage: View {
-  @ObservedObject var model: BackupModel
-  let pair: () -> Void
-  @State private var help = false
-  private var status: (key: String, symbol: String, color: Color) { ReceiverStatusIndicator(model: model).status }
-  var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      VStack(alignment: .leading, spacing: 8) {
-        Text(model.pairing == nil ? NSLocalizedString("receiver_heading", comment: "") : model.peerDevice?.name ?? NSLocalizedString("receiver_paired", comment: ""))
-          .font(.system(size: 26, weight: .semibold))
-        Text(LocalizedStringKey(model.pairing == nil ? "mac_receiver_connection_note" : "mac_receiver_paired_subtitle"))
-          .font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)
-      }
-      if model.pairing == nil {
-        DuckPairingSteps(desktop: true)
-        Button("pair_receiver_desktop", action: pair).duckPrimaryAction()
-        DuckNotice(title: "help_start_title", message: "mac_receiver_connection_note", symbol: "wifi")
-      } else {
-        HStack(alignment: .top, spacing: 20) {
-          DuckSurface {
-            VStack(alignment: .leading, spacing: 12) {
-              Text("mac_receiver_connection_title").font(.system(size: 16, weight: .semibold))
-              DuckNotice(title: LocalizedStringKey(status.key), message: "mac_fidelity_connection_record_note", symbol: status.symbol)
-              ReceiverStatusIndicator(model: model, actionTitle: "mac_receiver_view_status")
-            }.frame(maxWidth: .infinity, alignment: .leading)
-          }.frame(maxWidth: .infinity)
-          DuckSurface {
-            VStack(alignment: .leading, spacing: 12) {
-              Text("mac_receiver_other_device").font(.system(size: 16, weight: .semibold))
-              Text("mac_receiver_history_retained").font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-              Button("mac_fidelity_show_mac_code", action: pair).duckPrimaryAction()
-            }.frame(maxWidth: .infinity, alignment: .leading)
-          }.frame(width: 240)
-        }
-        VStack(spacing: 0) {
-          receiverFact("receiver_address", value: model.pairing?.endpoint ?? "—")
-          receiverFact("mac_receiver_temperature", value: model.receiverReadings?.temperature_deci_celsius.map { String(format: "%.1f °C", Double($0) / 10) } ?? NSLocalizedString("mac_receiver_not_provided", comment: ""))
-          receiverFact("mac_receiver_space", value: model.receiverReadings?.free_bytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .file) } ?? NSLocalizedString("mac_receiver_not_provided", comment: ""))
-        }
-      }
-    }.frame(maxWidth: .infinity, alignment: .leading)
-      .task(id: model.pairing?.receiverID.description.appending(model.pairing?.endpoint ?? "")) {
-        model.receiverReadings = nil
-        while !Task.isCancelled, model.pairing != nil {
-          await model.refreshReceiverReadings()
-          try? await Task.sleep(for: .seconds(20))
-        }
-      }
-  }
-  private func receiverFact(_ title: LocalizedStringKey, value: String) -> some View {
-    HStack(alignment: .top, spacing: 12) {
-      Text(title).font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary).frame(width: 130, alignment: .leading)
-      Text(value).font(.system(size: 14)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }.padding(.vertical, 12).overlay(alignment: .bottom) { Divider() }
-  }
-}
-struct MacPairingSheet: View {
-  @ObservedObject var model: BackupModel
-  @Environment(\.dismiss) private var dismiss
-  @StateObject private var exchange = DesktopPairingModel()
-  var body: some View {
-    MacPairingPresentation(model: model, image: exchange.image, error: exchange.error,
-      cancel: { exchange.stop(); dismiss() },
-      regenerate: { exchange.begin(model: model, finished: { dismiss() }) })
-      .onAppear { exchange.begin(model: model, finished: { dismiss() }) }
-      .onDisappear { exchange.stop() }
-  }
-}
-/// Presentation is separable from the real pairing session for isolated UI
-/// checks; the production owner above always starts the authenticated flow.
-struct MacPairingPresentation: View {
-  @ObservedObject var model: BackupModel
-  var image: NSImage?
-  var error: String?
-  var cancel: () -> Void
-  var regenerate: () -> Void
-  var body: some View {
-    DuckSheetLayout(title: "pair_receiver_desktop", busy: model.pairingInProgress, desktopMinHeight: 560, desktopIdealHeight: 600) {
-      if let profile = model.deviceSnapshot?.device { Text(profile.name).font(.headline) }
-      Text("mac_pair_scan_instruction").font(.system(size: 14)).foregroundStyle(DuckColors.textSecondary)
-      if model.pairingInProgress { ProgressView("apple_pair_verifying").controlSize(.small) }
-      if let image = image {
-        VStack(spacing: 16) {
-          Image(nsImage: image).interpolation(.none).resizable().scaledToFit()
-            .frame(width: 240, height: 240).padding(12)
-            .background(.white, in: RoundedRectangle(cornerRadius: 12))
-            .accessibilityLabel(Text("desktop_pair_qr"))
-          Text("desktop_pair_expiry").font(.caption).foregroundStyle(DuckColors.textSecondary)
-        }.frame(maxWidth: .infinity)
-      } else if let error = error {
-        DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "wifi.exclamationmark")
-      } else if !model.pairingInProgress {
-        ProgressView("mac_pair_creating").frame(maxWidth: .infinity).padding(.vertical, 48)
-      }
-    } actions: {
-      Button("cancel", action: cancel)
-        .duckSecondaryAction().keyboardShortcut(.cancelAction).disabled(model.pairingInProgress)
-      if error != nil {
-        Button("desktop_pair_regenerate", action: regenerate)
-          .duckPrimaryAction().disabled(model.pairingInProgress)
-      }
-    }
-  }
-}
 @MainActor final class DesktopPairingModel: ObservableObject {
   @Published var image: NSImage?
   @Published var error: String?

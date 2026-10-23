@@ -4,7 +4,6 @@ import SwiftUI
 /// Settings as defined in `design/settings.md`, in the Mac dialect System
 /// Settings uses: a list column (identity header, category rows
 /// with values, help last, quiet footer) and a detail pane with a grouped form.
-/// Shown in the design catalog until migration step 6 replaces `MacPreferences`.
 struct MacSettings: View {
   enum Page: Hashable { case devices, folders, autoBackup, appearance, language, help, about, diagnostics, advanced }
 

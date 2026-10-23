@@ -10,8 +10,8 @@ they are never archived or distributed. See the design catalog section of
 
 ### Settings bottom, About and feedback
 
-`settings.bottom`, `settings.about` and `settings.feedback` use the redesigned
-production settings on both Apple hosts, without needing `-proposed`. The iPhone
+`settings.bottom`, `settings.about` and `settings.feedback` use the current
+production settings on both Apple hosts. The iPhone
 bottom scenarios scroll to About; on Mac the list column keeps the footer below
 its categories. Check English and Simplified Chinese, light/dark, narrow windows
 and accessibility text sizes. About uses Version as the leading title and the
@@ -46,7 +46,9 @@ launch directly with `-scenario menu.backing-up`. To review another existing
 hub fixture's menu items, add `-status-menu items` to its launch arguments.
 The review page lists the production menu items and opens the same items in a
 system menu from the template-icon button. Open BackupDuck, Settings and Quit
-are inert in this review; Pause uses the synthetic core only. In the app,
+are inert in this review; Pause uses the synthetic core only. The application
+menu Settings item (⌘,) uses the same command as production and opens the
+single Catalog main window at Settings, including after minimize or close. In the app,
 Settings and Command-comma navigate to Settings in the main window.
 Repeat with `-appearance light` / `dark` and `-AppleLanguages '(zh-Hans)'`.
 Check the disabled first line, the single Pause/Resume item, separators, shortcuts
@@ -129,7 +131,8 @@ Both catalogs read the same JSON files in `Scenarios/`:
 ```json
 {
   "id": "receiver.offline",
-  "page": "receiver",
+  "page": "settings",
+  "step": "devices",
   "title": "Paired, receiver not reachable",
   "extends": "base-paired",
   "pairing": { "version": 2, "receiver_id": "…", "endpoint": "https://192.0.2.20:8484", "certificate": "…", "token": "…" },
@@ -144,7 +147,7 @@ Both catalogs read the same JSON files in `Scenarios/`:
 }
 ```
 
-- `page` is a root destination: `library`, `backup`, `receiver` or `settings`,
+- `page` is a root destination: `library`, `backup` or `settings`,
   `connect` for the connect sheet on its own (Mac: the code for the Pixel to
   scan; iPhone: the scanner), or `onboarding` for first run, with `step` naming the screen to start on
   (`welcome`, `install`, `connect`, `connected`, `photos`, `choose`, `first`). A
@@ -193,7 +196,11 @@ it needs no Sparkle framework. Its update settings show the store note.
 
 ## Coverage
 
-- **Receiver** and **Settings** have scenarios on both catalogs.
+- **Settings** and **Connect** have scenarios on both catalogs. The five
+  `receiver.*` IDs are retained: online, offline, recovering and unpaired states
+  open Settings › Devices; authentication rejection opens the current Connect
+  flow (the iPhone reconnect explanation). Their base inheritance and scripted
+  connection facts remain unchanged.
 - **Backup** (iPhone) has `hub.*` scenarios for every hub state: caught up,
   still saving to Photos, backing up with earlier photos, paused, not paired, and
   each problem card (Pixel unreachable, rejected, Pixel full, iPhone full, photo
@@ -233,9 +240,8 @@ it needs no Sparkle framework. Its update settings show the store note.
   selects a separate fixture record without removing an existing one.
   Other first-run scenarios start with fresh presentation intent each launch.
 
-The info sheet's Design picker switches between the current page and the
-proposed redesign (`IOSHub`, `IOSSettings`, `MacSettings`); `-proposed` starts
-on the proposed design. Mac Photo Library browsing uses `library.synthetic`;
+Both catalogs always use current production pages. `-proposed` is accepted as
+an ignored compatibility argument; the Design picker has been removed. Mac Photo Library browsing uses `library.synthetic`;
 `library.system-background` reviews its no-access container. Every Mac scenario
 keeps PhotoKit disabled, including permission actions and models mounted behind
 other destinations. iOS library comparisons still use the existing synthetic
@@ -253,7 +259,7 @@ shared, git-ignored `build/catalog-media/` directory; by default no pool is used
 For example, from the repository root:
 
 ```bash
-xcrun simctl launch booted app.backupduck.catalog -scenario hub.backing-up -proposed -mediaDir "$PWD/build/catalog-media"
+xcrun simctl launch booted app.backupduck.catalog -scenario hub.backing-up -mediaDir "$PWD/build/catalog-media"
 open -n <catalog-build>/BackupDuckCatalog.app --args -scenario folders.sections -mediaDir "$PWD/build/catalog-media"
 ```
 
@@ -336,7 +342,7 @@ Every `activity.*` preview includes the production Lock Screen, compact and
 minimal contents, with A12's proportional, single-weight symbols and state colors.
 `library.system-background` opens the real Mac no-access library container
 without reading PhotoKit; `library.all` covers the iPhone populated grid
-and calendar transitions in a synthetic simulator library. Use `-proposed`.
+and calendar transitions in a synthetic simulator library.
 
 `photo.info-light` and `photo.info-dark` open the production iPhone drawer with
 an explicit panel appearance for edge review. Check the full bottom edge and
@@ -441,7 +447,7 @@ its bottom after opening and retains the fixed native toolbar.
 `mac.viewer-light`, `mac.viewer-dark`, `mac.viewer-inspector`,
 `mac.viewer-failed`, `mac.viewer-not-backed-up` and `mac.viewer-backing-up`
 open thirteen synthetic photos in the production workspace without PhotoKit
-library access. Pass `-proposed -scenario <id> -appearance light|dark` and
+library access. Pass `-scenario <id> -appearance light|dark` and
 optionally `-snapshot <absolute.png> -snapshot-delay 4`.
 
 The sidebar stays mounted and the canvas uses the system window background.
@@ -529,8 +535,8 @@ these scenarios never export originals or register backup work.
 
 `diagnostics.root`, `.empty`, `.failed`, `.export-success`, `.export-failure`
 and `.export-sheet` open the shared production diagnostics in the Mac Settings
-secondary Settings pane or as a pushed iPhone Settings page. Launch with `-proposed
--appearance light` (or `dark`). Recent activity is read-only and limited to six
+secondary Settings pane or as a pushed iPhone Settings page. Launch with
+`-appearance light` (or `dark`). Recent activity is read-only and limited to six
 latest events, newest first and grouped by day. Known codes use plain localized
 titles; unknown codes display “Other activity”. There are no log, entry or retention pages.
 Exports write the complete synthetic core JSON, including unknown fields;
@@ -549,9 +555,8 @@ The diagnostics export-success start position simulates completed system sharing
 export-sheet opens the real system sheet. The export row retries a fresh snapshot
 after failure. Retention is fixed at 14 days; there is no retention destination.
 
-Mac snapshot runs expose a New Design catalog Window command. When another
-catalog instance shares the bundle identity, target the launched executable
-and open its window with Accessibility before the snapshot delay expires.
+Mac snapshot runs activate the current key window before capturing it. Quit
+each Catalog run before starting another instance with the same bundle identity.
 
 Parallel display-headline clauses occupy separate centred lines in every language.
 The localized `onboarding_title` supplies explicit line breaks; native `Text`

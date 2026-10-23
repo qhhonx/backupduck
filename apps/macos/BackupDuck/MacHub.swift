@@ -5,7 +5,6 @@ import SwiftUI
 /// center): the same states and problems as `IOSHub` (design/flows.md § Hub
 /// rules) on the shared components, recently saved photos as evidence, and
 /// summary rows. Actions sit at the trailing edge of a card, as on the desktop.
-/// Shown in the design catalog until roadmap step 6 replaces `MacBackupPage`.
 struct MacHub: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var folders: FolderSources

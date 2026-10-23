@@ -21,11 +21,9 @@
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		10C05972F063622785014F89 /* MacPreferenceGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */; };
-		11E1E4F2B7365B30325A64FC /* MacBackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacBackupPage.swift */; };
-		1429F49B0CF310BB31A06424 /* MacTransferPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85204BF10B1F250E2C6DE2A4 /* MacTransferPage.swift */; };
+		11E1E4F2B7365B30325A64FC /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */; };
 		16747707B98624D480EC06F4 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		17A337617A0FFA79F33E0348 /* FolderWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8092617AEB476C19587672C8 /* FolderWatch.swift */; };
-		1C4602154C87DB22A9EC8DD9 /* MacStoragePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C3C31E72546B643D76B89C /* MacStoragePanel.swift */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1DAE3203534279498E99F2AA /* FolderSourcesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C6225CA051D4BF9220D34 /* FolderSourcesPage.swift */; };
 		22C1BB50D4A30FF3ED81B30E /* MacAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC664820D43C5E36E1794DA7 /* MacAppMain.swift */; };
@@ -33,10 +31,8 @@
 		251C1B7908667CE2569B137D /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		2659D01A3B79AE92EE128F5C /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
-		265EF782256ED53C6A895B53 /* MacPreferenceMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F250A5F8512FA49DE595FB1D /* MacPreferenceMenu.swift */; };
 		26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA4F7B4794F768E7D3071B /* BackupScope.swift */; };
 		26EEEB11E3F374D99B55C320 /* FileThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354D47FCA5E06447D8ACA477 /* FileThumbnails.swift */; };
-		299EFF8DA04191E3123DFCE4 /* MacTransferPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85204BF10B1F250E2C6DE2A4 /* MacTransferPage.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		2B4BB883D2E55509F6366FE9 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		2B6C4D8A2F19582EA116D6D7 /* BrandComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA2148CAC472733E514F516 /* BrandComponents.swift */; };
@@ -52,12 +48,10 @@
 		3A17D15F5A215D093FC5F5D3 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
 		3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */ = {isa = PBXBuildFile; fileRef = 97B2FA3346C393306279C748 /* Scenarios */; };
 		3BD0C5D4F8BC13104E3197A7 /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
-		3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		3F43E8E21C37E3789C551032 /* MacPreferenceGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */; };
-		404945F69661E2E4B18732A7 /* MacPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E46FE58B00C600C0D604FE4 /* MacPreferences.swift */; };
 		42BD32B15D22DD2843812553 /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
-		42C44665C6E247B4EE0BFA3C /* MacBackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacBackupPage.swift */; };
+		42C44665C6E247B4EE0BFA3C /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */; };
 		45F3EC9793898807E3C7F0A6 /* MacThumbnailTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */; };
 		47309D330F957E977938E162 /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
@@ -69,7 +63,6 @@
 		4D0280088673A807EFBD1DB5 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		4D769768A020BD036490DB39 /* FolderMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604819320A8AF91EACFAD75F /* FolderMedia.swift */; };
 		4E618D2C7A1408F629769B90 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */; };
-		4F1E7FB39D919B01369C6DD7 /* MacContentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F941BCA663CC6304E15B267F /* MacContentSection.swift */; };
 		502470C1347465D6666D9F6F /* MacCatalogApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413A2C06D6747F37ECC8DD14 /* MacCatalogApp.swift */; };
 		50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		5132004E85BD11C8B2D4BC8D /* MacFolderViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807194EA689D50723125C5FF /* MacFolderViewer.swift */; };
@@ -81,7 +74,6 @@
 		5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */; };
 		5DE59819DB2238A145624F54 /* MacLibraryToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF765111BDFA86DCC54E86EC /* MacLibraryToolbar.swift */; };
 		5EB4567D14B16CE6EB91345D /* MacLibraryToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF765111BDFA86DCC54E86EC /* MacLibraryToolbar.swift */; };
-		5EECDAF8F615E80BFE3491D7 /* MacPreferenceMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F250A5F8512FA49DE595FB1D /* MacPreferenceMenu.swift */; };
 		600CE9A8DAAEC3379916531D /* DevicePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F78F39A26D0185F6DC47C69 /* DevicePage.swift */; };
 		600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		61438BC414F9F55949509F5D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B879720B5A1DAB699000E2E /* Assets.xcassets */; };
@@ -96,8 +88,6 @@
 		672B37337E77D129DE2AA775 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		6784E6BFA763808AEC7A5628 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		68F824F3F15EC1764EC4AE85 /* FileThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354D47FCA5E06447D8ACA477 /* FileThumbnails.swift */; };
-		69BA8406F5A49E8DF01A26A0 /* MacPreferenceMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F250A5F8512FA49DE595FB1D /* MacPreferenceMenu.swift */; };
-		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		6BBF604F88535126A72A12FE /* MacPhotoPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6976C2350E3EACD23E2E645 /* MacPhotoPreview.swift */; };
 		6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		6C2D6D4B6C95B05C4E0EE58D /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
@@ -108,8 +98,6 @@
 		7225487446C54C5E547FC03F /* MacSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28814E83AEE7E65D31C3D8E /* MacSettings.swift */; };
 		723D540EF369DB979871DD66 /* FolderBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB01DB498C8F14558F65316 /* FolderBrowse.swift */; };
 		74EAD3F448C3B740E415FEF2 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */; };
-		74F951094CD4D974C0E31824 /* MacStoragePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C3C31E72546B643D76B89C /* MacStoragePanel.swift */; };
-		758665BE9929AF95902439D8 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
 		77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = FC24582406B7B42FD52AC817 /* InfoPlist.strings */; };
@@ -129,9 +117,7 @@
 		850B8427BB4BF0DF4AF71B37 /* Scenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9DC3066EDAD759AC94A12F8 /* Scenario.swift */; };
 		85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
 		87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
-		8951226286A3DA55DBB2779A /* MacTransferPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85204BF10B1F250E2C6DE2A4 /* MacTransferPage.swift */; };
 		895F17EA658AB2CA29D86E70 /* HelpCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2541E61CA97AADB0BC21233 /* HelpCenter.swift */; };
-		8EEE967E8A10D32C28A9BD64 /* MacStoragePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C3C31E72546B643D76B89C /* MacStoragePanel.swift */; };
 		8F1B6E81FDDF6E284B34A4F0 /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		91CDFB25BE6272ADF8938558 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		92730896C675255D0AA5F593 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
@@ -140,18 +126,15 @@
 		9523B09BB2EE875AB0F1314A /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		97646AB62ACAAE3ADA6EE5F4 /* MacAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC664820D43C5E36E1794DA7 /* MacAppMain.swift */; };
 		994F060A2FD375E01DFF8334 /* PhotoLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */; };
-		99F071E82CD2AEEE49E4D235 /* MacContentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F941BCA663CC6304E15B267F /* MacContentSection.swift */; };
 		9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */; };
 		9EA24E3D1DCFD56A8ECE23D6 /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
 		A069C49CB633E10F02DB9F3C /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */; };
 		A122E7180C1B7B2ACA2E3656 /* FolderCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF53297C0C9639F1F9CB121 /* FolderCatalog.swift */; };
-		A2548A88E979A7366802A729 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		A3AB83FB2236EBBB671A9102 /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
 		A3BA6C64446ADDB42929DF69 /* FileThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354D47FCA5E06447D8ACA477 /* FileThumbnails.swift */; };
-		A46B841E1340C059028CE7DC /* MacBackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacBackupPage.swift */; };
+		A46B841E1340C059028CE7DC /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */; };
 		A68938D2A00AC9978B35AF8C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		A6AFFE2A2B12685D8F9E3A84 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */; };
-		ABF11EA9843100951A4B2963 /* MacPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E46FE58B00C600C0D604FE4 /* MacPreferences.swift */; };
 		AC269BB78501B58AF1A523FB /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
 		ADCF2EB6CD7ABD6398ECD488 /* MacFolderGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31AC10787D2AAAF253FC9C46 /* MacFolderGrid.swift */; };
 		ADDAF266E9DFDD06AE01C137 /* MacFolderGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31AC10787D2AAAF253FC9C46 /* MacFolderGrid.swift */; };
@@ -176,7 +159,6 @@
 		BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		BEB3BA61AD75C30CAAD148AB /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620A0D38838A61333D998D46 /* SettingsSupport.swift */; };
 		C0CF5B725CF9B0AFFBDE0905 /* MacHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96643277A7E41AF1DC12B80A /* MacHub.swift */; };
-		C455EB0A44BA814680BFE06A /* MacPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E46FE58B00C600C0D604FE4 /* MacPreferences.swift */; };
 		C523FE7BCDFCE7BAE44D6008 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
 		C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
@@ -189,7 +171,6 @@
 		CF32BAD53D03F77FE0C0701B /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2952CF6A3A582257A66A4A /* BackupHistory.swift */; };
 		CF5BC185C5DFC9F60FA5B21B /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		CFAB5050229635A9A0ACDBF5 /* MacFolderSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B692BFA0AC244130E4163BA1 /* MacFolderSettings.swift */; };
-		D01A5A12BBEC8310ED188FDA /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
 		D10B35DF72278E1BFC075963 /* Illustrations.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */; };
@@ -197,8 +178,6 @@
 		D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
 		D3517CC783ACD4D7A75E2720 /* MacLibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C22A10344FF24A5AFAAC246 /* MacLibraryPlaceholder.swift */; };
 		D556DB390B6162E297704CB7 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E384A4DF9856B6B9654C459A /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		D591C927CAD2911F388B0A68 /* MacContentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F941BCA663CC6304E15B267F /* MacContentSection.swift */; };
-		D5B539034F3EBFF8E833783C /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		D63163993905AD545E92741A /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
 		D63988A6A0724C364B6ECB6E /* FolderSourcesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C6225CA051D4BF9220D34 /* FolderSourcesPage.swift */; };
 		D655F97542A4138CC3DD18A9 /* MacConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72FC357EF7DA79C6D4817FE /* MacConnect.swift */; };
@@ -249,9 +228,8 @@
 		060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnostics.swift; sourceTree = "<group>"; };
 		083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacThumbnailTables.swift; sourceTree = "<group>"; };
 		094878371404AC47EB9890CE /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
-		0AB2023BBE2954441584C5C4 /* MacBackupPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacBackupPage.swift; sourceTree = "<group>"; };
+		0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScopeAlbumBrowser.swift; sourceTree = "<group>"; };
 		0B879720B5A1DAB699000E2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		17C3C31E72546B643D76B89C /* MacStoragePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStoragePanel.swift; sourceTree = "<group>"; };
 		1AF53297C0C9639F1F9CB121 /* FolderCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderCatalog.swift; sourceTree = "<group>"; };
 		1C5E73E62B1162CA263129F3 /* FolderSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSources.swift; sourceTree = "<group>"; };
 		1F9C6A18B4C0D218D8D122C2 /* DuckComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckComponents.swift; sourceTree = "<group>"; };
@@ -285,12 +263,10 @@
 		78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		790522FA25588024EE51100B /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
 		7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBackupOrder.swift; sourceTree = "<group>"; };
-		7E46FE58B00C600C0D604FE4 /* MacPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPreferences.swift; sourceTree = "<group>"; };
 		807194EA689D50723125C5FF /* MacFolderViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFolderViewer.swift; sourceTree = "<group>"; };
 		8092617AEB476C19587672C8 /* FolderWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderWatch.swift; sourceTree = "<group>"; };
 		831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverDiscovery.swift; sourceTree = "<group>"; };
 		84136452F1E989052208E2AB /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
-		85204BF10B1F250E2C6DE2A4 /* MacTransferPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTransferPage.swift; sourceTree = "<group>"; };
 		8544D07DE28FC92FCC6C01EC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		887AAC5805C34A2E272FCEF2 /* LibraryScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScenario.swift; sourceTree = "<group>"; };
 		89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
@@ -305,7 +281,6 @@
 		B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRefreshScheduler.swift; sourceTree = "<group>"; };
 		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B28814E83AEE7E65D31C3D8E /* MacSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettings.swift; sourceTree = "<group>"; };
-		B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
 		B692BFA0AC244130E4163BA1 /* MacFolderSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFolderSettings.swift; sourceTree = "<group>"; };
 		B72FC357EF7DA79C6D4817FE /* MacConnect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConnect.swift; sourceTree = "<group>"; };
 		B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransfer.swift; sourceTree = "<group>"; };
@@ -318,7 +293,6 @@
 		CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TesterFeedback.swift; sourceTree = "<group>"; };
 		CCBAA8805437D418DF9BA83A /* MacStatusMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStatusMenu.swift; sourceTree = "<group>"; };
 		D39898A776B4A23AF72454A2 /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
-		DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConcurrencySettings.swift; sourceTree = "<group>"; };
 		E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = DuckMenuBar.pdf; sourceTree = "<group>"; };
 		E384A4DF9856B6B9654C459A /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Sparkle.framework; path = ../../build/dependencies/sparkle/Sparkle.framework; sourceTree = "<group>"; };
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
@@ -328,9 +302,7 @@
 		EF765111BDFA86DCC54E86EC /* MacLibraryToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLibraryToolbar.swift; sourceTree = "<group>"; };
 		F110AD52A05DA30D64850E6D /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		F216BA9DB13FA7A6DAE85EC0 /* BackupDuckCatalog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BackupDuckCatalog.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		F250A5F8512FA49DE595FB1D /* MacPreferenceMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPreferenceMenu.swift; sourceTree = "<group>"; };
 		F64C9993D8CB74AF2A437784 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
-		F941BCA663CC6304E15B267F /* MacContentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacContentSection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -378,9 +350,8 @@
 				8092617AEB476C19587672C8 /* FolderWatch.swift */,
 				ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */,
 				BC664820D43C5E36E1794DA7 /* MacAppMain.swift */,
-				0AB2023BBE2954441584C5C4 /* MacBackupPage.swift */,
+				0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */,
 				B72FC357EF7DA79C6D4817FE /* MacConnect.swift */,
-				F941BCA663CC6304E15B267F /* MacContentSection.swift */,
 				31AC10787D2AAAF253FC9C46 /* MacFolderGrid.swift */,
 				B692BFA0AC244130E4163BA1 /* MacFolderSettings.swift */,
 				807194EA689D50723125C5FF /* MacFolderViewer.swift */,
@@ -389,13 +360,9 @@
 				EF765111BDFA86DCC54E86EC /* MacLibraryToolbar.swift */,
 				A6976C2350E3EACD23E2E645 /* MacPhotoPreview.swift */,
 				C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */,
-				F250A5F8512FA49DE595FB1D /* MacPreferenceMenu.swift */,
-				7E46FE58B00C600C0D604FE4 /* MacPreferences.swift */,
 				B28814E83AEE7E65D31C3D8E /* MacSettings.swift */,
 				CCBAA8805437D418DF9BA83A /* MacStatusMenu.swift */,
-				17C3C31E72546B643D76B89C /* MacStoragePanel.swift */,
 				083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */,
-				85204BF10B1F250E2C6DE2A4 /* MacTransferPage.swift */,
 			);
 			path = BackupDuck;
 			sourceTree = "<group>";
@@ -462,7 +429,6 @@
 			children = (
 				B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */,
 				A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */,
-				B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */,
 				BF2952CF6A3A582257A66A4A /* BackupHistory.swift */,
 				697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */,
 				3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */,
@@ -493,7 +459,6 @@
 				620A0D38838A61333D998D46 /* SettingsSupport.swift */,
 				2DD73467DFE30B87BA715C9D /* StorageModel.swift */,
 				CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */,
-				DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */,
 				060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */,
 				F110AD52A05DA30D64850E6D /* TransferProgress.swift */,
 				D39898A776B4A23AF72454A2 /* TransferViews.swift */,
@@ -720,7 +685,6 @@
 				64D267E777E6E4FAD390C020 /* BackgroundTransfer.swift in Sources */,
 				EE7E6050858209802E24A28B /* BackupDuckMacApp.swift in Sources */,
 				D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */,
-				758665BE9929AF95902439D8 /* BackupHelp.swift in Sources */,
 				CF147A1F2FAA23BC60045B52 /* BackupHistory.swift in Sources */,
 				DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */,
 				B5CDC65E8726DC36373D29FD /* BackupModel.swift in Sources */,
@@ -750,10 +714,9 @@
 				6784E6BFA763808AEC7A5628 /* LibraryRefreshScheduler.swift in Sources */,
 				E40D70B20FB7B82F9D189304 /* LibraryScenario.swift in Sources */,
 				6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */,
-				11E1E4F2B7365B30325A64FC /* MacBackupPage.swift in Sources */,
+				11E1E4F2B7365B30325A64FC /* MacScopeAlbumBrowser.swift in Sources */,
 				502470C1347465D6666D9F6F /* MacCatalogApp.swift in Sources */,
 				F4FC9E0EDD0EBFFD4212A634 /* MacConnect.swift in Sources */,
-				D591C927CAD2911F388B0A68 /* MacContentSection.swift in Sources */,
 				B3F4976C54F7C3984303F851 /* MacFolderGrid.swift in Sources */,
 				34950542111D23DAD8F0B1D5 /* MacFolderSettings.swift in Sources */,
 				01DE119C35D3C4F5B7292005 /* MacFolderViewer.swift in Sources */,
@@ -762,13 +725,9 @@
 				5EB4567D14B16CE6EB91345D /* MacLibraryToolbar.swift in Sources */,
 				BA8710EAA96F24748B80A4F9 /* MacPhotoPreview.swift in Sources */,
 				3F43E8E21C37E3789C551032 /* MacPreferenceGroup.swift in Sources */,
-				265EF782256ED53C6A895B53 /* MacPreferenceMenu.swift in Sources */,
-				404945F69661E2E4B18732A7 /* MacPreferences.swift in Sources */,
 				F65BCEF4C6BC545C79593A9E /* MacSettings.swift in Sources */,
 				FDBEDFB2C7DB05CBD54CFFEA /* MacStatusMenu.swift in Sources */,
-				1C4602154C87DB22A9EC8DD9 /* MacStoragePanel.swift in Sources */,
 				45F3EC9793898807E3C7F0A6 /* MacThumbnailTables.swift in Sources */,
-				1429F49B0CF310BB31A06424 /* MacTransferPage.swift in Sources */,
 				48F9514A642E13552542884B /* MediaPreview.swift in Sources */,
 				7CB64490194DB59972D9AB47 /* PhotoBackupOrder.swift in Sources */,
 				1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */,
@@ -781,7 +740,6 @@
 				BC8BBCDBBC2D4415D7BC6127 /* SettingsSupport.swift in Sources */,
 				100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */,
 				E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */,
-				D01A5A12BBEC8310ED188FDA /* TransferConcurrencySettings.swift in Sources */,
 				B3D1A9C2D931344FDDB0DAF3 /* TransferDiagnostics.swift in Sources */,
 				A68938D2A00AC9978B35AF8C /* TransferProgress.swift in Sources */,
 				3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */,
@@ -796,7 +754,6 @@
 				3A17D15F5A215D093FC5F5D3 /* BackgroundTransfer.swift in Sources */,
 				E2070812D8170B88C3610BAF /* BackupDuckMacApp.swift in Sources */,
 				AFC9EA81012B7495174DB088 /* BackupEnvironment.swift in Sources */,
-				A2548A88E979A7366802A729 /* BackupHelp.swift in Sources */,
 				CF32BAD53D03F77FE0C0701B /* BackupHistory.swift in Sources */,
 				31A900822516281E4AB31DA4 /* BackupHubStatus.swift in Sources */,
 				42BD32B15D22DD2843812553 /* BackupModel.swift in Sources */,
@@ -825,9 +782,8 @@
 				DF7263A9E007B8391F0D56C4 /* LibraryRefreshScheduler.swift in Sources */,
 				91CDFB25BE6272ADF8938558 /* LibraryTimeline.swift in Sources */,
 				97646AB62ACAAE3ADA6EE5F4 /* MacAppMain.swift in Sources */,
-				42C44665C6E247B4EE0BFA3C /* MacBackupPage.swift in Sources */,
+				42C44665C6E247B4EE0BFA3C /* MacScopeAlbumBrowser.swift in Sources */,
 				D655F97542A4138CC3DD18A9 /* MacConnect.swift in Sources */,
-				4F1E7FB39D919B01369C6DD7 /* MacContentSection.swift in Sources */,
 				ADDAF266E9DFDD06AE01C137 /* MacFolderGrid.swift in Sources */,
 				09E334BC6B8BD2D32FB10AF2 /* MacFolderSettings.swift in Sources */,
 				5132004E85BD11C8B2D4BC8D /* MacFolderViewer.swift in Sources */,
@@ -836,13 +792,9 @@
 				EE006A9638DF6BACBA1472D3 /* MacLibraryToolbar.swift in Sources */,
 				6BBF604F88535126A72A12FE /* MacPhotoPreview.swift in Sources */,
 				0BF3A6449A54CDF360F817A6 /* MacPreferenceGroup.swift in Sources */,
-				69BA8406F5A49E8DF01A26A0 /* MacPreferenceMenu.swift in Sources */,
-				ABF11EA9843100951A4B2963 /* MacPreferences.swift in Sources */,
 				7225487446C54C5E547FC03F /* MacSettings.swift in Sources */,
 				7A70A6663423068994494CF6 /* MacStatusMenu.swift in Sources */,
-				8EEE967E8A10D32C28A9BD64 /* MacStoragePanel.swift in Sources */,
 				5A5E6C3AB210B8C9C05DBC43 /* MacThumbnailTables.swift in Sources */,
-				8951226286A3DA55DBB2779A /* MacTransferPage.swift in Sources */,
 				E60A52D1FA9D133A3D13EE9B /* MediaPreview.swift in Sources */,
 				47309D330F957E977938E162 /* PhotoBackupOrder.swift in Sources */,
 				16747707B98624D480EC06F4 /* PhotoLibraryChanges.swift in Sources */,
@@ -853,7 +805,6 @@
 				BEB3BA61AD75C30CAAD148AB /* SettingsSupport.swift in Sources */,
 				CEBCC1F3A2C35C55D6A8F985 /* StorageModel.swift in Sources */,
 				672B37337E77D129DE2AA775 /* TesterFeedback.swift in Sources */,
-				D5B539034F3EBFF8E833783C /* TransferConcurrencySettings.swift in Sources */,
 				CC12DED1A14F0A19D1900BCB /* TransferDiagnostics.swift in Sources */,
 				6C2D6D4B6C95B05C4E0EE58D /* TransferProgress.swift in Sources */,
 				CF5BC185C5DFC9F60FA5B21B /* TransferViews.swift in Sources */,
@@ -868,7 +819,6 @@
 				714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */,
 				61C4EF5217307370D283286C /* BackupDuckMacApp.swift in Sources */,
 				3BD0C5D4F8BC13104E3197A7 /* BackupEnvironment.swift in Sources */,
-				6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */,
 				93C3AB83EF889D78A5C6E6B9 /* BackupHistory.swift in Sources */,
 				BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */,
 				332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */,
@@ -897,9 +847,8 @@
 				D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */,
 				E30A638B8FE3F262C9CAE9F5 /* LibraryTimeline.swift in Sources */,
 				22C1BB50D4A30FF3ED81B30E /* MacAppMain.swift in Sources */,
-				A46B841E1340C059028CE7DC /* MacBackupPage.swift in Sources */,
+				A46B841E1340C059028CE7DC /* MacScopeAlbumBrowser.swift in Sources */,
 				FF84744BF101E8461C92FD39 /* MacConnect.swift in Sources */,
-				99F071E82CD2AEEE49E4D235 /* MacContentSection.swift in Sources */,
 				ADCF2EB6CD7ABD6398ECD488 /* MacFolderGrid.swift in Sources */,
 				CFAB5050229635A9A0ACDBF5 /* MacFolderSettings.swift in Sources */,
 				534109E59A9110D321DFE7FA /* MacFolderViewer.swift in Sources */,
@@ -908,13 +857,9 @@
 				5DE59819DB2238A145624F54 /* MacLibraryToolbar.swift in Sources */,
 				FBF5CF90C803E0003DA41C9E /* MacPhotoPreview.swift in Sources */,
 				10C05972F063622785014F89 /* MacPreferenceGroup.swift in Sources */,
-				5EECDAF8F615E80BFE3491D7 /* MacPreferenceMenu.swift in Sources */,
-				C455EB0A44BA814680BFE06A /* MacPreferences.swift in Sources */,
 				6676DEDA53A39BFA9E259F44 /* MacSettings.swift in Sources */,
 				01606A41F73328383C06A185 /* MacStatusMenu.swift in Sources */,
-				74F951094CD4D974C0E31824 /* MacStoragePanel.swift in Sources */,
 				FD84BAE50E4DAA4D37C1EF4F /* MacThumbnailTables.swift in Sources */,
-				299EFF8DA04191E3123DFCE4 /* MacTransferPage.swift in Sources */,
 				E66296A8B106DA4ACCBDE504 /* MediaPreview.swift in Sources */,
 				C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */,
 				BA114F060234BD9171C23F24 /* PhotoLibraryChanges.swift in Sources */,
@@ -925,7 +870,6 @@
 				528CE89269DCC74AF6657D1C /* SettingsSupport.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
 				561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */,
-				3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */,
 				81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */,
 				C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */,
 				2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */,

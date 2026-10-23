@@ -107,40 +107,6 @@ extension BackupScopeStore {
   }
 }
 
-struct BackupScopeSettings: View {
-  @ObservedObject private var store = BackupScopeStore.shared
-  var navigate: ((BackupScopeDestination) -> Void)? = nil
-  private var typesValue: String { store.typesSummary }
-  private var albumsValue: String { store.albumsSummary }
-  var body: some View {
-    #if os(macOS)
-    MacPreferenceGroup(title: "scope_title", note: "scope_summary_note") {
-      Button { navigate?(.types) } label: {
-        MacPreferenceRow(title: "scope_media_types") { MacPreferenceValue(value: typesValue) }
-      }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.types")
-      Button { navigate?(.albums) } label: {
-        MacPreferenceRow(title: "scope_albums_title", first: false) { MacPreferenceValue(value: albumsValue) }
-      }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.albums")
-      if store.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure) }
-    }
-    #else
-    VStack(alignment: .leading, spacing: 8) {
-      IOSPreferenceSection(title: "scope_title") {
-        NavigationLink { BackupScopeEditor(destination: .types) } label: {
-          IOSPreferenceRow(title: "scope_media_types") { IOSPreferenceValue(value: typesValue) }
-        }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.types")
-        Divider()
-        NavigationLink { BackupScopeEditor(destination: .albums) } label: {
-          IOSPreferenceRow(title: "scope_albums_title") { IOSPreferenceValue(value: albumsValue) }
-        }.buttonStyle(.plain).accessibilityIdentifier("backup.scope.albums")
-      }
-      Text("scope_summary_note").font(.footnote).foregroundStyle(Color.secondary)
-      if store.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure) }
-    }
-    #endif
-  }
-}
-
 struct ScopeAlbum: Identifiable, Hashable {
   let id: String
   let name: String

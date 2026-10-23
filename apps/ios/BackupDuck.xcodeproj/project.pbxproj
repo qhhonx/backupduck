@@ -13,8 +13,7 @@
 		07F5A5D3282BE243ED5451B7 /* BackupDuckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */; };
 		0A0F659EA7BD7EB13A287872 /* BrandComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA2148CAC472733E514F516 /* BrandComponents.swift */; };
 		0C9D7AD807073F2661301B5D /* LibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */; };
-		0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */; };
-		0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
+		0CEB9ABBB14216BB794F58E3 /* IOSPresentationCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */; };
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		156EE3F6047F2638470B0047 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
@@ -23,7 +22,6 @@
 		222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
 		235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84136452F1E989052208E2AB /* SettingsComponents.swift */; };
 		25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
-		262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
 		26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA4F7B4794F768E7D3071B /* BackupScope.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		2C5C90A755B29BC8B45E8DEC /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
@@ -38,7 +36,6 @@
 		3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */ = {isa = PBXBuildFile; fileRef = 97B2FA3346C393306279C748 /* Scenarios */; };
 		3B86BCA72A3126C4EFBC0DCC /* TransferDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */; };
 		3BD0C5D4F8BC13104E3197A7 /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
-		3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */; };
 		3EF159E37F38AD15B4BCB2FF /* BackupActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */; };
@@ -57,7 +54,6 @@
 		54853049A123D203EE45E18C /* IOSConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354FD796EC38268C550E83C1 /* IOSConnect.swift */; };
 		561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
 		5672B041A1C40468F548D65C /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48543A6804607508613E2435 /* PairingScanner.swift */; };
-		56D044A7A5D7991F06EEB08C /* ReceiverPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */; };
 		59C9230E2BCD7A2AA0FE809B /* CalendarGridController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A160B6BAB13F144F368454F2 /* CalendarGridController.swift */; };
 		5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */; };
 		600CE9A8DAAEC3379916531D /* DevicePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F78F39A26D0185F6DC47C69 /* DevicePage.swift */; };
@@ -65,11 +61,9 @@
 		616790E3983F5CDA98C5C397 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		61B37FD986562777342B0398 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
 		64D267E777E6E4FAD390C020 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
-		653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */; };
 		6784E6BFA763808AEC7A5628 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		691B0845FB5DEF6C304B95BD /* BackupHubStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B543E17890BB3FBE8FA4C4F /* BackupHubStatusTests.swift */; };
 		6A96F3520E8795522AAE6615 /* IOSHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C8DAED4BC83F757CD44368 /* IOSHub.swift */; };
-		6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
 		6DE22743D9B882DDD14617BA /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
 		6DF1A3FEB66BB5590ABD570D /* BackupLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E510846D713909749C7E826 /* BackupLiveActivity.swift */; };
@@ -78,7 +72,6 @@
 		714A7C468520E2DBDF5B07C1 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
 		718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
 		74EAD3F448C3B740E415FEF2 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */; };
-		758665BE9929AF95902439D8 /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */; };
 		75AA113C0FA7DBA800D5D2D0 /* LiveActivityCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB73CC82991642CDD26D7E2 /* LiveActivityCatalog.swift */; };
 		779E8B27F979D3E86F67F355 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32AE73F9F0BBAABD3AA8AEE9 /* DeviceIdentity.swift */; };
 		77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
@@ -130,15 +123,13 @@
 		C7CDA8C605F5293ACB108257 /* IOSConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354FD796EC38268C550E83C1 /* IOSConnect.swift */; };
 		C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		C84580505ED4197D543ED861 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
-		C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8AB253C7227DDBD8BE24778 /* BackupPage.swift */; };
 		CCDABBA64DC51B59A1B645D8 /* BackupActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */; };
 		CF147A1F2FAA23BC60045B52 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2952CF6A3A582257A66A4A /* BackupHistory.swift */; };
 		D013358111500775AE0C08C8 /* AppTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41EB33EF719860F9DC39522 /* AppTabs.swift */; };
-		D01A5A12BBEC8310ED188FDA /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */; };
 		D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
 		D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
-		D39276A745BE767B3F33C721 /* SettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */; };
+		D39276A745BE767B3F33C721 /* IOSPresentationCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */; };
 		D6E78194CB84A18136D8892A /* BackupLiveActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686C340C683B91E66C51FAEE /* BackupLiveActivityTests.swift */; };
 		DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		E30A638B8FE3F262C9CAE9F5 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
@@ -147,7 +138,6 @@
 		E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84136452F1E989052208E2AB /* SettingsComponents.swift */; };
 		E66296A8B106DA4ACCBDE504 /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B2BBD178F50928C83270C3 /* MediaPreview.swift */; };
 		E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
-		E8250B6F0884D3CFE0F574A6 /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */; };
 		E92C4D383EFFD3F8A09FDAD2 /* CalendarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63393D3E70EEF613D5806923 /* CalendarLibrary.swift */; };
 		EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */; };
 		EBD915F39536F41260D24CFA /* SetBackupPauseIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C99BFEA0089531B780E7B6 /* SetBackupPauseIntent.swift */; };
@@ -261,23 +251,18 @@
 		B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLifecycle.swift; sourceTree = "<group>"; };
 		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
-		B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
-		B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
+		B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSPresentationCompatibility.swift; sourceTree = "<group>"; };
 		B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransfer.swift; sourceTree = "<group>"; };
 		BC599E760BD43DB668596349 /* GridZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoom.swift; sourceTree = "<group>"; };
 		BF2952CF6A3A582257A66A4A /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
 		C2DDE6D0D49315701CCCE445 /* BackupDuck.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BackupDuck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C348292D39827D604FC42566 /* CatalogApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogApp.swift; sourceTree = "<group>"; };
-		C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPicker.swift; sourceTree = "<group>"; };
 		C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalImport.swift; sourceTree = "<group>"; };
 		CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TesterFeedback.swift; sourceTree = "<group>"; };
 		CBB73CC82991642CDD26D7E2 /* LiveActivityCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityCatalog.swift; sourceTree = "<group>"; };
 		D39898A776B4A23AF72454A2 /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnosticsTests.swift; sourceTree = "<group>"; };
-		D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverPage.swift; sourceTree = "<group>"; };
 		D41EB33EF719860F9DC39522 /* AppTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTabs.swift; sourceTree = "<group>"; };
-		D8AB253C7227DDBD8BE24778 /* BackupPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupPage.swift; sourceTree = "<group>"; };
-		DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConcurrencySettings.swift; sourceTree = "<group>"; };
 		E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = DuckMenuBar.pdf; sourceTree = "<group>"; };
 		E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BackupDuckLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
@@ -321,7 +306,6 @@
 				B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */,
 				74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */,
 				8E510846D713909749C7E826 /* BackupLiveActivity.swift */,
-				D8AB253C7227DDBD8BE24778 /* BackupPage.swift */,
 				A160B6BAB13F144F368454F2 /* CalendarGridController.swift */,
 				63393D3E70EEF613D5806923 /* CalendarLibrary.swift */,
 				354FD796EC38268C550E83C1 /* IOSConnect.swift */,
@@ -329,11 +313,9 @@
 				1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */,
 				FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */,
 				ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */,
-				C4599B3DF6AC6EEE3A9A9FD3 /* LibraryPicker.swift */,
 				48543A6804607508613E2435 /* PairingScanner.swift */,
-				D403D96EF538C5EC29F832F2 /* ReceiverPage.swift */,
 				7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */,
-				B344E5B85F383ED1CEE5AF16 /* SettingsPage.swift */,
+				B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */,
 			);
 			path = BackupDuck;
 			sourceTree = "<group>";
@@ -422,7 +404,6 @@
 			children = (
 				B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */,
 				A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */,
-				B34FBE3E4B7668ACE8D00B52 /* BackupHelp.swift */,
 				BF2952CF6A3A582257A66A4A /* BackupHistory.swift */,
 				697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */,
 				3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */,
@@ -453,7 +434,6 @@
 				620A0D38838A61333D998D46 /* SettingsSupport.swift */,
 				2DD73467DFE30B87BA715C9D /* StorageModel.swift */,
 				CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */,
-				DE33C2423620893B134342B0 /* TransferConcurrencySettings.swift */,
 				060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */,
 				F110AD52A05DA30D64850E6D /* TransferProgress.swift */,
 				D39898A776B4A23AF72454A2 /* TransferViews.swift */,
@@ -718,13 +698,11 @@
 				CCDABBA64DC51B59A1B645D8 /* BackupActivityAttributes.swift in Sources */,
 				ABD53347772BC645EBDF41E0 /* BackupActivityView.swift in Sources */,
 				D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */,
-				758665BE9929AF95902439D8 /* BackupHelp.swift in Sources */,
 				CF147A1F2FAA23BC60045B52 /* BackupHistory.swift in Sources */,
 				DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */,
 				BB66616127002940EA2CAEBE /* BackupLiveActivity.swift in Sources */,
 				B5CDC65E8726DC36373D29FD /* BackupModel.swift in Sources */,
 				B2C3DF8C6BBD010AD1349571 /* BackupNotifier.swift in Sources */,
-				0E3A0A66DEE7824876170023 /* BackupPage.swift in Sources */,
 				027D2B658182556850C703AD /* BackupScope.swift in Sources */,
 				0A0F659EA7BD7EB13A287872 /* BrandComponents.swift in Sources */,
 				9523B09BB2EE875AB0F1314A /* BurstPhotos.swift in Sources */,
@@ -745,7 +723,6 @@
 				A191EF4D9C43B6FD26D84C39 /* IOSOnboarding.swift in Sources */,
 				222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */,
 				C84580505ED4197D543ED861 /* LibraryGrid.swift in Sources */,
-				E8250B6F0884D3CFE0F574A6 /* LibraryPicker.swift in Sources */,
 				D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */,
 				F067AE6BF18952343ADC3FA2 /* LibraryPresentation.swift in Sources */,
 				6784E6BFA763808AEC7A5628 /* LibraryRefreshScheduler.swift in Sources */,
@@ -759,17 +736,15 @@
 				B1F3DDC603A8771561FC6757 /* PhotoLibraryModel.swift in Sources */,
 				74EAD3F448C3B740E415FEF2 /* ReceiverAvailability.swift in Sources */,
 				306C79EE9085A6579BAC0EDB /* ReceiverDiscovery.swift in Sources */,
-				56D044A7A5D7991F06EEB08C /* ReceiverPage.swift in Sources */,
 				4ABE6EA6A021BEE3C4FC219D /* SampleImages.swift in Sources */,
 				850B8427BB4BF0DF4AF71B37 /* Scenario.swift in Sources */,
 				41AAB44E642F3269F1BE18D5 /* ScopeAlbumGrid.swift in Sources */,
 				9B9F793EF074BA92F213034B /* SetBackupPauseIntent.swift in Sources */,
 				E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */,
-				D39276A745BE767B3F33C721 /* SettingsPage.swift in Sources */,
+				D39276A745BE767B3F33C721 /* IOSPresentationCompatibility.swift in Sources */,
 				BC8BBCDBBC2D4415D7BC6127 /* SettingsSupport.swift in Sources */,
 				100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */,
 				E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */,
-				D01A5A12BBEC8310ED188FDA /* TransferConcurrencySettings.swift in Sources */,
 				B3D1A9C2D931344FDDB0DAF3 /* TransferDiagnostics.swift in Sources */,
 				A68938D2A00AC9978B35AF8C /* TransferProgress.swift in Sources */,
 				3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */,
@@ -824,13 +799,11 @@
 				EEDA8503897B9A6C429D030D /* BackupActivityAttributes.swift in Sources */,
 				07F5A5D3282BE243ED5451B7 /* BackupDuckApp.swift in Sources */,
 				3BD0C5D4F8BC13104E3197A7 /* BackupEnvironment.swift in Sources */,
-				6B5B295156362D2C1828DBC0 /* BackupHelp.swift in Sources */,
 				93C3AB83EF889D78A5C6E6B9 /* BackupHistory.swift in Sources */,
 				BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */,
 				6DF1A3FEB66BB5590ABD570D /* BackupLiveActivity.swift in Sources */,
 				332A9AD72D1A1B33E7C19D11 /* BackupModel.swift in Sources */,
 				81AB90ED054886AABA0D581C /* BackupNotifier.swift in Sources */,
-				C8AEC91274927E75D086DD05 /* BackupPage.swift in Sources */,
 				26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */,
 				84768A5285FF40126CA79CF9 /* BrandComponents.swift in Sources */,
 				600D68DCC14FB1D82EC71DF5 /* BurstPhotos.swift in Sources */,
@@ -850,7 +823,6 @@
 				1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */,
 				4DCDDE21481BA90B60D7FD73 /* IOSSettings.swift in Sources */,
 				87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */,
-				653AF342EF2D73C154EB7321 /* LibraryPicker.swift in Sources */,
 				50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */,
 				0C9D7AD807073F2661301B5D /* LibraryPresentation.swift in Sources */,
 				D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */,
@@ -862,15 +834,13 @@
 				994F060A2FD375E01DFF8334 /* PhotoLibraryModel.swift in Sources */,
 				03588CE5C11BE87A090609A4 /* ReceiverAvailability.swift in Sources */,
 				9B2F7B047C2AEA89C45C83E4 /* ReceiverDiscovery.swift in Sources */,
-				262DE3EB453828669BF472A7 /* ReceiverPage.swift in Sources */,
 				3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */,
 				E460E0E4645FC1F093CCA0D7 /* SetBackupPauseIntent.swift in Sources */,
 				235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */,
-				0CEB9ABBB14216BB794F58E3 /* SettingsPage.swift in Sources */,
+				0CEB9ABBB14216BB794F58E3 /* IOSPresentationCompatibility.swift in Sources */,
 				528CE89269DCC74AF6657D1C /* SettingsSupport.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
 				561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */,
-				3C92DAE2C89B7CD73B468662 /* TransferConcurrencySettings.swift in Sources */,
 				81EED007FFEEB171313CBF2A /* TransferDiagnostics.swift in Sources */,
 				C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */,
 				2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */,

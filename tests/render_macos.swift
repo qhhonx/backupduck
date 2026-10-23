@@ -7,6 +7,8 @@ import SwiftUI
 @main struct MacLayoutCheck {
   @MainActor static var interactiveWindow: NSWindow?
   @MainActor static func main() throws {
+    BackupEnvironment.usesPhotoLibrary = false
+    BackupEnvironment.discoversReceivers = false
     let output = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
     try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
     let store = FileManager.default.temporaryDirectory.appendingPathComponent("backupduck-layout-" + UUID().uuidString)
@@ -32,12 +34,13 @@ import SwiftUI
       do {
         print("Layout check main-actor task entered")
         if CommandLine.arguments.contains("--local-preview-policy") {
-          precondition(!MacLocalPreviewPolicy.imageOptions().isNetworkAccessAllowed)
-          precondition(!MacLocalPreviewPolicy.videoOptions().isNetworkAccessAllowed)
-          precondition(!MacLocalPreviewPolicy.liveOptions().isNetworkAccessAllowed)
-          precondition(MacLocalPreviewPolicy.imageOptions().deliveryMode == .highQualityFormat)
-          precondition(MacLocalPreviewPolicy.liveOptions().deliveryMode == .highQualityFormat)
-          print("Local preview policy passed: still, video and Live Photo requests all forbid network; no Photos library access or playback invoked.")
+          let defaults = UserDefaults(suiteName: "layout.preview-policy." + UUID().uuidString)!
+          defaults.set("deny", forKey: "previewCloudConsent")
+          precondition(PreviewNetworkPolicy(defaults: defaults).allowed,
+            "Obsolete cloud consent must not block passive browsing")
+          precondition(defaults.string(forKey: "previewCloudConsent") == "deny",
+            "Ignoring obsolete consent must not erase stored preferences")
+          print("Preview policy passed: obsolete consent is ignored and preserved; no Photos access invoked.")
           app.terminate(nil); return
         }
         if CommandLine.arguments.contains("--menubar-symbol") {
@@ -67,7 +70,7 @@ import SwiftUI
                 size: NSSize(width: width, height: 340), dark: dark)
             }
             try await capture("selection-submission-" + (dark ? "dark" : "light"),
-              view: AnyView(DuckSelectedBackup(count: 2, rebackup: .constant(false), confirm: { true })),
+              view: AnyView(RenderSelectionBackupFixture(count: 2)),
               output: output, size: NSSize(width: 560, height: 420), dark: dark)
           }
           print("Submission controls rendered: update label without static ellipsis, intrinsic native segments aligned trailing, normal confirmation in both appearances and compact widths.")
@@ -107,7 +110,7 @@ import SwiftUI
         if CommandLine.arguments.contains("--help-only") {
           for dark in [false, true] {
             try await capture("help-" + (dark ? "dark" : "light"),
-              view: AnyView(BackupHelp()), output: output,
+              view: AnyView(HelpCenter()), output: output,
               size: NSSize(width: 620, height: 760), dark: dark)
           }
           try FileManager.default.removeItem(at: store)
@@ -179,66 +182,8 @@ import SwiftUI
           "An unchanged old route must not confirm a different requested route")
         precondition(DesktopPairingModel.acceptedPairing(model, receiverID: paired.receiverID, endpoint: paired.endpoint))
         model.pairing = nil
-        if CommandLine.arguments.contains("--section-rhythm") {
-          guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else { throw CocoaError(.fileReadNoPermission) }
-          model.pairing = paired
-          await model.refreshStorage()
-          let folders = FolderSources(backup: model)
-          let rows = AnyView(MacPreferenceGroup {
-            MacPreferenceRow(title: "auto_backup_new") { Toggle("auto_backup_new", isOn: .constant(true)).labelsHidden().toggleStyle(.switch) }
-            MacPreferenceRow(title: "settings_cache", first: false) { MacPreferenceValue(value: "0 KB / 2 GB") }
-          })
-          let plain = AnyView(MacContentSection(title: "design_recent_transfers") { rows })
-          let action = AnyView(MacContentSection(title: "design_recent_transfers", actionTitle: "apple_view_all", action: {}) { rows })
-          let plainHeight = await naturalHeight(plain, width: 500)
-          let actionHeight = await naturalHeight(action, width: 500)
-          precondition(abs(plainHeight - actionHeight) < 1, "A section action must not change heading or section height")
-          precondition(abs(plainHeight - 140) < 1, "Two rows96 + heading32 + contentgap12 must total140")
-          precondition(MacMenuBarIcon.image.size == NSSize(width: 20, height: 20) && MacMenuBarIcon.image.isTemplate && !MacMenuBarIcon.image.representations.isEmpty, "Menu icon must use the transparent monochrome brand template")
-          for dark in [false, true] {
-            let suffix = dark ? "dark" : "light"
-            try await capture("rhythm-sections-" + suffix, view: AnyView(VStack(alignment: .leading, spacing: MacContentMetrics.sectionSpacing) { plain; action }.padding(20)), output: output, size: NSSize(width: 560, height: 350), dark: dark)
-            for destination in [MacDestination.settings, .backup, .sources] {
-              try await capture("rhythm-\(destination)-" + suffix, view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output, size: NSSize(width: 900, height: 620), dark: dark, action: {
-                precondition(!(NSApp.keyWindow?.firstResponder is NSButton), "First open must not focus the sidebar toolbar button")
-              })
-            }
-            try await capture("rhythm-about-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .about)), output: output, size: NSSize(width: 680, height: 620), dark: dark)
-            try await capture("rhythm-about-route-" + suffix, view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: .backup, folderSources: folders)), output: output, size: NSSize(width: 900, height: 620), dark: dark, action: { MacAboutNavigation.open {} })
-          }
-          try FileManager.default.removeItem(at: store)
-          print("Section checks passed: action/plain section both140pt; settings groups, overview, folders, About and shared About navigation captured in actual light/dark windows; bundled brand icon20pt; initial sidebar focus absent.")
-          app.terminate(nil); return
-        }
-        if CommandLine.arguments.contains("--preference-edges") {
-          guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else { throw CocoaError(.fileReadNoPermission) }
-          model.pairing = paired
-          await model.refreshStorage()
-          let folders = FolderSources(backup: model)
-          let edgeRows = AnyView(MacPreferenceGroup {
-            MacPreferenceRow(title: "auto_backup_new") { Toggle("auto_backup_new", isOn: .constant(true)).labelsHidden().toggleStyle(.switch) }
-            MacPreferenceRow(title: "settings_cache", first: false) { MacPreferenceValue(value: "0 KB / 2 GB") }
-          })
-          let groupHeight = await naturalHeight(edgeRows, width: 500)
-          precondition(abs(groupHeight - 96) < 1, "An untitled two-row group must not add space above or below its 48pt rows")
-          let titled = AnyView(MacPreferenceGroup(title: "device_identity") {
-            MacPreferenceRow(title: "device_this_device") { MacPreferenceValue(value: "Fixture Mac") }
-          })
-          let headingHeight = await naturalHeight(AnyView(Text("device_identity").font(.system(size: 16, weight: .semibold))), width: 460)
-          let titledHeight = await naturalHeight(titled, width: 500)
-          precondition(abs(titledHeight - (20 + headingHeight + 8 + 48)) < 1, "The last row must end at the card edge; only the heading owns extra vertical spacing")
-          for dark in [false, true] {
-            let suffix = dark ? "dark" : "light"
-            for destination in [MacDestination.settings, .backup] {
-              try await capture("edges-\(destination)-" + suffix, view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output, size: NSSize(width: 900, height: 620), dark: dark)
-            }
-            try await capture("edges-groups-" + suffix, view: AnyView(VStack(spacing: 20) { titled; edgeRows }.padding(20)), output: output, size: NSSize(width: 560, height: 260), dark: dark)
-            try await capture("edges-selection-" + suffix, view: AnyView(MacLibraryToolbar(total: 55120, selected: 3, selecting: .constant(true), filter: .constant(.all), tileSize: .constant(140), canBackup: true, finish: {}, backup: {}).padding(28)), output: output, size: NSSize(width: 680, height: 100), dark: dark)
-          }
-          try FileManager.default.removeItem(at: store)
-          print("Preference edge checks passed: two untitled rows total 96pt; titled group has no trailing inset; settings, overview and single-count selection captured in light/dark actual windows.")
-          app.terminate(nil); return
-        }
+        precondition(MacMenuBarIcon.image.size == NSSize(width: 20, height: 20) && MacMenuBarIcon.image.isTemplate && !MacMenuBarIcon.image.representations.isEmpty,
+          "Menu icon must use the transparent monochrome brand template")
         if CommandLine.arguments.contains("--ui-unification") {
           guard CommandLine.arguments.contains("--design-review"), CGPreflightScreenCaptureAccess() else { throw CocoaError(.fileReadNoPermission) }
           model.pairing = paired
@@ -246,36 +191,26 @@ import SwiftUI
           let folders = FolderSources(backup: model)
           let directory = store.appendingPathComponent("Fixture originals")
           try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-          let row = AnyView(MacPreferenceRow(title: "storage_cache_used") { MacPreferenceValue(value: "0 KB", indicator: nil, width: 168) })
-          let menuRow = AnyView(MacPreferenceRow(title: "storage_cache_budget") {
-            MacPreferenceMenu(title: "Cache budget", selection: .constant(2), options: [1,2,5], label: { "\($0) GB" }).frame(width: 168, height: 24)
-          })
-          let factHeight = await naturalHeight(row, width: 500)
-          let menuHeight = await naturalHeight(menuRow, width: 500)
-          precondition(abs(factHeight - 48) < 1)
-          precondition(abs(menuHeight - 48) < 1)
-          let qr = NSImage(size: NSSize(width: 240, height: 240))
-          qr.lockFocus(); NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 240, height: 240).fill()
-          NSColor.black.setFill()
-          for y in 0..<24 { for x in 0..<24 where (x * 3 + y * 5) % 7 < 3 { NSRect(x: x * 10, y: y * 10, width: 10, height: 10).fill() } }
-          qr.unlockFocus()
           for dark in [false, true] {
             let suffix = dark ? "dark" : "light"
             for width in [900.0, 1180.0] {
-              for destination in [MacDestination.settings, .backup, .receiver, .sources] {
+              for destination in [MacDestination.settings, .backup, .transfers, .sources] {
                 try await capture("unified-\(destination)-\(Int(width))-" + suffix,
                   view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)),
-                  output: output, size: NSSize(width: width, height: 620), dark: dark)
+                  output: output, size: NSSize(width: width, height: 620), dark: dark, action: {
+                    precondition(!(NSApp.keyWindow?.firstResponder is NSButton), "First open must not focus the sidebar toolbar button")
+                  })
               }
             }
-            try await capture("unified-cache-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .cache)), output: output, size: NSSize(width: 680, height: 660), dark: dark)
-            try await capture("unified-help-" + suffix, view: AnyView(MacPreferences(model: model, folders: folders, initialRoute: .help)), output: output, size: NSSize(width: 680, height: 620), dark: dark)
-            try await capture("unified-backup-settings-" + suffix, view: AnyView(MacBackupPreferences(model: model)), output: output, size: NSSize(width: 560, height: 600), dark: dark)
-            try await capture("unified-pairing-" + suffix, view: AnyView(MacPairingPresentation(model: model, image: qr, cancel: {}, regenerate: {})), output: output, size: NSSize(width: 560, height: 600), dark: dark)
+            try await capture("unified-cache-" + suffix, view: AnyView(MacSettings(model: model, folders: folders, showFolders: {}, initialPage: .advanced)), output: output, size: NSSize(width: 680, height: 660), dark: dark)
+            try await capture("unified-help-" + suffix, view: AnyView(MacSettings(model: model, folders: folders, showFolders: {}, initialPage: .help)), output: output, size: NSSize(width: 680, height: 620), dark: dark)
+            try await capture("unified-backup-settings-" + suffix, view: AnyView(MacSettings(model: model, folders: folders, showFolders: {}, initialPage: .autoBackup)), output: output, size: NSSize(width: 560, height: 600), dark: dark)
+            try await capture("unified-about-route-" + suffix,
+              view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: .backup, folderSources: folders)),
+              output: output, size: NSSize(width: 900, height: 620), dark: dark,
+              action: { MacAboutNavigation.open {} })
             try await capture("unified-add-folder-" + suffix, view: AnyView(AddFolderSheet(url: directory, folders: folders, backup: model, close: {})), output: output, size: NSSize(width: 560, height: 560), dark: dark)
-            for selecting in [false, true] {
-              try await capture("unified-library-\(selecting)-" + suffix, view: AnyView(MacLibraryToolbar(total: 55120, selected: selecting ? 2 : 0, selecting: .constant(selecting), filter: .constant(.all), tileSize: .constant(140), canBackup: selecting, finish: {}, backup: {}).padding(28)), output: output, size: NSSize(width: 680, height: 100), dark: dark)
-            }
+
             try await capture("unified-notices-" + suffix, view: AnyView(VStack(spacing: 20) {
               DuckNotice(title: "folder_scan_note")
               DuckNotice(title: "mac_library_preview_unavailable", tone: .attention)
@@ -284,7 +219,7 @@ import SwiftUI
             }.padding(20)), output: output, size: NSSize(width: 560, height: 380), dark: dark)
           }
           try FileManager.default.removeItem(at: store)
-          print("Unified desktop checks passed: value/menu rows both 48pt; actual active windows light/dark and minimum width; synthetic QR, folder, help, preferences, notices and toolbar states.")
+          print("Current desktop views rendered in active light/dark and minimum-width windows; initial sidebar focus and bundled brand icon checks passed.")
           app.terminate(nil); return
         }
         if CommandLine.arguments.contains("--fidelity-audit") {
@@ -311,13 +246,13 @@ import SwiftUI
           model.deviceSnapshot = DeviceSnapshot(device: model.deviceSnapshot!.device, peers: [DeviceSnapshot.Peer(key: paired.receiverID,
             profile: DeviceProfile(id: String(repeating: "a", count: 64), name: "示例 Pixel"), last_seen: Int64(Date().timeIntervalSince1970))])
           for (name, destination) in [("backup-album-failure", MacDestination.backup), ("settings-normal", .settings),
-            ("receiver-paired", .receiver), ("folders-normal", .sources), ("transfers-empty", .transfers), ("library-permission", .library)] {
+            ("folders-normal", .sources), ("transfers-empty", .transfers), ("library-permission", .library)] {
             try await capture((CommandLine.arguments.contains("--fidelity-after") ? "fidelity-after-" : "fidelity-before-") + name, view: AnyView(MacWorkspace(model: model,
               library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output,
               size: NSSize(width: 1180, height: 800))
           }
           model.pairing = nil
-          for (name, destination) in [("backup-unpaired", MacDestination.backup), ("receiver-unpaired", .receiver)] {
+          for (name, destination) in [("backup-unpaired", MacDestination.backup)] {
             try await capture((CommandLine.arguments.contains("--fidelity-after") ? "fidelity-after-" : "fidelity-before-") + name, view: AnyView(MacWorkspace(model: model,
               library: PhotoLibraryModel(), initialDestination: destination, folderSources: folders)), output: output,
               size: NSSize(width: 1180, height: 800))
@@ -458,15 +393,12 @@ import SwiftUI
           model.autoBackupError = "Synthetic auto-backup save failure. Previous choice remains unchanged."
           model.pauseError = "Synthetic pause save failure. Previous queue state remains unchanged."
           for dark in [false, true] {
-            try await capture("audit-current-operation-errors-" + (dark ? "dark" : "light"),
-              view: AnyView(VStack(spacing: 16) {
-                DuckLibrarySource(model: model)
-                DuckBackupProgress(model: model, showTransfers: {})
-              }.padding(20)), output: output, size: NSSize(width: 660, height: 730), dark: dark)
-            model.pairingInProgress = true
-            try await capture("audit-pair-verifying-" + (dark ? "dark" : "light"),
-              view: AnyView(MacPairingPresentation(model: model, image: nil, error: nil, cancel: {}, regenerate: {})),
-              output: output, size: NSSize(width: 520, height: 650), dark: dark)
+            try await capture("audit-auto-backup-error-" + (dark ? "dark" : "light"),
+              view: AnyView(MacSettings(model: model, folders: folders, showFolders: {}, initialPage: .autoBackup)),
+              output: output, size: NSSize(width: 900, height: 740), dark: dark)
+            try await capture("audit-pause-error-" + (dark ? "dark" : "light"),
+              view: AnyView(MacHub(model: model, folders: folders, pair: {}, sources: {}, showTransfers: { _ in })),
+              output: output, size: NSSize(width: 660, height: 730), dark: dark)
             model.pairingInProgress = false
           }
           model.historyError = "Synthetic historical-scan failure"
@@ -474,7 +406,7 @@ import SwiftUI
           precondition(model.historyError == "Synthetic historical-scan failure", "Routine successful status poll must retain a workflow error")
           await model.refreshHistoricalImport(clearError: true)
           precondition(model.historyError == nil, "Explicit successful history retry can clear its error")
-          print("Audit differences passed: blocked atomic add/rules/auto/pause/start/retry/ignore retain authoritative source; recovery persists; corrupt config protected; missing Finder file errors; historical error poll retention; current-operation error and pairing busy visual fixtures rendered. No user media or receiver contacted.")
+          print("Audit differences passed: blocked atomic add/rules/auto/pause/start/retry/ignore retain authoritative source; recovery persists; corrupt config protected; missing Finder file errors; historical error poll retention; current-operation error fixtures rendered. No user media or receiver contacted.")
           try FileManager.default.removeItem(at: store)
           app.terminate(nil); return
         }
@@ -548,19 +480,16 @@ import SwiftUI
                 source: source, close: {})), output: output, size: size, dark: dark)
               try await capture("replica-folder-preferences-" + variant, view: AnyView(MacFolderSettings(folders: folders,
                 backup: model, selectedID: source.id)), output: output, size: size, dark: dark)
-              try await capture("replica-selection-" + variant, view: AnyView(DuckSelectedBackup(count: 1200,
-                rebackup: .constant(false), confirm: { true })), output: output, size: size, dark: dark)
-              try await capture("replica-receiver-" + variant, view: AnyView(ReceiverPage(model: model, pair: {})),
+              try await capture("replica-selection-" + variant, view: AnyView(RenderSelectionBackupFixture(count: 1200)), output: output, size: size, dark: dark)
+              try await capture("replica-receiver-" + variant, view: AnyView(DevicePage(model: model, connect: {})),
                 output: output, size: size, dark: dark)
             }
             try await capture("replica-settings-" + (dark ? "dark" : "light"),
-              view: AnyView(MacPreferences(model: model, folders: folders)), output: output,
+              view: AnyView(MacSettings(model: model, folders: folders, showFolders: {})), output: output,
               size: NSSize(width: 920, height: 1000), dark: dark)
             try await capture("replica-history-" + (dark ? "dark" : "light"),
-              view: AnyView(DuckSheetLayout(title: "mac_library_existing") {
-                HistoricalImportSettings(model: model, title: "history_scan_status", explanation: "mac_library_existing_note")
-              } actions: { Button("settings_done") {} }), output: output,
-              size: NSSize(width: 520, height: 600), dark: dark)
+              view: AnyView(MacHub(model: model, folders: folders, pair: {}, sources: {}, showTransfers: { _ in })),
+              output: output, size: NSSize(width: 660, height: 740), dark: dark)
           }
           print("Replica sheets and pages rendered in Chinese/English, light/dark, compact/regular. Real rule persistence, validation failure and retry semantics passed; window interaction and user acceptance remain separate.")
           try FileManager.default.removeItem(at: store)
@@ -574,11 +503,11 @@ import SwiftUI
             let suffix = dark ? "dark" : "light"
             let large = DynamicTypeSize.accessibility3
             try await capture("compact-overview-" + suffix,
-              view: AnyView(MacBackupPage(model: model, pair: {}, library: {}, sources: {}, showTransfers: { _ in })
+              view: AnyView(MacHub(model: model, folders: FolderSources(backup: model), pair: {}, sources: {}, showTransfers: { _ in })
                 .environment(\.dynamicTypeSize, large)), output: output,
               size: NSSize(width: 620, height: 680), dark: dark)
             try await capture("compact-selected-" + suffix,
-              view: AnyView(DuckSelectedBackup(count: 1200, rebackup: .constant(true), confirm: { true })
+              view: AnyView(RenderSelectionBackupFixture(count: 1200, repeats: true)
                 .environment(\.dynamicTypeSize, large)), output: output,
               size: NSSize(width: 440, height: 650), dark: dark)
           }
@@ -588,30 +517,7 @@ import SwiftUI
         }
         if CommandLine.arguments.contains("--transfer-layout-only") {
           model.pairing = paired; model.paused = false
-          let asset = BackupJob.Asset(metadata: ["source_type": "folder", "source_name": "SD Card", "created_at_ms": "1727400000000"],
-            kind: "photo", source_id: "layout-transfer", revision: "1", resources: [.init(filename: "photo.jpg", size: 1000000)])
-          var rowHeights: [CGFloat] = []
-          for state in ["queued", "running", "waiting", "failed", "received"] {
-            let job = BackupJob(id: 1, asset: asset, state: state, confirmedBytes: state == "received" ? 1000000 : 500000,
-              errorCode: ["waiting", "failed"].contains(state) ? "network" : nil,
-              nextAttemptAt: state == "waiting" ? Int64(Date().addingTimeInterval(30).timeIntervalSince1970) : nil)
-            let row = AnyView(TransferRow(job: job, progress: state == "running" ? TransferProgress(sent: 250000, expected: 500000, baseline: 500000, phase: "upload") : nil, retry: { true }))
-            rowHeights.append(await naturalHeight(row, width: 680))
-            try await capture("transfer-row-" + state, view: row, output: output, size: NSSize(width: 700, height: rowHeights.last!))
-          }
-          precondition(rowHeights.max()! - rowHeights.min()! < 1,
-            "Transfer row height must remain stable across progress, retry and receipt transitions: \(rowHeights)")
-          var preparationHeights: [CGFloat] = []
-          for (active, progress, retry) in [(false, nil as Double?, nil as Int64?), (true, nil, nil),
-            (true, 0.45, nil), (false, nil, Int64(Date().addingTimeInterval(30).timeIntervalSince1970))] {
-            let item = SourceBrowserItem(cursor: 1, source: "layout-missing-source", revision: "1", retry_at: retry, state: "preparing")
-            let row = AnyView(SourceBrowserRow(item: item, active: active, progress: progress))
-            preparationHeights.append(await naturalHeight(row, width: 680))
-          }
-          precondition(preparationHeights.max()! - preparationHeights.min()! < 1,
-            "Preparation row height must remain stable with progress, spinner and retry time: \(preparationHeights)")
-          let footer = { AnyView(MacBackupFooter(model: model, activeJob: nil, pair: {}, showTransfers: {})) }
-          var footerHeights: [CGFloat] = []
+          let hub = { AnyView(MacHub(model: model, folders: FolderSources(backup: model), pair: {}, sources: {}, showTransfers: { _ in })) }
           model.summary.total = 10; model.summary.running = 1
           model.preparationReason = "local_cache_budget"
           precondition(model.waitingReason == "local_cache_budget" && model.compactWaitingReason == nil,
@@ -624,14 +530,11 @@ import SwiftUI
             model.preparationReason = ["running", "blocked"].contains(state) ? "local_cache_budget" : nil
             if state == "blocked" { precondition(model.compactWaitingReason == "local_cache_budget") }
             if state == "network" { precondition(model.compactWaitingReason == "network") }
-            footerHeights.append(await naturalHeight(footer(), width: 680))
-            try await capture("backup-footer-" + state, view: footer(), output: output, size: NSSize(width: 700, height: footerHeights.last!))
+            try await capture("backup-hub-" + state, view: hub(), output: output, size: NSSize(width: 700, height: 740))
           }
           model.importing = true; model.receiverUnavailable = true
           precondition(model.compactWaitingReason == "receiver_unavailable", "Connection warnings must remain visible during preparation")
-          precondition(footerHeights.max()! - footerHeights.min()! < 1,
-            "Backup footer height must remain stable across progress and warnings: \(footerHeights)")
-          print("Transfer and preparation rows and backup footer retain height across state transitions; active preparation waits stay in details and blocked/connection warnings remain visible.")
+          print("Current hub renders preparation and recovery while waiting-reason assertions retain their model coverage.")
           app.terminate(nil)
           return
         }
@@ -788,8 +691,7 @@ import SwiftUI
           try await capture("folder-workspace", view: AnyView(MacWorkspace(model: model,
             library: PhotoLibraryModel(), initialDestination: .sources, folderSources: folders)),
             output: output, size: NSSize(width: 1080, height: 740))
-          UserDefaults.standard.set("backup", forKey: "macSettingsSection")
-          try await capture("folder-settings", view: AnyView(MacPreferences(model: model, folders: folders)),
+          try await capture("folder-settings", view: AnyView(MacSettings(model: model, folders: folders, showFolders: {}, initialPage: .folders)),
             output: output, size: NSSize(width: 800, height: 900))
           // Exercise offline checks against both a disappeared directory and an
           // unresolved bookmark, the latter being macOS's unmounted-volume path.
@@ -850,8 +752,8 @@ import SwiftUI
           model.summary.total = 120; model.summary.received = 93; model.summary.published = 91
           model.summary.publication_failed = 2; model.summary.queued = 20; model.summary.waiting = 7
           for dark in [false, true] {
-            try await capture("overview-" + (dark ? "dark" : "light"), view: AnyView(MacBackupPage(model: model,
-              pair: {}, library: {}, sources: {}, showTransfers: { _ in })), output: output,
+            try await capture("overview-" + (dark ? "dark" : "light"), view: AnyView(MacHub(model: model, folders: FolderSources(backup: model),
+              pair: {}, sources: {}, showTransfers: { _ in })), output: output,
               size: NSSize(width: 880, height: 800), dark: dark)
             try await capture("workspace-" + (dark ? "dark" : "light"), view: AnyView(MacWorkspace(model: model,
               library: PhotoLibraryModel(), initialDestination: .backup)), output: output,
@@ -863,14 +765,16 @@ import SwiftUI
             errorCode: nil, processing: "failed", processingError: "conversion_required", nextAttemptAt: nil)
           for dark in [false, true] {
             try await capture("transfer-detail-" + (dark ? "dark" : "light"),
-              view: AnyView(DuckTransferDetail(job: job, status: NSLocalizedString("state_publication_failed", comment: ""),
-                symbol: "exclamationmark.triangle", tone: .failure, retry: { true })), output: output,
-              size: NSSize(width: 560, height: 650), dark: dark)
+              view: AnyView(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: .transfers,
+                initialViewer: .photo(nil, [], HistoryPhoto(job: job)), initialViewerInfo: true)),
+              output: output, size: NSSize(width: 1180, height: 740), dark: dark)
           }
           try FileManager.default.removeItem(at: store)
           app.terminate(nil); return
         }
-        let overview = { AnyView(MacBackupPage(model: model, pair: {}, library: {}, sources: {}, showTransfers: { _ in })) }
+        let currentFolders = FolderSources(backup: model)
+        currentFolders.previewRows = []
+        let overview = { AnyView(MacHub(model: model, folders: currentFolders, pair: {}, sources: {}, showTransfers: { _ in })) }
         try await capture("backup-unpaired", view: overview(), output: output)
         model.pairing = paired
         try await capture("backup-empty", view: overview(), output: output)
@@ -889,32 +793,34 @@ import SwiftUI
         model.exportProgress = 0.45
         try await capture("backup-preparing", view: overview(), output: output)
         model.importing = false
-        for section in [MacSettingsSection.backup, .cache, .diagnostics] {
-          UserDefaults.standard.set(section.rawValue, forKey: "macSettingsSection")
-          try await capture("settings-" + section.rawValue,
-            view: AnyView(MacPreferences(model: model)), output: output,
-            size: NSSize(width: 620, height: 580))
+        for (name, page) in [("auto-backup", MacSettings.Page.autoBackup), ("advanced", .advanced), ("diagnostics", .diagnostics)] {
+          try await capture("settings-" + name,
+            view: AnyView(MacSettings(model: model, folders: currentFolders, showFolders: {}, initialPage: page)), output: output,
+            size: NSSize(width: 900, height: 620))
         }
-        UserDefaults.standard.set(MacSettingsSection.cache.rawValue, forKey: "macSettingsSection")
-        try await capture("settings-cache-dark", view: AnyView(MacPreferences(model: model)),
-          output: output, size: NSSize(width: 620, height: 580), dark: true)
-        try await capture("settings-save-error", view: AnyView(MacPreferences(model: model)),
-          output: output, size: NSSize(width: 620, height: 580), action: {
+        try await capture("settings-advanced-dark", view: AnyView(MacSettings(model: model, folders: currentFolders, showFolders: {}, initialPage: .advanced)),
+          output: output, size: NSSize(width: 900, height: 620), dark: true)
+        try await capture("settings-save-error", view: AnyView(MacSettings(model: model, folders: currentFolders, showFolders: {}, initialPage: .advanced)),
+          output: output, size: NSSize(width: 900, height: 620), action: {
             let original = model.storage!.settings.cache_budget_bytes
             var invalid = model.storage!.settings
             invalid.cache_budget_bytes = 0
             await model.saveStorage(invalid)
-            precondition(model.storageError != nil, "Invalid settings must report an error")
+            precondition(model.storageSettingsError != nil, "Invalid settings must report an error")
             precondition(model.storage!.settings.cache_budget_bytes == original,
               "Rejected settings must not change the stored budget")
           })
         var valid = model.storage!.settings
         valid.cache_budget_bytes = 2 << 30
         await model.saveStorage(valid)
-        precondition(model.storageError == nil && model.storage!.settings.cache_budget_bytes == 2 << 30,
+        precondition(model.storageSettingsError == nil && model.storage!.settings.cache_budget_bytes == 2 << 30,
           "Valid settings must persist and clear the previous error")
         model.scanningHistory = true
+        // The scan gate returns before PhotoKit. Exercise that production gate
+        // while keeping actual library access disabled for every rendered view.
+        BackupEnvironment.usesPhotoLibrary = true
         let deferredImport = await model.importAssets(["synthetic-scan-gate"], requestAuthorization: false)
+        BackupEnvironment.usesPhotoLibrary = false
         model.scanningHistory = false
         precondition(deferredImport && !model.importing, "Discovery during a scan must remain queued without requesting Photos")
         let queuedDuringScan = try await Bridge.call(["op": "pending_sources", "receiver_id": paired.receiverID])
@@ -927,15 +833,15 @@ import SwiftUI
         _ = try await Bridge.call(["op": "history_control", "receiver_id": paired.receiverID, "action": "pause"])
         await model.refreshHistoricalImport()
         precondition(model.historicalImport?.checked == 2 && model.historicalImport?.pending == 2)
-        try await capture("history-paused", view: AnyView(Form { HistoricalImportSettings(model: model) }.formStyle(.grouped)), output: output,
-          size: NSSize(width: 620, height: 480))
+        try await capture("history-paused", view: overview(), output: output,
+          size: NSSize(width: 660, height: 740))
         _ = try await Bridge.call(["op": "history_control", "receiver_id": paired.receiverID, "action": "resume"])
         _ = try await Bridge.call(["op": "history_batch", "receiver_id": paired.receiverID, "run": run, "sources": [], "finished": true])
         await model.refreshHistoricalImport()
         precondition(model.historicalImport?.state == "scanned" && model.historicalImport?.pending == 2,
           "Scan completion must not report pending preparation as complete")
-        try await capture("history-scanned", view: AnyView(Form { HistoricalImportSettings(model: model) }.formStyle(.grouped)), output: output,
-          size: NSSize(width: 620, height: 480))
+        try await capture("history-scanned", view: overview(), output: output,
+          size: NSSize(width: 660, height: 740))
         print("Rendered 12 fixture screens; settings, device rename and historical-scan state checks passed.")
         try FileManager.default.removeItem(at: store)
         app.terminate(nil)
@@ -1057,7 +963,6 @@ private struct ReplicaFlowFixture: View {
   let source: FolderSource
   let path: String
   @State private var sheet: String? = nil
-  @State private var rebackup = false
   @State private var selectedRequests = 0
   private var invalidSource: FolderSource {
     var copy = source
@@ -1077,21 +982,21 @@ private struct ReplicaFlowFixture: View {
         }
       }
       Text("Submitted selections: \(selectedRequests)").accessibilityIdentifier("replica.selected_requests")
-      MacBackupPage(model: model, folders: folders, pair: {}, library: {}, sources: { sheet = "add" }, showTransfers: { _ in })
+      MacHub(model: model, folders: folders, pair: {}, sources: { sheet = "add" }, showTransfers: { _ in })
     }.padding(24).sheet(isPresented: showing) {
       if sheet == "add" { AddFolderSheet(url: folder, folders: folders, backup: model) { sheet = nil } }
       if sheet == "rules" { FolderRulesSheet(folders: folders, source: folders.sources.first ?? source) { sheet = nil } }
       if sheet == "invalid-rules" { FolderRulesSheet(folders: folders, source: invalidSource) { sheet = nil } }
       if sheet == "issue" { MacFolderSettings(folders: folders, backup: model, selectedID: source.id) }
       if sheet == "selection" {
-        DuckSelectedBackup(count: 1200, rebackup: $rebackup) { selectedRequests += 1; return true }
+        RenderSelectionBackupFixture(count: 1200, submit: { selectedRequests += 1; return true })
       }
       if sheet == "failed-selection" {
-        DuckSelectedBackup(count: 1200, rebackup: $rebackup,
-          failureMessage: { "Synthetic submission failed. Selection is retained." }) { false }
+        RenderSelectionBackupFixture(count: 1200, submit: { false },
+          failure: { "Synthetic submission failed. Selection is retained." })
       }
-      if sheet == "settings" { MacPreferences(model: model, folders: folders).frame(width: 720, height: 680) }
-      if sheet == "help" { BackupHelp() }
+      if sheet == "settings" { MacSettings(model: model, folders: folders, showFolders: {}).frame(width: 720, height: 680) }
+      if sheet == "help" { HelpCenter() }
     }
   }
 }
@@ -1109,10 +1014,29 @@ private struct SubmissionControlsFixture: View {
         Picker("folder_list_layout", selection: $layout) {
           Text("folder_list_flat").tag("flat")
           Text("folder_list_tree").tag("folders")
-        }.duckDesktopSegments(width: 180)
+        }.pickerStyle(.segmented).labelsHidden().controlSize(.regular)
+          .fixedSize(horizontal: true, vertical: true).frame(width: 180, height: 32, alignment: .trailing)
       }
       HStack { Image(systemName: "checkmark.circle"); Text("state_received") }.foregroundStyle(.secondary)
       Button("updates_check") {}.duckPrimaryAction()
     }.padding(24).frame(maxWidth: .infinity, alignment: .trailing)
+  }
+}
+
+/// Drives the production control with synthetic submission and recovery results.
+private struct RenderSelectionBackupFixture: View {
+  let count: Int
+  var repeats = false
+  var submit: () async -> Bool = { true }
+  var failure: () -> String? = { nil }
+  @StateObject private var action = SelectionBackupAction()
+  var body: some View {
+    DuckSelectionBackupControl(action: action, count: count, request: {
+      if repeats { action.confirmingRepeat = true }
+      else { await action.perform(submit, failure: failure) }
+    }, confirm: {
+      action.confirmingRepeat = false
+      await action.perform(submit, failure: failure)
+    })
   }
 }

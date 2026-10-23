@@ -141,9 +141,3 @@ private struct DuckPreferenceRowLayout: ViewModifier {
     #endif
   }
 }
-
-/// Which design a host shows. The app keeps the current pages until roadmap
-/// step 6; the design catalog switches to the redesigned ones.
-enum DesignPreview {
-  nonisolated(unsafe) static var proposedDesign = false
-}

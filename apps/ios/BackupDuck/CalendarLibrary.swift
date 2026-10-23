@@ -152,17 +152,15 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
           title: NSLocalizedString("media_type", comment: ""), options: .displayInline,
           children: actions)
       ]
-      // design/library.md: backup views of the same grid (proposed design only).
-      if DesignPreview.proposedDesign {
-        let views = LibraryBackupView.allCases.map { view in
-          UIAction(
-            title: NSLocalizedString(view.title, comment: ""),
-            image: UIImage(systemName: view.symbol),
-            state: c.parent.library.backupView == view ? .on : .off
-          ) { _ in Task { await c.parent.library.changeBackupView(view) } }
-        }
-        menus.insert(UIMenu(title: NSLocalizedString("library_view_section", comment: ""), options: .displayInline, children: views), at: 0)
+      // design/library.md: backup views of the same grid.
+      let views = LibraryBackupView.allCases.map { view in
+        UIAction(
+          title: NSLocalizedString(view.title, comment: ""),
+          image: UIImage(systemName: view.symbol),
+          state: c.parent.library.backupView == view ? .on : .off
+        ) { _ in Task { await c.parent.library.changeBackupView(view) } }
       }
+      menus.insert(UIMenu(title: NSLocalizedString("library_view_section", comment: ""), options: .displayInline, children: views), at: 0)
       return menus
     }
     return CalendarNavigationController(rootViewController: grid)

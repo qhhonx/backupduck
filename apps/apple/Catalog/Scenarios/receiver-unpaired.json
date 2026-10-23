@@ -1,16 +1,18 @@
 {
   "id": "receiver.unpaired",
-  "page": "receiver",
+  "page": "settings",
   "title": "First run: no receiver yet",
   "extends": "base",
   "pairing": null,
   "expect": [
-    "Pairing title and subtitle explain what a receiver is.",
-    "Brand mark and the pairing steps sit in one surface.",
-    "One primary action: Pair a receiver.",
-    "No connection notice: nothing has failed yet."
+    "Settings › Devices shows the current unpaired empty state with one Connect a Pixel action.",
+    "Connect opens the current native flow; no failed connection is invented."
   ],
   "actions": [
-    {"action": "Tap Pair a receiver", "result": "The scan sheet opens. In the Simulator the camera is unavailable, so the camera notice and Cancel appear."}
-  ]
+    {
+      "action": "Choose Connect a Pixel",
+      "result": "The current Connect flow opens; existing pairing is retained until another connection is confirmed."
+    }
+  ],
+  "step": "devices"
 }

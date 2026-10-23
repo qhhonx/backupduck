@@ -1,11 +1,32 @@
 {
   "id": "receiver.authentication",
-  "page": "receiver",
+  "page": "connect",
   "title": "Receiver no longer trusts this phone",
   "extends": "base-paired",
-  "core": {"check_pairing": {"error": "authentication"}},
+  "core": {
+    "check_pairing": {
+      "error": "authentication"
+    },
+    "start_desktop_pairing": {
+      "value": {
+        "v": 1,
+        "connection": {
+          "receiver_id": "catalog-desktop-session",
+          "endpoint": "https://192.0.2.10:8485"
+        }
+      }
+    },
+    "desktop_pairing_status": {
+      "value": {}
+    },
+    "stop_desktop_pairing": {
+      "value": null
+    }
+  },
   "expect": [
-    "A failure notice says the receiver rejected this phone and pairing is needed again.",
-    "Pair another receiver remains the primary action that fixes it."
-  ]
+    "The saved pairing is rejected by the same authentication response.",
+    "The current Connect flow opens to replace that pairing; earlier backup records remain intact.",
+    "The Mac displays a synthetic replacement code and waits; it does not confirm a new pairing automatically."
+  ],
+  "step": "reconnect"
 }

@@ -4,7 +4,6 @@ import SwiftUI
 /// Synthetic inventory with optional local sample photos. No bookmarks or library access.
 @MainActor enum FolderCatalog {
   static func install(_ id: String, folders: FolderSources, sheet: String?) {
-    DesignPreview.proposedDesign = true
     folders.previewRows = []
     folders.initialSheet = sheet
     folders.previewSettings = id.hasPrefix("settings.folder")

@@ -24,7 +24,7 @@ struct Scenario: Identifiable {
   }
 
   let id: String
-  /// The root destination: library, backup, receiver or settings; or onboarding.
+  /// The current root destination, or a standalone Connect/first-run flow.
   let page: String
   /// For onboarding: the screen to start on.
   let step: String?
@@ -89,7 +89,7 @@ struct Scenario: Identifiable {
   private init(_ object: [String: Any]) throws {
     id = object["id"] as! String
     guard let page = object["page"] as? String,
-      ["library", "backup", "receiver", "settings", "onboarding", "connect", "sources"].contains(page) else {
+      ["library", "backup", "settings", "onboarding", "connect", "sources"].contains(page) else {
       throw CatalogError("\(object["id"] ?? "?"): unknown page")
     }
     self.page = page

@@ -1,12 +1,16 @@
 {
   "id": "receiver.offline",
-  "page": "receiver",
+  "page": "settings",
   "title": "Paired, receiver not reachable",
   "extends": "base-paired",
-  "core": {"check_pairing": {"error": "network"}},
+  "core": {
+    "check_pairing": {
+      "error": "network"
+    }
+  },
   "expect": [
-    "Receiver card still shows the saved receiver and address.",
-    "One attention notice explains the phone cannot reach the receiver on this network.",
-    "The notice appears once, below the action."
-  ]
+    "Settings › Devices retains the saved Pixel identity and recorded backup counts.",
+    "The device is unreachable; switching Pixel opens the current Connect flow."
+  ],
+  "step": "devices"
 }

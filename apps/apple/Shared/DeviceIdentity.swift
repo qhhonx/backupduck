@@ -86,26 +86,6 @@ extension BackupModel {
   }
 }
 
-struct DeviceIdentitySettings: View {
-  @ObservedObject var model: BackupModel
-  @State private var editing = false
-  var body: some View {
-    Group {
-      if let profile = model.deviceSnapshot?.device {
-        LabeledContent("device_this_device", value: profile.name)
-        Button("device_rename") { editing = true }
-          .buttonStyle(.borderless).accessibilityIdentifier("device.rename")
-          .sheet(isPresented: $editing) { DeviceNameEditor(model: model, name: profile.name) }
-      } else {
-        if model.deviceError != nil {
-          Text("device_load_failed").foregroundStyle(.secondary)
-          Button("retry_task") { Task { await model.refreshDeviceStatus() } }
-        } else { ProgressView().controlSize(.small) }
-      }
-      Text("device_name_note").font(.footnote).foregroundStyle(.secondary)
-    }.task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
-  }
-}
 struct DeviceNameEditor: View {
   @ObservedObject var model: BackupModel
   @Environment(\.dismiss) private var dismiss

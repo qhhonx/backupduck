@@ -18,15 +18,14 @@ import UserNotifications
     BackupEnvironment.discoversReceivers = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
-    let scenario = MacCatalogLaunch.value("-scenario") ?? ""
-    DesignPreview.proposedDesign = ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.hasPrefix("folders.") || scenario.hasPrefix("settings.folder") || scenario.hasPrefix("settings.scope.") || scenario.hasPrefix("settings.updates") || scenario.hasPrefix("settings.about") || ["settings.bottom", "settings.feedback", "settings.feedback-reserved"].contains(scenario)
   }
 
   var body: some Scene {
-    WindowGroup("Design catalog", id: "catalog") {
+    Window("Design catalog", id: "main") {
       MacCatalogRoot().frame(minWidth: min(900, max(640, Double(MacCatalogLaunch.value("-window-width") ?? "") ?? 900)), minHeight: 620)
     }.defaultSize(width: 1180, height: 800).commands {
       MacFolderCommands()
+      MacSettingsCommands()
       CommandGroup(replacing: .appInfo) {
         Button("about_title") { MacAboutNavigation.open {} }
       }
@@ -93,6 +92,8 @@ private enum MacCatalogLaunch {
 }
 
 @MainActor private final class MacCatalogLifecycle: NSObject, NSApplicationDelegate {
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     Task { @MainActor in
       for _ in 0..<40 {
@@ -186,7 +187,7 @@ private struct MacCatalogRoot: View {
   private var list: some View {
     List {
       if let failure { Text(failure).foregroundStyle(.red) }
-      ForEach(["receiver", "settings", "backup", "library", "sources"], id: \.self) { page in
+      ForEach(["settings", "backup", "library", "sources", "connect"], id: \.self) { page in
         let items = scenarios.filter { $0.page == page }
         if !items.isEmpty {
           Section(page.capitalized) {
@@ -205,9 +206,6 @@ private struct MacCatalogRoot: View {
   }
 
   private func start(_ scenario: Scenario) {
-    if ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id) || scenario.id.hasPrefix("settings.updates.") {
-      DesignPreview.proposedDesign = true
-    }
     open = scenario; run = UUID()
   }
 
@@ -226,6 +224,17 @@ private struct MacScenarioRun: View {
   init(scenario: Scenario) {
     self.scenario = scenario
     _session = StateObject(wrappedValue: MacScenarioSession(scenario))
+  }
+
+  private var settingsPage: MacSettings.Page? {
+    switch scenario.step {
+    case "devices": .devices
+    case "autoBackup": .autoBackup
+    case "advanced": .advanced
+    case "about": .about
+    case "help": .help
+    default: nil
+    }
   }
 
   var body: some View {
@@ -251,7 +260,7 @@ private struct MacScenarioRun: View {
         // Records belong to the hub; the Mac lists them as their own sidebar position.
         initialDestination: session.folders.initialSheet == "rules" ? .settings : scenario.records != nil ? .transfers : MacDestination(rawValue: scenario.page) ?? .settings,
         folderSources: session.folders, initialTransferFilter: scenario.records ?? "all",
-        initialSettingsPage: scenario.id.hasPrefix("diagnostics.") ? .diagnostics : scenario.step == "about" ? .about : nil,
+        initialSettingsPage: scenario.id.hasPrefix("diagnostics.") ? .diagnostics : settingsPage,
         scopeStore: session.scope?.store ?? .shared, albumsModel: session.scope?.albums ?? .shared,
         initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "",
         initialViewerInfo: scenario.id == "folders.viewer-received", initialDiagnosticsPage: scenario.id.hasPrefix("diagnostics.") ? scenario.step : nil)
@@ -442,10 +451,6 @@ private struct MacScenarioInfo: View {
         ForEach(unscripted, id: \.self) { Text($0).font(.body.monospaced()).foregroundStyle(.red) }
       }
       Section("Review") {
-        Picker("Design", selection: Binding(get: { DesignPreview.proposedDesign }, set: { DesignPreview.proposedDesign = $0; restart() })) {
-          Text("Current").tag(false)
-          Text("Proposed").tag(true)
-        }.pickerStyle(.segmented)
         Picker("Appearance", selection: $scheme) {
           Text("System").tag(ColorScheme?.none)
           Text("Light").tag(ColorScheme?.some(.light))

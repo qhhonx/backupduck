@@ -1,6 +1,6 @@
 {
   "id": "receiver.recovers",
-  "page": "receiver",
+  "page": "settings",
   "title": "Receiver comes back",
   "extends": "base-paired",
   "core": {
@@ -17,7 +17,8 @@
     ]
   },
   "expect": [
-    "The attention notice for an unreachable receiver shows first, with the status Pending confirmation.",
-    "Within about 30 seconds (connection checks back off), the notice disappears without user action and the status becomes Connected."
-  ]
+    "Settings › Devices first shows the saved Pixel as unreachable.",
+    "The existing scripted connection checks recover without user action and the status becomes connected."
+  ],
+  "step": "devices"
 }

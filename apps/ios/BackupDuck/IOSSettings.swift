@@ -3,8 +3,7 @@ import UIKit
 
 /// Settings as defined in `design/settings.md`, in the iPhone dialect:
 /// identity header, a contextual card, category rows with icon tiles and
-/// values, help last and a quiet footer. Shown in the design catalog until
-/// migration step 6 replaces `IOSSettingsPage`.
+/// values, help last and a quiet footer. Used by the app and design catalog.
 struct IOSSettings: View {
   @ObservedObject var model: BackupModel
   var showBottom = false

@@ -439,36 +439,24 @@ final class CalendarTileDecorations: UIView {
     addSubview(check)
     duration.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
     duration.textColor = .white
-    duration.backgroundColor = UIColor.black.withAlphaComponent(0.25)
-    duration.layer.cornerRadius = 5
-    duration.clipsToBounds = true
-    duration.textAlignment = .center
     addSubview(duration)
     stateMark.contentMode = .scaleAspectFit
-    stateMark.backgroundColor = UIColor.black.withAlphaComponent(0.3)
-    stateMark.layer.cornerRadius = 10
-    stateMark.clipsToBounds = true
     addSubview(stateMark)
     liveMark.tintColor = .white
-    liveMark.backgroundColor = UIColor.black.withAlphaComponent(0.3)
-    liveMark.layer.cornerRadius = 5
-    liveMark.clipsToBounds = true
     liveMark.contentMode = .scaleAspectFit
     addSubview(liveMark)
-    if DesignPreview.proposedDesign {
-      // design/library.md § Tile marks: every mark on a photo is a white glyph
-      // or text with a soft shadow, as Photos draws
-      // them; no pills, circles or colored fills.
-      for mark in [duration, stateMark, liveMark] as [UIView] {
-        mark.backgroundColor = .clear
-        mark.clipsToBounds = false
-        mark.layer.shadowColor = UIColor.black.cgColor  // design-exception: legibility shadow on photos
-        mark.layer.shadowOpacity = 0.45
-        mark.layer.shadowRadius = 2
-        mark.layer.shadowOffset = CGSize(width: 0, height: 0.5)
-      }
-      duration.textAlignment = .right
+    // design/library.md § Tile marks: every mark on a photo is a white glyph
+    // or text with a soft shadow, as Photos draws
+    // them; no pills, circles or colored fills.
+    for mark in [duration, stateMark, liveMark] as [UIView] {
+      mark.backgroundColor = .clear
+      mark.clipsToBounds = false
+      mark.layer.shadowColor = UIColor.black.cgColor  // design-exception: legibility shadow on photos
+      mark.layer.shadowOpacity = 0.45
+      mark.layer.shadowRadius = 2
+      mark.layer.shadowOffset = CGSize(width: 0, height: 0.5)
     }
+    duration.textAlignment = .right
   }
   required init?(coder: NSCoder) { fatalError() }
   override func layoutSubviews() {

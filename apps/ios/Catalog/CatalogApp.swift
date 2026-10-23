@@ -46,6 +46,10 @@ private struct CatalogHome: View {
         if !firstRun.isEmpty {
           Section("First run") { ForEach(firstRun) { scenario in row(scenario) } }
         }
+        let connect = scenarios.filter { $0.page == "connect" }
+        if !connect.isEmpty {
+          Section("Connect") { ForEach(connect) { scenario in row(scenario) } }
+        }
         ForEach(IOSAppTab.allCases) { tab in
           let items = scenarios.filter { $0.page == "\(tab)" }
           if !items.isEmpty {
@@ -89,8 +93,6 @@ private struct ScenarioStage: View {
   @State private var info = false
   @State private var scheme: ColorScheme?
   @State private var textSize: DynamicTypeSize?
-  /// Current production page or the proposed redesign, for side-by-side review.
-  @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
     if ProcessInfo.processInfo.arguments.contains("-large-text") {
@@ -99,12 +101,11 @@ private struct ScenarioStage: View {
     if ProcessInfo.processInfo.arguments.contains("-appearance") || ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" || scenario.id.hasPrefix("diagnostics.") {
       _scheme = State(initialValue: catalogViewerStyle(scenario) == .light ? .light : .dark)
     }
-    _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope.") || ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id))
   }
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    Group { if let run { ScenarioRun(scenario: scenario, proposed: proposed).id(run) } else { DuckRole.background.ignoresSafeArea() } }
+    Group { if let run { ScenarioRun(scenario: scenario).id(run) } else { DuckRole.background.ignoresSafeArea() } }
       .preferredColorScheme(scheme)
       .environment(\.duckStepMarkReducedTransparency, ProcessInfo.processInfo.arguments.contains("-reduce-transparency"))
       .environment(\.duckFirstPhotoReducedMotion, ProcessInfo.processInfo.arguments.contains("-reduce-motion"))
@@ -127,7 +128,7 @@ private struct ScenarioStage: View {
         }
       }
       .sheet(isPresented: $info) {
-        ScenarioInfo(scenario: scenario, scheme: $scheme, textSize: $textSize, proposed: $proposed,
+        ScenarioInfo(scenario: scenario, scheme: $scheme, textSize: $textSize,
           restart: {
             info = false; run = nil
             DispatchQueue.main.async { run = UUID() }
@@ -166,18 +167,14 @@ private struct ScenarioStage: View {
 
 private struct ScenarioRun: View {
   let scenario: Scenario
-  let proposed: Bool
   @StateObject private var model: BackupModel
   @StateObject private var library: PhotoLibraryModel
   @State private var tab: IOSAppTab
   @State private var scopeFixture: ScopeCatalogFixture?
 
-  init(scenario: Scenario, proposed: Bool) {
+  init(scenario: Scenario) {
     self.scenario = scenario
-    self.proposed = proposed
     _scopeFixture = State(initialValue: scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil)
-    // Shared code (library menu, tile marks) reads the same switch as the Mac catalog.
-    DesignPreview.proposedDesign = proposed
     let authorization: UNAuthorizationStatus = scenario.notificationAuthorization == "denied" ? .denied
       : scenario.notificationAuthorization == "authorized" ? .authorized : .notDetermined
     let notifier = BackupNotifier(catalogAuthorization: authorization)
@@ -187,8 +184,7 @@ private struct ScenarioRun: View {
     BackupEnvironment.activeModel = { made }
     _model = StateObject(wrappedValue: made)
     let start = IOSAppTab.allCases.first { "\($0)" == scenario.page } ?? .settings
-    // The proposed skeleton has no Receiver tab; its page opens from Settings.
-    _tab = State(initialValue: proposed && !IOSAppTab.proposedCases.contains(start) ? .settings : start)
+    _tab = State(initialValue: start)
   }
 
   var body: some View {
@@ -206,7 +202,7 @@ private struct ScenarioRun: View {
       LiveActivityCatalogPage(model: model, stale: scenario.id.hasSuffix(".stale"))
         .task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "connect" {
-      IOSConnectSheet(model: model).task { await model.open() }.onDisappear { model.stop() }
+      IOSConnectSheet(model: model, reconnect: scenario.step == "reconnect").task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "onboarding" {
       OnboardingCatalog(scenario: scenario, model: model)
         .task { await model.open() }
@@ -218,14 +214,8 @@ private struct ScenarioRun: View {
 
   private var tabs: some View {
     TabView(selection: $tab) {
-      if proposed {
-        ForEach(IOSAppTab.proposedCases) { item in
-          page(item).duckTabSurface().tabItem { item.proposedLabel }.tag(item)
-        }
-      } else {
-        ForEach(IOSAppTab.allCases) { item in
-          page(item).duckTabSurface().tabItem { item.label }.tag(item)
-        }
+      ForEach(IOSAppTab.allCases) { item in
+        page(item).duckTabSurface().tabItem { item.label }.tag(item)
       }
     }
     .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
@@ -237,7 +227,6 @@ private struct ScenarioRun: View {
 
   @ViewBuilder private func page(_ item: IOSAppTab) -> some View {
     switch item {
-    case .receiver where "\(item)" == scenario.page: IOSReceiverPage(model: model)
     case .library where scenario.library != nil:
       IOSLibraryPage(library: library, model: model)
         .task {
@@ -246,23 +235,21 @@ private struct ScenarioRun: View {
         }
         .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
     case .backup where "\(item)" == scenario.page:
-      if proposed {
-        // With a library scenario the hub opens the library's backup views (design/library.md).
-        IOSHub(model: model, records: scenario.records, showLibrary: scenario.library == nil ? nil : { view in
-          tab = .library
-          Task { await library.changeBackupView(view) }
-        })
-      } else { IOSBackupPage(model: model) }
+      // With a library scenario the hub opens the library's backup views (design/library.md).
+      IOSHub(model: model, records: scenario.records, showLibrary: scenario.library == nil ? nil : { view in
+        tab = .library
+        Task { await library.changeBackupView(view) }
+      })
     case .settings where "\(item)" == scenario.page:
       if scenario.id.hasPrefix("diagnostics.") {
         IOSDiagnosticsCatalog(model: model, page: scenario.step)
       } else if let scopeFixture {
         IOSScopeCatalog(fixture: scopeFixture)
-      } else if proposed, let detail = scenario.step {
+      } else if let detail = scenario.step {
         // A settings sub-page opened directly, as if pushed from Settings.
         NavigationStack { IOSSettingsDetail(name: detail, model: model) }
-      } else if proposed { IOSSettings(model: model, showBottom: ["settings.bottom", "settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
-          .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id)) } else { IOSSettingsPage(model: model) }
+      } else { IOSSettings(model: model, showBottom: ["settings.bottom", "settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
+          .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id)) }
     default:
       ContentUnavailableView("Not in this scenario", systemImage: item.symbol,
         description: Text(scenario.id))
@@ -441,7 +428,6 @@ private struct ScenarioInfo: View {
   let scenario: Scenario
   @Binding var scheme: ColorScheme?
   @Binding var textSize: DynamicTypeSize?
-  @Binding var proposed: Bool
   let restart: () -> Void
   let close: () -> Void
   @State private var unscripted: [String] = []
@@ -473,10 +459,6 @@ private struct ScenarioInfo: View {
           Text("These commands failed with catalog_unscripted. Script them before reviewing the page.")
         }
         Section("Review") {
-          Picker("Design", selection: $proposed) {
-            Text("Current").tag(false)
-            Text("Proposed").tag(true)
-          }.pickerStyle(.segmented)
           Picker("Appearance", selection: $scheme) {
             Text("System").tag(ColorScheme?.none)
             Text("Light").tag(ColorScheme?.some(.light))

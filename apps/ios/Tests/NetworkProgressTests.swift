@@ -150,23 +150,27 @@ import Network
   }
 
   func testFailedPairingKeepsSavedTrustAndConnectionRecoverySeparate() {
+    let originalAccess = BackupEnvironment.photoAccess
+    BackupEnvironment.photoAccess = { .full }
+    defer { BackupEnvironment.photoAccess = originalAccess }
     let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    model.ready = true; model.paused = false
     model.pairing = pairing
     model.pairingError = "A different pairing attempt failed"
     model.receiverConnection = .ready
-    let view = ReceiverStatusIndicator(model: model)
-    XCTAssertEqual(view.status.key, "receiver_indicator_attention")
+    XCTAssertEqual(model.hubStatus, .empty, "A failed replacement attempt must not override the verified saved connection")
     XCTAssertEqual(model.pairing?.receiverID, "test", "Failed pairing must retain saved trust")
+    XCTAssertNotNil(model.pairingError, "The replacement flow retains its own actionable error")
     model.pairingError = nil
-    XCTAssertEqual(view.status.key, "receiver_indicator_connected")
     model.receiverConnection = .authentication
-    XCTAssertEqual(view.status.key, "receiver_indicator_attention")
+    XCTAssertEqual(model.hubStatus, .problem(.receiverRejected))
     model.receiverConnection = .network; model.receiverUnavailable = true
-    XCTAssertEqual(view.status.key, "receiver_indicator_waiting")
+    XCTAssertEqual(model.hubStatus, .problem(.receiverUnreachable))
     model.receiverConnection = .ready; model.receiverUnavailable = false
-    XCTAssertEqual(view.status.key, "receiver_indicator_connected")
+    XCTAssertEqual(model.hubStatus, .empty)
     model.receiverConnection = .unknown
-    XCTAssertEqual(view.status.key, "receiver_indicator_paired", "Saved trust alone does not prove connectivity")
+    XCTAssertNotEqual(model.receiverConnection, .ready, "Saved trust alone does not prove connectivity")
+    XCTAssertEqual(model.pairing?.receiverID, "test")
   }
 
   func testDiagnosticsKeepAuthenticationSeparateAndForceBypassesFailureCache() async {
@@ -295,28 +299,6 @@ import Network
     progress.waitingForNetwork = false
     XCTAssertNil(progress.activeFraction(confirmed: 800, total: 800))
     XCTAssertNil(progress.activeFraction(confirmed: 0, total: 0))
-  }
-}
-
-
-extension NetworkProgressTests {
-  func testStatusIndicatorHeightRemainsStableForLongErrorsAndNetworkWarnings() async {
-    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
-    let host = UIHostingController(rootView: BackupStatusIndicator(model: model))
-    host.loadViewIfNeeded()
-    let size = CGSize(width: 340, height: 1000)
-    let initial = host.sizeThatFits(in: size).height
-    XCTAssertEqual(initial, 44, accuracy: 1)
-    model.message = String(repeating: "A long error message requiring details. ", count: 30)
-    await Task.yield()
-    host.view.layoutIfNeeded()
-    XCTAssertEqual(host.sizeThatFits(in: size).height, initial, accuracy: 1)
-    model.message = nil
-    model.waitingForNetwork = true
-    model.pendingImports = 12_000
-    await Task.yield()
-    host.view.layoutIfNeeded()
-    XCTAssertEqual(host.sizeThatFits(in: size).height, initial, accuracy: 1)
   }
 }
 
@@ -459,17 +441,11 @@ extension NetworkProgressTests {
       attachment.name = "fidelity-native-" + name; attachment.lifetime = .keepAlways; add(attachment)
       window.rootViewController = nil
     }
-    try await capture("backup-paired-overview", VStack(spacing: 0) {
-      IOSPrototypeHeader("nav_backup")
-      ScrollView { DuckBackupProgress(model: model, showTransfers: {}, title: "apple_history_progress_title").iosPrototypePageBody() }
-    }.background(DuckColors.canvas))
+    try await capture("backup-paired-overview", IOSHub(model: model))
     model.paused = true
-    try await capture("backup-paused-overview", VStack(spacing: 0) {
-      IOSPrototypeHeader("nav_backup")
-      ScrollView { DuckBackupProgress(model: model, showTransfers: {}, title: "apple_history_progress_title").iosPrototypePageBody() }
-    }.background(DuckColors.canvas))
+    try await capture("backup-paused-overview", IOSHub(model: model))
     model.paused = false
-    try await capture("receiver-paired", IOSReceiverPage(model: model))
+    try await capture("devices-paired", NavigationStack { IOSDevicePage(model: model) })
     try await capture("selected-backup", SelectedBackupToolbarFixture())
     try await capture("selected-backup-repeat", SelectedBackupToolbarFixture(repeatConfirmation: true))
     for (name, state, processing, captured) in [
@@ -481,9 +457,14 @@ extension NetworkProgressTests {
       let asset = BackupJob.Asset(metadata: captured ? ["created_at_ms": "1790913600000", "source_name": "Example iPhone"] : ["source_name": "Example iPhone"], kind: "burst", source_id: "synthetic-photo", revision: "synthetic", resources: [.init(filename: "IMG_5400.HEIC", size: 12687770)])
       let job = BackupJob(id: 1, asset: asset, state: state, confirmedBytes: state == "received" ? 12687770 : 0,
         errorCode: state == "failed" ? "receiver_unavailable" : nil, processing: processing, processingError: processing == "failed" ? "unsupported_motion" : nil)
-      try await capture(name, FidelityModalFixture {
-        DuckTransferDetail(job: job, status: NSLocalizedString(state == "failed" ? "state_failed" : processing == "complete" ? "state_published" : processing == "failed" ? "state_publication_failed" : "state_received", comment: ""),
-              symbol: processing == "failed" ? "exclamationmark.triangle" : processing == "complete" ? "checkmark" : "clock", tone: processing == "failed" || state == "failed" ? .failure : processing == "complete" ? .saved : .attention, retry: { false })
+      try await capture(name, NavigationStack {
+        ScrollView {
+          PhotoInformationLayout(takenAt: HistoryPhoto(job: job).takenAt, job: job,
+            receiverName: "Example Pixel", needsYou: state == "failed" || processing == "failed",
+            filename: job.asset.resources.first?.filename ?? "",
+            fields: PhotoInformationLayout.fileFields(for: job), model: model)
+            .padding()
+        }.navigationTitle("records_detail_title")
       })
     }
   }
@@ -513,12 +494,12 @@ private struct FidelityModalFixture<Content: View>: View {
   @ViewBuilder var content: () -> Content
   @State private var presented = true
   var body: some View {
-    VStack(spacing: 0) { IOSPrototypeHeader("nav_backup"); Spacer() }
-      .background(DuckColors.canvas).sheet(isPresented: $presented, content: content)
+    NavigationStack { Color.clear.navigationTitle("nav_backup") }
+      .background(DuckRole.background).sheet(isPresented: $presented, content: content)
   }
 }
 
-@MainActor final class TransferDetailFeedbackTests: XCTestCase {
+@MainActor final class PhotoInformationFeedbackTests: XCTestCase {
   private func job(state: String = "received", processing: String? = "complete",
     timestamp: Int64? = 1700000000000, receiver: String? = "historical-pixel") -> BackupJob {
     BackupJob(id: 1, asset: .init(metadata: ["source_name": "Example iPhone", "created_at_ms": "1600000000000"],
@@ -547,47 +528,34 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(model.receiverDeviceName(for: job()), "Old Pixel", "Unpairing must not replace the job's historical destination")
   }
   func testReceiptTimeIsNotCaptureOrGalleryTime() {
-    let received = TransferDetailFacts(job: job())
-    XCTAssertEqual(received.receiptConfirmedAt?.timeIntervalSince1970, 1700000000)
-    XCTAssertNil(received.gallerySavedAt, "Job has no gallery publication timestamp")
-    XCTAssertNil(TransferDetailFacts(job: job(state: "failed")).receiptConfirmedAt)
-    XCTAssertNil(TransferDetailFacts(job: job(state: "running")).receiptConfirmedAt)
-    XCTAssertNil(TransferDetailFacts(job: job(timestamp: nil)).receiptConfirmedAt)
-    XCTAssertNil(TransferDetailFacts(job: job(timestamp: 0)).receiptConfirmedAt)
+    let received = job()
+    let photo = HistoryPhoto(job: received)
+    XCTAssertEqual(photo.changedAt?.timeIntervalSince1970, 1700000000)
+    XCTAssertEqual(photo.takenAt?.timeIntervalSince1970, 1600000000)
+    XCTAssertNotEqual(photo.takenAt, photo.changedAt)
+    XCTAssertNil(received.receivedAt, "A legacy activity timestamp is not a recorded receipt timestamp")
+    XCTAssertNil(received.publishedAt, "Receipt does not provide a gallery publication timestamp")
+    XCTAssertNil(HistoryPhoto(job: job(timestamp: nil)).changedAt)
+    XCTAssertNil(HistoryPhoto(job: job(timestamp: nil)).job?.publishedAt)
   }
   func testGalleryAndCloudRemainSeparateFacts() {
-    let pending = TransferDetailFacts(job: job(processing: "pending"))
-    XCTAssertTrue(pending.receiptConfirmed); XCTAssertFalse(pending.galleryConfirmed)
-    XCTAssertEqual(pending.originalNode, .confirmed); XCTAssertEqual(pending.galleryNode, .pending)
-    let failed = TransferDetailFacts(job: job(processing: "failed"))
-    XCTAssertTrue(failed.receiptConfirmed); XCTAssertEqual(failed.galleryNode, .failed)
-    let saved = TransferDetailFacts(job: job())
-    XCTAssertTrue(saved.galleryConfirmed); XCTAssertFalse(saved.cloudConfirmed)
-    XCTAssertFalse(TransferDetailFacts(job: job(state: "queued")).galleryConfirmed)
+    let pending = HistoryPhoto(job: job(processing: "pending"))
+    XCTAssertEqual(pending.job?.state, "received"); XCTAssertEqual(pending.mark, .saving)
+    let failed = HistoryPhoto(job: job(processing: "failed"))
+    XCTAssertEqual(failed.job?.state, "received"); XCTAssertEqual(failed.mark, .needsYou)
+    XCTAssertEqual(failed.cause, .pixelSave)
+    let saved = HistoryPhoto(job: job())
+    XCTAssertEqual(saved.mark, .saved)
+    XCTAssertNil(saved.job?.publishedAt, "The current viewer must withhold an unrecorded publication time")
+    XCTAssertEqual(HistoryPhoto(job: job(state: "queued")).mark, .sending)
+    XCTAssertEqual(HistoryPhoto(job: job(state: "running")).mark, .sending)
+    XCTAssertEqual(HistoryPhoto(job: job(state: "failed")).mark, .needsYou)
+    XCTAssertEqual(HistoryPhoto(job: job(state: "failed")).cause, .notSent)
   }
+
 }
 
-@MainActor final class TransferListFeedbackTests: XCTestCase {
-  func testFourUserCategoriesKeepSourceRecordsSeparate() {
-    XCTAssertEqual(TransferUserCategories.keys, ["all", "active", "attention", "saved"])
-    XCTAssertEqual(TransferUserCategories.initial("queued"), "active")
-    XCTAssertEqual(TransferUserCategories.initial("failed"), "attention")
-    XCTAssertEqual(TransferUserCategories.initial("preparing"), "active")
-    XCTAssertEqual(TransferUserCategories.initial("scanned"), "all")
-    XCTAssertFalse(TransferUserCategories.keys.contains("preparing"))
-    XCTAssertFalse(TransferUserCategories.keys.contains("received"))
-  }
-  func testDirectSortChoicesAreFourAtomicResultsAndPersist() throws {
-    XCTAssertEqual(TransferOrdering.directChoices.map(\.id), ["capture_latest", "capture_earliest", "added_latest", "added_earliest"])
-    let values = TransferOrdering.directChoices.map(\.ordering)
-    XCTAssertEqual(Set(values).count, 4)
-    for value in values { XCTAssertEqual(try JSONDecoder().decode(TransferOrdering.self, from: JSONEncoder().encode(value)), value) }
-    XCTAssertEqual(values[0].sort, "capture"); XCTAssertTrue(values[0].descending)
-    XCTAssertEqual(values[1].sort, "capture"); XCTAssertFalse(values[1].descending)
-    XCTAssertEqual(values[2].sort, "added"); XCTAssertTrue(values[2].descending)
-    XCTAssertEqual(values[3].sort, "added"); XCTAssertFalse(values[3].descending)
-    XCTAssertFalse(values.contains { $0.sort == "retry" || $0.sort == "activity" })
-  }
+@MainActor final class BackupSummaryFeedbackTests: XCTestCase {
   func testAttentionIncludesGalleryPublicationFailures() {
     var summary = SenderSummary(); summary.failed = 2; summary.publication_failed = 3; summary.published = 4
     XCTAssertEqual(summary.count(for: "attention"), 5)

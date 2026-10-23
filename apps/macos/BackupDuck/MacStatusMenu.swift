@@ -18,13 +18,35 @@ enum MacMenuBarIcon {
   }()
 }
 
+/// Reuses the main scene, including a minimized window, before routing content.
+enum MacMainWindow {
+  static func open(_ openWindow: () -> Void) {
+    openWindow()
+    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+      if window.isMiniaturized { window.deminiaturize(nil) }
+      window.makeKeyAndOrderFront(nil)
+    }
+    NSApp.activate(ignoringOtherApps: true)
+  }
+}
+
+/// Shared by the app and Catalog so menu and shortcut routing stay identical.
+struct MacSettingsCommands: Commands {
+  @Environment(\.openWindow) private var openWindow
+  var body: some Commands {
+    CommandGroup(replacing: .appSettings) {
+      Button("menu_settings") { MacSettingsNavigation.open { openWindow(id: "main") } }
+        .keyboardShortcut(",", modifiers: .command)
+    }
+  }
+}
+
 /// Opens Settings in the main window (constitution § Information architecture:
 /// no separate settings window).
 enum MacSettingsNavigation {
   static func open(_ openWindow: () -> Void) {
     UserDefaults.standard.set("settings", forKey: "macRequestedSettingsRoute")
-    openWindow()
-    NSApp.activate(ignoringOtherApps: true)
+    MacMainWindow.open(openWindow)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowSettings"), object: nil)
   }
 }
@@ -32,8 +54,7 @@ enum MacSettingsNavigation {
 enum MacAboutNavigation {
   static func open(_ openWindow: () -> Void) {
     UserDefaults.standard.set("about", forKey: "macRequestedSettingsRoute")
-    openWindow()
-    NSApp.activate(ignoringOtherApps: true)
+    MacMainWindow.open(openWindow)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowAbout"), object: nil)
   }
 }

@@ -6,21 +6,6 @@ import Photos
 import SwiftUI
 import UniformTypeIdentifiers
 
-#if os(macOS)
-/// Use the AppKit player directly; its controls do not depend on SwiftUI's
-/// AVKit overlay class initialization on newer macOS runtimes.
-struct NativeMacVideo: NSViewRepresentable {
-  let player: AVPlayer
-  func makeNSView(context: Context) -> AVPlayerView {
-    let view = AVPlayerView(); view.player = player; view.controlsStyle = .floating
-    view.videoGravity = .resizeAspect; view.showsFullScreenToggleButton = true
-    return view
-  }
-  func updateNSView(_ view: AVPlayerView, context: Context) { if view.player !== player { view.player = player } }
-  static func dismantleNSView(_ view: AVPlayerView, coordinator: ()) { view.player?.pause(); view.player = nil }
-}
-#endif
-
 /// Browsing allows PhotoKit to resolve cloud previews by default. This does not
 /// register preparation or backup work and ignores obsolete app consent values.
 @MainActor final class PreviewNetworkPolicy: ObservableObject {
