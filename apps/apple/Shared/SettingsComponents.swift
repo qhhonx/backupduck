@@ -91,12 +91,14 @@ enum DuckSettingsMetrics {
   /// Grouped Form buttons include 20 pt of vertical insets. Icon rows need
   /// a 3 pt compensation so their 24 pt glyph fits the shared 41 pt row.
   static let formIconRowPadding: CGFloat = -1.5
+  /// Native grouped Form supplies 10 pt above and below its content. Small
+  /// trailing controls fit this budget just like labels and borderless actions.
+  static let formContentHeight = rowHeight - DuckSpacing.small - DuckSpacing.xSmall
 }
 
 #endif
 
 /// Shared leading-label preference rows, growing with wrapped or accessibility text.
-/// Padding rather than a fixed minimum, so wrapped text still grows.
 struct DuckPreferenceRowStyle: LabeledContentStyle {
   func makeBody(configuration: Configuration) -> some View {
     HStack(spacing: 12) {
@@ -104,11 +106,7 @@ struct DuckPreferenceRowStyle: LabeledContentStyle {
       Spacer(minLength: 12)
       configuration.content.foregroundStyle(.secondary)
     }
-    #if os(macOS)
-    .padding(.vertical, DuckSettingsMetrics.formRowPadding)
-    #else
-    .frame(minHeight: DuckPreferenceMetrics.rowHeight)
-    #endif
+    .modifier(DuckPreferenceRowLayout())
   }
 }
 
@@ -120,14 +118,27 @@ struct DuckPreferenceToggleStyle: ToggleStyle {
       Spacer(minLength: 12)
       Toggle("", isOn: configuration.$isOn).toggleStyle(.switch).labelsHidden()
     }
-    #if os(macOS)
-    .padding(.vertical, DuckSettingsMetrics.formRowPadding)
-    #else
-    .frame(minHeight: DuckPreferenceMetrics.rowHeight)
-    #endif
+    .modifier(DuckPreferenceRowLayout())
     .accessibilityRepresentation {
       Toggle(isOn: configuration.$isOn) { configuration.label }.toggleStyle(.switch)
     }
+  }
+}
+
+/// The row owns vertical padding once, including when its trailing content is
+/// a text button. Otherwise Form adds cell insets outside the full-height label.
+private struct DuckPreferenceRowLayout: ViewModifier {
+  func body(content: Content) -> some View {
+    #if os(macOS)
+    content.font(.body).controlSize(.small)
+      .frame(minHeight: DuckSettingsMetrics.formContentHeight)
+    #else
+    content
+      .padding(.vertical, DuckSpacing.xSmall)
+      .frame(minHeight: DuckPreferenceMetrics.rowHeight)
+      .listRowInsets(EdgeInsets(top: 0, leading: DuckSpacing.medium,
+        bottom: 0, trailing: DuckSpacing.medium))
+    #endif
   }
 }
 

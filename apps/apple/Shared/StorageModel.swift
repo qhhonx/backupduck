@@ -346,13 +346,15 @@ struct DiagnosticsView: View {
           #endif
       }
       if journal.entries.isEmpty {
-        Section("diagnostics_recent") {
+        Section {
           LabeledContent {
             EmptyView()
           } label: {
             Text(journal.failed ? "logs_load_failed" : journal.loaded ? "logs_empty" : "logs_loading")
               .font(.body).foregroundStyle(.secondary)
           }
+        } header: {
+          activityAreaTitle
         }
       } else {
         ForEach(dayGroups, id: \.0) { day, entries in
@@ -365,7 +367,18 @@ struct DiagnosticsView: View {
               }.accessibilityElement(children: .combine)
             }
           } header: {
-            Text(dayHeader(day)).textCase(nil)
+            VStack(alignment: .leading, spacing: activitySectionGap) {
+              if day == dayGroups.first?.0 {
+                activityAreaTitle
+              }
+              Text(dayHeader(day))
+                #if os(macOS)
+                .font(.caption)
+                #else
+                .font(.footnote)
+                #endif
+                .foregroundStyle(DuckRole.secondaryText)
+            }.textCase(nil)
           }
         }
       }
@@ -376,11 +389,34 @@ struct DiagnosticsView: View {
     #else
     .labeledContentStyle(.automatic)
     .environment(\.defaultMinListRowHeight, DuckPreferenceMetrics.rowHeight)
+    .listSectionSpacing(.custom(activitySectionGap))
+    #endif
+  }
+  private var activityAreaTitle: some View {
+    Text("diagnostics_recent")
+      #if os(macOS)
+      .font(.headline)
+      #else
+      .font(.title3.weight(.semibold))
+      #endif
+      .foregroundStyle(DuckRole.primaryText)
+      .textCase(nil)
+      .accessibilityAddTraits(.isHeader)
+  }
+  private var activitySectionGap: CGFloat {
+    #if os(macOS)
+    DuckSpacing.medium
+    #else
+    DuckSpacing.large
     #endif
   }
   private func dayHeader(_ day: Date) -> String {
-    let date = day == .distantPast ? NSLocalizedString("task_order_unknown", comment: "") : day.formatted(date: .abbreviated, time: .omitted)
-    return day == dayGroups.first?.0 ? NSLocalizedString("diagnostics_recent", comment: "") + " · " + date : date
+    if day == .distantPast { return NSLocalizedString("records_day_unknown", comment: "") }
+    let calendar = Calendar.current
+    if calendar.isDateInToday(day) { return NSLocalizedString("records_today", comment: "") }
+    if calendar.isDateInYesterday(day) { return NSLocalizedString("records_yesterday", comment: "") }
+    let sameYear = calendar.isDate(day, equalTo: .now, toGranularity: .year)
+    return day.formatted(sameYear ? .dateTime.month().day().weekday() : .dateTime.year().month().day())
   }
   var body: some View {
     settingsForm

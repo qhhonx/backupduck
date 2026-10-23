@@ -1,5 +1,6 @@
 import Photos
 import SwiftUI
+import UserNotifications
 
 /// Design catalog: production pages driven by scenario data instead of the
 /// Rust core, the keychain and the network. It never ships; see README.md.
@@ -91,6 +92,9 @@ private struct ScenarioStage: View {
   @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
+    if ProcessInfo.processInfo.arguments.contains("-large-text") {
+      _textSize = State(initialValue: .xxxLarge)
+    }
     if ProcessInfo.processInfo.arguments.contains("-appearance") || ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" || scenario.id.hasPrefix("diagnostics.") {
       _scheme = State(initialValue: catalogViewerStyle(scenario) == .light ? .light : .dark)
     }
@@ -104,6 +108,11 @@ private struct ScenarioStage: View {
       .environment(\.duckStepMarkReducedTransparency, ProcessInfo.processInfo.arguments.contains("-reduce-transparency"))
       .environment(\.duckFirstPhotoReducedMotion, ProcessInfo.processInfo.arguments.contains("-reduce-motion"))
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
+      .task {
+        guard ProcessInfo.processInfo.arguments.contains("-measure-rows") else { return }
+        try? await Task.sleep(for: .seconds(2))
+        CatalogRowMeasurements.write()
+      }
       .overlay(alignment: .bottomTrailing) {
         if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" && !scenario.id.hasPrefix("diagnostics.") {
         // Above the tab bar, clear of navigation bar items.
@@ -127,6 +136,33 @@ private struct ScenarioStage: View {
   }
 }
 
+/// Native cell frames supplement screenshot measurements without changing
+/// device settings. Only explicit catalog measurement runs write this file.
+@MainActor private enum CatalogRowMeasurements {
+  static func write() {
+    var rows: [[String: Any]] = []
+    func visit(_ view: UIView, window: UIWindow) {
+      if let cell = view as? UICollectionViewCell, !cell.isHidden {
+        let frame = cell.convert(cell.bounds, to: window)
+        rows.append(["x": frame.minX, "y": frame.minY, "width": frame.width,
+          "height": frame.height, "scale": window.screen.scale])
+      }
+      for child in view.subviews { visit(child, window: window) }
+    }
+    for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+      for window in scene.windows where !window.isHidden { visit(window, window: window) }
+    }
+    let notifier = BackupEnvironment.activeNotifier()
+    let result: [String: Any] = ["rows": rows, "authorization": notifier.authorization.rawValue,
+      "permissionRequests": notifier.permissionRequests, "settingsRequests": notifier.settingsRequests,
+      "usesSystem": notifier.usesSystem]
+    if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
+      let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+      try? data.write(to: directory.appendingPathComponent("catalog-row-measurements.json"), options: .atomic)
+    }
+  }
+}
+
 private struct ScenarioRun: View {
   let scenario: Scenario
   let proposed: Bool
@@ -141,6 +177,10 @@ private struct ScenarioRun: View {
     _scopeFixture = State(initialValue: scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil)
     // Shared code (library menu, tile marks) reads the same switch as the Mac catalog.
     DesignPreview.proposedDesign = proposed
+    let authorization: UNAuthorizationStatus = scenario.notificationAuthorization == "denied" ? .denied
+      : scenario.notificationAuthorization == "authorized" ? .authorized : .notDetermined
+    let notifier = BackupNotifier(catalogAuthorization: authorization)
+    BackupEnvironment.activeNotifier = { notifier }
     _library = StateObject(wrappedValue: PhotoLibraryModel())
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
     BackupEnvironment.activeModel = { made }

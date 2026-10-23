@@ -3,7 +3,6 @@
   "page": "settings",
   "title": "Backup notifications \u00b7 denied",
   "extends": "settings.autoBackup",
-  "mac_only": true,
   "notification_authorization": "denied",
   "expect": [
     "One shared preference row reflects system authorization.",

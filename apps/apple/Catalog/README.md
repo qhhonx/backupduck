@@ -52,13 +52,17 @@ Repeat with `-appearance light` / `dark` and `-AppleLanguages '(zh-Hans)'`.
 Check the disabled first line, the single Pause/Resume item, separators, shortcuts
 and the static activity symbol; the idle icon uses the exported duck template.
 
-### Mac notification and Overview routes
+### Apple notification preferences and Mac Overview routes
 
 `settings.notifications.not-determined`, `.denied` and `.authorized` render the
 shared notification preference with injected system authorization. Allow first
 opens `DuckSheetLayout`; its confirmation simulates one system request. Denied
 records the app-specific settings URL, and authorized edits an in-memory switch.
 These fixtures never ask for system permission or open System Settings.
+Both Apple catalogs render these states. The iPhone catalog accepts
+`-measure-rows` to write native visible cell frames and simulated permission
+counters to `Documents/catalog-row-measurements.json`; `-large-text` uses the
+largest standard Dynamic Type size without changing device settings.
 
 `notifications.route.needs-you`, `.photo` and `.overview` queue a receiver-scoped
 route before workspace startup. Add `-route-timing warm` and activate Simulate
