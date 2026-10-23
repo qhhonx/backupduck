@@ -23,7 +23,7 @@ import UserNotifications
   }
 
   var body: some Scene {
-    Window("Design catalog", id: "catalog") {
+    WindowGroup("Design catalog", id: "catalog") {
       MacCatalogRoot().frame(minWidth: min(900, max(640, Double(MacCatalogLaunch.value("-window-width") ?? "") ?? 900)), minHeight: 620)
     }.defaultSize(width: 1180, height: 800).commands {
       MacFolderCommands()
@@ -113,12 +113,17 @@ private enum MacCatalogLaunch {
     guard let path = MacCatalogLaunch.value("-snapshot") else { return }
     Task { @MainActor in
       do {
-        // Direct executable launches can enter the run loop without an open-app
-        // event, leaving SwiftUI with no window or root view task. Reopen this
-        // running app through Launch Services; do not create another instance.
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = false
-        _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        // Let the open-app event create this instance's window before trying
+        // to reopen it. Multiple catalogs can share an identity in local builds.
+        for _ in 0..<20 {
+          if NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) { break }
+          try await Task.sleep(for: .milliseconds(100))
+        }
+        if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) {
+          let configuration = NSWorkspace.OpenConfiguration()
+          configuration.createsNewApplicationInstance = false
+          _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        }
         Self.sizeWindow()
         let delay = max(0, Double(MacCatalogLaunch.value("-snapshot-delay") ?? "") ?? 9)
         try await Task.sleep(for: .seconds(delay))

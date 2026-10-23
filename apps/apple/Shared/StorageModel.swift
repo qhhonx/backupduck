@@ -25,7 +25,7 @@ struct StorageSnapshot: Decodable, Equatable {
       ? "local_cache_budget" : "local_free_space"
   }
 }
-enum StoragePreferenceScope { case all, cache, logs }
+enum StoragePreferenceScope { case all, cache }
 
 struct StoragePreferences: View {
   @ObservedObject var model: BackupModel
@@ -50,10 +50,10 @@ struct StoragePreferences: View {
     Group {
       Text(LocalizedStringKey(
         scope == .cache
-          ? "settings_cache" : scope == .logs ? "settings_log_retention" : "storage_settings"
+          ? "settings_cache" : "storage_settings"
       )).font(.headline).task { await model.refreshStorage() }
       if let snapshot = model.storage {
-        if scope != .logs {
+        Group {
           #if os(macOS)
             Text("mac_storage_cache_description").font(.footnote).foregroundStyle(.secondary)
           #else
@@ -122,38 +122,12 @@ struct StoragePreferences: View {
               .accessibilityIdentifier("settings.reclaim_result")
           }
         }
-        if scope == .all { Divider() }
-        if scope != .cache {
-          Picker(
-            "logs_retention",
-            selection: Binding(
-              get: { snapshot.settings.log_days },
-              set: { value in
-                var settings = snapshot.settings
-                settings.log_days = value
-                Task { await model.saveStorage(settings) }
-              })
-          ) {
-            ForEach([1, 7, 14, 30, 90], id: \.self) {
-              Text(String(format: NSLocalizedString("logs_days", comment: ""), $0)).tag($0)
-            }
-          }
-          Picker(
-            "logs_limit",
-            selection: Binding(
-              get: { snapshot.settings.log_limit },
-              set: { value in
-                var settings = snapshot.settings
-                settings.log_limit = value
-                Task { await model.saveStorage(settings) }
-              })
-          ) { ForEach([1000, 5000, 10000, 20000], id: \.self) { Text("\($0)").tag($0) } }
-        }
+
       } else if let error = model.storageError {
         DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
         Button("retry_task") { Task { await model.refreshStorage() } }
       } else {
-        DuckLoadingState(scope == .cache ? "cache_settings_loading" : scope == .logs ? "log_settings_loading" : "settings_loading")
+        DuckLoadingState(scope == .cache ? "cache_settings_loading" : "settings_loading")
           .controlSize(.small)
       }
       if model.storage != nil, let error = model.storageError {
@@ -163,7 +137,7 @@ struct StoragePreferences: View {
         DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
           .accessibilityIdentifier("settings.storage_save_error")
       }
-      if scope != .logs, let error = model.cacheReclaimError {
+      if let error = model.cacheReclaimError {
         DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
           .accessibilityIdentifier("settings.cache_reclaim_error")
       }
@@ -172,7 +146,7 @@ struct StoragePreferences: View {
         Button {
           logs = true
         } label: {
-          Label("activity_log", systemImage: "list.bullet.rectangle")
+          Label("settings_diagnostics", systemImage: "list.bullet.rectangle")
         }.accessibilityIdentifier("settings.activity_log")
           .sheet(isPresented: $logs) { NavigationStack { DiagnosticsView(model: model) } }
       }
@@ -182,47 +156,8 @@ struct StoragePreferences: View {
     ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
   }
 }
-/// JSON values remain lossless for future log fields that this host does not know.
-indirect enum DiagnosticValue: Codable, Equatable {
-  case string(String), integer(Int64), unsigned(UInt64), number(Double), bool(Bool), null
-  case array([DiagnosticValue]), object([String: DiagnosticValue])
-  init(from decoder: Decoder) throws {
-    let value = try decoder.singleValueContainer()
-    if value.decodeNil() { self = .null }
-    else if let v = try? value.decode(Bool.self) { self = .bool(v) }
-    else if let v = try? value.decode(Int64.self) { self = .integer(v) }
-    else if let v = try? value.decode(UInt64.self) { self = .unsigned(v) }
-    else if let v = try? value.decode(Double.self) { self = .number(v) }
-    else if let v = try? value.decode(String.self) { self = .string(v) }
-    else if let v = try? value.decode([DiagnosticValue].self) { self = .array(v) }
-    else { self = .object(try value.decode([String: DiagnosticValue].self)) }
-  }
-  func encode(to encoder: Encoder) throws {
-    var value = encoder.singleValueContainer()
-    switch self {
-    case .string(let v): try value.encode(v)
-    case .integer(let v): try value.encode(v)
-    case .unsigned(let v): try value.encode(v)
-    case .number(let v): try value.encode(v)
-    case .bool(let v): try value.encode(v)
-    case .null: try value.encodeNil()
-    case .array(let v): try value.encode(v)
-    case .object(let v): try value.encode(v)
-    }
-  }
-  var text: String {
-    if case .string(let value) = self { return value }
-    let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return (try? encoder.encode(self)).flatMap { String(data: $0, encoding: .utf8) } ?? "null"
-  }
-  func fields(prefix: String) -> [(String, String)] {
-    if case .object(let object) = self, !object.isEmpty {
-      return object.keys.sorted().flatMap { object[$0]!.fields(prefix: prefix.isEmpty ? $0 : prefix + "." + $0) }
-    }
-    return [(prefix, text)]
-  }
-}
-
+/// The recent-activity preview only projects the fields it displays. Export keeps
+/// the complete core snapshot, including fields unknown to this host.
 struct ActivityEntry: Decodable, Identifiable, Equatable {
   let id: Int64
   let timestamp: Int64
@@ -230,40 +165,9 @@ struct ActivityEntry: Decodable, Identifiable, Equatable {
   let job_id: Int64?
   let bytes: Int64?
   let context: ActivityContext?
-  let recorded: [String: DiagnosticValue]
-  init(id: Int64, timestamp: Int64, code: String, job_id: Int64?, bytes: Int64?, context: ActivityContext?) {
-    self.id = id; self.timestamp = timestamp; self.code = code; self.job_id = job_id; self.bytes = bytes; self.context = context
-    var values: [String: DiagnosticValue] = ["id": .integer(id), "timestamp": .integer(timestamp), "code": .string(code)]
-    if let job_id { values["job_id"] = .integer(job_id) }
-    if let bytes { values["bytes"] = .integer(bytes) }
-    if let context, let data = try? JSONEncoder().encode(context), let value = try? JSONDecoder().decode(DiagnosticValue.self, from: data) { values["context"] = value }
-    recorded = values
-  }
-  enum CodingKeys: String, CodingKey { case id, timestamp, code, job_id, bytes, context }
-  init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    id = try c.decode(Int64.self, forKey: .id); timestamp = try c.decode(Int64.self, forKey: .timestamp)
-    code = try c.decode(String.self, forKey: .code); job_id = try c.decodeIfPresent(Int64.self, forKey: .job_id)
-    bytes = try c.decodeIfPresent(Int64.self, forKey: .bytes); context = try c.decodeIfPresent(ActivityContext.self, forKey: .context)
-    recorded = try decoder.singleValueContainer().decode([String: DiagnosticValue].self)
-  }
   var title: String { Bundle.main.localizedString(forKey: "diagnostics_event_" + code, value: code, table: nil) }
   var day: Date { timestamp > 0 ? Calendar.current.startOfDay(for: Date(timeIntervalSince1970: Double(timestamp))) : .distantPast }
-  var time: String { timestamp > 0 ? Date(timeIntervalSince1970: Double(timestamp)).formatted(date: .omitted, time: .standard) : "—" }
-  var fields: [(String, String)] {
-    let order = ["id", "timestamp", "code", "job_id", "bytes", "context"]
-    return (order.filter { recorded[$0] != nil } + recorded.keys.filter { !order.contains($0) }.sorted()).flatMap { key in
-      let fields = recorded[key]!.fields(prefix: key)
-      if key == "timestamp", timestamp > 0 {
-        return [(key, "\(timestamp) · \(Date(timeIntervalSince1970: Double(timestamp)).formatted(date: .abbreviated, time: .standard))")]
-      }
-      return fields
-    }
-  }
-  var json: String {
-    let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    return (try? encoder.encode(recorded)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-  }
+  var time: String { timestamp > 0 ? Date(timeIntervalSince1970: Double(timestamp)).formatted(date: .omitted, time: .shortened) : "—" }
 }
 struct ActivityContext: Codable, Equatable {
   let queued: Int?
@@ -295,6 +199,7 @@ struct ActivityLogUpdate: Decodable {
   @Published private(set) var pendingCount = 0
   @Published private(set) var failed = false
   @Published private(set) var loaded = false
+  var recentEntries: [ActivityEntry] { Array(entries.prefix(6)) }
   private var latest: [ActivityEntry] = []
   private(set) var cursor: Int64 = 0
   private let fetch: (Int64) async throws -> ActivityLogUpdate
@@ -378,68 +283,84 @@ struct ActivityLogUpdate: Decodable {
   }
 }
 
-private struct ActivityLogReport: Transferable {
-  let url: URL
-  static var transferRepresentation: some TransferRepresentation {
-    FileRepresentation(exportedContentType: .json) { report in
-      SentTransferredFile(report.url)
-    }
-  }
-}
-
 /// Settings navigation is pushed on iPhone and contained in the Mac detail pane.
 /// Catalog start positions select these same production destinations.
 struct DiagnosticsView: View {
   @ObservedObject var model: BackupModel
   var initialPage: String? = nil
-  @State private var log = false
-  @State private var settings = false
+  @Environment(\.scenePhase) private var scenePhase
+  @StateObject private var journal = ActivityLogModel()
   @StateObject private var export = ActivityLogExportModel()
   @State private var save = false
   @State private var savedName: String?
   @State private var saveFailed = false
   @State private var didOpenInitial = false
-  var body: some View {
+  private var exportNote: String {
+    if export.preparing { return NSLocalizedString("logs_export_preparing", comment: "") }
+    if export.failed || saveFailed { return NSLocalizedString("diagnostics_export_failed", comment: "") }
+    if let savedName { return String(format: NSLocalizedString("diagnostics_file_saved", comment: ""), savedName) }
+    return NSLocalizedString("diagnostics_export_contents", comment: "")
+  }
+  private var dayGroups: [(Date, [ActivityEntry])] {
+    let grouped = Dictionary(grouping: journal.recentEntries, by: \.day)
+    return grouped.keys.sorted(by: >).map { ($0, grouped[$0]!) }
+  }
+  private var settingsForm: some View {
     Form {
       Section {
-        NavigationLink(isActive: $log) { ActivityLogView(embedded: true, initialDetail: initialPage == "detail") } label: {
-          DuckSettingsLabel(title: "activity_log", symbol: "list.bullet.rectangle", color: DuckGlyph.blue)
-        }.accessibilityIdentifier("diagnostics.log")
-      } header: { Text("diagnostics_intro").textCase(nil) }
-      Section("diagnostics_exports") {
-        VStack(alignment: .leading, spacing: DuckSpacing.small) {
-          Text("diagnostics_export_contents")
-          if export.preparing {
-            ProgressView("logs_export_preparing")
-          } else if export.failed || saveFailed {
-            Text("diagnostics_export_failed").foregroundStyle(.secondary)
-            Button("retry_task") { prepare() }.accessibilityIdentifier("activity.export_retry")
-          } else if let url = export.url {
-            Text(String(format: NSLocalizedString(savedName == nil ? "diagnostics_file_ready" : "diagnostics_file_saved", comment: ""), savedName ?? url.lastPathComponent))
-              .font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("activity.export_ready")
-            #if os(macOS)
-            Button("logs_export_share") { save = true }.accessibilityIdentifier("activity.export_share")
-            #else
-            ShareLink(item: ActivityLogReport(url: url), preview: SharePreview(url.lastPathComponent)) {
-              Label("logs_export_share", systemImage: "square.and.arrow.up")
-            }.accessibilityIdentifier("activity.export_share")
-            #endif
-          } else {
-            Button("logs_export") { prepare() }.accessibilityIdentifier("activity.export")
-          }
-        }.padding(.vertical, DuckSpacing.xSmall)
-      }
+        Button { prepare() } label: {
+          HStack(spacing: DuckSpacing.small + DuckSpacing.xSmall) {
+            DuckSettingsIcon(symbol: "square.and.arrow.up", color: DuckGlyph.gray)
+            VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
+              Text("diagnostics_export_title").foregroundStyle(.primary)
+              Text(exportNote).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if export.preparing { ProgressView().controlSize(.small) }
+          }.modifier(DiagnosticPreferencePadding()).contentShape(Rectangle())
+        }.buttonStyle(.plain).disabled(export.preparing).accessibilityIdentifier("activity.export").modifier(DiagnosticSettingsRowInsets())
+      } header: { Text("diagnostics_intro").font(.footnote).fontWeight(.regular).textCase(nil) }
       Section {
-        NavigationLink(isActive: $settings) { DiagnosticLogSettings(model: model) } label: {
-          DuckSettingsLabel(title: "settings_log_retention", symbol: "clock", color: DuckGlyph.gray)
-        }.accessibilityIdentifier("diagnostics.settings")
-      }
+        VStack(alignment: .leading, spacing: DuckSpacing.medium) {
+          if journal.entries.isEmpty {
+            Text(journal.failed ? "logs_load_failed" : journal.loaded ? "logs_empty" : "logs_loading")
+              .foregroundStyle(.secondary)
+          } else {
+            ForEach(dayGroups, id: \.0) { day, entries in
+              VStack(alignment: .leading, spacing: DuckSpacing.small) {
+                Text(day == .distantPast ? NSLocalizedString("task_order_unknown", comment: "") : day.formatted(date: .abbreviated, time: .omitted))
+                  .font(.caption).foregroundStyle(.secondary)
+                ForEach(entries) { entry in
+                  HStack(alignment: .firstTextBaseline, spacing: DuckSpacing.medium) {
+                    Text(entry.title).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Text(entry.time).monospacedDigit().foregroundStyle(.secondary).fixedSize()
+                  }.accessibilityElement(children: .combine)
+                }
+              }
+            }
+          }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+          .accessibilityIdentifier("diagnostics.recent")
+      } header: { Text("diagnostics_recent").textCase(nil) }
     }
     .formStyle(.grouped)
+  }
+  var body: some View {
+    settingsForm
     .navigationTitle("settings_diagnostics")
     #if os(iOS)
     .navigationBarTitleDisplayMode(.inline)
-    #endif
+    .sheet(isPresented: $save) {
+      if let url = export.url {
+        DiagnosticShareSheet(url: url) { completed, error in
+          if completed { savedName = url.lastPathComponent }
+          saveFailed = error != nil
+          save = false
+        }
+      }
+    }
+    #else
     .fileExporter(isPresented: $save, document: DiagnosticDocument(url: export.url), contentType: .json,
       defaultFilename: export.url?.lastPathComponent ?? "BackupDuck-diagnostics.json") { result in
         switch result {
@@ -447,19 +368,61 @@ struct DiagnosticsView: View {
         case .failure: saveFailed = true
         }
       }
-    .task {
+    #endif
+    .task(id: scenePhase) {
+      guard scenePhase == .active else { return }
+      await journal.refresh { true }
       guard !didOpenInitial else { return }; didOpenInitial = true
-      log = ["log", "empty", "failed", "detail"].contains(initialPage ?? "")
-      settings = initialPage == "settings"
-      if ["export-success", "export-failure"].contains(initialPage ?? "") { await export.prepare() }
+      // Only catalog callers pass a start position. Completion fixtures exercise
+      // the same status row without dismissing a real system sheet automatically.
+      if ["export-success", "export-failure", "export-sheet"].contains(initialPage ?? "") {
+        await export.prepare()
+        if initialPage == "export-success" { savedName = export.url?.lastPathComponent }
+        if initialPage == "export-sheet" { save = export.url != nil }
+      }
     }
   }
   private func prepare() {
     savedName = nil; saveFailed = false
-    Task { await export.prepare() }
+    Task { await export.prepare(); save = export.url != nil }
   }
 }
 
+private struct DiagnosticSettingsRowInsets: ViewModifier {
+  func body(content: Content) -> some View {
+    #if os(iOS)
+    // Explicit cell insets keep the 36 pt label at 52 pt on system versions
+    // whose default grouped Form buttons add more vertical padding.
+    content.listRowInsets(EdgeInsets(top: DuckSpacing.xSmall, leading: DuckSpacing.medium,
+      bottom: DuckSpacing.xSmall, trailing: DuckSpacing.medium))
+    #else
+    content
+    #endif
+  }
+}
+
+private struct DiagnosticPreferencePadding: ViewModifier {
+  func body(content: Content) -> some View {
+    #if os(macOS)
+    content.padding(.vertical, DuckSettingsMetrics.formIconRowPadding)
+    #else
+    content.frame(minHeight: DuckPreferenceMetrics.rowHeight - DuckSpacing.medium)
+    #endif
+  }
+}
+
+#if os(iOS)
+private struct DiagnosticShareSheet: UIViewControllerRepresentable {
+  let url: URL
+  let completion: (Bool, Error?) -> Void
+  func makeUIViewController(context: Context) -> UIActivityViewController {
+    let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    controller.completionWithItemsHandler = { _, completed, _, error in completion(completed, error) }
+    return controller
+  }
+  func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+#else
 private struct DiagnosticDocument: FileDocument {
   static var readableContentTypes: [UTType] { [.json] }
   let data: Data
@@ -467,208 +430,7 @@ private struct DiagnosticDocument: FileDocument {
   init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
   func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
-
-struct DiagnosticLogSettings: View {
-  @ObservedObject var model: BackupModel
-  var body: some View {
-    Form {
-      if let snapshot = model.storage {
-        Section {
-          Picker("logs_retention", selection: Binding(get: { snapshot.settings.log_days }, set: { value in
-            var settings = snapshot.settings; settings.log_days = value
-            Task { await model.saveStorage(settings, performMaintenance: false) }
-          })) {
-            ForEach(Array(Set([1, 7, 14, 30, 90, snapshot.settings.log_days])).sorted(), id: \.self) {
-              Text(String(format: NSLocalizedString("logs_days", comment: ""), $0)).tag($0)
-            }
-          }.accessibilityIdentifier("settings.log_days")
-          Picker("logs_limit", selection: Binding(get: { snapshot.settings.log_limit }, set: { value in
-            var settings = snapshot.settings; settings.log_limit = value
-            Task { await model.saveStorage(settings, performMaintenance: false) }
-          })) {
-            ForEach(Array(Set([1000, 5000, 10000, 20000, snapshot.settings.log_limit])).sorted(), id: \.self) {
-              Text($0.formatted()).tag($0)
-            }
-          }.accessibilityIdentifier("settings.log_limit")
-        } footer: { Text("diagnostics_retention_consequence") }
-        .disabled(model.savingStorage)
-      } else if model.storageError == nil { DuckLoadingState("log_settings_loading") }
-      if model.storageError != nil {
-        Section {
-          Text("storage_settings_unavailable")
-          Button("retry_task") { Task { await model.refreshStorage() } }
-        }
-      }
-      if let error = model.storageSettingsError {
-        Section { DuckNotice(title: LocalizedStringKey(error), tone: .failure) }
-      }
-    }
-    .formStyle(.grouped).labeledContentStyle(DuckPreferenceRowStyle())
-    .navigationTitle("settings_log_retention")
-    #if os(iOS)
-    .navigationBarTitleDisplayMode(.inline)
-    #endif
-    .task { await model.refreshStorage() }
-  }
-}
-
-enum DiagnosticFilter: String, CaseIterable, Identifiable {
-  case all, problems, transfers, storage
-  var id: String { rawValue }
-  func includes(_ entry: ActivityEntry) -> Bool {
-    switch self {
-    case .all: true
-    case .problems: Self.problemsCodes.contains(entry.code) || entry.code.hasSuffix("_failed") || entry.code.hasSuffix("_rejected") || entry.code.hasSuffix("_blocked")
-    case .transfers: entry.job_id != nil || Self.transfersCodes.contains(entry.code)
-    case .storage: Self.storageCodes.contains(entry.code) || entry.code.hasPrefix("cache_")
-    }
-  }
-  private static let problemsCodes: Set<String> = ["network", "capacity", "busy", "authentication", "integrity", "source_unavailable", "unsupported", "invalid_input", "conflict", "not_found", "storage", "internal", "history_unavailable", "low_space", "local_free_space", "local_cache_budget", "processing_low_space", "request_waiting_network"]
-  private static let transfersCodes: Set<String> = ["transfer_received", "transfer_queued", "backup_paused", "backup_resumed", "publication_complete", "publication_failed", "upload_submitted", "commit_submitted", "manifest_submitted", "bundle_submitted", "request_completed", "request_failed", "request_waiting_network", "dispatch_waiting"]
-  private static let storageCodes: Set<String> = ["storage", "capacity", "low_space", "local_free_space", "local_cache_budget", "processing_low_space", "preparation_storage_blocked", "source_location_restored"]
-}
-
-struct ActivityLogView: View {
-  @Environment(\.scenePhase) private var scenePhase
-  @StateObject private var journal = ActivityLogModel()
-  @State private var visibleID: Int64?
-  @State private var detail: ActivityEntry?
-  @State private var showDetail = false
-  @State private var holdLatest = false
-  @State private var openedInitial = false
-  @State private var search = ""
-  @State private var filter: DiagnosticFilter = .all
-  var embedded = false
-  var initialDetail = false
-  private var entries: [ActivityEntry] {
-    journal.entries.filter { filter.includes($0) && (search.isEmpty || ($0.title + " " + $0.json).localizedStandardContains(search)) }
-  }
-  private var dayGroups: [(Date, [ActivityEntry])] {
-    let grouped = Dictionary(grouping: entries, by: \.day)
-    return grouped.keys.sorted(by: >).map { ($0, grouped[$0]!) }
-  }
-  var body: some View {
-    VStack(spacing: 0) {
-      Picker("diagnostics_filter", selection: $filter) {
-        ForEach(DiagnosticFilter.allCases) { Text(LocalizedStringKey("diagnostics_filter_" + $0.rawValue)).tag($0) }
-      }.pickerStyle(.segmented).padding(DuckSpacing.medium).accessibilityIdentifier("activity.filter")
-      if journal.failed && !journal.entries.isEmpty {
-        HStack {
-          Text("logs_load_failed").foregroundStyle(.secondary)
-          Spacer()
-          Button("retry_task") { Task { await refresh() } }.accessibilityIdentifier("activity.retry")
-        }.padding(.horizontal, DuckSpacing.medium).padding(.bottom, DuckSpacing.small)
-      }
-      if journal.pendingCount > 0 {
-        Button(String(format: NSLocalizedString("logs_new_count", comment: ""), journal.pendingCount)) {
-          holdLatest = false; journal.showLatest(); visibleID = journal.entries.first?.id
-        }.accessibilityIdentifier("activity.latest").padding(.bottom, DuckSpacing.small)
-      }
-      if journal.entries.isEmpty {
-        if journal.loaded || journal.failed {
-          ContentUnavailableView {
-            Label(journal.failed ? "logs_load_failed" : "logs_empty", systemImage: journal.failed ? "exclamationmark.circle" : "list.bullet.rectangle")
-          } description: { Text(journal.failed ? "diagnostics_read_failed_note" : "diagnostics_empty_note") } actions: {
-            Button("retry_task") { Task { await refresh() } }.accessibilityIdentifier("activity.retry")
-          }.accessibilityIdentifier("activity.empty")
-        } else { DuckLoadingState("logs_loading") }
-      } else if entries.isEmpty {
-        ContentUnavailableView.search(text: search)
-      } else {
-        ScrollView {
-          LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-            ForEach(dayGroups, id: \.0) { day, rows in
-              Section {
-                ForEach(rows) { entry in
-                  Button { holdLatest = true; detail = entry; showDetail = true } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: DuckSpacing.small) {
-                      Text(entry.time).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                      VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-                        Text(entry.title).font(.body).foregroundStyle(.primary)
-                        if entry.title != entry.code { Text(entry.code).font(.caption.monospaced()).foregroundStyle(.secondary) }
-                      }.frame(maxWidth: .infinity, alignment: .leading)
-                      Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }.padding(.vertical, DuckSpacing.small + DuckSpacing.xSmall).contentShape(Rectangle())
-                  }.buttonStyle(.plain).id(entry.id).accessibilityIdentifier("activity.entry.\(entry.id)")
-                  Divider()
-                }
-              } header: {
-                Text(day == .distantPast ? NSLocalizedString("task_order_unknown", comment: "") : day.formatted(date: .abbreviated, time: .omitted))
-                  .font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                  .padding(.vertical, DuckSpacing.small).background(DuckRole.background)
-              }
-            }
-          }.padding(.horizontal, DuckSpacing.medium).scrollTargetLayout()
-        }.scrollPosition(id: $visibleID, anchor: .top).transaction { $0.animation = nil }
-      }
-    }
-    .background(DuckRole.background)
-    .navigationTitle("activity_log")
-    #if os(iOS)
-    .navigationBarTitleDisplayMode(.inline)
-    #endif
-    .searchable(text: $search, prompt: "diagnostics_search")
-    .navigationDestination(isPresented: $showDetail) { if let detail { ActivityLogDetail(entry: detail) } }
-    .onChange(of: search) { _, _ in visibleID = nil }
-    .onChange(of: filter) { _, _ in visibleID = nil }
-    .task(id: scenePhase) {
-      guard scenePhase == .active else { return }
-      while !Task.isCancelled {
-        await refresh()
-        if initialDetail, !openedInitial, let entry = journal.entries.first {
-          openedInitial = true; holdLatest = true; detail = entry; showDetail = true
-        }
-        do { try await Task.sleep(for: .seconds(2)) } catch { return }
-      }
-    }
-  }
-  private func refresh() async {
-    _ = await journal.refresh { !holdLatest && !showDetail && (visibleID == nil || visibleID == journal.entries.first?.id) }
-  }
-}
-
-/// Immutable entry snapshot: decoding retains unknown fields as well as typed fields.
-struct ActivityLogDetail: View {
-  let entry: ActivityEntry
-  @State private var copied: String?
-  var body: some View {
-    Form {
-      Section {
-        Text(entry.title).font(.headline)
-      }
-      Section {
-        ForEach(entry.fields, id: \.0) { key, value in
-          HStack(alignment: .top, spacing: DuckSpacing.small) {
-            VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-              Text(key).font(.caption.monospaced()).foregroundStyle(.secondary)
-              Text(value).font(.body).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            Button { copy(value, key: key) } label: {
-              Label(copied == key ? "diagnostics_copied" : "diagnostics_copy", systemImage: copied == key ? "checkmark" : "doc.on.doc")
-            }.labelStyle(.iconOnly).buttonStyle(.borderless).accessibilityIdentifier("activity.copy.\(key)")
-          }.padding(.vertical, DuckSpacing.xSmall)
-        }
-      }
-    }.formStyle(.grouped).navigationTitle("apple_log_detail_title")
-    #if os(iOS)
-    .navigationBarTitleDisplayMode(.inline)
-    #endif
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Button(copied == "all" ? "diagnostics_copied" : "diagnostics_copy_all") { copy(entry.json, key: "all") }
-          .accessibilityIdentifier("activity.copy_all")
-      }
-    }.accessibilityIdentifier("activity.detail")
-  }
-  private func copy(_ value: String, key: String) {
-    #if os(macOS)
-    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(value, forType: .string)
-    #else
-    UIPasteboard.general.string = value
-    #endif
-    copied = key
-  }
-}
+#endif
 
 /// PhotoKit streams into an app-owned file; enforce the Rust-provided budget
 /// before writing each chunk, without buffering the complete original in memory.

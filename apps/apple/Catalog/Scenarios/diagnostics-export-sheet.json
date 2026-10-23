@@ -1,0 +1,10 @@
+{
+  "id": "diagnostics.export-sheet",
+  "extends": "diagnostics-base",
+  "page": "settings",
+  "step": "export-sheet",
+  "title": "Diagnostics \u00b7 system export sheet",
+  "expect": [
+    "Opens the real native share/save sheet for the generated JSON file."
+  ]
+}

@@ -113,10 +113,6 @@
 "storage_auto_reclaim" = "传输完成后自动回收";
 "storage_reclaim_note" = "接收端确认已完整收到并校验文件后，自动删除这台设备的中转副本。不会删除系统图库照片或接收端文件，也不依赖云端备份状态。";
 "storage_reclaim_now" = "检查并回收临时文件";
-"logs_retention" = "日志保留时间";
-"logs_days" = "%d 天";
-"logs_limit" = "日志最多保留条数";
-"activity_log" = "运行记录";
 "logs_privacy_note" = "导出包含操作事件、队列数量、请求阶段、时间和错误码，不包含照片内容、文件名、完整路径、网络地址或配对凭据。";
 "logs_load_failed" = "无法读取运行记录。";
 "logs_export" = "导出日志";
@@ -159,7 +155,6 @@
 "event_local_cache_budget" = "中转缓存预算不足，请等待传输校验完成，或在设置中提高预算。";
 "pairing_unlock_wait" = "正在读取已保存的配对。如 macOS 请求访问钥匙串，请在系统弹窗中完成授权。";
 
-"logs_job_id" = "任务 #%lld";
 "event_app_background" = "应用进入后台，正在衔接传输请求";
 "event_app_foreground" = "应用回到前台，检查未完成任务";
 "event_background_time_expired" = "本次后台执行时间已用尽，已提交的上传由系统继续调度";
@@ -183,7 +178,6 @@
 "receiver_address" = "网络地址";
 "receiver_connection_details" = "连接详情";
 "settings_cache" = "缓存管理";
-"settings_log_retention" = "日志保留";
 "settings_diagnostics" = "诊断";
 "settings_version" = "版本";
 "settings_about_description" = "将原始照片、视频和实况备份到自己的接收端。";
@@ -193,28 +187,6 @@
 // Structured background diagnostics
 "event_dispatch_waiting" = "等待派发下一请求";
 "event_processing_expired" = "后台扫描执行时间已结束";
-"logs_details" = "详细信息";
-"logs_execution_foreground" = "应用处于前台";
-"logs_execution_background" = "应用处于后台";
-"logs_execution_inactive" = "应用切换中或未激活";
-"logs_execution_desktop" = "桌面执行";
-"logs_reason_paused" = "备份已暂停";
-"logs_reason_unpaired" = "尚未配对接收端";
-"logs_reason_active_request" = "已有系统请求，等待其完成";
-"logs_reason_no_eligible_job" = "当前无可执行任务，请查看下方队列数量和重试时间";
-"logs_reason_preparation_failed" = "准备下一请求失败";
-"logs_queue_counts" = "排队 %d · 执行中 %d · 等待重试 %d · 失败 %d";
-"logs_import_counts" = "待导出 %d 项 · 待处理图库变更 %d 项";
-"logs_backup_paused" = "任务派发已暂停";
-"logs_backup_enabled" = "任务派发已启用";
-"logs_active_requests" = "系统请求：%d 个";
-"logs_phase_manifest" = "阶段：提交文件描述";
-"logs_phase_upload" = "阶段：传输数据";
-"logs_phase_commit" = "阶段：接收端完整性确认";
-"logs_request_bytes" = "系统报告已发送：%@ / %@";
-"logs_next_retry" = "下次重试：";
-"logs_http_status" = "HTTP 状态：%d";
-"logs_system_error" = "系统错误码：%d";
 
 // Desktop navigation and settings states
 "sidebar_manage" = "管理";
@@ -226,8 +198,6 @@
 "settings_saving" = "正在保存设置…";
 "storage_settings_invalid" = "请选择支持的空间或日志保留范围。";
 
-"logs_details_expanded" = "已展开";
-"logs_details_collapsed" = "已收起";
 
 "device_identity" = "设备身份";
 "device_this_device" = "本机名称";
@@ -289,7 +259,6 @@
 "event_receiver_address_updated" = "接收端地址已更新，配对与传输记录已保留";
 
 "event_bundle_submitted" = "照片或实况已整项提交给系统";
-"logs_phase_bundle" = "阶段：整项传输";
 
 "task_retry_time" = "下次重试：%@";
 
@@ -374,10 +343,6 @@
 
 "storage_reclaim_result" = "已回收 %@ 本地缓存。";
 
-"logs_live" = "实时更新 · 每 2 秒";
-"logs_load_retrying" = "更新失败 · 正在重试";
-"logs_new_count" = "有 %d 条新记录";
-"logs_latest" = "最新记录";
 
 // Transfer browser order
 "task_sort_ascending" = "正序";
@@ -724,8 +689,6 @@
 "mac_file_source_note" = "这里显示本机来源文件信息。接收和 Pixel 相册保存状态请在传输任务中核对。";
 
 "logs_export_preparing" = "正在准备当前运行记录…";
-"logs_export_ready" = "运行记录已准备好";
-"logs_export_share_note" = "请在系统分享菜单中选择保存或分享位置。准备完成并不表示文件已保存到所选位置。";
 "logs_export_share" = "保存或分享";
 "logs_export_failed" = "运行记录未能导出，请重试。应用数据与原件未改变。";
 "logs_empty" = "暂无运行记录";
@@ -849,16 +812,6 @@
 
 "apple_selected_items" = "已选择 %d 个项目。";
 
-"apple_log_execution" = "执行位置";
-"apple_log_reason" = "原因";
-"apple_log_queue" = "队列";
-"apple_log_originals" = "原件准备";
-"apple_log_dispatch" = "调度";
-"apple_log_requests" = "活跃请求";
-"apple_log_phase" = "阶段";
-"apple_log_bytes" = "传输字节";
-"apple_log_http" = "HTTP 状态";
-"apple_log_system_error" = "系统错误";
 
 "apple_guide_scheduled_note" = "已准备原件，尚未发送。";
 "apple_guide_sending_note" = "只有字节真正传输且进度可用时画进度线。";
@@ -1052,13 +1005,9 @@
 
 "apple_sort_retry_latest" = "较晚重试";
 
-"apple_log_detail_title" = "运行记录详情";
 
-"apple_log_code" = "事件代码";
 
-"apple_log_time" = "时间";
 
-"apple_log_details_open" = "查看记录详情";
 
 "mac_settings_local_storage" = "本机存储";
 
@@ -1234,7 +1183,6 @@
 
 "cache_settings_loading" = "正在读取缓存设置…";
 
-"log_settings_loading" = "正在读取日志保留设置…";
 
 "storage_settings_unavailable" = "暂时无法读取设置，请重试。";
 
@@ -1708,24 +1656,10 @@
 
 /* Diagnostics and records browsing. */
 "records_toolbar_attention" = "%1$@ · %2$@ 张照片需要处理";
-"diagnostics_intro" = "用于排查问题。导出文件不包含照片。";
-"diagnostics_exports" = "导出";
+"diagnostics_intro" = "如果遇到问题，把这个文件发给我们。文件里没有照片。";
 "diagnostics_export_contents" = "操作事件、时间、任务与错误信息 · JSON";
-"diagnostics_export_failed" = "未能导出日志，请重试。";
-"diagnostics_file_ready" = "已准备好：%@";
-"diagnostics_file_saved" = "已保存：%@";
-"diagnostics_retention_consequence" = "较早的记录会被删除，且无法恢复。";
-"diagnostics_filter" = "显示记录";
-"diagnostics_filter_all" = "全部";
-"diagnostics_filter_problems" = "问题";
-"diagnostics_filter_transfers" = "传输";
-"diagnostics_filter_storage" = "存储";
-"diagnostics_search" = "搜索事件、代码或字段";
-"diagnostics_read_failed_note" = "请重试以读取运行记录。";
-"diagnostics_empty_note" = "操作事件会显示在这里。";
-"diagnostics_copy" = "复制";
-"diagnostics_copy_all" = "复制全部";
-"diagnostics_copied" = "已复制";
+"diagnostics_export_failed" = "导出失败，点按重试 · JSON";
+"diagnostics_file_saved" = "已导出：%@";
 "records_toolbar_scope" = "%1$@ · %2$@ 张照片";
 "diagnostics_event_sender_started" = "备份服务已启动";
 "diagnostics_event_sender_ready" = "备份队列已就绪";
@@ -1786,3 +1720,32 @@
 "onboarding_notify_title" = "打开通知";
 
 "onboarding_pixel_photos" = "Pixel 相册";
+
+"diagnostics_export_title" = "导出诊断日志";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"diagnostics_recent" = "最近的活动";

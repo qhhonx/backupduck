@@ -513,19 +513,34 @@ immediate arrival path without changing system settings.
 
 ### Apple diagnostics and records
 
-`diagnostics.root`, `.log`, `.empty`, `.failed`, `.detail`, `.export-success`,
-`.export-failure` and `.settings` open the shared production diagnostics in the
-Mac Settings detail pane or as pushed iPhone Settings pages. Launch with
-`-proposed -appearance light` (or `dark`). The log includes two days, transfer
-and storage events, a failure with all recorded context fields, and an unknown
-code/field to verify forward-compatible display and copying. Search matches
-plain titles, codes and recorded values; filters retain the full entry snapshot.
-The failed-export scenario fails once, then succeeds when Retry is pressed.
-Exports write real synthetic JSON; saving/sharing uses the system interface.
-Log preference changes use the same core settings command without initiating
-cache maintenance or photo preparation.
+`diagnostics.root`, `.empty`, `.failed`, `.export-success`, `.export-failure`
+and `.export-sheet` open the shared production diagnostics in the Mac Settings
+detail pane or as a pushed iPhone Settings page. Launch with `-proposed
+-appearance light` (or `dark`). Recent activity is read-only and limited to six
+latest events, newest first and grouped by day. Known codes use plain localized
+titles; unknown codes display the code. There are no log, entry or retention pages.
+Exports write the complete synthetic core JSON, including unknown fields;
+saving/sharing uses the system interface. The failed-export scenario fails once,
+then the ordinary export row retries with a fresh snapshot. Send Feedback uses
+the same export service; its reserved email option is hidden without an address.
+Persisted retention overrides migrate to 14 days without initiating cache
+maintenance or photo preparation.
 
 `records.toolbar-attention` opens five attention items on Mac;
 `records.toolbar-all` opens the shared history on either Apple platform. Mac
 uses the window title/subtitle and shared native zoom capsule; pause belongs
 to Overview. The cloud-backup footer appears once per records surface.
+
+The diagnostics export-success start position simulates completed system sharing;
+export-sheet opens the real system sheet. The export row retries a fresh snapshot
+after failure. Retention is fixed at 14 days; there is no retention destination.
+
+Mac snapshot runs expose a New Design catalog Window command. When another
+catalog instance shares the bundle identity, target the launched executable
+and open its window with Accessibility before the snapshot delay expires.
+
+Display headlines share `DuckDisplayHeadline` on iPhone and Mac. Chinese clauses
+use indivisible native text runs, wrapping after full-width commas and full stops; localized copy and accessibility labels
+retain the original text. Review welcome in both languages and appearances, then
+the later first-run titles and hub status headlines. Native SwiftUI captures are
+required: lower-level text layout alone does not prove the final line breaks.

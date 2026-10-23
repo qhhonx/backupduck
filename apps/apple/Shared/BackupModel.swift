@@ -832,7 +832,12 @@ private struct ProcessingEventsResult: Decodable {
     guard ready else { return }
     do {
       let data = try await Bridge.call(["op": "storage_status", "receiver": false])
-      let snapshot = try JSONDecoder().decode(StorageSnapshot.self, from: data)
+      var snapshot = try JSONDecoder().decode(StorageSnapshot.self, from: data)
+      if snapshot.settings.log_days != 14 {
+        snapshot.settings.log_days = 14
+        _ = try await Bridge.call(["op": "save_storage_settings", "receiver": false,
+          "settings": JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot.settings))])
+      }
       if storage != snapshot { storage = snapshot }
       if storageError != nil { storageError = nil }
       lastStorageRefresh = Date()
@@ -840,6 +845,8 @@ private struct ProcessingEventsResult: Decodable {
   }
   func saveStorage(_ settings: StorageSettings, performMaintenance: Bool = true) async {
     guard !savingStorage else { return }
+    var settings = settings
+    settings.log_days = 14
     savingStorage = true
     storageSettingsError = nil
     defer { savingStorage = false }

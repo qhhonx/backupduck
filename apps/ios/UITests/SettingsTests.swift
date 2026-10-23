@@ -923,86 +923,21 @@ final class SettingsTests: XCTestCase {
     XCTAssertEqual(heading.frame.midY,dismiss.frame.midY,accuracy: 3,"Sheet title and close glyph share a vertical centre")
   }
 
-  @MainActor func testActivityLogOpensIndependentlyAndExports() {
+  @MainActor func testDiagnosticsShowsReadOnlyActivityAndExports() {
     continueAfterFailure = false
     let app = XCUIApplication()
     app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-    app.launch()
-    let settings = navigation(app, 3)
-    XCTAssertTrue(settings.waitForExistence(timeout: 20))
-    settings.tap()
-    let log = app.buttons["settings.activity_log"]
-    for _ in 0..<8 {
-      if log.exists && log.isHittable { break }
-      app.swipeUp()
-    }
-    XCTAssertTrue(log.isHittable)
-    log.tap()
+    launchIsolated(app)
+    XCTAssertTrue(navigation(app, 3).waitForExistence(timeout: 20)); navigation(app, 3).tap()
+    reachSettingsEntry(app, "settings.activity_log").tap()
     let export = app.buttons["activity.export"]
-    XCTAssertTrue(
-      export.waitForExistence(timeout: 10),
-      "Log entry must open its own sheet, not a storage picker")
-    let enabled = NSPredicate(format: "enabled == true")
-    expectation(for: enabled, evaluatedWith: export)
-    waitForExpectations(timeout: 10)
-    let details = app.buttons["activity.details"].firstMatch
-    for _ in 0..<12 {
-      if details.exists && details.isHittable { break }
-      app.swipeUp()
-    }
-    XCTAssertTrue(details.exists && details.isHittable)
-    assertSheetHeader(app,title: "activity.title",close: "activity.close")
-    let latest = app.buttons["activity.latest"]
-    XCTAssertTrue(latest.isHittable)
-    let latestPosition = latest.frame
-    let firstPositionBeforeLatest = details.frame.minY
-    latest.tap()
-    XCTAssertTrue(latest.isHittable, "Show latest must not scroll away its own controls")
-    XCTAssertEqual(latest.frame.minY, latestPosition.minY, accuracy: 2)
-    XCTAssertEqual(details.frame.minY, firstPositionBeforeLatest, accuracy: 2, "First click must retain the gap below the Latest controls")
-    let latestScreen = XCTAttachment(screenshot: app.screenshot())
-    latestScreen.name = "Activity latest — stable controls and centered chevrons"
-    latestScreen.lifetime = .keepAlways; add(latestScreen)
-    let entryPosition = details.frame.minY
-    details.tap()
-    let detail = app.descendants(matching: .any)["activity.detail"].firstMatch
-    XCTAssertTrue(detail.waitForExistence(timeout: 10), "One event opens an independent detail sheet")
-    let detailDone = app.buttons["activity.detail.done"]
-    if !detailDone.waitForExistence(timeout: 10) || !detailDone.isHittable {
-      recordWindow(app, "Activity detail footer unavailable")
-    }
-    XCTAssertTrue(detailDone.isHittable)
-    assertSheetHeader(app,title: "sheet.title",close: "sheet.close")
-    XCTAssertGreaterThan(detailDone.frame.width,app.frame.width*0.7,"A single phone footer action fills the content width")
-    let detailScreen = XCTAttachment(screenshot: app.screenshot()); detailScreen.name = "Activity entry — independent detail sheet"
-    detailScreen.lifetime = .keepAlways; add(detailScreen)
-    detailDone.tap()
-    XCTAssertTrue(details.waitForExistence(timeout: 10)); XCTAssertTrue(details.isHittable)
-    XCTAssertEqual(details.frame.minY, entryPosition, accuracy: 3, "Returning from one event preserves the log list position")
-    XCTAssertFalse(detail.exists)
-    let screen = XCTAttachment(screenshot: app.screenshot())
-    screen.name = "Activity log with export action"
-    screen.lifetime = .keepAlways
-    add(screen)
+    XCTAssertTrue(export.waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["If something goes wrong, send us this file. It contains no photos."].exists)
+    XCTAssertFalse(app.searchFields.firstMatch.exists)
+    XCTAssertFalse(app.buttons["activity.details"].exists)
+    XCTAssertFalse(app.buttons["activity.copy_all"].exists)
     export.tap()
-    let share = app.buttons["activity.export_share"]
-    XCTAssertTrue(share.waitForExistence(timeout: 10), "Export must prepare a fresh report in the current window before sharing")
-    assertSheetHeader(app,title: "sheet.title",close: "sheet.close")
-    XCTAssertFalse(app.otherElements["ActivityListView"].exists, "Preparing a file must not claim the system share operation completed")
-    let prepared = XCTAttachment(screenshot: app.screenshot())
-    prepared.name = "Diagnostic report — ready in current export sheet"; prepared.lifetime = .keepAlways; add(prepared)
-    share.tap()
-    XCTAssertTrue(
-      app.otherElements["ActivityListView"].waitForExistence(timeout: 10),
-      "The explicit Share action must present the native sharing sheet")
-    XCTAssertTrue(
-      app.descendants(matching: .any).matching(
-        NSPredicate(format: "label CONTAINS %@", "BackupDuck-diagnostics")
-      ).firstMatch.exists, "The shared item must be the diagnostic file")
-    let shared = XCTAttachment(screenshot: app.screenshot())
-    shared.name = "Diagnostic file sharing sheet"
-    shared.lifetime = .keepAlways
-    add(shared)
+    XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 10))
   }
   @MainActor func testThumbnailCacheSettingsAreReadableAndSeparateFromPreparation() {
     continueAfterFailure = false
@@ -1349,10 +1284,6 @@ final class SettingsTests: XCTestCase {
     reach("settings.cache_budget").tap(); XCTAssertTrue(app.buttons["5 GB"].waitForExistence(timeout: 5))
     capture("cache-budget"); app.buttons["5 GB"].tap()
     app.buttons["page.header.back"].tap()
-    reach("settings.log_retention").tap()
-    XCTAssertTrue(app.buttons["settings.log_days.14"].waitForExistence(timeout: 10))
-    capture("log-retention"); app.swipeUp(); capture("log-retention-bottom")
-    app.buttons["page.header.back"].tap()
     let language = app.descendants(matching: .any)["settings.language"].firstMatch
     for _ in 0..<8 { if language.isHittable { break }; app.swipeDown() }
     XCTAssertTrue(language.isHittable)
@@ -1362,22 +1293,9 @@ final class SettingsTests: XCTestCase {
     let export = app.buttons["activity.export"]
     XCTAssertTrue(export.waitForExistence(timeout: 10))
     expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: export); waitForExpectations(timeout: 10)
-    capture("activity-log")
-    let details = app.buttons["activity.details"].firstMatch
-    for _ in 0..<8 { if details.exists && details.isHittable { break }; app.swipeUp() }
-    if details.exists && details.isHittable {
-      details.tap()
-      XCTAssertTrue(app.descendants(matching: .any)["activity.detail"].firstMatch.waitForExistence(timeout: 10))
-      capture("activity-log-detail")
-      XCTAssertTrue(app.buttons["activity.detail.done"].waitForExistence(timeout: 10))
-      app.buttons["activity.detail.done"].tap()
-    }
-    XCTAssertTrue(export.isHittable, "Export stays in the fixed footer when records scroll")
-    export.tap()
-    XCTAssertTrue(app.buttons["activity.export_share"].waitForExistence(timeout: 10))
-    capture("diagnostic-share-ready")
-    app.buttons["Close"].firstMatch.tap()
-    XCTAssertTrue(app.buttons["activity.done"].waitForExistence(timeout: 10)); app.buttons["activity.done"].tap()
+    capture("diagnostics")
+    XCTAssertFalse(app.buttons["activity.details"].exists)
+    app.navigationBars.buttons.firstMatch.tap()
     reach("settings.help").tap(); app.swipeUp(); capture("help-middle")
     app.swipeUp(); app.swipeUp(); capture("help-bottom")
   }
@@ -1410,10 +1328,7 @@ final class SettingsTests: XCTestCase {
     XCTAssertTrue(budget.waitForExistence(timeout: 10))
     XCTAssertEqual(maximum.frame.midY - used.frame.midY, 53, accuracy: 3)
     app.buttons["page.header.back"].tap()
-    reachSettingsEntry(app, "settings.log_retention").tap()
-    XCTAssertTrue(app.buttons["settings.log_days.1"].waitForExistence(timeout: 10))
-    XCTAssertEqual(app.buttons["settings.log_days.1"].frame.height, 52, accuracy: 2)
-    recordWindow(app, "Uniform log retention choice rows")
+    XCTAssertFalse(app.buttons["settings.log_retention"].exists)
   }
 
   @MainActor func testSettingsMenuAnchorsAndAbout() {
@@ -1461,28 +1376,6 @@ final class SettingsTests: XCTestCase {
     capture("Concurrency menu — explanation remains on the page")
     app.staticTexts["page.header.title"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     app.buttons["page.header.back"].tap()
-  }
-
-  @MainActor func testLargeTextActivityLatestControls() {
-    continueAfterFailure = false
-    let app = XCUIApplication()
-    app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN", "-duckAppearance", "dark",
-      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-    launchIsolated(app)
-    XCTAssertTrue(navigation(app, 3).waitForExistence(timeout: 20)); navigation(app, 3).tap()
-    let log = app.buttons["settings.activity_log"]
-    for _ in 0..<12 { if log.isHittable { break }; app.swipeUp() }
-    XCTAssertTrue(log.isHittable); log.tap()
-    assertSheetHeader(app,title: "activity.title",close: "activity.close")
-    let latest = app.buttons["activity.latest"]
-    XCTAssertTrue(latest.waitForExistence(timeout: 10)); XCTAssertTrue(latest.isHittable)
-    let position = latest.frame.minY
-    latest.tap()
-    XCTAssertTrue(app.buttons["activity.details"].firstMatch.isHittable)
-    XCTAssertTrue(latest.isHittable)
-    XCTAssertEqual(latest.frame.minY, position, accuracy: 2)
-    let image = XCTAttachment(screenshot: app.screenshot()); image.name = "Activity latest — dark maximum text"
-    image.lifetime = .keepAlways; add(image)
   }
 
   /// Begin on the physical leading edge. A center swipe is an ordinary scroll
@@ -1724,20 +1617,7 @@ final class SettingsTests: XCTestCase {
     inspect.tap(); XCTAssertTrue(app.buttons["settings.reclaim_confirm"].waitForExistence(timeout: 10))
     // This path is read-only until the explicit action; the test never reclaims.
     app.buttons["page.header.back"].tap(); app.buttons["page.header.back"].tap()
-    reachSettingsEntry(app, "settings.log_retention").tap()
-    let baseline = app.buttons["settings.log_days.1"]
-    XCTAssertTrue(baseline.waitForExistence(timeout: 10)); baseline.tap()
-    expectation(for: NSPredicate(format: "selected == true"), evaluatedWith: baseline)
-    waitForExpectations(timeout: 10)
-    let day = app.buttons["settings.log_days.14"]
-    XCTAssertTrue(day.waitForExistence(timeout: 10)); XCTAssertGreaterThanOrEqual(day.frame.height, 44)
-    day.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)).tap()
-    let selected = NSPredicate(format: "selected == true")
-    expectation(for: selected, evaluatedWith: day); waitForExpectations(timeout: 10)
-    XCTAssertFalse(baseline.isSelected, "The trailing whitespace click must change the saved choice, not merely reselect the default")
-    let screen = XCTAttachment(screenshot: app.screenshot()); screen.name = "BD25 log retention — trailing whitespace selects row"
-    screen.lifetime = .keepAlways; add(screen)
-    app.buttons["page.header.back"].tap()
+    XCTAssertFalse(app.buttons["settings.log_retention"].exists)
     navigation(app, 2).tap()
     XCTAssertFalse(app.buttons["receiver.help"].exists, "Receiver has no duplicate pure-help entry")
     navigation(app, 3).tap()

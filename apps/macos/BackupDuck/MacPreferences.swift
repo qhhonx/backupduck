@@ -3,14 +3,13 @@ import SwiftUI
 
 enum MacSettingsSection: String { case backup, cache, diagnostics, help }
 enum MacSettingsRoute: String {
-  case cache, logRetention, listDisplay, diagnostics, language, help, about
+  case cache, listDisplay, diagnostics, language, help, about
   case helpConnection, helpLibrary, helpFolders, helpBackground, helpResults, helpRecovery, helpPermissions
   var title: String {
     switch self {
     case .cache: "settings_cache"
-    case .logRetention: "settings_log_retention"
     case .listDisplay: "mac_list_display_settings"
-    case .diagnostics: "activity_log"
+    case .diagnostics: "settings_diagnostics"
     case .language: "apple_language"
     case .help: "help_title"
     case .about: "about_title"
@@ -111,8 +110,7 @@ struct MacPreferences: View {
           settingsLink("mac_list_display_settings") { route = .listDisplay }
         }
         settingsCard("settings_diagnostics") {
-          settingsLink("activity_log", first: true) { route = .diagnostics }.accessibilityIdentifier("settings.activity_log")
-          settingsLink("settings_log_retention") { route = .logRetention }.accessibilityIdentifier("settings.log_retention")
+          settingsLink("settings_diagnostics", first: true) { route = .diagnostics }.accessibilityIdentifier("settings.activity_log")
         }
       }.frame(maxWidth: .infinity)
     }
@@ -133,8 +131,6 @@ struct MacPreferences: View {
     switch route {
     case .cache:
       MacStoragePanel(model: model)
-    case .logRetention:
-      MacStoragePanel(model: model, logs: true)
     case .listDisplay:
       settingsCard("mac_list_display_settings") {
         settingRow("mac_fidelity_thumbnail_title", note: "mac_fidelity_thumbnail_note", first: true) {

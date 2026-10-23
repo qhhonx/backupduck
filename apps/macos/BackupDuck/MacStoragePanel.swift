@@ -4,19 +4,12 @@ import SwiftUI
 /// Values and operations still belong to BackupModel; no second settings store.
 struct MacStoragePanel: View {
   @ObservedObject var model: BackupModel
-  var logs = false
   @State private var reclaimSheet = false
   @State private var retryingStorage = false
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
-      if !logs { MacThumbnailCacheGroup() }
+      MacThumbnailCacheGroup()
       if let snapshot = model.storage {
-        if logs {
-          MacPreferenceGroup(title: "settings_log_retention", note: "mac_fidelity_logs_only_note") {
-          choice("logs_retention", value: snapshot.settings.log_days, options: [1,7,14,30,90], id: "settings.log_days", label: { $0 == 1 && Bundle.main.preferredLocalizations.first == "en" ? "1 day" : String(format: NSLocalizedString("logs_days", comment: ""), $0) }) { settings, v in settings.log_days = v }
-          choice("logs_limit", value: snapshot.settings.log_limit, options: [1000,5000,10000,20000], id: "settings.log_limit", label: { String($0) }, first: false) { settings, v in settings.log_limit = v }
-          }
-        } else {
           MacPreferenceGroup(title: "ios_cache_preparation_group", note: "ios_cache_budget_note") {
             fact("storage_cache_used", bytes(snapshot.used_bytes))
             choice("storage_cache_budget", value: Int(snapshot.settings.cache_budget_bytes >> 30), options: [1,2,5,10,20,50], id: "settings.cache_budget", label: { "\($0) GB" }, first: false) { settings, v in settings.cache_budget_bytes = UInt64(v) << 30 }
@@ -38,7 +31,6 @@ struct MacStoragePanel: View {
             }.buttonStyle(.plain).disabled(model.reclaimingCache || model.savingStorage || !model.ready)
               .accessibilityIdentifier("settings.reclaim_cache")
           }
-        }
       } else if model.storageError == nil, !model.ready, let message = model.message,
         message != NSLocalizedString("pairing_unlock_wait", comment: ""), !retryingStorage {
         DuckNotice(title: "storage_settings_unavailable", tone: .failure)
@@ -46,7 +38,7 @@ struct MacStoragePanel: View {
           retryingStorage = true
           Task { await model.open(); await model.refreshStorage(); retryingStorage = false }
         }.duckSecondaryAction()
-      } else if model.storageError == nil { DuckLoadingState(logs ? "log_settings_loading" : "cache_settings_loading") }
+      } else if model.storageError == nil { DuckLoadingState("cache_settings_loading") }
       if let error=model.storageError {
         DuckNotice(title: LocalizedStringKey(error), tone: .failure)
         Button("retry_task") { Task { await model.refreshStorage() } }.duckSecondaryAction()

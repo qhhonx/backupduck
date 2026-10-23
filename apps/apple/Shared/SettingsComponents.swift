@@ -88,6 +88,9 @@ enum DuckSettingsMetrics {
   /// A one-line row in a Mac grouped Form is about 36 pt with the form's own
   /// insets (macOS 26); this padding brings it to `rowHeight`.
   static let formRowPadding: CGFloat = 2.5
+  /// Grouped Form buttons include 20 pt of vertical insets. Icon rows need
+  /// a 3 pt compensation so their 24 pt glyph fits the shared 41 pt row.
+  static let formIconRowPadding: CGFloat = -1.5
 }
 
 #endif

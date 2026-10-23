@@ -627,28 +627,15 @@ private struct FidelityModalFixture<Content: View>: View {
 }
 
 @MainActor final class DiagnosticsProjectionTests: XCTestCase {
-  func testUnknownFieldsAndCodesSurviveDisplayAndCopyAll() throws {
-    let data = Data(#"{"id":42,"timestamp":1792638000,"code":"future_event_v3","job_id":881,"bytes":4194304,"context":{"http_status":503,"future":{"flag":false,"label":"kept","amount":9223372036854775806},"array":[1,"two",null]},"future_top":"retained"}"#.utf8)
-    let entry = try JSONDecoder().decode(ActivityEntry.self, from: data)
-    XCTAssertEqual(entry.title, "future_event_v3")
-    let fields = Dictionary(uniqueKeysWithValues: entry.fields)
-    XCTAssertEqual(fields["context.future.flag"], "false")
-    XCTAssertEqual(fields["context.future.amount"], "9223372036854775806")
-    XCTAssertEqual(fields["future_top"], "retained")
-    XCTAssertEqual(fields["context.array"], #"[1,"two",null]"#)
-    XCTAssertEqual(try JSONDecoder().decode(DiagnosticValue.self, from: Data(entry.json.utf8)),
-      try JSONDecoder().decode(DiagnosticValue.self, from: data))
+  func testUnknownEventUsesItsCode() throws {
+    let data = Data(#"{"id":42,"timestamp":1792638000,"code":"future_event_v3","future_top":"retained"}"#.utf8)
+    XCTAssertEqual(try JSONDecoder().decode(ActivityEntry.self, from: data).title, "future_event_v3")
   }
-  func testFiltersDistinguishProblemsTransfersAndStorage() {
-    func entry(_ code: String, job: Int64? = nil) -> ActivityEntry {
-      .init(id: 1, timestamp: 1, code: code, job_id: job, bytes: nil, context: nil)
-    }
-    XCTAssertTrue(DiagnosticFilter.problems.includes(entry("request_failed")))
-    XCTAssertTrue(DiagnosticFilter.transfers.includes(entry("future_observation", job: 881)))
-    XCTAssertTrue(DiagnosticFilter.storage.includes(entry("cache_reclaimed")))
-    XCTAssertFalse(DiagnosticFilter.problems.includes(entry("cache_reclaimed")))
-    XCTAssertFalse(DiagnosticFilter.transfers.includes(entry("sender_ready")))
-    XCTAssertTrue(DiagnosticFilter.all.includes(entry("future_observation")))
+  func testRecentActivityIsLimitedToSixNewestEvents() async {
+    let entries = (1...9).map { ActivityEntry(id: Int64($0), timestamp: Int64($0), code: "sender_ready", job_id: nil, bytes: nil, context: nil) }
+    let model = ActivityLogModel { _ in .init(entries: entries, oldest_id: 1, newest_id: 9, reset: true) }
+    await model.refresh { true }
+    XCTAssertEqual(model.recentEntries.map(\.id), [9, 8, 7, 6, 5, 4])
   }
   func testNewestTimestampWinsWhileCursorUsesRecordIdentity() async {
     let entries = [ActivityEntry(id: 8, timestamp: 100, code: "sender_ready", job_id: nil, bytes: nil, context: nil),
@@ -659,7 +646,7 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(model.cursor, 8)
   }
   func testDefaultExportWritesAnExactJSONFile() async throws {
-    let bytes = Data(#"[{"id":42,"timestamp":100,"code":"request_failed","context":{"http_status":503}}]"#.utf8)
+    let bytes = Data(#"[{"id":42,"timestamp":100,"code":"request_failed","context":{"http_status":503,"future":{"amount":9223372036854775806}},"unknown_field":"preserved"}]"#.utf8)
     let model = ActivityLogExportModel(snapshot: { bytes })
     await model.prepare()
     let url = try XCTUnwrap(model.url)
@@ -667,7 +654,23 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(try Data(contentsOf: url), bytes)
     try FileManager.default.removeItem(at: url.deletingLastPathComponent())
   }
-  func testLogRetentionSavesWithoutStartingMaintenanceAndKeepsFailureRetryable() async throws {
+  func testStorageRefreshMigratesOldRetentionWithoutMaintenance() async throws {
+    let original = BackupEnvironment.core
+    defer { BackupEnvironment.core = original }
+    let core = LogSettingsCore(); BackupEnvironment.core = core
+    let originalSettings = core.settings
+    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    model.ready = true
+    await model.refreshStorage()
+    XCTAssertEqual(core.operations, ["storage_status", "save_storage_settings"])
+    XCTAssertEqual(core.settings.log_days, 14)
+    XCTAssertEqual(core.settings.log_limit, originalSettings.log_limit)
+    XCTAssertEqual(core.settings.cache_budget_bytes, originalSettings.cache_budget_bytes)
+    XCTAssertEqual(core.settings.auto_reclaim, originalSettings.auto_reclaim)
+    await model.refreshStorage()
+    XCTAssertEqual(core.operations.filter { $0 == "save_storage_settings" }.count, 1)
+  }
+  func testFixedLogRetentionSavesWithoutStartingMaintenanceAndKeepsFailureRetryable() async throws {
     let original = BackupEnvironment.core
     defer { BackupEnvironment.core = original }
     let core = LogSettingsCore(); BackupEnvironment.core = core
@@ -676,12 +679,12 @@ private struct FidelityModalFixture<Content: View>: View {
     var settings = core.settings; settings.log_days = 7
     await model.saveStorage(settings, performMaintenance: false)
     XCTAssertEqual(core.operations, ["save_storage_settings", "storage_status"])
-    XCTAssertEqual(model.storage?.settings.log_days, 7)
+    XCTAssertEqual(model.storage?.settings.log_days, 14)
     XCTAssertTrue(model.storage?.settings.auto_reclaim == true)
     core.fail = true; settings.log_days = 14
     await model.saveStorage(settings, performMaintenance: false)
     XCTAssertNotNil(model.storageSettingsError)
-    XCTAssertEqual(model.storage?.settings.log_days, 7)
+    XCTAssertEqual(model.storage?.settings.log_days, 14)
     XCTAssertFalse(model.savingStorage)
     core.fail = false
     await model.saveStorage(settings, performMaintenance: false)

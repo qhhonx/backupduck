@@ -69,14 +69,9 @@ struct IOSSettingsPage: View {
             }
             IOSPreferenceSection(title: "settings_diagnostics") {
               Button { logs = true } label: {
-                IOSPreferenceRow(title: "activity_log", symbol: "list.bullet.rectangle") { IOSPreferenceValue(value: nil) }
+                IOSPreferenceRow(title: "settings_diagnostics", symbol: "list.bullet.rectangle") { IOSPreferenceValue(value: nil) }
               }.buttonStyle(.plain).accessibilityIdentifier("settings.activity_log")
-              Divider()
-              NavigationLink {
-                IOSPrototypeDestination(title: "settings_log_retention") { IOSStoragePreferences(model: model, scope: .logs) }
-              } label: {
-                IOSPreferenceRow(title: "settings_log_retention", symbol: "clock.arrow.circlepath") { IOSPreferenceValue(value: nil) }
-              }.buttonStyle(.plain).accessibilityIdentifier("settings.log_retention")
+
             }
             IOSPreferenceSection(title: "apple_help_about") {
               NavigationLink { IOSPrototypeDestination(title: "help_title") { BackupHelp() } } label: {
@@ -512,40 +507,6 @@ struct IOSStoragePreferences: View {
               DuckNotice(title: LocalizedStringKey("error_" + reason), tone: .attention)
                 .accessibilityIdentifier("settings.cache_limit_reason")
             }
-          } else {
-            IOSPreferenceSection(title: "logs_retention") {
-              ForEach([1, 7, 14, 30, 90], id: \.self) { value in
-                Button {
-                  var next = snapshot.settings; next.log_days = value
-                  Task { await model.saveStorage(next) }
-                } label: {
-                  HStack {
-
-                    Text(String(format: NSLocalizedString("logs_days", comment: ""), value))
-                    Spacer()
-                    if snapshot.settings.log_days == value { Image(systemName: "checkmark").foregroundStyle(DuckColors.action) }
-                  }.frame(maxWidth: .infinity, minHeight: DuckPreferenceMetrics.rowHeight, alignment: .leading).padding(.horizontal, 16).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityIdentifier("settings.log_days.\(value)")
-                  .accessibilityAddTraits(snapshot.settings.log_days == value ? .isSelected : [])
-                if value != 90 { Divider() }
-              }
-            }.disabled(model.savingStorage)
-            IOSPreferenceSection(title: "logs_limit") {
-              ForEach([1000, 5000, 10000, 20000], id: \.self) { value in
-                Button {
-                  var next = snapshot.settings; next.log_limit = value
-                  Task { await model.saveStorage(next) }
-                } label: {
-                  HStack {
-
-                    Text(value.formatted()); Spacer()
-                    if snapshot.settings.log_limit == value { Image(systemName: "checkmark").foregroundStyle(DuckColors.action) }
-                  }.frame(maxWidth: .infinity, minHeight: DuckPreferenceMetrics.rowHeight, alignment: .leading).padding(.horizontal, 16).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityIdentifier("settings.log_limit.\(value)")
-                  .accessibilityAddTraits(snapshot.settings.log_limit == value ? .isSelected : [])
-                if value != 20000 { Divider() }
-              }
-            }.disabled(model.savingStorage)
           }
 
           if let error = model.storageSettingsError { DuckNotice(title: LocalizedStringKey(error), tone: .failure).accessibilityIdentifier("settings.storage_save_error") }
@@ -561,7 +522,7 @@ struct IOSStoragePreferences: View {
             Task { await model.open(); await model.refreshStorage(); retryingStorage = false }
           }.iosPrototypeAction()
         } else {
-          DuckLoadingState(scope == .cache ? "cache_settings_loading" : "log_settings_loading")
+          DuckLoadingState("cache_settings_loading")
         }
       }.iosPrototypePageBody()
     }.task(id: model.ready) { await model.refreshStorage() }

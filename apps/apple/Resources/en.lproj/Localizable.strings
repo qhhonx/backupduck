@@ -113,10 +113,6 @@
 "storage_auto_reclaim" = "Reclaim after transfer";
 "storage_reclaim_note" = "After the receiver confirms complete, verified receipt, automatically remove this device’s relay copies. Library originals and receiver files are kept. Cloud backup is independent.";
 "storage_reclaim_now" = "Check and reclaim temporary files";
-"logs_retention" = "Keep logs for";
-"logs_days" = "%d days";
-"logs_limit" = "Maximum log entries";
-"activity_log" = "Activity log";
 "logs_privacy_note" = "Export includes events, queue counts, request stages, timing and numeric error codes. It excludes photo contents, filenames, full paths, endpoints and pairing credentials.";
 "logs_load_failed" = "Could not load activity logs.";
 "logs_export" = "Export logs";
@@ -159,7 +155,6 @@
 "event_local_cache_budget" = "Staging cache budget reached. Wait for verified transfers or raise the budget in settings.";
 "pairing_unlock_wait" = "Loading saved pairing. If macOS asks for Keychain access, complete authorization in the system dialog.";
 
-"logs_job_id" = "Task #%lld";
 "event_app_background" = "App entered the background; handing off requests";
 "event_app_foreground" = "App returned to the foreground; checking unfinished tasks";
 "event_background_time_expired" = "Background execution time expired; system uploads remain scheduled";
@@ -183,7 +178,6 @@
 "receiver_address" = "Network address";
 "receiver_connection_details" = "Connection details";
 "settings_cache" = "Cache management";
-"settings_log_retention" = "Log retention";
 "settings_diagnostics" = "Diagnostics";
 "settings_version" = "Version";
 "settings_about_description" = "Back up original photos, videos and Live Photos to your own receiver.";
@@ -193,28 +187,6 @@
 // Structured background diagnostics
 "event_dispatch_waiting" = "Waiting to dispatch the next request";
 "event_processing_expired" = "Background discovery time expired";
-"logs_details" = "Details";
-"logs_execution_foreground" = "App in foreground";
-"logs_execution_background" = "App in background";
-"logs_execution_inactive" = "App transitioning or inactive";
-"logs_execution_desktop" = "Desktop execution";
-"logs_reason_paused" = "Backup is paused";
-"logs_reason_unpaired" = "No receiver paired";
-"logs_reason_active_request" = "A system request is still pending";
-"logs_reason_no_eligible_job" = "No task is eligible now; check queue counts and retry time below";
-"logs_reason_preparation_failed" = "Could not prepare the next request";
-"logs_queue_counts" = "Queued %d · Running %d · Waiting %d · Failed %d";
-"logs_import_counts" = "Pending exports %d · Discovered items %d";
-"logs_backup_paused" = "Dispatch paused";
-"logs_backup_enabled" = "Dispatch enabled";
-"logs_active_requests" = "System requests: %d";
-"logs_phase_manifest" = "Phase: file description";
-"logs_phase_upload" = "Phase: data transfer";
-"logs_phase_commit" = "Phase: receiver verification";
-"logs_request_bytes" = "System-reported sent: %@ / %@";
-"logs_next_retry" = "Next retry:";
-"logs_http_status" = "HTTP status: %d";
-"logs_system_error" = "System error code: %d";
 
 // Desktop navigation and settings states
 "sidebar_manage" = "Manage";
@@ -226,8 +198,6 @@
 "settings_saving" = "Saving settings…";
 "storage_settings_invalid" = "Choose a supported storage or log-retention limit.";
 
-"logs_details_expanded" = "Expanded";
-"logs_details_collapsed" = "Collapsed";
 
 "device_identity" = "Device identity";
 "device_this_device" = "This device";
@@ -289,7 +259,6 @@
 "event_receiver_address_updated" = "Receiver address updated; pairing and transfer history preserved";
 
 "event_bundle_submitted" = "Photo or motion photo submitted to the system";
-"logs_phase_bundle" = "Phase: complete asset transfer";
 
 "task_retry_time" = "Next retry: %@";
 
@@ -374,10 +343,6 @@
 
 "storage_reclaim_result" = "Reclaimed %@ of local cache.";
 
-"logs_live" = "Live · every 2 seconds";
-"logs_load_retrying" = "Update failed · retrying";
-"logs_new_count" = "%d new records";
-"logs_latest" = "Latest records";
 
 // Transfer browser order
 "task_sort_ascending" = "Ascending";
@@ -724,8 +689,6 @@
 "mac_file_source_note" = "This shows a local source file. Check transfer tasks for receiver receipt and Pixel gallery publication.";
 
 "logs_export_preparing" = "Preparing the current activity log…";
-"logs_export_ready" = "Activity log ready";
-"logs_export_share_note" = "Choose a save or share destination in the system share menu. Preparation does not confirm the file was saved there.";
 "logs_export_share" = "Save or share";
 "logs_export_failed" = "Could not prepare the activity log. Retry; app data and originals are unchanged.";
 "logs_empty" = "No activity recorded yet";
@@ -849,16 +812,6 @@
 
 "apple_selected_items" = "Selected %d items.";
 
-"apple_log_execution" = "Execution";
-"apple_log_reason" = "Reason";
-"apple_log_queue" = "Queue";
-"apple_log_originals" = "Original preparation";
-"apple_log_dispatch" = "Dispatch";
-"apple_log_requests" = "Active requests";
-"apple_log_phase" = "Phase";
-"apple_log_bytes" = "Transfer bytes";
-"apple_log_http" = "HTTP status";
-"apple_log_system_error" = "System error";
 
 "apple_guide_scheduled_note" = "Originals are prepared, but sending has not started.";
 "apple_guide_sending_note" = "A progress line is shown only while bytes are being sent and progress is known.";
@@ -1052,13 +1005,9 @@
 
 "apple_sort_retry_latest" = "Latest retry";
 
-"apple_log_detail_title" = "Activity entry details";
 
-"apple_log_code" = "Event code";
 
-"apple_log_time" = "Time";
 
-"apple_log_details_open" = "View entry details";
 
 "mac_settings_local_storage" = "Local storage";
 
@@ -1234,7 +1183,6 @@
 
 "cache_settings_loading" = "Loading cache settings…";
 
-"log_settings_loading" = "Loading log retention settings…";
 
 "storage_settings_unavailable" = "Settings could not be loaded. Try again.";
 
@@ -1708,24 +1656,10 @@
 
 /* Diagnostics and records browsing. */
 "records_toolbar_attention" = "%1$@ · %2$@ photos need attention";
-"diagnostics_intro" = "For troubleshooting. Exports contain no photos.";
-"diagnostics_exports" = "Exports";
+"diagnostics_intro" = "If something goes wrong, send us this file. It contains no photos.";
 "diagnostics_export_contents" = "Activity events, times, jobs and errors · JSON";
-"diagnostics_export_failed" = "Couldn’t export the log. Try again.";
-"diagnostics_file_ready" = "Ready: %@";
-"diagnostics_file_saved" = "Saved: %@";
-"diagnostics_retention_consequence" = "Older entries are removed and can’t be restored.";
-"diagnostics_filter" = "Show entries";
-"diagnostics_filter_all" = "All";
-"diagnostics_filter_problems" = "Problems";
-"diagnostics_filter_transfers" = "Transfers";
-"diagnostics_filter_storage" = "Storage";
-"diagnostics_search" = "Search events, codes or fields";
-"diagnostics_read_failed_note" = "Try again to read the activity log.";
-"diagnostics_empty_note" = "Activity events will appear here.";
-"diagnostics_copy" = "Copy";
-"diagnostics_copy_all" = "Copy All";
-"diagnostics_copied" = "Copied";
+"diagnostics_export_failed" = "Export failed. Tap to retry · JSON";
+"diagnostics_file_saved" = "Exported: %@";
 "records_toolbar_scope" = "%1$@ · %2$@ photos";
 "diagnostics_event_sender_started" = "Backup service started";
 "diagnostics_event_sender_ready" = "Backup queue ready";
@@ -1786,3 +1720,32 @@
 "onboarding_notify_title" = "Turn on notifications";
 
 "onboarding_pixel_photos" = "Pixel Photos";
+
+"diagnostics_export_title" = "Export diagnostics";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"diagnostics_recent" = "Recent activity";

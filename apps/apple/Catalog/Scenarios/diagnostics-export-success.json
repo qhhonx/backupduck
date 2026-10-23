@@ -3,9 +3,10 @@
   "extends": "diagnostics-base",
   "page": "settings",
   "step": "export-success",
-  "title": "Diagnostics · export-success",
+  "title": "Diagnostics \u00b7 export-success",
   "expect": [
     "Native settings navigation; no system permissions or photo-library reads.",
-    "Exact recorded fields retained; exports contain JSON activity metadata only."
+    "Exact recorded fields retained; exports contain JSON activity metadata only.",
+    "Catalog-only completed share/save outcome; native sheet verified separately."
   ]
 }
