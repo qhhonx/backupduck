@@ -5,6 +5,10 @@ inspect every use of the same component or interaction.
 
 ## Content and feedback
 
+English first-run headings, labels and supporting text use sentence case on
+iPhone and Mac. Button titles use Title Case; retain proper names and the
+capitalization of controls referenced in instructions.
+
 Working screens show the current state, the next action, and consequences that
 change a decision. Show each current state or selection count once. Ordinary
 supporting text does not need an information banner.
@@ -25,6 +29,11 @@ Multi-line text never ends with a lone character or a character and its
 punctuation. Shared text components use the platform's balanced line breaking
 for body, supporting and footnote text (Android `BREAK_STRATEGY_BALANCED`; Apple
 text already avoids short last lines) instead of rewording individual strings.
+
+Chinese display headlines made of short clauses break only at clause
+punctuation, never inside a clause ("比 iCloud 大，/比 NAS 简单，/而且免费。", not
+"比 iCloud 大，比 / NAS 简单"). Keep each clause together and let the clauses
+wrap as the width allows.
 
 Errors remain visible with a recovery action. Routine persistence and preparation
 use neutral busy feedback, not warnings. Only an unfinished operation after
