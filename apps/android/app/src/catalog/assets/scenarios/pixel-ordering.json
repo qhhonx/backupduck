@@ -1,0 +1,6 @@
+{
+  "id": "pixel.ordering", "extends": "base", "page": "transfers",
+  "title": "Latest-change ordering across five pages", "now_ms": 1792713600000,
+  "snapshot": {"published":409,"received":411,"total":411,"failed":2},
+  "expect": ["Real Rust snapshot pagination over 411 synthetic records", "Descending change days across page boundaries", "Needs you remains above the timeline"]
+}

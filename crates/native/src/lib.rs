@@ -12,6 +12,7 @@ mod dashboard_access;
 mod folders;
 mod maintenance;
 mod pairing;
+mod receiver_history;
 mod receiver_preview;
 mod receiver_storage;
 mod source_locations;
@@ -953,6 +954,14 @@ enum Command {
         root: PathBuf,
         sender_id: Option<String>,
         before: Option<i64>,
+        state: String,
+        kind: String,
+    },
+    ReceiverHistoryLatest {
+        root: PathBuf,
+        sender_id: Option<String>,
+        cursor: Option<String>,
+        known_revision: Option<i64>,
         state: String,
         kind: String,
     },
@@ -2095,6 +2104,21 @@ fn dispatch(command: Command) -> Result<Value> {
                 json!({"settings":current,"used_bytes":catalog.reserved_bytes()?,"counts":catalog.counts()?,"free_bytes":fs2::available_space(root)?}),
             )
         }
+        Command::ReceiverHistoryLatest {
+            root,
+            sender_id,
+            cursor,
+            known_revision,
+            state,
+            kind,
+        } => receiver_history::page(
+            &root,
+            cursor.as_deref(),
+            &state,
+            &kind,
+            sender_id.as_deref(),
+            known_revision,
+        ),
         Command::ReceiverPreview {
             root,
             cache_dir,

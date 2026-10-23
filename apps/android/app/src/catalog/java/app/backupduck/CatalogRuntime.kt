@@ -132,6 +132,7 @@ internal object CatalogRuntime {
         traceDirectory = context.getExternalFilesDir(null)
         browserCode = (scenario.core["dashboard_info"]?.firstOrNull()?.value as? JSONObject)?.optString("code").orEmpty()
         if (scenario.id.startsWith("advanced.")) File(traceDirectory, "browser-operations.jsonl").writeText("")
+        if (scenario.id == "pixel.ordering") CatalogOrdering.prepare(context)
         CatalogMedia.reload(context)
         PhotoImages.clearCache()
         PhotoMetadataReader.clearCache()
@@ -222,7 +223,10 @@ internal object CatalogRuntime {
 
     private fun answer(request: String): String {
         val query = runCatching { JSONObject(request) }.getOrNull()
-        val op = query?.optString("op") ?: "?"
+        val wireOp = query?.optString("op") ?: "?"
+        if (wireOp == "receiver_history_latest" && current?.id == "pixel.ordering") return CatalogOrdering.answer(checkNotNull(query))
+        // Existing visual fixtures retain their scripted states through the new host reader.
+        val op = if (wireOp == "receiver_history_latest") "receiver_history" else wireOp
         if (op == "gallery_evidence" && referenceUri != null) return JSONObject().put("ok", true)
             .put("value", JSONObject().put("copy", JSONObject().put("locator", referenceUri.toString()))).toString()
         val scenario = current

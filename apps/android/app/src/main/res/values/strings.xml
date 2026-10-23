@@ -664,4 +664,5 @@
     <string name="viewer_gallery_action">Google Photos</string>
     <string name="metadata_capture">Capture</string>
     <string name="metadata_map_unavailable">No app can open this location.</string>
+    <string name="photos_date_unknown">Date unavailable</string>
 </resources>

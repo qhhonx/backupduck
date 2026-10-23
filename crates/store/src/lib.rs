@@ -127,6 +127,30 @@ impl Receiver {
             conn.execute("ALTER TABLE assets ADD COLUMN published_at_ms INTEGER", [])
                 .map_err(db)?;
         }
+        if !columns.iter().any(|c| c == "state_changed_at_ms") {
+            conn.execute(
+                "ALTER TABLE assets ADD COLUMN state_changed_at_ms INTEGER",
+                [],
+            )
+            .map_err(db)?;
+            conn.execute("UPDATE assets SET state_changed_at_ms=NULLIF(MAX(COALESCE(received_at_ms,0),COALESCE(published_at_ms,0)),0)", []).map_err(db)?;
+        }
+        // A receipt, processing outcome/retry or release is a recorded state change.
+        // Byte progress does not move a photo through the timeline.
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS receiver_history_revision(singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL);
+            INSERT OR IGNORE INTO receiver_history_revision VALUES(1,0);
+            CREATE TRIGGER IF NOT EXISTS history_asset_insert AFTER INSERT ON assets BEGIN
+              UPDATE assets SET state_changed_at_ms=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id=NEW.id;
+              UPDATE receiver_history_revision SET revision=revision+1;
+            END;
+            CREATE TRIGGER IF NOT EXISTS history_asset_change AFTER UPDATE OF received,processing,processing_error,originals_released,release_reason,manifest ON assets
+            WHEN OLD.received IS NOT NEW.received OR OLD.processing IS NOT NEW.processing OR OLD.processing_error IS NOT NEW.processing_error OR OLD.originals_released IS NOT NEW.originals_released OR OLD.release_reason IS NOT NEW.release_reason OR OLD.manifest IS NOT NEW.manifest BEGIN
+              UPDATE assets SET state_changed_at_ms=MAX(CAST(unixepoch('subsec')*1000 AS INTEGER),COALESCE(OLD.state_changed_at_ms,0)) WHERE id=NEW.id;
+              UPDATE receiver_history_revision SET revision=revision+1;
+            END;
+            CREATE TRIGGER IF NOT EXISTS history_asset_delete AFTER DELETE ON assets BEGIN UPDATE receiver_history_revision SET revision=revision+1; END;
+            CREATE TRIGGER IF NOT EXISTS history_sender_insert AFTER INSERT ON asset_senders BEGIN UPDATE receiver_history_revision SET revision=revision+1; END;
+            CREATE TRIGGER IF NOT EXISTS history_sender_delete AFTER DELETE ON asset_senders BEGIN UPDATE receiver_history_revision SET revision=revision+1; END;") .map_err(db)?;
         let mut receiver = Self {
             root,
             conn,

@@ -22,6 +22,7 @@ pub struct HistoryItem {
     pub captured_at_ms: Option<i64>,
     pub received_at_ms: Option<i64>,
     pub published_at_ms: Option<i64>,
+    pub state_changed_at_ms: Option<i64>,
     pub originals_released: bool,
     pub release_reason: Option<String>,
     pub senders: Vec<super::devices::Peer>,
@@ -35,6 +36,14 @@ pub struct HistoryPage {
 pub struct Catalog {
     root: PathBuf,
     conn: Option<Connection>,
+    // Declared after the connection so Windows closes it before removal.
+    snapshot_file: Option<SnapshotFile>,
+}
+struct SnapshotFile(PathBuf);
+impl Drop for SnapshotFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
 }
 impl Catalog {
     /// Resolve a stable history ID without reconciling or modifying originals.
@@ -75,8 +84,132 @@ impl Catalog {
         Ok(Self {
             root: root.into(),
             conn,
+            snapshot_file: None,
         })
     }
+    /// Cheap change check before replacing a host's already loaded prefix.
+    pub fn revision(&self) -> Result<i64> {
+        let Some(conn) = &self.conn else { return Ok(0) };
+        let exists: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='receiver_history_revision')",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(super::db)?;
+        if !exists {
+            return Ok(0);
+        }
+        conn.query_row(
+            "SELECT revision FROM receiver_history_revision WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(super::db)
+    }
+
+    /// Materialize metadata in an app-private disposable SQLite file, not a
+    /// host array or a long-lived WAL read transaction. This also avoids relying
+    /// on a system temp directory, which mobile sandboxes may not expose.
+    pub fn freeze_latest(&mut self) -> Result<i64> {
+        if self.conn.is_none() {
+            return Ok(0);
+        }
+        let mut random = [0; 16];
+        getrandom::fill(&mut random).map_err(|_| Error::Storage("random source".into()))?;
+        let token: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        // Completed snapshots are unlinked on Unix; only interrupted creation
+        // can leave one of these private cache files behind.
+        for entry in fs::read_dir(&self.root)? {
+            let entry = entry?;
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".history-snapshot-")
+                && entry
+                    .metadata()?
+                    .modified()?
+                    .elapsed()
+                    .is_ok_and(|age| age > std::time::Duration::from_secs(86_400))
+            {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+        let file = SnapshotFile(self.root.join(format!(".history-snapshot-{token}.sqlite")));
+        let conn = Connection::open(&file.0).map_err(super::db)?;
+        conn.busy_timeout(std::time::Duration::from_millis(250))
+            .map_err(super::db)?;
+        // Cache data has no durability requirement. The attached live store is
+        // only read, in one short consistent transaction, then detached.
+        conn.execute_batch("PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;")
+            .map_err(super::db)?;
+        conn.execute(
+            "ATTACH DATABASE ?1 AS source",
+            [self
+                .root
+                .join("receiver.sqlite3")
+                .to_string_lossy()
+                .as_ref()],
+        )
+        .map_err(super::db)?;
+        conn.execute_batch(
+            "BEGIN; CREATE TABLE assets AS SELECT rowid AS rowid,* FROM source.assets;",
+        )
+        .map_err(super::db)?;
+        let has_revision: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM source.sqlite_master WHERE name='receiver_history_revision')", [], |r|r.get(0)).map_err(super::db)?;
+        let revision = if has_revision {
+            conn.query_row(
+                "SELECT revision FROM source.receiver_history_revision WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(super::db)?
+        } else {
+            0
+        };
+        let senders: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM source.sqlite_master WHERE name='asset_senders')",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(super::db)?;
+        if senders {
+            conn.execute_batch("CREATE TABLE asset_senders AS SELECT * FROM source.asset_senders;")
+                .map_err(super::db)?;
+        }
+        conn.execute_batch(
+            "COMMIT; DETACH DATABASE source; CREATE INDEX history_identity ON assets(rowid);",
+        )
+        .map_err(super::db)?;
+        if senders {
+            conn.execute_batch("CREATE INDEX history_senders ON asset_senders(asset_id,sender_id)")
+                .map_err(super::db)?;
+        }
+        let has_changed: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('assets') WHERE name='state_changed_at_ms')", [], |r|r.get(0)).map_err(super::db)?;
+        if has_changed {
+            conn.execute_batch("CREATE INDEX history_change ON assets(COALESCE(state_changed_at_ms,MAX(COALESCE(received_at_ms,0),COALESCE(published_at_ms,0))) DESC,rowid DESC)").map_err(super::db)?;
+        }
+        conn.execute_batch("PRAGMA query_only=ON")
+            .map_err(super::db)?;
+        #[cfg(unix)]
+        fs::remove_file(&file.0)?;
+        self.conn = Some(conn);
+        self.snapshot_file = Some(file);
+        Ok(revision)
+    }
+
+    pub fn latest_page(
+        &self,
+        before: Option<i64>,
+        state: &str,
+        kind: &str,
+        limit: u32,
+        sender: Option<&str>,
+    ) -> Result<HistoryPage> {
+        self.page_internal(before, state, kind, limit, sender, None, true)
+    }
+
     pub fn counts(&self) -> Result<serde_json::Value> {
         let Some(conn) = &self.conn else {
             return Ok(serde_json::json!({"total":0,"received":0,"published":0,"failed":0}));
@@ -113,7 +246,7 @@ impl Catalog {
         limit: u32,
         sender: Option<&str>,
     ) -> Result<HistoryPage> {
-        self.page_internal(before, state, kind, limit, sender, None)
+        self.page_internal(before, state, kind, limit, sender, None, false)
     }
     /// Numbered browser pages. Filters are applied before LIMIT/OFFSET.
     pub fn numbered_page(
@@ -149,6 +282,7 @@ impl Catalog {
             per_page,
             None,
             Some((offset, filename.trim())),
+            false,
         )
     }
     fn page_internal(
@@ -159,6 +293,7 @@ impl Catalog {
         limit: u32,
         sender: Option<&str>,
         numbered: Option<(i64, &str)>,
+        latest: bool,
     ) -> Result<HistoryPage> {
         let numbered_offset = numbered.map(|(offset, _)| offset);
         let filename = numbered.map(|(_, filename)| filename).unwrap_or("");
@@ -223,7 +358,21 @@ impl Catalog {
         } else {
             "NULL"
         };
-        let mut query = conn.prepare(&format!("SELECT rowid,id,manifest,received,processing,originals_released,{reason_column},{error_column},{received_at_column},{published_at_column} FROM assets WHERE {filter} AND (?3 IS NULL OR rowid<?3) ORDER BY rowid DESC LIMIT ?4 OFFSET ?6")).map_err(super::db)?;
+        let has_changed: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('assets') WHERE name='state_changed_at_ms')", [], |r| r.get(0)).map_err(super::db)?;
+        let changed = if has_changed {
+            "state_changed_at_ms"
+        } else {
+            "NULL"
+        };
+        let time = format!("COALESCE({changed},MAX(COALESCE({received_at_column},0),COALESCE({published_at_column},0)))");
+        let (boundary, order) = if latest {
+            // This table is immutable for the entire cursor lifetime. A changed or
+            // deleted live asset cannot cross this boundary or invalidate its rowid.
+            (format!("(?3 IS NULL OR ({time},rowid)<(SELECT {time},rowid FROM assets WHERE rowid=?3))"), format!("{time} DESC,rowid DESC"))
+        } else {
+            ("(?3 IS NULL OR rowid<?3)".into(), "rowid DESC".into())
+        };
+        let mut query = conn.prepare(&format!("SELECT rowid,id,manifest,received,processing,originals_released,{reason_column},{error_column},{received_at_column},{published_at_column},{changed} FROM assets WHERE {filter} AND {boundary} ORDER BY {order} LIMIT ?4 OFFSET ?6")).map_err(super::db)?;
         let records = query
             .query_map(
                 params![
@@ -247,6 +396,7 @@ impl Catalog {
                         r.get::<_, Option<String>>(7)?,
                         r.get::<_, Option<i64>>(8)?,
                         r.get::<_, Option<i64>>(9)?,
+                        r.get::<_, Option<i64>>(10)?,
                     ))
                 },
             )
@@ -267,6 +417,7 @@ impl Catalog {
             processing_error,
             received_at_ms,
             published_at_ms,
+            state_changed_at_ms,
         ) in records.into_iter().take(limit)
         {
             let asset: Asset = serde_json::from_str(&manifest)?;
@@ -327,6 +478,7 @@ impl Catalog {
                     .filter(|value| *value > 0),
                 received_at_ms,
                 published_at_ms,
+                state_changed_at_ms,
                 originals_released,
                 release_reason,
                 senders,

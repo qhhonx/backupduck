@@ -44,6 +44,18 @@ internal object CatalogTextAudit {
                         }
                         geometry.put(entry)
                     }
+                    if (view is androidx.recyclerview.widget.RecyclerView && view.id == R.id.receiver_photos_list) {
+                        val adapter = view.adapter as? androidx.recyclerview.widget.ListAdapter<*, *>
+                        val rows = JSONArray()
+                        adapter?.currentList?.forEach { row -> when (row) {
+                            is PhotoRow.Day -> rows.put(JSONObject().put("day", row.epochDay))
+                            is PhotoRow.Tile -> rows.put(JSONObject().put("id", row.item.id).put("cursor", row.item.cursor).put("changed", row.item.latestChangeMs))
+                            else -> rows.put(JSONObject().put("role", row?.javaClass?.simpleName))
+                        } }
+                        val manager = view.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                        geometry.put(JSONObject().put("class", "PhotoRows").put("rows", rows)
+                            .put("firstVisible", manager?.findFirstVisibleItemPosition()).put("lastVisible", manager?.findLastVisibleItemPosition()))
+                    }
                     if (view is TextView) view.layout?.let { layout ->
                         val lines = JSONArray()
                         for (line in 0 until layout.lineCount) {

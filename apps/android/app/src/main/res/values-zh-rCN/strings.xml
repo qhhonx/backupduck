@@ -659,4 +659,5 @@
     <string name="viewer_gallery_action">Google 相册</string>
     <string name="metadata_capture">拍摄参数</string>
     <string name="metadata_map_unavailable">没有可打开此位置的应用。</string>
+    <string name="photos_date_unknown">日期未知</string>
 </resources>

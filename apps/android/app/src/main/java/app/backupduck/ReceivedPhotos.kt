@@ -26,7 +26,7 @@ internal val HistoryItem.cause: PhotoCause? get() = when {
 }
 
 /** The last time anything happened to the photo, when the core recorded it. */
-internal val HistoryItem.latestChangeMs: Long? get() = listOfNotNull(publishedAtMs, receivedAtMs).maxOrNull()
+internal val HistoryItem.latestChangeMs: Long? get() = stateChangedAtMs ?: listOfNotNull(publishedAtMs, receivedAtMs).maxOrNull()
 
 internal val HistoryItem.senders: List<String> get() = senderNames.split(" · ").map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -59,7 +59,7 @@ internal sealed class PhotoRow {
     data class Cause(val group: CauseGroup) : PhotoRow() { override val key = -10L - group.cause.ordinal }
     object TimelineHeader : PhotoRow() { override val key = -3L }
     /** [epochDay] is the local day; [senders] is empty unless more than one sender appears. */
-    data class Day(val epochDay: Long, val senders: List<String>) : PhotoRow() { override val key = -1_000L - epochDay }
+    data class Day(val epochDay: Long, val senders: List<String>) : PhotoRow() { override val key = if (epochDay == Long.MIN_VALUE) Long.MIN_VALUE else -1_000L - epochDay }
     data class Tile(val item: HistoryItem) : PhotoRow() { override val key = item.cursor }
     data class Status(val kind: StatusKind) : PhotoRow() { override val key = -4L }
     /** Said once for the whole page: BackupDuck cannot see Google Photos' cloud backup. */
@@ -71,10 +71,10 @@ internal enum class StatusKind { LOADING, FAILED, EMPTY }
 internal fun epochDay(ms: Long, zone: ZoneId): Long = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().toEpochDay()
 
 /**
- * The page's rows. The core pages records by arrival; each loaded photo goes
- * under the day of its latest change, newest day first, keeping arrival order
- * within a day. A photo with no recorded time is still arriving, so it belongs
- * to today. The Google Photos footer closes the last page.
+ * The page's rows. The core pages a fixed snapshot by latest change, newest first, with a
+ * stable row ID tie-breaker. Each photo goes under that change’s local day;
+ * order within a day is the exact core order across every loaded page. A legacy photo with no recorded change time belongs to the final unknown-date
+ * group; browsing must not invent a change time. The Google Photos footer closes the last page.
  */
 internal fun photoRows(items: List<HistoryItem>, attention: List<CauseGroup>, nowMs: Long, zone: ZoneId,
     loading: Boolean, failed: Boolean, hasMore: Boolean): List<PhotoRow> {
@@ -91,7 +91,7 @@ internal fun photoRows(items: List<HistoryItem>, attention: List<CauseGroup>, no
     }
     val today = epochDay(nowMs, zone)
     val manySenders = items.flatMap { it.senders }.distinct().size > 1
-    items.groupBy { item -> item.latestChangeMs?.let { epochDay(it, zone) }?.coerceAtMost(today) ?: today }
+    items.groupBy { item -> item.latestChangeMs?.let { epochDay(it, zone) }?.coerceAtMost(today) ?: Long.MIN_VALUE }
         .toSortedMap(compareByDescending { it })
         .forEach { (day, photos) ->
             rows += PhotoRow.Day(day, if (manySenders) photos.flatMap { it.senders }.distinct() else emptyList())

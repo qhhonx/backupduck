@@ -533,3 +533,5 @@ about private originals, Photos copies and conversion remain.
 
 `advanced.browser-disable-failed` fails the first listener stop; Retry repeats
 stop and adopts the saved off state, without starting the listener again.
+
+`pixel.ordering` seeds a Catalog-only SQLite fixture with 411 interleaved arrival/change records and two failures. It calls the real `receiver_history_latest` Rust operation (five pages) while keeping previews synthetic; no receiver, gallery publication, or cleanup runs. `ordering-pages.jsonl` records the core replies; the opt-in text audit includes loaded photo IDs/day groups and visible adapter positions.

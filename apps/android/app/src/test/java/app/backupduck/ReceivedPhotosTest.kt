@@ -65,10 +65,25 @@ class ReceivedPhotosTest {
         assertEquals(listOf(9L, 7L, 8L), rows.filterIsInstance<PhotoRow.Tile>().map { it.item.cursor })
     }
 
-    @Test fun aPhotoStillArrivingBelongsToToday() {
+    @Test fun aLegacyPhotoWithoutATimeDoesNotInventToday() {
         val rows = photoRows(listOf(item(3, processing = "not_requested", receipt = "receiving", received = null, published = null)),
             emptyList(), now, zone, loading = false, failed = false, hasMore = false)
-        assertEquals(epochDay(now, zone), rows.filterIsInstance<PhotoRow.Day>().single().epochDay)
+        assertEquals(Long.MIN_VALUE, rows.filterIsInstance<PhotoRow.Day>().single().epochDay)
+    }
+
+    @Test fun fourCorePagesKeepExactOrderAndProblemCardsStayBeforeTheTimeline() {
+        val input = (1L..411L).map { id -> item(id).copy(stateChangedAtMs = at(1, 0) + (id * 137 % 61) * 3_600_000) }
+            .sortedWith(compareByDescending<HistoryItem> { it.latestChangeMs }.thenByDescending { it.cursor })
+        for (count in listOf(100, 200, 300, 400, 411)) {
+            val loaded = input.take(count)
+            val problems = needsYou(listOf(item(500, processing = "failed", error = "storage")), false)
+            val rows = photoRows(loaded, problems, now, zone, false, false, count < 411)
+            assertEquals(loaded.map { it.id }, rows.filterIsInstance<PhotoRow.Tile>().map { it.item.id })
+            val days = rows.filterIsInstance<PhotoRow.Day>().map { it.epochDay }
+            assertEquals(days.distinct().sortedDescending(), days)
+            assertEquals(PhotoRow.NeedsHeader, rows[1])
+            assertTrue(rows[2] is PhotoRow.Cause)
+        }
     }
 
     @Test fun sendersAppearOnDaysOnlyWhenMoreThanOneSenderAppears() {

@@ -594,6 +594,7 @@ private fun stateLabel(context: android.content.Context, item: HistoryItem) = co
 private fun dayLabel(context: android.content.Context, epochDay: Long): String {
     val today = epochDay(ReceiverEnvironment.now(), ZoneId.systemDefault())
     return when (epochDay) {
+        Long.MIN_VALUE -> context.getString(R.string.photos_date_unknown)
         today -> context.getString(R.string.photos_today)
         today - 1 -> context.getString(R.string.photos_yesterday)
         else -> {

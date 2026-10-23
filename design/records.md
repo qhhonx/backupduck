@@ -121,9 +121,15 @@ English below; the zh-Hans strings (`records_*` keys in
   copy in Photos is found.
 - **Scope line.** "1,284 photos · 1,277 in the Pixel's Photos"; it names the
   sending device only when one device sent everything shown.
-- **Ordering.** The core returns received items in arrival order; the page
-  regroups the loaded items by the day of their latest change. Exact order
-  across pages needs the core to page by latest change.
+- **Ordering.** The core pages a fixed read snapshot by latest recorded state
+  change, newest first, with descending stable row ID as the tie-breaker. The
+  Pixel groups this order by local day across every page; problem cards keep
+  their position above the timeline. A refresh atomically replaces the loaded
+  prefix from a new snapshot, so concurrent arrivals, retries and outcomes
+  cannot duplicate or skip items in a paging pass. Expired cursors restart the
+  loaded prefix rather than mixing snapshots. Legacy records without a known
+  change time form a final unknown-date group. The arrival-ordered operation
+  remains available for existing hosts.
 
 ## 6. Open
 
