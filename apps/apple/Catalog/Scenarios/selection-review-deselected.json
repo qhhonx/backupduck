@@ -1,0 +1,11 @@
+{
+  "page": "library",
+  "step": "selectionReview",
+  "extends": "base-paired",
+  "ios_only": true,
+  "expect": [
+    "Uses the production calendar grid and review sheet with sample assets from -mediaDir. Submission outcomes are synthetic; no PhotoKit access or original export."
+  ],
+  "id": "selection.review.deselected",
+  "title": "Selection review: deselected"
+}

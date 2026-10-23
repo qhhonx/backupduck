@@ -118,10 +118,20 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       let asset = id.flatMap { PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: photoLibraryFetchOptions()).firstObject }
       grid.setPreviewHidden(asset?.burstIdentifier.map { "burst:" + $0 } ?? id)
     }
-    grid.onReviewBrowse = { [weak c] review in
-      guard let c else { return }
-      let photos = review.assets.compactMap { c.asset($0.id) }
-      presentSelectedMediaReview(from: review,assets: photos,library: c.parent.library)
+    grid.configureReview = { [weak c] review in
+      review.photoMenu = { [weak c, weak review] item in
+        guard let c, let review, let asset = c.asset(item.id) else { return nil }
+        return LibraryPhotoActions.menu(asset: asset, library: c.parent.library, model: c.parent.model, presenter: review)
+      }
+      review.photoAccessibilityActions = { [weak c, weak review] item in
+        guard let c, let review, let asset = c.asset(item.id) else { return [] }
+        return LibraryPhotoActions.accessibilityActions(asset: asset, library: c.parent.library, model: c.parent.model, presenter: review)
+      }
+      review.onPreview = { [weak c] review in
+        guard let c else { return }
+        let photos = review.assets.compactMap { c.asset($0.id) }
+        presentSelectedMediaReview(from: review, assets: photos, library: c.parent.library)
+      }
     }
     grid.onBackup = { [weak c] in
       guard let c else { return }
@@ -167,19 +177,23 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     grid.grid.isUserInteractionEnabled = !backupAction.busy
     if backupAction.added && library.selection.isEmpty { grid.selecting = false }
     grid.setBackupFeedback(title: backupAction.title, added: backupAction.added)
-    if backupAction.confirmingRepeat, grid.presentedViewController == nil {
+    let review = grid.selectionReview
+    review?.setSelection(library.selection, notify: false)
+    review?.setBackupFeedback(title: backupAction.title, enabled: !backupAction.busy, added: backupAction.added)
+    let presenter: UIViewController = review ?? grid
+    if backupAction.confirmingRepeat, presenter.presentedViewController == nil {
       let dialog = UIAlertController(title: NSLocalizedString("selection_backup_repeat_title", comment: ""),
         message: NSLocalizedString("selection_backup_repeat_note", comment: ""), preferredStyle: .actionSheet)
       dialog.addAction(UIAlertAction(title: NSLocalizedString("selection_backup_repeat_action", comment: ""), style: .default) { _ in
         Task { await backupAction.confirm(library: library, model: model) }
       })
       dialog.addAction(UIAlertAction(title: NSLocalizedString("cancel", comment: ""), style: .cancel) { _ in backupAction.cancel() })
-      dialog.popoverPresentationController?.barButtonItem = grid.backupItem
-      grid.present(dialog, animated: true)
-    } else if let error = backupAction.error, grid.presentedViewController == nil {
+      dialog.popoverPresentationController?.barButtonItem = review?.backupItem ?? grid.backupItem
+      presenter.present(dialog, animated: true)
+    } else if let error = backupAction.error, presenter.presentedViewController == nil {
       let alert = UIAlertController(title: NSLocalizedString("selection_backup_failed_title", comment: ""), message: error, preferredStyle: .alert)
       alert.addAction(UIAlertAction(title: NSLocalizedString("settings_done", comment: ""), style: .default) { _ in backupAction.error = nil })
-      grid.present(alert, animated: true)
+      presenter.present(alert, animated: true)
     }
     grid.displayedTotal = library.total
     grid.viewTitle = library.backupView == .all ? nil : NSLocalizedString(library.backupView.title, comment: "")

@@ -1159,7 +1159,7 @@
 "scope_album_deselect" = "Deselect Album";
 "scope_album_no_photos" = "This album has no accessible photos or videos.";
 
-"library_browse_selected" = "Browse Selected Items";
+"library_browse_selected" = "Browse Selected Photos";
 "library_deselect_item" = "Deselect Item";
 "library_select_item" = "Select Item";
 "library_return_selected" = "Back to Selected Items";
@@ -1754,3 +1754,8 @@
 "diagnostics_other_activity" = "Other activity";
 "diagnostics_event_originals_reclaimed" = "Saved originals removed from this device";
 "diagnostics_event_relay_originals_reclaimed" = "Saved relay copies removed";
+
+"library_review_selection_title" = "%d Photos Selected";
+"library_review_selected" = "Selected";
+"library_review_not_selected" = "Not selected";
+"library_review_backup_count" = "Back Up %d Photos";

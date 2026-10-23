@@ -522,6 +522,7 @@ final class CalendarGridCell: UICollectionViewCell {
   var stateMark: UIImageView { decorations.stateMark }
   var liveMark: UIImageView { decorations.liveMark }
   var resumeThumbnail: (() -> Void)?
+  var accessibilityToggle: (() -> Bool)?
   var cancel: (() -> Void)?, assetID = "", coverAsset: Int?
   var assetAspect: CGFloat?
   var thumbnailCloud = false
@@ -633,8 +634,10 @@ final class CalendarGridCell: UICollectionViewCell {
     decorations.backupState(state, visible: visible)
     accessibilityHint = visible && state != nil ? NSLocalizedString(libraryTileAccessibilityKey(state), comment: "") : nil
   }
+  override func accessibilityActivate() -> Bool { accessibilityToggle?() ?? super.accessibilityActivate() }
   override func prepareForReuse() {
     super.prepareForReuse()
+    accessibilityToggle = nil
     cancel?()
     cancel = nil
     stopCover()
@@ -4206,13 +4209,23 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     selectionStart = nil
   }
-  var onReviewBrowse: (CalendarSelectedController) -> Void = { _ in }
+  var configureReview: (CalendarSelectedController) -> Void = { _ in }
+  weak var selectionReview: CalendarSelectedController?
   func reviewSelection() {
     let controller = CalendarSelectedController()
     controller.assets = assets.filter { selected.contains($0.id) }
     controller.selected = selected
-    controller.requestImage = requestImage
-    controller.onBrowse = onReviewBrowse
+    selectionReview = controller
+    controller.columns = columns
+    controller.originalAspect = originalAspect
+    controller.requestImage = columns == 1 || originalAspect ? requestUncroppedImage ?? requestImage : requestImage
+    controller.cachedImage = { [weak self] asset in
+      self?.transitionImages.object(forKey: asset.id as NSString) ?? self?.placeholderImage(asset)
+    }
+    controller.photoPreview = photoPreview
+    controller.onBackup = { [weak self] in self?.backUpSelected() }
+    controller.setBackupFeedback(title: backupFeedback, enabled: canBackup, added: backupAdded)
+    configureReview(controller)
     controller.onSelection = { [weak self] ids in
       self?.selected = ids
       self?.onSelection(ids)
@@ -4221,8 +4234,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let nav = UINavigationController(rootViewController: controller)
     if let sheet = nav.sheetPresentationController {
       sheet.detents = [.large()]
-      sheet.prefersGrabberVisible = false
-      sheet.preferredCornerRadius = 24
+      sheet.prefersGrabberVisible = true
     }
     present(nav, animated: true)
   }
@@ -4256,25 +4268,63 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   return size
 }
 
+/// A frozen membership snapshot with live selection and the library's media pipeline.
 final class CalendarSelectedController: UIViewController, UICollectionViewDataSource,
-  UICollectionViewDelegate
+  UICollectionViewDelegateFlowLayout
 {
-  var assets: [CalendarGridAsset] = [], selected = Set<String>(),
-    requestImage: CalendarGridController.ImageRequest!,
-    onSelection: (Set<String>) -> Void = { _ in }
+  var assets: [CalendarGridAsset] = [], selected = Set<String>()
+  var columns = 3, originalAspect = false
+  var requestImage: CalendarGridController.ImageRequest!
+  var cachedImage: (CalendarGridAsset) -> UIImage? = { _ in nil }
+  var onSelection: (Set<String>) -> Void = { _ in }
+  var onBackup: () -> Void = {}
+  var onPreview: (CalendarSelectedController) -> Void = { _ in }
+  var photoMenu: ((CalendarGridAsset) -> UIMenu?)?
+  var photoPreview: ((CalendarGridAsset, UIImage?) -> UIViewController?)?
+  var photoAccessibilityActions: ((CalendarGridAsset) -> [UIAccessibilityCustomAction])?
   let flow = UICollectionViewFlowLayout()
   lazy var grid = UICollectionView(frame: .zero, collectionViewLayout: flow)
-  var onBrowse: (CalendarSelectedController) -> Void = { _ in }
+  private var geometry: CalendarGridGeometry?
   var focusedID: String?
-  let clear = UIButton(type: .system)
-  func setSelection(_ ids: Set<String>) {
-    selected = ids; onSelection(ids)
-    for path in grid.indexPathsForVisibleItems {
-      (grid.cellForItem(at: path) as? CalendarGridCell)?.selection(ids.contains(assets[path.item].id),enabled: true)
-    }
-    navigationItem.title = String(format: NSLocalizedString("library_selection_title",comment: ""),ids.count)
-    navigationItem.leftBarButtonItem?.isEnabled = !ids.isEmpty
-    clear.isEnabled = !ids.isEmpty
+  private var feedback = "", canBackup = true, backupAdded = false
+  lazy var browseItem = UIBarButtonItem(image: UIImage(systemName: "rectangle.grid.1x2"),
+    style: .plain, target: self, action: #selector(browseSelection))
+  lazy var clearItem = UIBarButtonItem(title: NSLocalizedString("library_deselect_all", comment: ""),
+    style: .plain, target: self, action: #selector(clearSelection))
+  lazy var backupItem = UIBarButtonItem(title: nil, style: .done, target: self, action: #selector(backUp))
+
+  func setSelection(_ ids: Set<String>, notify: Bool = true) {
+    selected = ids
+    if notify { onSelection(ids) }
+    guard isViewLoaded else { return }
+    for case let cell as CalendarGridCell in grid.visibleCells { updateSelection(cell) }
+    updateActions()
+  }
+  func setBackupFeedback(title: String, enabled: Bool, added: Bool) {
+    feedback = title; canBackup = enabled; backupAdded = added
+    guard isViewLoaded else { return }
+    grid.isUserInteractionEnabled = enabled
+    updateActions()
+  }
+  private func updateActions() {
+    navigationItem.title = String(format: NSLocalizedString("library_review_selection_title", comment: ""), selected.count)
+    browseItem.isEnabled = !assets.isEmpty
+    clearItem.isEnabled = canBackup && !selected.isEmpty
+    backupItem.title = feedback.isEmpty
+      ? String(format: NSLocalizedString("library_review_backup_count", comment: ""), selected.count) : feedback
+    backupItem.isEnabled = canBackup && !selected.isEmpty && !backupAdded
+  }
+  private func updateSelection(_ cell: CalendarGridCell) {
+    let included = selected.contains(cell.assetID)
+    cell.selection(included, enabled: true)
+    cell.accessibilityValue = NSLocalizedString(included ? "library_review_selected" : "library_review_not_selected", comment: "")
+  }
+  private func toggle(_ id: String) {
+    guard canBackup else { return }
+    var ids = selected
+    if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+    focusedID = id
+    setSelection(ids)
   }
   private var hiddenPreviewID: String?
   func setPreviewHidden(_ id: String?) {
@@ -4299,76 +4349,107 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
   }
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = UIColor.systemBackground
-    flow.minimumLineSpacing = 2
-    flow.minimumInteritemSpacing = 2
-    grid.dataSource = self
-    grid.delegate = self
+    view.backgroundColor = .systemBackground
+    flow.minimumLineSpacing = CalendarGridGeometry.gap(columns: columns)
+    flow.minimumInteritemSpacing = flow.minimumLineSpacing
+    grid.dataSource = self; grid.delegate = self
     grid.backgroundColor = .clear
     grid.register(CalendarGridCell.self, forCellWithReuseIdentifier: "selected")
     grid.accessibilityIdentifier = "calendar.selected_grid"
     view.addSubview(grid)
-    navigationItem.title = String(
-      format: NSLocalizedString("library_selection_title", comment: ""), selected.count)
+    browseItem.accessibilityIdentifier = "calendar.selected_browse"
+    browseItem.accessibilityLabel = NSLocalizedString("library_browse_selected", comment: "")
+    navigationItem.leftBarButtonItem = browseItem
     navigationItem.rightBarButtonItem = UIBarButtonItem(
-      image: UIImage(systemName: "checkmark"), style: .done, target: self, action: #selector(done))
+      barButtonSystemItem: .done, target: self, action: #selector(done))
     navigationItem.rightBarButtonItem?.accessibilityIdentifier = "calendar.selected_done"
-    navigationItem.rightBarButtonItem?.accessibilityLabel = NSLocalizedString("settings_done",comment: "")
-    navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "rectangle.grid.1x2"),primaryAction: UIAction { [weak self] _ in
-      guard let self else { return }; self.onBrowse(self)
-    })
-    navigationItem.leftBarButtonItem?.accessibilityIdentifier = "calendar.selected_browse"
-    navigationItem.leftBarButtonItem?.accessibilityLabel = NSLocalizedString("library_browse_selected",comment: "")
-    clear.setTitle(NSLocalizedString("library_deselect_all", comment: ""), for: .normal)
-    if #available(iOS 26.0, *) {
-      clear.configuration = .glass()
-    } else {
-      clear.configuration = .bordered()
-    }
-    clear.addAction(
-      UIAction { [weak self] _ in
-        self?.setSelection([])
-      }, for: .touchUpInside)
-    view.addSubview(clear)
+    if #available(iOS 26.0, *) { backupItem.style = .prominent }
+    clearItem.accessibilityIdentifier = "calendar.selected_deselect_all"
+    if #available(iOS 26.0, *) { clearItem.hidesSharedBackground = true }
+    backupItem.accessibilityIdentifier = "calendar.selected_backup"
+    toolbarItems = [clearItem, UIBarButtonItem(systemItem: .flexibleSpace), backupItem]
+    navigationController?.setToolbarHidden(false, animated: false)
+    grid.isUserInteractionEnabled = canBackup
+    updateActions()
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let side = (view.bounds.width - 4) / 3
-    flow.itemSize = CGSize(width: side, height: side)
+    if geometry == nil || grid.bounds.width != view.bounds.width {
+      geometry = CalendarGridGeometry(assets: assets, level: .all, width: view.bounds.width,
+        columns: columns, originalAspect: originalAspect)
+      flow.invalidateLayout()
+    }
     grid.frame = view.bounds
-    let action = calendarReviewActionSize(clear,availableWidth: view.bounds.width-40)
-    grid.contentInset.bottom = action.height+32
-    clear.frame = CGRect(x: view.bounds.midX-action.width/2,
-      y: view.bounds.height-view.safeAreaInsets.bottom-action.height-16,width: action.width,height: action.height)
+  }
+  func collectionView(_ v: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt p: IndexPath) -> CGSize {
+    geometry?.tiles[p.item].frame.size
+      ?? CGSize(width: CalendarGridGeometry.side(width: v.bounds.width, columns: columns),
+        height: CalendarGridGeometry.side(width: v.bounds.width, columns: columns))
   }
   func collectionView(_ v: UICollectionView, numberOfItemsInSection s: Int) -> Int { assets.count }
   func collectionView(_ v: UICollectionView, cellForItemAt p: IndexPath) -> UICollectionViewCell {
-    let c = v.dequeueReusableCell(withReuseIdentifier: "selected", for: p) as! CalendarGridCell
-    let a = assets[p.item]
-    c.assetID = a.id
-    c.contentView.isHidden = hiddenPreviewID == a.id
-    c.label.isHidden = true
-    c.scrim.isHidden = true
-    c.selection(selected.contains(a.id), enabled: true)
-    c.duration.text = a.videoDuration
-    c.duration.isHidden = a.videoDuration == nil
-    c.liveMark.isHidden = !a.live
-    c.accessibilityIdentifier = "calendar.selected." + a.id
-    c.accessibilityLabel = a.date?.formatted(date: .abbreviated,time: .shortened)
-    c.cancel = requestImage(a, max(250,grid.bounds.width / 3 * (view.window?.screen.scale ?? 2))) { [weak c] image, cloud in
-      if c?.assetID == a.id { c?.thumbnail(image, cloud: cloud) }
+    let cell = v.dequeueReusableCell(withReuseIdentifier: "selected", for: p) as! CalendarGridCell
+    let asset = assets[p.item]
+    cell.assetID = asset.id
+    cell.assetAspect = columns == 1 || originalAspect ? asset.aspect : nil
+    cell.contentView.isHidden = hiddenPreviewID == asset.id
+    cell.label.isHidden = true; cell.scrim.isHidden = true
+    cell.backupState(nil, visible: false)
+    updateSelection(cell)
+    cell.duration.text = asset.videoDuration
+    cell.duration.isHidden = asset.videoDuration == nil
+    cell.liveMark.isHidden = !asset.live
+    cell.accessibilityIdentifier = "calendar.selected." + asset.id
+    cell.accessibilityLabel = asset.date?.formatted(date: .abbreviated,time: .shortened)
+    cell.accessibilityCustomActions = photoAccessibilityActions?(asset)
+    cell.accessibilityToggle = { [weak self] in
+      guard let self, self.canBackup else { return false }
+      self.toggle(asset.id); return true
     }
-    return c
+    cell.thumbnail(cachedImage(asset), cloud: false)
+    cell.resumeThumbnail = { [weak self, weak cell] in
+      guard let self, let cell, cell.assetID == asset.id else { return }
+      let size = self.geometry?.tiles[p.item].frame.size ?? cell.bounds.size
+      let side = max(size.width, size.height)
+      cell.cancel = self.requestImage(asset, max(40, side * self.traitCollection.displayScale)) { [weak cell] image, cloud in
+        guard cell?.assetID == asset.id else { return }
+        cell?.thumbnail(image, cloud: cloud)
+      }
+    }
+    cell.resumeThumbnail?()
+    return cell
   }
-  func collectionView(_ v: UICollectionView, didSelectItemAt p: IndexPath) {
-    let id = assets[p.item].id
-    if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
-    focusedID = id
-    setSelection(selected)
+  func collectionView(_ v: UICollectionView, didSelectItemAt p: IndexPath) { toggle(assets[p.item].id) }
+  func collectionView(_ v: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt p: IndexPath) {
+    guard let cell = cell as? CalendarGridCell, cell.cancel == nil else { return }
+    cell.resumeThumbnail?()
   }
-  func collectionView(_ v: UICollectionView,didEndDisplaying cell: UICollectionViewCell,forItemAt p: IndexPath) {
+  func collectionView(_ v: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt p: IndexPath) {
     (cell as? CalendarGridCell)?.cancel?()
+    (cell as? CalendarGridCell)?.cancel = nil
   }
+  func collectionView(_ v: UICollectionView, contextMenuConfigurationForItemAt p: IndexPath,
+    point: CGPoint) -> UIContextMenuConfiguration? {
+    let asset = assets[p.item]
+    let poster = (v.cellForItem(at: p) as? CalendarGridCell)?.image.image ?? cachedImage(asset)
+    return UIContextMenuConfiguration(identifier: asset.id as NSString, previewProvider: { [weak self] in
+      self?.photoPreview?(asset, poster)
+    }) { [weak self] _ in self?.photoMenu?(asset) }
+  }
+  func collectionView(_ v: UICollectionView, willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+    animator: UIContextMenuInteractionCommitAnimating) {
+    guard let id = configuration.identifier as? String else { return }
+    animator.preferredCommitStyle = .dismiss
+    animator.addCompletion { [weak self] in
+      guard let self else { return }
+      self.focusedID = id; self.onPreview(self)
+    }
+  }
+  @objc private func clearSelection() { setSelection([]) }
+  @objc private func browseSelection() {
+    focusedID = focusedID ?? assets.first?.id
+    onPreview(self)
+  }
+  @objc private func backUp() { if backupItem.isEnabled { onBackup() } }
   @objc func done() { navigationController?.dismiss(animated: true) }
-
 }

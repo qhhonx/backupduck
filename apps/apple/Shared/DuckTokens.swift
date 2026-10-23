@@ -46,6 +46,8 @@ enum DuckRole {
   static let primaryText = Color(nsColor: .labelColor)
   /// Supporting text, descriptions and metadata.
   static let secondaryText = Color(nsColor: .secondaryLabelColor)
+  /// Faint neutral decorative marks; use secondary text for increased contrast.
+  static let tertiaryText = Color(nsColor: .tertiaryLabelColor)
   /// Hairlines between rows and around groups.
   static let separator = Color(nsColor: .separatorColor)
   #else
@@ -61,6 +63,8 @@ enum DuckRole {
   static let primaryText = Color(uiColor: .label)
   /// Supporting text, descriptions and metadata.
   static let secondaryText = Color(uiColor: .secondaryLabel)
+  /// Faint neutral decorative marks; use secondary text for increased contrast.
+  static let tertiaryText = Color(uiColor: .tertiaryLabel)
   /// Hairlines between rows and around groups.
   static let separator = Color(uiColor: .separator)
   #endif

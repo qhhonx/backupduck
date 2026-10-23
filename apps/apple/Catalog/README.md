@@ -515,6 +515,16 @@ cover preparation and failed publication. `onboarding.first-photo-flight`
 provides a timed publication transition; `-reduce-motion` injects the flight's
 immediate arrival path without changing system settings.
 
+### iPhone selection review
+
+`selection.review.selected`, `.open`, `.deselected` and `.feedback` use the
+production calendar grid, review sheet and shared selected-backup feedback.
+Twelve photos span twelve months; deselection keeps the original review tiles.
+Pass `-mediaDir <absolute path>` to use the local sample pool, and
+`-appearance light|dark` for app-only appearance. `.repeat` and `.failure`
+exercise confirmation and submission recovery. Submission is synthetic;
+these scenarios never export originals or register backup work.
+
 ### Apple diagnostics and records
 
 `diagnostics.root`, `.empty`, `.failed`, `.export-success`, `.export-failure`

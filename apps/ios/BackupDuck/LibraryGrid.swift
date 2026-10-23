@@ -1028,7 +1028,7 @@ struct IOSPreviewItem: Identifiable {
 /// provider remain untouched while this batch is being inspected.
 @MainActor func presentSelectedMediaReview(from review: CalendarSelectedController, assets: [PHAsset], library: PhotoLibraryModel) {
   func key(_ asset: PHAsset) -> String { asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier }
-  guard let asset = assets.first(where: { key($0) == review.focusedID && review.selected.contains(key($0)) })
+  guard let asset = assets.first(where: { key($0) == review.focusedID })
     ?? assets.first(where: { review.selected.contains(key($0)) }),
     let frame = review.previewFrame(key(asset)), review.presentedViewController == nil else { return }
   let selectedIndex = review.assets.firstIndex(where: { $0.id == key(asset) })

@@ -1,4 +1,5 @@
 import Photos
+import Combine
 import SwiftUI
 import UserNotifications
 
@@ -191,7 +192,12 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.step == "selectedBackup" {
+    if scenario.step == "selectionReview" {
+      SelectionReviewCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "open", model: model,
+        appearance: catalogViewerStyle(scenario))
+        .ignoresSafeArea()
+        .task { await model.open() }.onDisappear { model.stop() }
+    } else if scenario.step == "selectedBackup" {
       SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
     } else if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
       IOSInformationCatalog(model: model, panelStyle: catalogViewerStyle(scenario), showInformation: scenario.step == "photoInformation" || scenario.id == "photo.viewer-info", unregistered: ["photo.viewer-not-backed-up", "photo.viewer-state-change"].contains(scenario.id), immersive: scenario.id.hasSuffix("-immersive"), stateChange: scenario.id == "photo.viewer-state-change")
@@ -572,6 +578,153 @@ private struct IOSDiagnosticsCatalog: View {
         }
       }.navigationTitle("nav_settings")
         .task { if !opened { opened = true; show = true } }
+    }
+  }
+}
+
+/// Frozen sample membership; both selection entry points invoke the same action.
+private struct SelectionReviewCatalog: UIViewControllerRepresentable {
+  let mode: String
+  let model: BackupModel
+  let appearance: UIUserInterfaceStyle
+  func makeUIViewController(context: Context) -> UINavigationController {
+    let nav = CalendarNavigationController(rootViewController: SelectionReviewSample(mode: mode, model: model, appearance: appearance))
+    nav.overrideUserInterfaceStyle = appearance
+    return nav
+  }
+  func updateUIViewController(_ controller: UINavigationController, context: Context) {}
+}
+
+private final class SelectionReviewAsset: PHAsset, PreviewSample, @unchecked Sendable {
+  let number: Int
+  init(_ number: Int) { self.number = number; super.init() }
+  override var localIdentifier: String { "selection-review-\(number)" }
+  override var creationDate: Date? { Calendar.current.date(byAdding: .month, value: number / 4 - 12, to: Date(timeIntervalSince1970: 1792495800)) }
+  override var modificationDate: Date? { creationDate }
+  override var mediaType: PHAssetMediaType { .image }
+  override var mediaSubtypes: PHAssetMediaSubtype { [] }
+  override var burstIdentifier: String? { nil }
+  override var location: CLLocation? { nil }
+  override var pixelWidth: Int { Int(previewImage?.size.width ?? 480) }
+  override var pixelHeight: Int { Int(previewImage?.size.height ?? 480) }
+  var previewFilename: String { "Selection-\(number).jpg" }
+  var previewMetadata: [(String, String)] { [] }
+  var previewImage: LibraryImage? {
+    SampleImages.cgImage(for: localIdentifier).map { UIImage(cgImage: $0) }
+  }
+}
+
+private final class SelectionReviewSample: UIViewController {
+  let mode: String, model: BackupModel
+  let appearance: UIUserInterfaceStyle
+  let library = PhotoLibraryModel(), action = SelectionBackupAction()
+  let photos = (0..<48).map(SelectionReviewAsset.init)
+  let calendar = CalendarGridController()
+  override var navigationItem: UINavigationItem { calendar.navigationItem }
+  private var observation: AnyCancellable?
+  private var opened = false
+  init(mode: String, model: BackupModel, appearance: UIUserInterfaceStyle) {
+    self.mode = mode; self.model = model; self.appearance = appearance
+    super.init(nibName: nil, bundle: nil)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    addChild(calendar); view.addSubview(calendar.view); calendar.didMove(toParent: self)
+    calendar.requestImage = { [weak self] item, pixels, done in
+      guard let self, let asset = self.photos.first(where: { $0.localIdentifier == item.id }) else { return {} }
+      let request = self.library.thumbnails.request(asset, pixels: pixels, completion: done)
+      return { [weak self] in self?.library.thumbnails.cancel(request) }
+    }
+    calendar.requestUncroppedImage = calendar.requestImage
+    calendar.photoPreview = { [weak self] item, poster in
+      guard let self, let asset = self.photos.first(where: { $0.localIdentifier == item.id }) else { return nil }
+      return LibraryPhotoPreview(asset: asset, pipeline: self.library.thumbnails, poster: poster)
+    }
+    calendar.onSelection = { [weak self] ids in
+      guard let self else { return }
+      self.library.selection = ids; self.action.selectionChanged(); self.refresh()
+    }
+    calendar.onBackup = { [weak self] in
+      guard let self else { return }
+      if self.mode == "repeat" { self.action.confirmingRepeat = true; self.refresh() }
+      else { self.submit() }
+    }
+    calendar.configureReview = { [weak self] review in
+      guard let self else { return }
+      review.photoMenu = { [weak self, weak review] item in
+        guard let self, let review, let asset = self.photos.first(where: { $0.localIdentifier == item.id }) else { return nil }
+        return LibraryPhotoActions.menu(asset: asset, library: self.library, model: self.model, presenter: review)
+      }
+      review.photoAccessibilityActions = { [weak self, weak review] item in
+        guard let self, let review, let asset = self.photos.first(where: { $0.localIdentifier == item.id }) else { return [] }
+        return LibraryPhotoActions.accessibilityActions(asset: asset, library: self.library, model: self.model, presenter: review)
+      }
+      review.onPreview = { [weak self] review in
+        guard let self else { return }
+        let photos = review.assets.compactMap { item in self.photos.first { $0.localIdentifier == item.id } }
+        presentSelectedMediaReview(from: review, assets: photos, library: self.library)
+      }
+    }
+    calendar.columns = 3
+    calendar.replaceAssets(photos.map {
+      CalendarGridAsset(id: $0.localIdentifier, date: $0.creationDate,
+        aspect: CGFloat($0.pixelWidth) / CGFloat(max(1, $0.pixelHeight)))
+    })
+    calendar.selecting = true
+    let ids = Set(stride(from: 1, to: 48, by: 4).map { photos[$0].localIdentifier })
+    calendar.selected = ids; library.selection = ids
+    refresh()
+    observation = action.objectWillChange.sink { [weak self] in
+      DispatchQueue.main.async { self?.refresh() }
+    }
+  }
+  override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); calendar.view.frame = view.bounds }
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    guard !opened else { return }; opened = true
+    // Include system-owned sheet chrome in the Catalog's app-only appearance.
+    view.window?.overrideUserInterfaceStyle = appearance
+    if mode != "selected" {
+      calendar.reviewSelection()
+      calendar.selectionReview?.navigationController?.overrideUserInterfaceStyle = appearance
+      if mode == "deselected", let review = calendar.selectionReview, let first = review.assets.first {
+        var ids = review.selected; ids.remove(first.id); review.setSelection(ids)
+      }
+      if mode == "feedback" { submit() }
+    }
+  }
+  private func submit() {
+    Task { @MainActor in
+      await action.perform({
+        try? await Task.sleep(for: .milliseconds(400))
+        if self.mode == "failure" { return false }
+        self.library.selection = []; return true
+      }, failure: { NSLocalizedString("apple_selected_backup_failed", comment: "") })
+      refresh()
+    }
+  }
+  private func refresh() {
+    calendar.canBackup = !action.busy
+    calendar.selected = library.selection
+    calendar.setBackupFeedback(title: action.title, added: action.added)
+    calendar.refreshSelection()
+    guard let review = calendar.selectionReview else { return }
+    review.setSelection(library.selection, notify: false)
+    review.setBackupFeedback(title: action.title, enabled: !action.busy, added: action.added)
+    if action.confirmingRepeat, review.presentedViewController == nil {
+      let dialog = UIAlertController(title: NSLocalizedString("selection_backup_repeat_title", comment: ""),
+        message: NSLocalizedString("selection_backup_repeat_note", comment: ""), preferredStyle: .actionSheet)
+      dialog.addAction(UIAlertAction(title: NSLocalizedString("selection_backup_repeat_action", comment: ""), style: .default) { [weak self] _ in
+        self?.action.confirmingRepeat = false; self?.submit()
+      })
+      dialog.addAction(UIAlertAction(title: NSLocalizedString("cancel", comment: ""), style: .cancel) { [weak self] _ in self?.action.cancel() })
+      dialog.popoverPresentationController?.barButtonItem = review.backupItem
+      review.present(dialog, animated: true)
+    } else if let error = action.error, review.presentedViewController == nil {
+      let alert = UIAlertController(title: NSLocalizedString("selection_backup_failed_title", comment: ""), message: error, preferredStyle: .alert)
+      alert.addAction(UIAlertAction(title: NSLocalizedString("settings_done", comment: ""), style: .default) { [weak self] _ in self?.action.error = nil })
+      review.present(alert, animated: true)
     }
   }
 }
