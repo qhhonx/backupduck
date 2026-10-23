@@ -1,0 +1,362 @@
+{
+  "id": "diagnostics.base",
+  "extends": "base",
+  "page": "settings",
+  "surface": "diagnostics",
+  "now_ms": 1792658400000,
+  "diagnostics": {
+    "receipts": {
+      "schema_version": 1,
+      "source": "BackupDuck Pixel receiver",
+      "exported_at_ms": 1792658400000,
+      "published_count": 2,
+      "items": [
+        {
+          "id": "catalog-photo",
+          "name": "IMG_1024.jpg",
+          "size": 3145728,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "photo",
+          "published_at_ms": null
+        }
+      ],
+      "unresolved": [
+        {
+          "id": "catalog-unresolved",
+          "reason": "publication_name_unavailable"
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "ready"
+  },
+  "core": {
+    "receiver_settings": {
+      "value": {
+        "settings": {
+          "receiver_budget_bytes": 21474836480,
+          "min_free_bytes": 2147483648,
+          "receiver_relay": false,
+          "log_days": 14,
+          "log_limit": 10000
+        },
+        "counts": {
+          "total": 1284,
+          "published": 1280,
+          "failed": 0
+        },
+        "free_bytes": 18253611008
+      }
+    },
+    "receiver_logs": {
+      "value": [
+        {
+          "id": 1036,
+          "timestamp": 1792658400,
+          "code": "publication_failed",
+          "job_id": null,
+          "bytes": null,
+          "context": {
+            "phase": "saving",
+            "reason": "catalog_io_error",
+            "system_error": 28,
+            "http_status": null,
+            "next_retry_at": 1792658460,
+            "unknown_field": {
+              "name": "sample",
+              "values": [
+                1,
+                true,
+                null
+              ]
+            }
+          }
+        },
+        {
+          "id": 1035,
+          "timestamp": 1792658329,
+          "code": "transfer_received",
+          "job_id": 799,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1034,
+          "timestamp": 1792658258,
+          "code": "publication_complete",
+          "job_id": 798,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1033,
+          "timestamp": 1792658187,
+          "code": "receiver_started",
+          "job_id": null,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1032,
+          "timestamp": 1792658116,
+          "code": "processing_low_space",
+          "job_id": 796,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1031,
+          "timestamp": 1792658045,
+          "code": "originals_reclaimed",
+          "job_id": 795,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1030,
+          "timestamp": 1792657974,
+          "code": "original_archive_verified",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1029,
+          "timestamp": 1792657903,
+          "code": "settings_changed",
+          "job_id": 793,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1028,
+          "timestamp": 1792657832,
+          "code": "cache_reclaimed",
+          "job_id": 792,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1027,
+          "timestamp": 1792657761,
+          "code": "network",
+          "job_id": null,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1026,
+          "timestamp": 1792657690,
+          "code": "integrity",
+          "job_id": 790,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1025,
+          "timestamp": 1792657619,
+          "code": "processing_resumed",
+          "job_id": 789,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1024,
+          "timestamp": 1792572000,
+          "code": "publication_failed",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1023,
+          "timestamp": 1792571929,
+          "code": "transfer_received",
+          "job_id": 787,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1022,
+          "timestamp": 1792571858,
+          "code": "publication_complete",
+          "job_id": 786,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1021,
+          "timestamp": 1792571787,
+          "code": "receiver_started",
+          "job_id": null,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1020,
+          "timestamp": 1792571716,
+          "code": "processing_low_space",
+          "job_id": 784,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1019,
+          "timestamp": 1792571645,
+          "code": "originals_reclaimed",
+          "job_id": 783,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1018,
+          "timestamp": 1792571574,
+          "code": "original_archive_verified",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1017,
+          "timestamp": 1792571503,
+          "code": "settings_changed",
+          "job_id": 781,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1016,
+          "timestamp": 1792571432,
+          "code": "cache_reclaimed",
+          "job_id": 780,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1015,
+          "timestamp": 1792571361,
+          "code": "network",
+          "job_id": null,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1014,
+          "timestamp": 1792571290,
+          "code": "integrity",
+          "job_id": 778,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1013,
+          "timestamp": 1792571219,
+          "code": "processing_resumed",
+          "job_id": 777,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1012,
+          "timestamp": 1792485600,
+          "code": "publication_failed",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1011,
+          "timestamp": 1792485529,
+          "code": "transfer_received",
+          "job_id": 775,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1010,
+          "timestamp": 1792485458,
+          "code": "publication_complete",
+          "job_id": 774,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1009,
+          "timestamp": 1792485387,
+          "code": "receiver_started",
+          "job_id": null,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1008,
+          "timestamp": 1792485316,
+          "code": "processing_low_space",
+          "job_id": 772,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1007,
+          "timestamp": 1792485245,
+          "code": "originals_reclaimed",
+          "job_id": 771,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1006,
+          "timestamp": 1792485174,
+          "code": "original_archive_verified",
+          "job_id": null,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1005,
+          "timestamp": 1792485103,
+          "code": "settings_changed",
+          "job_id": 769,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1004,
+          "timestamp": 1792485032,
+          "code": "cache_reclaimed",
+          "job_id": 768,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1003,
+          "timestamp": 1792484961,
+          "code": "network",
+          "job_id": null,
+          "bytes": 3145728,
+          "context": null
+        },
+        {
+          "id": 1002,
+          "timestamp": 1792484890,
+          "code": "integrity",
+          "job_id": 766,
+          "bytes": null,
+          "context": null
+        },
+        {
+          "id": 1001,
+          "timestamp": 1792484819,
+          "code": "processing_resumed",
+          "job_id": 765,
+          "bytes": 3145728,
+          "context": null
+        }
+      ]
+    }
+  }
+}

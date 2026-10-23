@@ -384,7 +384,7 @@
     <string name="pref_status_receiving">Receiving</string>
     <string name="pref_status_paused">Receiving paused</string>
     <string name="pref_status_off">Receiving is off</string>
-    <string name="onb_title">Bigger than iCloud.\nSimpler than a NAS.\nAnd free.</string>
+    <string name="onb_title">Bigger than iCloud. Simpler than a NAS. And free.</string>
     <string name="onb_subtitle">This old Pixel receives the photos on your iPhone and backs them up to Google Photos, full quality, without limits.</string>
     <string name="onb_step_install">Install BackupDuck</string>
     <string name="onb_step_install_note">You\'ve done this already</string>

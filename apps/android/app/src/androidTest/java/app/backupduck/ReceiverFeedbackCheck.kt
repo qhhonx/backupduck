@@ -44,9 +44,9 @@ internal fun Instrumentation.checkReceiverFeedback(args:Bundle):String {
   main {val title=views(root()).filterIsInstance<TextView>().single {it.text.toString()==a.getString(R.string.duck_device_name)};val row=title.parent.parent as View;row.requestRectangleOnScreen(Rect(0,0,row.width,row.height),true)};shot("settings-device-value")
   main {views(root()).filterIsInstance<ScrollView>().single {it.isShown}.fullScroll(View.FOCUS_DOWN)};shot("settings-actions-tail")
   val d=DevicePanels(a);main {d.refresh()};Thread.sleep(500);main {editDialog=d.rename()};shot("name");main {check(views(root()).filterIsInstance<TextView>().none {it.text.toString()==a.getString(R.string.duck_name_intro)||it.text.toString()==a.getString(R.string.duck_code_tasks_unchanged)})};main {editDialog!!.dismiss()};Thread.sleep(250)
-  main {sheet=a.showStorageControls(StorageSection.LOGS){}};Thread.sleep(500);shot("log-retention")
-  main {val area=views(root()).single {it.tag=="receiver.select-field.log_days"};check(area.isClickable&&area.height>=a.dp(48));check(area.performClick())};Thread.sleep(180);shot("log-whole-row-popup");sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);Thread.sleep(180)
-  File(output,"result-$suffix.json").writeText(JSONObject().put("emptyHistoryActualJNI",true).put("historyReadFailureActualFilesystem",true).put("loadedRecordsSyntheticOnly",true).put("firstTierNoRepeatedDescriptions",true).put("logWholeRowNativePopup",true).put("scope","No real Pixel, media, credentials or Google Photos operations").toString())
-  return "PASS: BD24 telemetry/records grouping, no home cloud duplication; actual JNI empty/read failure, synthetic loaded rows; BD25 first-tier copy/name/whole log field native selector. $suffix"
+  main {a.showDiagnostics()};Thread.sleep(500);shot("diagnostics")
+  main {check(views(root()).filterIsInstance<TextView>().none {it.text.toString()==a.getString(R.string.logs_retention_settings)})}
+  File(output,"result-$suffix.json").writeText(JSONObject().put("emptyHistoryActualJNI",true).put("historyReadFailureActualFilesystem",true).put("loadedRecordsSyntheticOnly",true).put("firstTierNoRepeatedDescriptions",true).put("automaticLogRetention",true).put("scope","No real Pixel, media, credentials or Google Photos operations").toString())
+  return "PASS: BD24 telemetry/records grouping, no home cloud duplication; actual JNI empty/read failure, synthetic loaded rows; BD25 first-tier copy/name/automatic log retention. $suffix"
  } finally {main {sheet?.takeIf {it.window?.decorView?.isAttachedToWindow==true}?.dismissImmediately();editDialog?.dismiss();a.finish()};ReceiverPreferences.setEnabled(targetContext,oldEnabled);DeviceProfiles.read(targetContext,oldName);prefs.edit().putInt("mode",previousMode).commit()}
 }

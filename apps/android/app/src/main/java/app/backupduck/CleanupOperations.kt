@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 internal interface CleanupOperations {
     val state: StateFlow<PhotosProbeState>
     fun start(context: Context, bind: Boolean, route: String): Boolean
+    fun observe(context: Context): Boolean = false
     fun stop()
     fun access(context: Context, returned: () -> Unit)
     fun photos(context: Context, returned: () -> Unit)
@@ -16,6 +17,12 @@ internal interface CleanupOperations {
 internal object LiveCleanupOperations : CleanupOperations {
     override val state get() = PhotosProbeService.state
     override fun start(context: Context, bind: Boolean, route: String) = PhotosProbeService.clean(bind, route)
+    override fun observe(context: Context): Boolean {
+        val intent = context.packageManager.getLaunchIntentForPackage(PhotosProbeService.PHOTOS_PACKAGE)
+            ?: return false
+        if (!PhotosProbeService.begin()) return false
+        return runCatching { context.startActivity(intent); true }.getOrElse { PhotosProbeService.stop(); false }
+    }
     override fun stop() = PhotosProbeService.stop()
     override fun access(context: Context, returned: () -> Unit) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
     override fun photos(context: Context, returned: () -> Unit) {

@@ -1,0 +1,18 @@
+<resources>
+    <string name="advanced_conversion_note">允许转换实况照片，视频画质会降低。</string>
+    <string name="browser_enable">允许浏览器访问</string>
+    <string name="browser_enable_note">在同一 Wi-Fi 下管理这台 Pixel。</string>
+    <string name="browser_copy">复制</string>
+    <string name="browser_hold_reveal">按住查看</string>
+    <string name="browser_hold_reveal_description">按住查看访问码，松开后隐藏。</string>
+    <string name="browser_private_note">请勿分享访问码。它与发送设备的配对码不同。</string>
+    <string name="browser_copy_failed">未能复制地址，请再点一次复制。</string>
+    <string name="browser_disable_failed">未能关闭浏览器访问，请重试。</string>
+    <string name="browser_receiver_stopped">接收已停止，点按重试以开启浏览器访问。</string>
+    <string name="browser_code_changed">访问码已更改，所有浏览器已退出登录。</string>
+    <string name="browser_signed_out">所有浏览器已退出登录，访问码不变。</string>
+    <string name="browser_change_note">保存后所有浏览器都需重新登录。</string>
+    <string name="browser_reset_note">随机生成访问码，所有浏览器需重新登录。</string>
+    <string name="browser_signout_note">下次访问需要重新登录，访问码保持不变。</string>
+    <string name="browser_preserved_note">设备配对、照片和接收任务不变。</string>
+</resources>

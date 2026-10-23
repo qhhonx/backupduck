@@ -1,0 +1,5 @@
+{
+  "id": "diagnostics.index",
+  "extends": "diagnostics.base",
+  "page": "settings"
+}

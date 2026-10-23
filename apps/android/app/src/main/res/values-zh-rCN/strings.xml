@@ -369,7 +369,7 @@
     <string name="pref_on">开启</string>
     <string name="pref_off">关闭</string>
     <string name="pref_conversion">格式转换</string>
-    <string name="pref_browser">网页管理</string>
+    <string name="pref_browser">浏览器访问</string>
     <string name="pref_devices">已连接的设备</string>
     <string name="pref_devices_value">%1$d 台 · %2$s</string>
     <string name="pref_devices_none">还没有设备</string>
@@ -384,7 +384,7 @@
     <string name="pref_status_receiving">正在接收</string>
     <string name="pref_status_paused">已暂停接收</string>
     <string name="pref_status_off">接收已停止</string>
-    <string name="onb_title">比 iCloud 大，\n比 NAS 简单，\n而且免费。</string>
+    <string name="onb_title">比 iCloud 大，比 NAS 简单，而且免费。</string>
     <string name="onb_subtitle">这台旧 Pixel 接收你 iPhone 里的照片，原画质备份进 Google 相册，不限量。</string>
     <string name="onb_step_install">装好备份鸭</string>
     <string name="onb_step_install_note">你已经完成这一步</string>
@@ -634,7 +634,7 @@
     <string name="storage_cleanup_settings_failed">无法打开无障碍设置。请打开系统设置，选择无障碍。</string>
     <string name="storage_cleanup_consent_title">打开自动回收？</string>
     <string name="storage_cleanup_consent_action">空间不够时，备份鸭打开 Google 相册，替你点“释放空间”。</string>
-    <string name="storage_cleanup_consent_photos">被释放的照片仍在 Google 相册的云端里，能随时查看。</string>
+    <string name="storage_cleanup_consent_photos">释放后的照片仍在云端，可在 Google 相册里查看。</string>
     <string name="storage_cleanup_consent_access">需要“无障碍”权限，只用来完成这一个操作。</string>
     <string name="storage_cleanup_consent_experiment">这是实验功能，Google 相册更新后可能暂时失效，失效时会告诉你。</string>
     <string name="storage_cleanup_go_settings">去设置</string>

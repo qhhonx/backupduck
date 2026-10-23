@@ -9,7 +9,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 
 /** The prototype's storage summary, with real accounting and secondary controls in a sheet. */
-internal class StoragePage(private val activity:MainActivity,private val receiverRoot:String,private val export:()->Unit,private val totals:(JSONObject)->Unit) {
+internal class StoragePage(private val activity:MainActivity,private val receiverRoot:String,private val totals:(JSONObject)->Unit) {
     private val device=activity.duckText(activity.getString(R.string.duck_local_storage,activity.receiverDeviceName),13,true)
     private val heading=activity.duckText(activity.getString(R.string.duck_storage_intro),18,bold=true)
     private val free=activity.duckText("—",32,bold=true).apply {fontFeatureSettings="tnum"}
@@ -42,17 +42,12 @@ internal class StoragePage(private val activity:MainActivity,private val receive
         summary.addView(copies,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         summary.addView(other,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         val retention=duckGroup(panel,getString(R.string.duck_retention))
-        receiverSetting(retention,getString(R.string.storage_flow_policy_entry),null,keep) {showRetention()}
-        receiverSetting(retention,getString(R.string.duck_limit),null,budget) {showStorageControls(StorageSection.LIMITS) {refresh(force=true)}}
+        receiverSetting(retention,getString(R.string.storage_flow_policy_entry),null,keep) {openStorage()}
+        receiverSetting(retention,getString(R.string.duck_limit),null,budget) {openStorage()}
         val row=receiverSetting(retention,getString(R.string.duck_pending),null,failures) {openTransfers(failed=true)}
         panel.addView(duckButton(getString(R.string.duck_storage_detail),action=::showDetails),LinearLayout.LayoutParams(-1,dp(48)))
 
     }}
-    internal fun showRetention() {
-        val sheet=DuckSheet(activity,activity.getString(R.string.duck_retention))
-        val controls=RetentionControls(activity,sheet.body,changed={refresh(force=true)},owner=sheet);controls.render(config?.optBoolean("receiver_relay",false) ?: false)
-        sheet.show()
-    }
     private fun showDetails() {
         val sheet=DuckSheet(activity,activity.getString(R.string.duck_storage_detail));sheet.show()
         var task:Job?=null

@@ -1,0 +1,18 @@
+{
+  "id": "diagnostics.probe-cleanup_entry",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "cleanup_entry",
+    "running": true,
+    "seconds": 90,
+    "seen": [
+      "account_entry",
+      "cleanup_entry"
+    ]
+  }
+}

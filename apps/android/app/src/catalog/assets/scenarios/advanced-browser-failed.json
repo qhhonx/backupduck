@@ -1,0 +1,23 @@
+{
+  "id": "advanced.browser-failed",
+  "extends": "advanced.base",
+  "title": "browser-failed",
+  "surface": "browser",
+  "prefs": {
+    "receiver_dashboard": {
+      "enabled": true
+    }
+  },
+  "core": {
+    "start_dashboard": [
+      {
+        "error": "catalog_listener_unavailable"
+      },
+      {
+        "value": {
+          "started": true
+        }
+      }
+    ]
+  }
+}

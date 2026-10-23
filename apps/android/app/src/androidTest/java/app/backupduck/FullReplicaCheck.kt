@@ -80,24 +80,8 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
         main {field.setText("UI Check Pixel")};shot("device-name");click(R.string.device_save);Thread.sleep(900)
         check(DeviceProfiles.read(targetContext).getJSONObject("device").getString("name")=="UI Check Pixel")
         main {devices.showPeers()};settle();main {check(activity.supportFragmentManager.backStackEntryCount==1)};shot("devices");back()
-        val custom=JSONObject(oldConfig.toString()).put("receiver_budget_bytes",123456789L).put("min_free_bytes",456789L).put("receiver_relay",false)
-        NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",settingsRoot).put("settings",custom))
-        for(section in StorageSection.entries) {
-            main {current=activity.showStorageControls(section) {}};Thread.sleep(800);settle()
-            check(main {views(root()).filterIsInstance<Spinner>().size==2})
-            shot(if(section==StorageSection.LIMITS)"storage-limits" else "log-limits")
-            click(R.string.settings_save);Thread.sleep(700)
-            check(config().getLong("receiver_budget_bytes")==123456789L&&config().getLong("min_free_bytes")==456789L) {"Custom limits rounded by native form"}
-        }
-        var retention:RetentionControls?=null
-        main {current=DuckSheet(activity,activity.getString(R.string.duck_retention)).also {retention=RetentionControls(activity,it.body,owner=it);retention!!.render(false);it.show()}}
-        settle();main {views(root()).filterIsInstance<MaterialSwitch>().single().performClick()};settle()
-        check(!config().getBoolean("receiver_relay"));shot("relay-scope");back();check(!config().getBoolean("receiver_relay"))
-        // Cancelled scope retains safe configuration, then explicit save changes it.
-        main {retention!!.scope()};settle();click(R.string.settings_save);Thread.sleep(900)
-        check(config().getBoolean("receiver_relay")) {"Scope save did not persist"};back()
-        main {current=activity.showArchiveIntro {}};settle();check(textExists(R.string.duck_export_no_delete));shot("archive");back()
-        main {activity.showDiagnostics()};settle();shot("diagnostics");click(R.string.receiver_stop);settle()
+        // Retired storage/retention/archive routes are checked as redirects in Catalog.
+        main {activity.showDiagnostics()};settle();shot("diagnostics");back();main {activity.startActivity(Intent(activity,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("surface","advanced"))};settle();click(R.string.receiver_stop);settle()
         check(textExists(R.string.duck_stop_service_intro));shot("stop");back();back()
         val nav=main {activity.findViewById<BottomNavigationView>(R.id.main_navigation)}
         main {nav.selectedItemId=3};Thread.sleep(800);shot("storage")
@@ -123,7 +107,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
             }
             shot("updates")
         } finally {main {updates.finish()}}
-        return "PASS: real pairing pending/error/retry; thermal persistence; conversion; rename validation/persistence; devices; exact storage/log limits; cancelled and saved relay scope; export and stop notices; settings/storage/diagnostics/experiments/account/progress/update screens. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
+        return "PASS: real pairing pending/error/retry; thermal persistence; conversion; rename validation/persistence; devices; retired editor/archive surfaces omitted; stop notices; settings/storage/diagnostics/experiments/account/progress/update screens. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
     } finally {
         RelayMaintenance.cancelAutomatic()
         NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",settingsRoot).put("settings",oldConfig))

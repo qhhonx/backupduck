@@ -1,0 +1,22 @@
+{
+  "id": "advanced.browser-disable-failed",
+  "extends": "advanced.base",
+  "surface": "browser",
+  "prefs": {
+    "receiver_dashboard": {
+      "enabled": true
+    }
+  },
+  "core": {
+    "stop_dashboard": [
+      {
+        "error": "catalog_stop_failed"
+      },
+      {
+        "value": {
+          "stopped": true
+        }
+      }
+    ]
+  }
+}

@@ -103,7 +103,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         val save=form.save
         runOnMainSync {
             check(field.isHintEnabled && field.hint.toString()==activity.getString(R.string.duck_new_access_code)) {"Native field label missing"}
-            check(views(form.body).filterIsInstance<TextView>().any {it.isShown&&it.text.toString()==activity.getString(R.string.duck_code_tasks_unchanged)}) {"Code information missing"}
+            check(views(form.body).filterIsInstance<TextView>().any {it.isShown&&it.text.toString()==activity.getString(R.string.browser_preserved_note)}) {"Code information missing"}
         }
         val formScreen=windowScreenshot()
         checkMessageAlignment(form.body)
@@ -136,7 +136,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         runOnMainSync {confirm=ui.revoke()}
         Thread.sleep(250);capture("confirmation",confirm!!.window!!.decorView)
         checkMessageAlignment(confirm!!.window!!.decorView)
-        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString().contains(activity.getString(R.string.duck_revoke_sign_in))}) {"Revoke information missing"}}
+        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString().contains(activity.getString(R.string.browser_preserved_note))}) {"Revoke information missing"}}
         val revokeScreen=windowScreenshot()
         File(targetContext.cacheDir,"component-revoke-default-${if(dark) "dark" else "light"}.png").outputStream().use {revokeScreen.compress(Bitmap.CompressFormat.PNG,100,it)};revokeScreen.recycle()
         runOnMainSync {
@@ -146,7 +146,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         runOnMainSync {confirm?.dismiss();confirm=ui.reset()}
         Thread.sleep(250)
         checkMessageAlignment(confirm!!.window!!.decorView)
-        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString().contains(activity.getString(R.string.duck_reset_unchanged))}) {"Reset information missing"}}
+        runOnMainSync {check(views(confirm!!.window!!.decorView).filterIsInstance<TextView>().any {it.isShown&&it.text.toString().contains(activity.getString(R.string.browser_preserved_note))}) {"Reset information missing"}}
         val resetScreen=windowScreenshot()
         File(targetContext.cacheDir,"component-reset-default-${if(dark) "dark" else "light"}.png").outputStream().use {resetScreen.compress(Bitmap.CompressFormat.PNG,100,it)};resetScreen.recycle()
         fail=true
@@ -162,100 +162,7 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
         Thread.sleep(700);waitForIdleSync()
         check(!confirm!!.isShowing) {"Confirmation retry did not complete"}
         runOnMainSync {confirm?.dismiss()}
-        // Exercise the real shared startup controls: click, asynchronous error, auto retry,
-        // manual retry and successful dashboard confirmation. No service or real port is used.
-        val phases=kotlinx.coroutines.flow.MutableStateFlow(ReceiverSnapshot())
-        var starts=0;var dashboardStarts=0
-        var startup:BrowserStartupUI?=null
-        runOnMainSync {
-            sheet=DuckSheet(activity,activity.getString(R.string.dashboard_section))
-            startup=BrowserStartupUI(activity,sheet!!.body,phases,startReceiver={starts++},request={dashboardStarts++;delay(100)})
-            sheet!!.show()
-        }
-        Thread.sleep(300);waitForIdleSync()
-        fun visibleText(value:String):Boolean=views(sheet!!.body).filterIsInstance<TextView>().any {it.text.toString()==value&&it.isShown}
-        fun click(value:String)=runOnMainSync {views(sheet!!.body).filterIsInstance<TextView>().single {it.text.toString()==value&&it.isShown}.performClick();Unit}
-        click(activity.getString(R.string.receiver_start))
-        runOnMainSync {check(starts==1);check(visibleText(activity.getString(R.string.duck_browser_starting)))}
-        phases.value=ReceiverSnapshot(phase="waiting",error="receiver_port_in_use")
-        Thread.sleep(150);waitForIdleSync()
-        checkMessageAlignment(sheet!!.body)
-        runOnMainSync {check(visibleText(activity.getString(R.string.duck_start_port_busy)))}
-        capture("startup-failed",sheet!!.body.rootView)
-        phases.value=ReceiverSnapshot(phase="starting")
-        Thread.sleep(150);waitForIdleSync()
-        runOnMainSync {check(visibleText(activity.getString(R.string.duck_start_port_busy)))}
-        click(activity.getString(R.string.duck_retry))
-        runOnMainSync {check(starts==2);check(visibleText(activity.getString(R.string.duck_browser_starting)))}
-        capture("startup-starting",sheet!!.body.rootView)
-        phases.value=ReceiverSnapshot(phase="ready")
-        Thread.sleep(250);waitForIdleSync()
-        runOnMainSync {check(dashboardStarts==1&&startup!!.ready&&startup!!.view.visibility==View.GONE);startup!!.close();sheet!!.dismiss()}
-        Thread.sleep(250)
-        val previous=ReceiverState.mutable.value
-        ReceiverState.mutable.value=ReceiverSnapshot(phase="ready")
-        val accessUI=DashboardAccessUI(checkNotNull(browserHost)) {req ->
-            when(req.getString("op")) {
-                "start_dashboard" -> JSONObject()
-                "dashboard_info" -> JSONObject().put("url","http://192.0.2.10:8485").put("code","0123456789")
-                else -> error("Unexpected access operation")
-            }
-        }
-        try {
-            runOnMainSync {sheet=accessUI.access()};Thread.sleep(450);waitForIdleSync()
-            runOnMainSync {
-                check(sheet!!.window!!.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE==0)
-                check(views(sheet!!.body).filterIsInstance<TextView>().none {it.text.toString().contains("0123456789")}) {"Credential leaked in review hierarchy"}
-                check(visibleText("••••••••••"))
-                val card=views(sheet!!.body).filterIsInstance<com.google.android.material.card.MaterialCardView>().single()
-                val copy=views(sheet!!.body).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.duck_copy_management_address)}
-                val noticeTitle=views(sheet!!.body).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.duck_code_private)}
-                val notice=noticeTitle.parent.parent as View
-                check(copy.parent===sheet!!.body && sheet!!.footer.visibility==View.GONE) {"Copy action moved to the footer"}
-                check(kotlin.math.abs(copy.top-card.bottom-activity.dp(20))<=2) {"Address card-to-copy spacing drift"}
-                check(kotlin.math.abs(notice.top-copy.bottom-activity.dp(16))<=2) {"Copy-to-notice spacing drift"}
-            }
-            val screen=windowScreenshot()
-            runOnMainSync {
-                val card=views(sheet!!.body).filterIsInstance<com.google.android.material.card.MaterialCardView>().single()
-                val origin=IntArray(2);card.getLocationOnScreen(origin)
-                val pixel=screen.getPixel(origin[0]+activity.dp(8),origin[1]+card.height/4)
-                val expected=activity.getColor(R.color.duck_surface)
-                check(kotlin.math.abs(android.graphics.Color.red(pixel)-android.graphics.Color.red(expected))<=2 &&
-                    kotlin.math.abs(android.graphics.Color.green(pixel)-android.graphics.Color.green(expected))<=2 &&
-                    kotlin.math.abs(android.graphics.Color.blue(pixel)-android.graphics.Color.blue(expected))<=2) {"Sheet card was tinted away from the design surface"}
-            }
-            File(targetContext.cacheDir,"component-access-masked-${if(dark) "dark" else "light"}.png").outputStream().use {screen.compress(Bitmap.CompressFormat.PNG,100,it)};screen.recycle()
-            checkMessageAlignment(sheet!!.body)
-            runOnMainSync {views(sheet!!.body).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.duck_copy_management_address)}.performClick()}
-            // In-place copy feedback must be visible in the source sheet.
-            var feedbackVisible=false
-            val feedbackDeadline=android.os.SystemClock.uptimeMillis()+2500
-            while(!feedbackVisible&&android.os.SystemClock.uptimeMillis()<feedbackDeadline) {
-                runOnMainSync {
-                    val feedback=views(sheet!!.window!!.decorView).filterIsInstance<TextView>().firstOrNull {it.text.toString()==activity.getString(R.string.duck_address_copied)}
-                    val visible=Rect()
-                    feedbackVisible=feedback!=null&&feedback.isShown&&feedback.getGlobalVisibleRect(visible)&&visible.height()==feedback.height
-                }
-                if(!feedbackVisible)Thread.sleep(40)
-            }
-            waitForIdleSync()
-            runOnMainSync {
-                val feedback=views(sheet!!.window!!.decorView).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.duck_address_copied)}
-                val shown=Rect();check(feedback.isShown&&feedback.getGlobalVisibleRect(shown)&&shown.height()==feedback.height) {"Copy acknowledgement hidden under dialog: shown=$shown height=${feedback.height} translation=${feedback.translationY} parent=${feedback.parent}"}
-                val copied=(browserHost!!.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip?.getItemAt(0)?.text
-                check(copied.toString()=="http://192.0.2.10:8485") {"Wrong management address copied"}
-            }
-            val copiedScreen=windowScreenshot()
-            File(targetContext.cacheDir,"component-access-copied-${if(dark) "dark" else "light"}.png").outputStream().use {copiedScreen.compress(Bitmap.CompressFormat.PNG,100,it)};copiedScreen.recycle()
-            runOnMainSync {views(sheet!!.body).single {it.contentDescription?.toString()==activity.getString(R.string.duck_show_access_code)}.performClick()}
-            runOnMainSync {check(sheet!!.window!!.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE!=0);check(visibleText("0123456789"))}
-            runOnMainSync {views(sheet!!.body).single {it.contentDescription?.toString()==activity.getString(R.string.duck_hide_access_code)}.performClick()}
-            runOnMainSync {check(sheet!!.window!!.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE==0);check(!visibleText("0123456789"))}
-            val hiddenAgain=windowScreenshot();hiddenAgain.recycle()
-            runOnMainSync {sheet!!.dismiss()}
-        } finally {ReceiverState.mutable.value=previous}
-        Thread.sleep(250)
+        // Browser startup and protected hold-to-reveal are covered by Catalog device scenarios.
         val browserPage=startActivitySync(Intent(targetContext,BrowserManagementActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as BrowserManagementActivity
         try {
             waitForIdleSync();Thread.sleep(400)
@@ -263,6 +170,6 @@ internal fun Instrumentation.checkComponentFlow(args:Bundle):String {
             File(targetContext.cacheDir,"component-browser-page-${if(dark) "dark" else "light"}.png").outputStream().use {screenshot.compress(Bitmap.CompressFormat.PNG,100,it)}
             screenshot.recycle()
         } finally {runOnMainSync {browserPage.finish()}}
-        return "PASS: rendered message icon/first-line alignment; copy clipboard and visible feedback in dialog window; prototype modal order/gaps/external label/outlined reset/reset and revoke information; startup click/error/sticky auto-retry/manual retry/ready; masked credential screenshot and protected reveal; native navigation has separate icon/label bounds; invalid input makes no request; failed write stays editable; retry succeeds; confirmation and form components. ${activity.resources.configuration.screenWidthDp}dp/font=${activity.resources.configuration.fontScale}"
+        return "PASS: shared confirmation and credential edit validation/failure/retry; Material navigation and browser page capture. Browser state/hold verification uses Catalog scenarios."
     } finally {runOnMainSync {editDialog?.dismiss();sheet?.dismiss();browserHost?.finish();activity.finish()}}
 }

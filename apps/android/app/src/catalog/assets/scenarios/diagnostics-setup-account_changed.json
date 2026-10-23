@@ -1,0 +1,14 @@
+{
+  "id": "diagnostics.setup-account_changed",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-setup",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "cleanup",
+    "reason": "account_changed",
+    "running": false,
+    "pending": false
+  }
+}

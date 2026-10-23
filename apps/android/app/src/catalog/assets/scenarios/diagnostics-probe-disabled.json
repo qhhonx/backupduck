@@ -1,0 +1,12 @@
+{
+  "id": "diagnostics.probe-disabled",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "cleanup": {
+    "access": false,
+    "account": false,
+    "mode": "probe",
+    "reason": "disconnected"
+  }
+}

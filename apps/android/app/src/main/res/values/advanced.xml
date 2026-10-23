@@ -1,0 +1,18 @@
+<resources>
+    <string name="advanced_conversion_note">Convert unsupported Live Photos to save them; video quality is reduced.</string>
+    <string name="browser_enable">Browser access</string>
+    <string name="browser_enable_note">Manage this Pixel from a browser on the same Wi-Fi.</string>
+    <string name="browser_copy">Copy</string>
+    <string name="browser_hold_reveal">Hold to reveal</string>
+    <string name="browser_hold_reveal_description">Hold to reveal the access code. Release to hide it.</string>
+    <string name="browser_private_note">Keep the code private. It is separate from sender pairing.</string>
+    <string name="browser_copy_failed">Couldn’t copy the address. Try Copy again.</string>
+    <string name="browser_disable_failed">Couldn’t turn off browser access. Try again.</string>
+    <string name="browser_receiver_stopped">Receiving has stopped. Retry to start browser access.</string>
+    <string name="browser_code_changed">Access code changed. All browsers are signed out.</string>
+    <string name="browser_signed_out">All browsers are signed out. The access code is unchanged.</string>
+    <string name="browser_change_note">Saving signs out all browsers.</string>
+    <string name="browser_reset_note">Create a random ten-digit code and sign out all browsers.</string>
+    <string name="browser_signout_note">Browsers will need to sign in again. The access code stays the same.</string>
+    <string name="browser_preserved_note">Paired devices, photos and receiving tasks stay unchanged.</string>
+</resources>

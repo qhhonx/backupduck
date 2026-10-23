@@ -23,7 +23,7 @@ internal object CatalogTextAudit {
             if (!activity.isDestroyed && root.isAttachedToWindow && root.hasWindowFocus()) {
                 // This source set only displays synthetic pairing credentials.
                 val secure = android.view.WindowManager.LayoutParams.FLAG_SECURE
-                if (staticCapture && activity.window.attributes.flags and secure != 0) activity.window.clearFlags(secure)
+                if (staticCapture && activity !is BrowserManagementActivity && activity.window.attributes.flags and secure != 0) activity.window.clearFlags(secure)
                 val texts = JSONArray()
                 val geometry = JSONArray()
                 fun visit(view: View) {
@@ -31,10 +31,11 @@ internal object CatalogTextAudit {
                     if (!view.isShown || !view.getGlobalVisibleRect(visible)) return
                     if (view is DuckStepMark || view is DuckStepProgress ||
                         view is com.google.android.material.appbar.MaterialToolbar ||
-                        view is com.google.android.material.navigation.NavigationBarView) {
+                        view is com.google.android.material.navigation.NavigationBarView ||
+                        view.tag in listOf("duck.discovery", "duck.attention")) {
                         val entry = JSONObject().put("class", view.javaClass.simpleName)
                             .put("bounds", JSONArray(listOf(visible.left, visible.top, visible.right, visible.bottom)))
-                            .put("description", view.contentDescription)
+                            .put("description", view.contentDescription).put("tag", view.tag)
                         if (view is DuckStepMark) {
                             val mark = view.getChildAt(0) as android.widget.ImageView
                             val rect = Rect(); mark.getGlobalVisibleRect(rect)
@@ -48,7 +49,9 @@ internal object CatalogTextAudit {
                         for (line in 0 until layout.lineCount) {
                             lines.put(layout.text.subSequence(layout.getLineStart(line), layout.getLineEnd(line)).toString().trimEnd())
                         }
-                        texts.put(JSONObject().put("text", view.text.toString()).put("lines", lines)
+                        val protectedText = view.transformationMethod is android.text.method.PasswordTransformationMethod || view.tag == "browser.code"
+                        texts.put(JSONObject().put("text", if (protectedText) "•".repeat(view.text.length) else view.text.toString())
+                            .put("credentialVisible", view.tag == "browser.code" && view.text.any { it.isDigit() }).put("lines", if (protectedText) JSONArray().put("•".repeat(view.text.length)) else lines)
                             .put("breakStrategy", view.breakStrategy).put("hyphenation", view.hyphenationFrequency)
                             .put("bounds", visible.toShortString()).put("class", view.javaClass.simpleName))
                     }
@@ -58,7 +61,7 @@ internal object CatalogTextAudit {
                 val page = (activity as? BackupDuckActivity)?.supportFragmentManager?.primaryNavigationFragment?.view
                 visit(page ?: root)
                 val result = JSONObject().put("scenario", CatalogRuntime.current?.id)
-                    .put("capturedAt", System.currentTimeMillis()).put("texts", texts).put("geometry", geometry)
+                    .put("capturedAt", System.currentTimeMillis()).put("windowSecure", activity.window.attributes.flags and secure != 0).put("texts", texts).put("geometry", geometry)
                 val directory = activity.getExternalFilesDir(null) ?: return@Runnable
                 val temporary = File(directory, "text-layout.tmp")
                 temporary.writeText(result.toString(2))

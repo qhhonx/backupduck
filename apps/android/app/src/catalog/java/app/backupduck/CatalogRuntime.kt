@@ -41,6 +41,7 @@ internal class CatalogScenario(json: JSONObject) {
      * pages read the device's own space and the catalog's own files in Photos.
      */
     val storage: JSONObject? = json.optJSONObject("storage")
+    val diagnostics: JSONObject? = json.optJSONObject("diagnostics")
     val cleanup: JSONObject? = json.optJSONObject("cleanup")
     /** Supplies reserved placeholder content for review only. */
     val showReserved: Boolean = json.optBoolean("show_reserved", false)
@@ -70,6 +71,8 @@ internal object CatalogRuntime {
     private val lock = Any()
     private var cursor = HashMap<String, Int>()
     private val missing = LinkedHashSet<String>()
+    private var browserCode = ""
+    private var traceDirectory: File? = null
     @Volatile var current: CatalogScenario? = null
         private set
 
@@ -86,6 +89,9 @@ internal object CatalogRuntime {
                 "available" -> AppRelease("99.0.0",Long.MAX_VALUE,"", "",0)
                 else -> null
             }
+        }
+        ReceiverEnvironment.openGalleryPhoto = { context, intent ->
+            File(context.getExternalFilesDir(null), "viewer-photos-intent.txt").writeText(intent.toUri(0))
         }
         ReceiverEnvironment.previewImage = CatalogMedia::draw
         ReceiverEnvironment.metadataFiles = CatalogMedia::originals
@@ -123,6 +129,9 @@ internal object CatalogRuntime {
 
     /** Makes [scenario] current: resets this app's preferences, seeds the scenario's and publishes its snapshot. */
     fun apply(context: Context, scenario: CatalogScenario) {
+        traceDirectory = context.getExternalFilesDir(null)
+        browserCode = (scenario.core["dashboard_info"]?.firstOrNull()?.value as? JSONObject)?.optString("code").orEmpty()
+        if (scenario.id.startsWith("advanced.")) File(traceDirectory, "browser-operations.jsonl").writeText("")
         CatalogMedia.reload(context)
         PhotoImages.clearCache()
         PhotoMetadataReader.clearCache()
@@ -158,6 +167,18 @@ internal object CatalogRuntime {
             put("enabled", saved.enabled); put("account", saved.account.isNotEmpty()); put("reason", saved.reason)
             put("pending", saved.pending); put("access", scenario.storage?.optBoolean("cleanup_access", true) ?: true)
         })
+        ReceiverEnvironment.photosVersion = { if (scenario.cleanup?.optBoolean("photos_missing") == true) null else "7.2.0 (Catalog)" }
+        ReceiverEnvironment.diagnosticInitialState = scenario.diagnostics?.let { data -> android.os.Bundle().apply {
+            data.optString("export").takeIf { it.isNotEmpty() }?.let { putString("export", it) }
+            data.optString("file").takeIf { it.isNotEmpty() }?.let { putString("file", it) }
+            data.optString("probe_report").takeIf { it.isNotEmpty() }?.let { putString("probe-report", it) }
+        } }
+        var exportFailures = scenario.diagnostics?.optInt("export_failures") ?: 0
+        ReceiverEnvironment.diagnosticReceipts = { _, _ ->
+            if (exportFailures-- > 0) error("catalog_report_write_failed")
+            scenario.diagnostics?.optJSONObject("receipts") ?: JSONObject().put("schema_version", 1)
+                .put("published_count", 0).put("items", JSONArray()).put("unresolved", JSONArray())
+        }
         ReceiverEnvironment.now = scenario.nowMs?.let { fixed -> { fixed } } ?: System::currentTimeMillis
         val storage = scenario.storage
         ReceiverEnvironment.deviceStorage = if (storage == null) { context -> DeviceStorage.read(context) }
@@ -205,6 +226,13 @@ internal object CatalogRuntime {
         if (op == "gallery_evidence" && referenceUri != null) return JSONObject().put("ok", true)
             .put("value", JSONObject().put("copy", JSONObject().put("locator", referenceUri.toString()))).toString()
         val scenario = current
+        if (scenario?.id?.startsWith("advanced.") == true && op in setOf("start_dashboard", "stop_dashboard", "dashboard_info", "dashboard_access")) synchronized(lock) {
+            val entry = JSONObject().put("op", op).put("reset", query?.optBoolean("reset")).put("revoke", query?.optBoolean("revoke"))
+            query?.optString("code")?.takeIf { it.isNotEmpty() }?.let { code ->
+                entry.put("codeLength", code.length).put("validDigits", code.matches(Regex("[0-9]{10}")))
+            }
+            File(traceDirectory, "browser-operations.jsonl").appendText(entry.toString()+"\n")
+        }
         val answer = synchronized(lock) {
             val list = scenario?.core?.get(op)
             if (list.isNullOrEmpty()) { missing += op; null } else {
@@ -223,10 +251,17 @@ internal object CatalogRuntime {
         // A scenario switch while this answer waited belongs to the old page.
         if (current !== scenario) return JSONObject().put("ok", false).put("error", "catalog_cancelled").toString()
         answer.error?.let { return JSONObject().put("ok", false).put("error", it).toString() }
-        val value = when (op) {
+        if (scenario?.id?.startsWith("advanced.") == true && op == "dashboard_access") {
+            if (query?.has("code") == true) browserCode = query.getString("code")
+            else if (query?.optBoolean("reset") == true) browserCode = (answer.value as JSONObject).getString("code")
+        }
+        val value = when {
+            scenario?.id?.startsWith("advanced.") == true && op == "dashboard_info" -> JSONObject((answer.value as JSONObject).toString()).put("code", browserCode)
+            else -> when (op) {
             "receiver_history" -> CatalogMedia.history(answer.value)
             "receiver_preview" -> CatalogMedia.preview(checkNotNull(query), answer.value)
             else -> answer.value
+        }
         }
         return JSONObject().put("ok", true).put("value", value ?: JSONObject.NULL).toString()
     }

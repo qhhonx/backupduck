@@ -38,12 +38,20 @@ internal object ReceiverEnvironment {
     @Volatile var cleanupOperations: CleanupOperations = LiveCleanupOperations
     /** BackupDuck's files in the Pixel's Photos, read from the media index; the catalog fixes it per scenario. */
     @Volatile var galleryUsage: suspend (Context) -> GalleryUsage = { GalleryInventory.read(it) }
+    /** Replaceable report data and restored UI state for Catalog-only export scenarios. */
+    @Volatile var diagnosticReceipts: (Context, String) -> org.json.JSONObject = GalleryReceiptExport::create
+    @Volatile var diagnosticInitialState: android.os.Bundle? = null
+    @Volatile var photosVersion: (Context) -> String? = { context -> runCatching {
+        context.packageManager.getPackageInfo(PhotosProbeService.PHOTOS_PACKAGE, 0).versionName
+    }.getOrNull() }
     /** The clock that decides Today and Yesterday; the catalog fixes it per scenario. */
     @Volatile var now: () -> Long = System::currentTimeMillis
     /** Synthetic pictures for the catalog, which has no files. Unset, pages read the copy in the Pixel's Photos. */
     @Volatile var previewImage: ((HistoryItem, Int, Int) -> android.graphics.Bitmap?)? = null
     /** The external location handoff; Catalog records the intent without launching another app. */
     @Volatile var openPhotoLocation: (Context, Intent) -> Unit = { context, intent -> context.startActivity(intent) }
+    /** Viewer handoff; Catalog records it without opening another app. */
+    @Volatile var openGalleryPhoto: (Context, Intent) -> Unit = { context, intent -> context.startActivity(intent) }
     /** Original local files supplied only by the Catalog; production resolves core-owned resources. */
     @Volatile var metadataFiles: ((HistoryItem) -> List<Pair<java.io.File, String>>)? = null
     /** A scripted camera for the catalog's Mac scenarios. Unset, scanning opens the camera. */

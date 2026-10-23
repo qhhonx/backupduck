@@ -1,0 +1,19 @@
+{
+  "id": "diagnostics.probe-nothing_to_free",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "nothing_to_free",
+    "running": false,
+    "seconds": 90,
+    "seen": [
+      "account_entry",
+      "cleanup_entry",
+      "nothing_to_free"
+    ]
+  }
+}

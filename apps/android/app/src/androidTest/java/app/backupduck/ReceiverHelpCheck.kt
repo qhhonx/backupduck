@@ -69,11 +69,12 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
         runOnMainSync { root.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         waitForIdleSync(); shot("topics")
         onMain {
+            views(root.window.decorView).filterIsInstance<com.google.android.material.appbar.MaterialToolbar>().single().menu.findItem(1).expandActionView()
             val search=views(root.window.decorView).filterIsInstance<androidx.appcompat.widget.SearchView>().single()
             fun titles()=views(root.window.decorView).filterIsInstance<TextView>().map {it.text.toString()}
             check(root.getString(R.string.help_tasks) in titles()&&root.getString(R.string.help_problems) in titles())
             // Search includes article bodies, not just their titles.
-            search.setQuery(root.getString(R.string.duck_help_cloud_note),false)
+            search.setQuery(root.getString(R.string.help2_results_p3),false)
             check(root.getString(ReceiverHelpTopic.RESULTS.title) in titles())
             check(root.getString(ReceiverHelpTopic.CONNECTION.title) !in titles())
             search.setQuery("unmatched-help-query-903817",false)
@@ -98,7 +99,7 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
                     detail!!.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     check(detail!!.intent.getStringExtra("topic") == topic.key) { "wrong_help_topic" }
                     val content = views(detail!!.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }
-                    topic.sections.forEach { (_, body) -> check(detail!!.getString(body) in content) { "missing_help_body:${topic.key}" } }
+                    topic.paragraphs.forEach { body -> check(detail!!.getString(body) in content) { "missing_help_body:${topic.key}" } }
                     val reading = views(detail!!.window.decorView).filterIsInstance<androidx.core.widget.NestedScrollView>().single()
                     check(views(reading).none { it is Button || it is android.widget.EditText || it is android.widget.Spinner }) { "Help contains a business control:${topic.key}" }
                     check(views(reading).none { it.hasOnClickListeners() }) { "Help contains a workflow shortcut:${topic.key}" }
@@ -109,7 +110,7 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
                     onMain {
                         val scroll = views(detail!!.window.decorView).filterIsInstance<androidx.core.widget.NestedScrollView>().single()
                         if (scroll.isLaidOut && scroll.hasWindowFocus()) scroll.fullScroll(View.FOCUS_DOWN)
-                        val last = views(detail!!.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == detail!!.getString(topic.sections.last().second) }
+                        val last = views(detail!!.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == detail!!.getString(topic.paragraphs.last()) }
                         val rect = Rect()
                         val position = IntArray(2); last.getLocationOnScreen(position)
                         bottomVisible = last.getGlobalVisibleRect(rect) && rect.bottom >= position[1] + last.height - 1
@@ -130,7 +131,7 @@ internal fun Instrumentation.checkReceiverHelp(args: Bundle): String {
             check(receiverProblem(ReceiverSnapshot(phase = "waiting", error = error))?.recovery == expected)
         }
         check(receiverProblem(ReceiverSnapshot()) == null)
-        return "PASS: five read-only help topics without business controls/workflow shortcuts; full final-paragraph visibility, native back navigation and separate recovery categories ($language, dark=$dark)"
+        return "PASS: nine read-only help topics without business controls/workflow shortcuts; full final-paragraph visibility, native back navigation and separate recovery categories ($language, dark=$dark)"
     } finally {
         runOnMainSync { detail?.finish(); root.finish(); AppCompatDelegate.setApplicationLocales(oldLocales) }
         app.unregisterActivityLifecycleCallbacks(callbacks)

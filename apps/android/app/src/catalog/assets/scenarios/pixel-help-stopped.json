@@ -1,0 +1,10 @@
+{
+  "id": "pixel.help-stopped",
+  "extends": "pixel.help",
+  "page": "settings",
+  "surface": "help-stopped",
+  "title": "Help article: stopped",
+  "expect": [
+    "A short read-only article. Every paragraph remains reachable."
+  ]
+}

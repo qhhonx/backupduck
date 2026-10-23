@@ -94,9 +94,15 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }
         fun message(value: Int) { feedback.setText(value); feedback.visibility = View.VISIBLE }
         fun openPhotos() {
-            val copy = openCopy ?: return
-            runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(copy.uri, copy.mime)
-                .setPackage("com.google.android.apps.photos").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
+            // Publication is the action's eligibility; URI lookup only chooses its destination.
+            // A recorded copy may have moved, or a Catalog image may have no MediaStore URI.
+            runCatching {
+                val intent = openCopy?.let { copy -> Intent(Intent.ACTION_VIEW).setDataAndType(copy.uri, copy.mime)
+                    .setPackage(PhotosProbeService.PHOTOS_PACKAGE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    ?: packageManager.getLaunchIntentForPackage(PhotosProbeService.PHOTOS_PACKAGE)
+                    ?: throw android.content.ActivityNotFoundException()
+                ReceiverEnvironment.openGalleryPhoto(activity, intent)
+            }
                 .onFailure { message(R.string.photos_open_failed) }
         }
         val pill = lookButton(getString(R.string.viewer_save_failed), LookButton.TONAL) {}.apply {
@@ -136,7 +142,9 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                 }
             }
         }
-        val openAction = action(R.drawable.ic_photo, R.string.viewer_open_photos, ::openPhotos).apply { visibility = View.GONE }
+        val openAction = action(R.drawable.ic_photo, R.string.viewer_open_photos, ::openPhotos).apply {
+            visibility = if (item.processing == "complete") View.VISIBLE else View.GONE
+        }
         // The dark information surface keeps light status indicators legible even over a bright photo.
         val statusScrim = View(this).apply {
             setBackgroundColor(androidx.core.graphics.ColorUtils.setAlphaComponent(black, 180))
@@ -417,7 +425,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         if (hasPreview) preview.doOnPreDraw { ready(true); afterEnter(::load) } else load()
         lookup = lifecycleScope.launch {
             openCopy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() }
-            if (isShowing()) openAction.visibility = if (openCopy == null) View.GONE else View.VISIBLE
+            if (isShowing()) openAction.visibility = if (item.processing == "complete") View.VISIBLE else View.GONE
         }
         val observations = lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
@@ -436,7 +444,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                         retry?.visibility = pill.visibility
                         if (item.processing == "complete") {
                             openCopy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() }
-                            openAction.visibility = if (openCopy == null) View.GONE else View.VISIBLE
+                            openAction.visibility = if (item.processing == "complete") View.VISIBLE else View.GONE
                         }
                     }
                 }

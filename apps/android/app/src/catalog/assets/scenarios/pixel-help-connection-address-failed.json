@@ -1,0 +1,13 @@
+{
+  "id": "pixel.help-connection-address-failed",
+  "extends": "pixel.help-connection",
+  "page": "settings",
+  "core": {
+    "receiver_connection_info": {
+      "error": "catalog_connection_unavailable"
+    }
+  },
+  "expect": [
+    "No address line when there is no current address or it cannot be read. Static guidance remains available."
+  ]
+}

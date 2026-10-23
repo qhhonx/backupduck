@@ -1,0 +1,14 @@
+{
+  "id": "diagnostics.bind-bound",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-bind",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "bind",
+    "reason": "bound",
+    "running": false,
+    "pending": false
+  }
+}

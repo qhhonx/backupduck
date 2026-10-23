@@ -1,0 +1,10 @@
+{
+  "id": "pixel.help-cleanup",
+  "extends": "pixel.help",
+  "page": "settings",
+  "surface": "help-cleanup",
+  "title": "Help article: cleanup",
+  "expect": [
+    "A short read-only article. Every paragraph remains reachable."
+  ]
+}

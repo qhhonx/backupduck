@@ -1,0 +1,15 @@
+{
+  "id": "review2.pending",
+  "extends": "pixel.calm-photos",
+  "page": "receive",
+  "surface": "",
+  "title": "Cleanup navigation: pending",
+  "cleanup": {
+    "enabled": true,
+    "pending": true,
+    "reason": "pending"
+  },
+  "expect": [
+    "The Settings entry and hub use the shared cleanup projection; opening Storage acknowledges discovery only."
+  ]
+}

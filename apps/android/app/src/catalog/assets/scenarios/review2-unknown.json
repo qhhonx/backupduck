@@ -1,0 +1,15 @@
+{
+  "id": "review2.unknown",
+  "extends": "pixel.calm-photos",
+  "page": "receive",
+  "surface": "",
+  "title": "Cleanup navigation: unknown",
+  "cleanup": {
+    "enabled": true,
+    "account": false,
+    "reason": "ready"
+  },
+  "expect": [
+    "The Settings entry and hub use the shared cleanup projection; opening Storage acknowledges discovery only."
+  ]
+}

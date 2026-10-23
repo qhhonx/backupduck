@@ -1,0 +1,15 @@
+{
+  "id": "diagnostics.probe-waiting",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "waiting",
+    "running": true,
+    "seconds": 90,
+    "seen": []
+  }
+}

@@ -35,4 +35,17 @@ class CleanupPresentationTest {
         assertEquals(CleanupStatus.IDLE, state("ready", account = false, enabled = false))
         assertEquals(CleanupStatus.WAITING_ACCESS, state("ready", journey = "access"))
     }
+    @Test fun requiredRecoveryPropagatesUntilResolved() {
+        listOf("account_changed", "account_unavailable", "access_required", "disconnected", "pending",
+            "manual_review_required", "unrecognized", "return_home_failed", "expired", "operation_failed", "unavailable").forEach {
+            assertEquals(it, true, state(it).needsAttention)
+        }
+        assertEquals(true, state("ready", account = false).needsAttention)
+        assertEquals(true, state("ready", access = false).needsAttention)
+        listOf("ready", "bound", "reviewed", "completed", "nothing_to_free", "setup_cancelled", "stopped").forEach {
+            assertEquals(it, false, state(it).needsAttention)
+        }
+        assertEquals(false, state("opening", running = true).needsAttention)
+        assertEquals(false, state("ready", enabled = false, account = false, access = false).needsAttention)
+    }
 }

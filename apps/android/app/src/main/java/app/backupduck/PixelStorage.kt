@@ -167,6 +167,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
     private fun refreshCleanup() = with(activity) {
         cleanup.restore(PhotosCleanup(this).enabled)
         cleanupSupport.setSupporting(journey.text())
+        cleanupSupport.balanceLines()
         val action = journey.action()
         cleanupAction.visibility = if (action == null) View.GONE else View.VISIBLE
         action?.let { (label, run) -> cleanupAction.setText(label); cleanupAction.setOnClickListener { run() } }

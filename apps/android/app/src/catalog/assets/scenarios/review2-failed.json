@@ -1,0 +1,14 @@
+{
+  "id": "review2.failed",
+  "extends": "pixel.calm-photos",
+  "page": "receive",
+  "surface": "",
+  "title": "Cleanup navigation: failed",
+  "cleanup": {
+    "enabled": true,
+    "reason": "operation_failed"
+  },
+  "expect": [
+    "The Settings entry and hub use the shared cleanup projection; opening Storage acknowledges discovery only."
+  ]
+}

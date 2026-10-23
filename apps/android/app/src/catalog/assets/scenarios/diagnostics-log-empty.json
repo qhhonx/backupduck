@@ -1,0 +1,11 @@
+{
+  "id": "diagnostics.log-empty",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-log",
+  "core": {
+    "receiver_logs": {
+      "value": []
+    }
+  }
+}

@@ -494,3 +494,42 @@ changes, never real Google Photos actions. `auditText=true` also writes
 Catalog external files. Neither contains an account address. The same production
 UI owns consent, switch adoption, result review and navigation. Technical probe
 pages remain under Diagnostics and are not used for these fixtures.
+
+### Advanced settings and browser access
+
+`advanced.index` shows the global Live Photo conversion switch (off by default),
+Browser access and Stop receiving. `advanced.browser-{off,starting,ready,failed}`
+cover listener states; failed retries succeed. `advanced.code-failed` keeps an
+invalid/failed code draft editable and lets the next write succeed.
+`advanced.browser-receiver-stopped` plays receiver startup when access is enabled.
+These are scripted listener/credential operations; no real listener is opened.
+
+The browser page masks its ten-digit code. Holding Reveal makes the window secure
+before showing it; release, cancellation, lost focus and backgrounding mask it.
+Production browser windows and code editors remain secure throughout. Catalog
+permits screenshots of masked synthetic fixtures and keeps held reveals secure,
+even with `staticCapture`. Changing/resetting the code signs out all browsers;
+signing out alone retains the code. Reset and sign-out each have one confirmation.
+
+Retired Intent and restored-page routes resolve without opening an editor, picker
+or reclaim task:
+
+| Route (`surface` or restored page) | Destination |
+| --- | --- |
+| `storage-limits`, `retention`, `reclaim-originals`, `relay-history` | Storage |
+| `archive`, `archive-export`, `archive-result`, `archive-reclaim` | Diagnostics |
+| `conversion` | Advanced settings |
+
+The old access sheet, capacity editor, retention/scope sheet and original archive/
+reclaim pages are removed. Storage owns its existing single freeing-space switch.
+The receiver's original budget is bounded by device capacity; core acceptance
+uses actual free space and the existing 1 GiB reserve. No host queue or deletion
+operation is introduced. The per-photo lossy-conversion action remains absent:
+`retry_processing` accepts an item ID but no per-item conversion consent; the
+publisher currently reads the global conversion preference.
+
+Help’s storage article omits the retired ZIP-export instructions. Existing facts
+about private originals, Photos copies and conversion remain.
+
+`advanced.browser-disable-failed` fails the first listener stop; Retry repeats
+stop and adopts the saved off state, without starting the listener again.

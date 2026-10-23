@@ -46,16 +46,16 @@ internal class AutoCleanupScreen(private val activity: MainActivity, restored: B
             })
         }
         if (journey.running) button(R.string.auto_cleanup_stop, action = journey::stop)
-        else {
-            button(if (journey.pending) R.string.auto_cleanup_check_result else R.string.auto_cleanup_run, LookButton.FILLED, journey::run)
-            if (journey.status == CleanupStatus.REVIEW) {
-                button(R.string.auto_cleanup_open_photos, action = journey::openPhotos)
-                button(R.string.auto_cleanup_reviewed, action = journey::reviewed)
-            } else if (journey.status == CleanupStatus.ACCESS) button(R.string.auto_cleanup_turn_on, action = journey::enable)
+        else if (journey.status == CleanupStatus.REVIEW) {
+            button(R.string.auto_cleanup_open_photos, LookButton.FILLED, journey::openPhotos)
+            if (page.state.getBoolean("cleanup-reviewed-return"))
+                button(R.string.auto_cleanup_reviewed, LookButton.TONAL, journey::reviewed)
+            button(R.string.auto_cleanup_check_result, LookButton.TEXT, journey::run)
+        } else {
+            button(R.string.auto_cleanup_run, LookButton.FILLED, journey::run)
+            if (journey.status == CleanupStatus.ACCESS) button(R.string.auto_cleanup_turn_on, action = journey::enable)
             else if (journey.status == CleanupStatus.UNAVAILABLE) button(R.string.auto_cleanup_open_photos, action = journey::openPhotos)
             button(R.string.auto_cleanup_confirm_again) { journey.confirm() }
-            // A pending result must be reviewed before replacing its account fingerprint.
-            controls.getChildAt(controls.childCount - 1).isEnabled = !journey.pending
         }
     }
 }

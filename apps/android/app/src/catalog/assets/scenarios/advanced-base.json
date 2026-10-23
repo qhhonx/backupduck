@@ -1,0 +1,45 @@
+{
+  "id": "advanced.base",
+  "extends": "base",
+  "page": "settings",
+  "surface": "advanced",
+  "storage": {
+    "total_bytes": 34359738368,
+    "free_bytes": 18253611008,
+    "photos_bytes": 8589934592,
+    "smart_storage": true,
+    "cleanup_access": true
+  },
+  "core": {
+    "start_dashboard": {
+      "value": {
+        "started": true
+      },
+      "delay_ms": 250
+    },
+    "stop_dashboard": {
+      "value": {
+        "stopped": true
+      }
+    },
+    "dashboard_info": {
+      "value": {
+        "url": "http://192.0.2.10:8485",
+        "code": "0123456789"
+      }
+    },
+    "dashboard_access": {
+      "value": {
+        "code": "9876543210"
+      }
+    }
+  },
+  "prefs": {
+    "receiver_dashboard": {
+      "enabled": false
+    },
+    "motion_conversion": {
+      "allow_compatibility_conversion": false
+    }
+  }
+}

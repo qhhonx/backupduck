@@ -34,6 +34,11 @@ internal fun Context.duckDiscoveryDot() = View(this).apply {
     background = duckBackground(R.color.duck_brand_accent, 4, false)
     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
 }
+/** Attention and discovery share geometry and placement; their meaning and role differ. */
+internal fun View.setDuckEntryMark(attention: Boolean) {
+    tag = if (attention) "duck.attention" else "duck.discovery"
+    background = context.duckBackground(if (attention) R.color.duck_state_attention else R.color.duck_brand_accent, 4, false)
+}
 internal fun Context.duckPill(text: String, color: Int = R.color.duck_text_secondary, backgroundColor: Int = R.color.duck_subtle) = duckText(text, 12, bold = true).apply {
     tag = "duck.pill"; gravity = Gravity.CENTER_VERTICAL
     setTextColor(getColor(color)); setPadding(dp(8), dp(5), dp(8), dp(5))

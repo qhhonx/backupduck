@@ -1,0 +1,31 @@
+{
+  "id": "advanced.browser-receiver-stopped",
+  "extends": "advanced.base",
+  "title": "browser-receiver-stopped",
+  "surface": "browser",
+  "snapshot": {
+    "phase": "idle"
+  },
+  "prefs": {
+    "receiver_lifecycle": {
+      "enabled": false
+    },
+    "receiver_dashboard": {
+      "enabled": false
+    }
+  },
+  "service": [
+    {
+      "delay_ms": 0,
+      "snapshot": {
+        "phase": "starting"
+      }
+    },
+    {
+      "delay_ms": 1000,
+      "snapshot": {
+        "phase": "ready"
+      }
+    }
+  ]
+}

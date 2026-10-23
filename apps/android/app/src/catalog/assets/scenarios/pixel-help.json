@@ -5,8 +5,8 @@
   "surface": "help",
   "title": "Help by task and problem",
   "expect": [
-    "Small Material app bar with Back. Search matches titles and article text.",
-    "Three task entries and two problem entries open read-only articles. Back preserves the search and scroll.",
-    "A search with no match shows a neutral empty result; clearing search restores both sections."
+    "Compact Material app bar with search. Search matches localized titles and article text.",
+    "Four task topics and five problem topics open short read-only articles; Back preserves search and scroll.",
+    "No results is neutral; clearing search restores both groups."
   ]
 }

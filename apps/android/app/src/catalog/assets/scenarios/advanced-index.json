@@ -1,0 +1,5 @@
+{
+  "id": "advanced.index",
+  "extends": "advanced.base",
+  "title": "index"
+}

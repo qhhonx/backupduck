@@ -1,0 +1,22 @@
+{
+  "id": "diagnostics.probe-export-success",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "diagnostics": {
+    "probe_report": "success"
+  },
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "completed",
+    "seen": [
+      "account_entry",
+      "cleanup_entry",
+      "confirmation",
+      "releasing",
+      "completed"
+    ]
+  }
+}

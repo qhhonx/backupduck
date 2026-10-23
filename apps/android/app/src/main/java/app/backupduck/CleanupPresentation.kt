@@ -17,3 +17,7 @@ internal fun cleanupStatus(enabled: Boolean, account: Boolean, access: Boolean, 
     enabled && !account -> CleanupStatus.ACCOUNT
     else -> CleanupStatus.IDLE
 }
+
+/** Required recovery is independent of whether the feature introduction was seen. */
+internal val CleanupStatus.needsAttention: Boolean get() = this in setOf(
+    CleanupStatus.ACCOUNT, CleanupStatus.ACCESS, CleanupStatus.REVIEW, CleanupStatus.FAILED, CleanupStatus.UNAVAILABLE)

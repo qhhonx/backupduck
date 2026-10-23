@@ -38,8 +38,7 @@ internal fun Context.feedbackSummary(): String = getString(
 internal fun Context.receiverAppVersion(): String =
     packageManager.getPackageInfo(packageName, 0).versionName.orEmpty().substringBefore('-')
 
-internal fun receiverDiagnostics(root: String): ByteArray = NativeBridge.request(
-    JSONObject().put("op", "receiver_logs").put("root", root)).toString().toByteArray(Charsets.UTF_8)
+internal fun Context.receiverDiagnostics(root: String): ByteArray = combinedDiagnostics(root)
 
 internal fun Context.settingsFooter(parent: LinearLayout, diagnostics: () -> Unit, advanced: () -> Unit) {
     val line = LinearLayout(this).apply {

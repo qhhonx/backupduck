@@ -219,12 +219,14 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
 
     private fun lead(text: String) = content.addView(lookText(text, M.style.TextAppearance_Material3_BodyLarge, secondary = true))
 
-    /** One step of the journey beside its mark, in a single line so the welcome fits one screen. */
+    /** A fixed square optical column, no taller than two body lines. */
     private fun stepRow(number: Int, title: Int) {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        row.addView(DuckStepMark(this, number), LinearLayout.LayoutParams(dp(54), dp(44)).apply { marginEnd = token(R.dimen.duck_space_small) })
+        row.addView(DuckStepMark(this, number, compact = true), LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = token(R.dimen.duck_space_small) })
         val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         words.addView(lookText(getString(title), M.style.TextAppearance_Material3_BodyLarge))
+        val note = when (number) { 1 -> R.string.onb_step_install_note; 2 -> R.string.onb_step_connect_note; else -> R.string.onb_step_backup_note }
+        words.addView(lookText(getString(note), M.style.TextAppearance_Material3_BodyMedium, secondary = true))
         row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
     }

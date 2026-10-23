@@ -66,27 +66,19 @@ class MainActivity : BackupDuckActivity() {
     private val scanner = registerForActivityResult(ScanContract()) { result ->
         connectScan?.let { connectScan = null; it(result.contents) } ?: pairingUI.scanned(result.contents)
     }
-    private val originalArchive = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri != null) exportOriginals(uri)
-    }
+    private var diagnosticsScreen: DiagnosticsScreen? = null
+    private var exportingDiagnostics: DiagnosticsScreen? = null
     private val exportLogs = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) lifecycleScope.launch {
-            reportBusy()
+        val owner = exportingDiagnostics ?: diagnosticsScreen
+        exportingDiagnostics = null
+        if (uri != null && owner != null) lifecycleScope.launch {
+            owner.result("busy")
             val result = withContext(Dispatchers.IO) { runCatching {
-                val data = receiverDiagnostics(receiverRoot)
+                val data = combinedDiagnostics(receiverRoot)
                 checkNotNull(contentResolver.openOutputStream(uri, "wt")).use { it.write(data) }
+                diagnosticFileName(uri, "BackupDuck-diagnostics.json")
             } }
-            reportResult(result.isSuccess)
-        }
-    }
-    private val exportGalleryReceipts = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) lifecycleScope.launch {
-            reportBusy()
-            val result = withContext(Dispatchers.IO) { runCatching {
-                val bytes = GalleryReceiptExport.create(this@MainActivity, receiverRoot).toString().toByteArray(Charsets.UTF_8)
-                checkNotNull(contentResolver.openOutputStream(uri, "wt")).use { it.write(bytes) }
-            } }
-            reportResult(result.isSuccess)
+            owner.result(if (result.isSuccess) "success" else "failure", result.getOrNull())
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -143,9 +135,7 @@ class MainActivity : BackupDuckActivity() {
         })
         root.addView(coordinator, LinearLayout.LayoutParams(-1, 0, 1f))
         historyPage = HistoryPage(this, history, receiverRoot)
-        storagePage = StoragePage(this, receiverRoot, export = {
-            showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
-        }, totals = { counts ->
+        storagePage = StoragePage(this, receiverRoot, totals = { counts ->
             receiverHome.totals(counts.getInt("published"),counts.getInt("total"),counts.optInt("failed"))
             historyPage.totals(counts.getInt("total"),counts.getInt("published"))
         })
@@ -164,9 +154,8 @@ class MainActivity : BackupDuckActivity() {
             setOnItemSelectedListener { item ->
                 selectedPage = item.itemId
                 updateRootBack()
-                // Working tabs lead with their card/grid. Only the preference
-                // list benefits from a large, collapsing orientation title.
-                val largeTitle = !proposed || selectedPage == 4
+                // Top-level tabs retain the same compact chrome when switching.
+                val largeTitle = !proposed
                 collapsing.isTitleEnabled = largeTitle
                 val pageTitle = getString(pageTitles[selectedPage - 1])
                 collapsing.title = if (largeTitle) pageTitle else null
@@ -202,6 +191,9 @@ class MainActivity : BackupDuckActivity() {
                 launch { history.state.collect { historyPage.render(it); receivedPhotos?.render(it) } }
                 receivedPhotos?.let { page -> launch { attentionHistory.state.collect(page::attention) } }
                 launch { ReceiverState.snapshot.collect(::renderReceiver) }
+                launch { ReceiverEnvironment.cleanupOperations.state.collect {
+                    refreshDiscovery(); renderReceiver(ReceiverState.snapshot.value)
+                } }
                 launch {
                   var knownProgressIDs=emptySet<String>()
                   var knownStates=emptyMap<String,String?>()
@@ -228,6 +220,7 @@ class MainActivity : BackupDuckActivity() {
                 launch {
                     while (isActive) {
                         devicePanels.refresh()
+                        refreshDiscovery()
                         renderReceiver(ReceiverState.snapshot.value)
                         if (selectedPage == 1) {
                             recentHistory.refreshVisible(receiverRoot, 0)
@@ -255,14 +248,21 @@ class MainActivity : BackupDuckActivity() {
     }
     private fun refreshDiscovery() {
         val unseen = FeatureDiscovery(this).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP)
-        storageDiscoveryDot?.visibility = if (unseen) View.VISIBLE else View.GONE
-        storageDiscoveryTitle?.contentDescription = if (unseen)
-            getString(R.string.discovery_entry_label, getString(R.string.pref_storage)) else null
+        val attention = currentCleanupStatus().needsAttention
+        storageDiscoveryDot?.apply {
+            visibility = if (attention || unseen) View.VISIBLE else View.GONE
+            setDuckEntryMark(attention)
+        }
+        storageDiscoveryTitle?.contentDescription = when {
+            attention -> getString(R.string.attention_entry_label, getString(R.string.pref_storage))
+            unseen -> getString(R.string.discovery_entry_label, getString(R.string.pref_storage))
+            else -> null
+        }
         if (!::navigation.isInitialized) return
-        if (unseen) navigation.getOrCreateBadge(4).apply {
+        if (attention || unseen) navigation.getOrCreateBadge(4).apply {
             clearNumber()
-            backgroundColor = getColor(R.color.duck_brand_accent)
-            setContentDescriptionNumberless(getString(R.string.discovery_available))
+            backgroundColor = getColor(if (attention) R.color.duck_state_attention else R.color.duck_brand_accent)
+            setContentDescriptionNumberless(getString(if (attention) R.string.attention_required else R.string.discovery_available))
             isVisible = true
         } else navigation.removeBadge(4)
     }
@@ -296,15 +296,15 @@ class MainActivity : BackupDuckActivity() {
             "pairing"->choosePairing()
             "connect-mac"->openConnect(mac=true)
             "devices"->openDevices()
-            "storage-limits"->showStorageControls(StorageSection.LIMITS) {storagePage.refresh(force=true)}
-            "retention"->storagePage.showRetention()
-            "archive"->showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
+            "storage-limits", "retention", "reclaim-originals", "relay-history" -> openStorage()
+            "archive", "archive-export", "archive-result", "archive-reclaim" -> showDiagnostics()
             "report"->showReportExport(false)
             "gallery-report"->showReportExport(true)
             "advanced"->proposedAdvancedPage()
-            "conversion"->{proposedAdvancedPage();showConversionSettings()}
+            "conversion"->proposedAdvancedPage()
             "help"->openHelp()
-            "help-connection","help-background","help-results","help-storage","help-recovery"->
+            "help-connection","help-background","help-results","help-storage","help-recovery",
+            "help-connect","help-full","help-stopped","help-cleanup"->
                 openHelp(ReceiverHelpTopic.entries.first {it.key==next.getStringExtra("surface")!!.removePrefix("help-")})
             "browser"->startActivity(Intent(this,BrowserManagementActivity::class.java))
             "updates"->startActivity(Intent(this,UpdatesActivity::class.java))
@@ -313,7 +313,12 @@ class MainActivity : BackupDuckActivity() {
             "settings-bottom"->findViewById<androidx.core.widget.NestedScrollView>(R.id.settings_scroll)?.let { scroll ->
                 scroll.post {scroll.fullScroll(View.FOCUS_DOWN)}
             }
-            "diagnostics"->showDiagnostics()
+            "diagnostics", "logs-retention"->showDiagnostics()
+            "diagnostics-log", "diagnostics-detail" -> startActivity(Intent(this, ReceiverActivityLogActivity::class.java).putExtra("detail", next.getStringExtra("surface") == "diagnostics-detail"))
+            "diagnostics-probe", "diagnostics-setup", "diagnostics-bind", "diagnostics-progress" -> {
+                val route = when(next.getStringExtra("surface")) { "diagnostics-probe" -> "diagnostics"; "diagnostics-setup" -> "cleanup"; "diagnostics-bind" -> "bind"; else -> "progress" }
+                startActivity(Intent(this, PhotosProbeActivity::class.java).putExtra("route", route).putExtra("diagnostics", route == "diagnostics"))
+            }
             "cleanup-consent"->{openStorage();storageScreen?.showCleanupConsent()}
             "cleanup"->openCleanup()
             "auto-cleanup"->openAutoCleanup()
@@ -541,10 +546,9 @@ class MainActivity : BackupDuckActivity() {
         val page=LookPage(this,getString(R.string.pref_advanced), "advanced")
         val body=lookGroup(page.body)
         fun onOff(on:Boolean)=getString(if(on) R.string.pref_on else R.string.pref_off)
-        lateinit var conversion:TextView
         lateinit var browser:TextView
-        conversion=lookRow(body,R.drawable.ic_motion,getString(R.string.pref_conversion),onOff(MotionConversionSettings.enabled(this))) {
-            showConversionSettings {conversion.setSupporting(onOff(MotionConversionSettings.enabled(this)))}
+        val conversion=lookSwitchRow(body,R.drawable.ic_motion,getString(R.string.pref_conversion),getString(R.string.advanced_conversion_note),MotionConversionSettings.enabled(this)) {
+            MotionConversionSettings.setEnabled(this,it)
         }
         browser=lookRow(body,R.drawable.ic_computer,getString(R.string.pref_browser),onOff(ReceiverDashboardSettings.enabled(this))) {
             startActivity(Intent(this,BrowserManagementActivity::class.java))
@@ -552,76 +556,33 @@ class MainActivity : BackupDuckActivity() {
         lookRow(body,R.drawable.ic_receiver,getString(R.string.receiver_stop)) {page.dismiss();confirmStopReceiving()}
         page.resumed = {
             browser.setSupporting(onOff(ReceiverDashboardSettings.enabled(this)))
-            conversion.setSupporting(onOff(MotionConversionSettings.enabled(this)))
+            conversion.toggle.restore(MotionConversionSettings.enabled(this))
         }
         return page
     }
     private fun recordsAndExports(parent:LinearLayout, heading:Boolean=true) {
         val group=duckGroup(parent,if(heading)getString(R.string.receiver_records_exports) else null)
-        receiverSetting(group,getString(R.string.logs_retention_settings)) {showStorageControls(StorageSection.LOGS) {}}
-        receiverSetting(group,getString(R.string.logs_export)) {showReportExport(false)}
-        receiverSetting(group,getString(R.string.gallery_receipts_export)) {exportGalleryRecords()}
-        receiverSetting(group,getString(R.string.originals_export)) {
-            showArchiveIntro {originalArchive.launch("BackupDuck-originals-${System.currentTimeMillis()}.zip")}
-        }
+        receiverSetting(group,getString(R.string.diag_export)) {showDiagnostics()}
+
     }
     internal fun showDiagnostics() { createDiagnosticsPage().show() }
-    private fun createDiagnosticsPage(): DuckPage {
-        val page=DuckPage(this,getString(R.string.receiver_records_exports), "diagnostics")
-        recordsAndExports(page.body,false)
-        val cleanup=duckGroup(page.body,getString(R.string.storage_cleanup))
-        receiverSetting(cleanup,getString(R.string.experiment_setup)) {
-            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("route","cleanup"))
-        }
-        receiverSetting(cleanup,getString(R.string.photos_diagnostics_title)) {
-            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("diagnostics",true))
-        }
-        receiverSetting(cleanup,getString(R.string.cleanup_bind)) {
-            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("route","bind"))
-        }
-        receiverSetting(cleanup,getString(R.string.cleanup_now)) {
-            startActivity(Intent(this,PhotosProbeActivity::class.java).putExtra("route","progress"))
-        }
-        return page
+    private fun createDiagnosticsPage(restored: Bundle = Bundle()): LookPage {
+        val screen = DiagnosticsScreen(this, restored, { owner ->
+            exportingDiagnostics = owner
+            runCatching { exportLogs.launch("BackupDuck-diagnostics.json") }
+                .onFailure { exportingDiagnostics = null; owner.result("failure") }
+        })
+        diagnosticsScreen = screen
+        return screen.page
     }
     private fun confirmStopReceiving() {
         duckConfirm(R.string.receiver_stop,R.string.duck_stop_service_intro,R.string.receiver_stop,true,notice=R.string.duck_reset_unchanged) {dialog ->
             ReceiverPreferences.setEnabled(this,false);ReceiverEnvironment.stopService(this);dialog.dismiss();renderReceiver(ReceiverState.snapshot.value)
         }
     }
-    internal fun exportGalleryRecords() {showReportExport(true)}
-    private var reportPage:DuckPage?=null
-    private var reportGallery=false
-    private fun receiverDisplayVersion():String {
-        return receiverVersionLabel()
-    }
-    private fun showReportExport(gallery:Boolean) { createReportPage(gallery).show() }
-    private fun createReportPage(gallery:Boolean, restored: Bundle = Bundle()): DuckPage {
-        val page=DuckPage(this,getString(if(gallery)R.string.gallery_receipts_export else R.string.logs_export), if(gallery) "gallery-report" else "logs-report");reportPage=page;reportGallery=gallery
-        page.state.putAll(restored)
-        page.body.addView(duckParagraph(getString(if(gallery)R.string.gallery_receipts_export_note else R.string.duck_report_logs)),LinearLayout.LayoutParams(-1,-2).apply {bottomMargin=dp(20)})
-        page.body.addView(duckButton(getString(R.string.duck_choose_location),true) {
-            if(gallery)exportGalleryReceipts.launch("BackupDuck-gallery-receipts.json") else exportLogs.launch("BackupDuck-diagnostics.json")
-        },LinearLayout.LayoutParams(-1,-2))
-        if (restored.containsKey("result")) renderReportResult(page, restored.getString("result") == "success")
-        return page
-    }
-    private fun reportBusy() {reportPage?.takeIf {it.isShowing}?.body?.let {reportPage?.state?.putString("result", "busy");it.removeAllViews();duckNotice(it,getString(R.string.duck_exporting_report))}}
-    private fun reportResult(success:Boolean) {
-        val page=reportPage?.takeIf {it.isShowing} ?: return
-        renderReportResult(page, success)
-    }
-    private fun renderReportResult(page: DuckPage, success: Boolean) {
-        page.state.putString("result", if(success) "success" else "failure")
-        page.body.removeAllViews()
-        if(success) {duckNotice(page.body,getString(R.string.duck_export_report_success))}
-        else {
-            duckProblem(page.body,getString(R.string.duck_export_report_failure))
-            page.body.addView(duckButton(getString(R.string.duck_retry)) {
-                if(reportGallery)exportGalleryReceipts.launch("BackupDuck-gallery-receipts.json") else exportLogs.launch("BackupDuck-diagnostics.json")
-            },LinearLayout.LayoutParams(-1,-2))
-        }
-    }
+    internal fun exportGalleryRecords() { showDiagnostics() }
+    private fun receiverDisplayVersion(): String = receiverVersionLabel()
+    private fun showReportExport(gallery: Boolean) { showDiagnostics() }
     internal fun showActionFailure(message:Int,retry:()->Unit) {
         val sheet=DuckSheet(this,getString(R.string.duck_operation_failed));duckProblem(sheet.body,getString(message))
         sheet.body.addView(duckButton(getString(R.string.duck_retry)) {sheet.dismiss();retry()});sheet.show()
@@ -656,18 +617,18 @@ class MainActivity : BackupDuckActivity() {
         "auto-cleanup" -> AutoCleanupScreen(this, state).page
         "about" -> createAboutPage()
         "advanced" -> createAdvancedPage()
-        "conversion" -> conversionSettingsPage()
-        "diagnostics" -> createDiagnosticsPage()
-        "logs-report" -> createReportPage(false, state)
-        "gallery-report" -> createReportPage(true, state)
-        "archive-export" -> createArchiveExportPage(android.net.Uri.parse(state.getString("uri")!!), interrupted = true)
+        "conversion" -> createAdvancedPage()
+        "storage-limits", "retention", "reclaim-originals", "relay-history" -> createStoragePage().page
+        "diagnostics" -> createDiagnosticsPage(state)
+        "logs-report" -> createDiagnosticsPage(Bundle().apply { putString("export", "failure") })
+        "gallery-report" -> createDiagnosticsPage(Bundle().apply { putString("export", "failure") })
+        "archive", "archive-export", "archive-result", "archive-reclaim" -> createDiagnosticsPage()
         "legacy-devices" -> devicePanels.showPeers(show = false)
         "legacy-scan" -> pairingUI.scanning(show = false)
         else -> super.restorePage(route, state)
     }
     internal fun openAutoCleanup() { AutoCleanupScreen(this).page.show() }
     internal fun openCleanup() { openStorage(); storageScreen?.focusCleanup() }
-    private fun showDashboardAccess() {DashboardAccessUI(this).access()}
     private fun openHelp(topic: ReceiverHelpTopic? = null) {
         startActivity(Intent(this, ReceiverHelpActivity::class.java).apply { topic?.let { putExtra("topic", it.key) } })
     }

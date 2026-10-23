@@ -50,6 +50,7 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
     private val state = StateCard(activity)
     private val hint = StateCard(activity)
     private val empty = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    private val needsYou = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val recent = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val senders = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val senderRows = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -66,6 +67,7 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
             panel.addView(state.view, LinearLayout.LayoutParams(-1, -2))
             panel.addView(empty, LinearLayout.LayoutParams(-1, -2))
             panel.addView(hint.view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
+            panel.addView(needsYou, LinearLayout.LayoutParams(-1, -2))
             panel.addView(recent, LinearLayout.LayoutParams(-1, -2))
             val header = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
             header.addView(lookText(getString(R.string.rhub_recent), M.style.TextAppearance_Material3_LabelLarge, color = getColor(R.color.duck_role_accent)).apply {
@@ -106,8 +108,9 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         val hub = receiverHubState(enabled, paused, pending, state, names.isNotEmpty(), saved)
         val storage = ReceiverEnvironment.deviceStorage(this)
         val cleanup = PhotosCleanup(this).enabled
+        val cleanupState = currentCleanupStatus()
         val key = listOf(hub, total, failed, names, state.published, state.total, state.failed, state.error,
-            state.temperatureDeciCelsius.takeIf { state.thermalHeld }, saved, photos.size, storage.low, cleanup)
+            state.temperatureDeciCelsius.takeIf { state.thermalHeld }, saved, photos.size, storage.low, cleanup, cleanupState)
         if (key == rendered) { if (hub == ReceiverHubState.RECEIVING) this@ReceiverHub.state.show(receiving(state, names)); return@with }
         rendered = key
         val first = hub == ReceiverHubState.WAITING && total == 0
@@ -124,6 +127,13 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         if (hinted) hint.show(LookState(R.drawable.ic_storage, getColor(R.color.duck_state_attention),
             getString(R.string.rhub_space_low, Formatter.formatShortFileSize(this, storage.freeBytes)), getString(R.string.rhub_space_low_note),
             action = getString(R.string.rhub_auto_cleanup) to actions.openCleanup))
+        needsYou.visibility = if (cleanupState.needsAttention) View.VISIBLE else View.GONE
+        needsYou.removeAllViews()
+        if (cleanupState.needsAttention) {
+            lookSection(needsYou, getString(R.string.photos_needs_you))
+            lookRow(lookGroup(needsYou), R.drawable.ic_storage, getString(R.string.pref_storage),
+                cleanupStatusText(cleanupState), trailing = duckDiscoveryDot().apply { setDuckEntryMark(true) }) { openStorage() }
+        }
         // Recent photos appear once something is saved, and stay hidden while receiving is off or no device is connected.
         recent.visibility = if (hub in setOf(ReceiverHubState.STOPPED, ReceiverHubState.NO_DEVICE) || photos.isEmpty()) View.GONE else View.VISIBLE
         val calm = hub == ReceiverHubState.CAUGHT_UP || (hub == ReceiverHubState.WAITING && !first)

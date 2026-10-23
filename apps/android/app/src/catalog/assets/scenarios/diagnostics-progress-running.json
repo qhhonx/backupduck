@@ -1,0 +1,14 @@
+{
+  "id": "diagnostics.progress-running",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-progress",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "cleanup",
+    "reason": "opening_cleanup",
+    "running": true,
+    "pending": false
+  }
+}

@@ -27,25 +27,8 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
     }
     val running get() = operations.state.value.let { it.running && it.mode != "probe" }
     val pending get() = facts.pending
-    val status: CleanupStatus get() {
-        val live = operations.state.value
-        val reason = if (!live.running || live.mode == "probe") facts.reason else live.observation
-        return cleanupStatus(facts.enabled, facts.account.isNotEmpty(), ReceiverEnvironment.cleanupAccess(activity),
-            facts.pending, live.running, live.mode, reason, facts.journey)
-    }
-    fun text(): String = activity.getString(when (status) {
-        CleanupStatus.IDLE -> R.string.auto_cleanup_idle
-        CleanupStatus.RUNNING -> R.string.auto_cleanup_running
-        CleanupStatus.BINDING -> R.string.auto_cleanup_binding
-        CleanupStatus.REVIEW -> R.string.auto_cleanup_review
-        CleanupStatus.ACCOUNT -> R.string.auto_cleanup_account
-        CleanupStatus.ACCESS -> R.string.auto_cleanup_access
-        CleanupStatus.LOCKED -> R.string.auto_cleanup_locked
-        CleanupStatus.UNAVAILABLE -> R.string.auto_cleanup_unavailable
-        CleanupStatus.STOPPED -> if (facts.enabled) R.string.auto_cleanup_stopped else R.string.auto_cleanup_setup_stopped
-        CleanupStatus.FAILED -> R.string.auto_cleanup_failed
-        CleanupStatus.WAITING_ACCESS -> R.string.auto_cleanup_waiting_access
-    })
+    val status: CleanupStatus get() = activity.currentCleanupStatus()
+    fun text(): String = activity.cleanupStatusText(status)
     fun action(): Pair<Int, () -> Unit>? = when (status) {
         CleanupStatus.RUNNING, CleanupStatus.BINDING -> R.string.auto_cleanup_stop to ::stop
         CleanupStatus.REVIEW -> if (page.state.getBoolean("cleanup-reviewed-return")) R.string.auto_cleanup_reviewed to ::reviewed
@@ -104,6 +87,10 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
             activity.getString(R.string.storage_cleanup_consent_action), activity.getString(R.string.storage_cleanup_consent_photos),
             activity.getString(R.string.storage_cleanup_consent_access)), activity.getString(R.string.auto_cleanup_consent_check),
             activity.getString(R.string.onb_later), activity.getString(R.string.storage_cleanup_go_settings)) {
+            // Dismiss callbacks can arrive after the positive action. Retire the
+            // consent owner before showing progress so it cannot clear the new sheet.
+            closeSheet()
+            page.state.remove("cleanup-consent")
             activity.getSharedPreferences("photos_probe", 0).edit().putBoolean("cleanup_disclosure_v2", true).apply()
             facts.enableAfterBinding = true; facts.journey = "access"; facts.report("access_required")
             refresh()
@@ -112,9 +99,11 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
             }
         }.also { consent ->
             consent.setOnDismissListener {
-                page.state.remove("cleanup-consent"); sheet = null; sheetKind = ""
-                // The positive action runs after dismissal and replaces this cancelled state.
-                if (facts.journey.isEmpty()) { facts.report("setup_cancelled"); changed() }
+                page.state.remove("cleanup-consent")
+                if (sheet === consent) {
+                    sheet = null; sheetKind = ""
+                    if (facts.journey.isEmpty()) { facts.report("setup_cancelled"); changed() }
+                }
             }
             consent.show()
         }
@@ -181,7 +170,9 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
         }
     }
     private fun closeSheet() {
-        finishingSheet = true; sheet?.dismiss(); sheet = null; sheetKind = ""; finishingSheet = false
+        finishingSheet = true
+        sheet?.setOnDismissListener(null)
+        sheet?.dismiss(); sheet = null; sheetKind = ""; finishingSheet = false
     }
     fun close() {
         observation.cancel()

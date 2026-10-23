@@ -1,0 +1,19 @@
+{
+  "id": "diagnostics.probe-releasing",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "releasing",
+    "running": true,
+    "seconds": 90,
+    "seen": [
+      "account_entry",
+      "cleanup_entry",
+      "releasing"
+    ]
+  }
+}

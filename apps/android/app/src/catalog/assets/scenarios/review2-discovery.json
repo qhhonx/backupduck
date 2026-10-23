@@ -1,0 +1,14 @@
+{
+  "id": "review2.discovery",
+  "extends": "pixel.calm-photos",
+  "page": "receive",
+  "surface": "",
+  "title": "Cleanup navigation: discovery",
+  "cleanup": {
+    "enabled": false,
+    "reason": "ready"
+  },
+  "expect": [
+    "The Settings entry and hub use the shared cleanup projection; opening Storage acknowledges discovery only."
+  ]
+}

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="help2_results_title">确认照片已保存</string>
+    <string name="help2_results_p1">“已收到”表示这张照片的原片已完整到达，并通过了完整性检查。实况照片的照片和视频会一起接收。</string>
+    <string name="help2_results_p2">“已存进 Pixel 相册”表示这台手机上已有相册副本。备份鸭会准备支持的实况格式和连拍信息；连拍是否显示为一组，由相册决定。</string>
+    <string name="help2_results_p3">上传到云端是另一件事，由 Google 相册完成。在 Google 相册里核对账号和备份状态，必要时开启备份鸭文件夹的备份。备份鸭看不到上传是否完成。</string>
+    <string name="help2_background_title">让照片在后台继续接收</string>
+    <string name="help2_background_p1">离开备份鸭前，先在“接收”页开启接收。运行时会显示系统通知；如果系统询问通知权限，可以允许。</string>
+    <string name="help2_background_p2">省电限制可能中断后台接收。可在这台 Pixel 的系统设置里查看备份鸭的电池限制。接收就绪，也不能让另一台设备一直运行。</string>
+    <string name="help2_background_p3">iPhone 的后台运行时间由系统决定，锁屏后不保证连续传输。第一次传很多照片时，尽量让备份鸭留在前台。Mac 则需要应用运行、电脑保持唤醒。</string>
+    <string name="help2_storage_title">在这台 Pixel 上释放空间</string>
+    <string name="help2_storage_p1">Google 相册的“释放空间”移除的是它确认已备份的手机副本，由它判断能否移除。这不会删除备份鸭内部保留的原片。</string>
+    <string name="help2_storage_p2">“存储空间”里的“存进相册后释放空间”会先检查相册副本，再移除备份鸭的副本。副本缺失、变化或尚未验证时，会保留原片。关闭选项不能找回已移除的文件，也不代表云端上传完成。</string>
+    <string name="help2_storage_p3">保留原片可以在存入相册失败时重试。转换后的实况照片不等同于原始照片与视频的完整归档。</string>
+    <string name="help2_connect_title">连接另一台 iPhone 或 Mac</string>
+    <string name="help2_connect_p1">让两台设备连上能互相访问的同一 Wi‑Fi。在“接收”页选择“连接新设备”，再选择要连接的设备。</string>
+    <string name="help2_connect_p2">连接 iPhone 时，用 iPhone 扫这台 Pixel 显示的码。连接 Mac 时，让 Mac 显示码，再用 Pixel 扫描。只有扫码时才需要相机权限。</string>
+    <string name="help2_connect_p3">选择连接方式后，备份鸭会自动开始接收，就绪后显示连接码或打开扫码。连接后核对两边的设备名称。</string>
+    <string name="help2_connection_title">iPhone 或 Mac 连不上</string>
+    <string name="help2_connection_p1">先确认两台设备在同一 Wi‑Fi，且可以互相访问。这台 Pixel 需要可用的 IPv4 地址。访客网络、设备隔离或 VPN 都可能挡住连接，即使网络名称相同。</string>
+    <string name="help2_connection_p2">如果 Pixel 无法开始接收，可能是 Wi‑Fi 地址不可用，或其他应用占用了接收连接。回到“接收”页，按显示的原因重试。</string>
+    <string name="help2_connection_p3">下面只在接收运行时显示这台 Pixel 的当前地址，供帮你排查的人查看。它不是浏览器管理页面的地址，也不是连接码。</string>
+    <string name="help2_recovery_title">照片没存进相册</string>
+    <string name="help2_recovery_p1">在“照片”的“需要你处理”里查看原因，再重试保存。点了重试，不代表已经保存成功。</string>
+    <string name="help2_recovery_p2">如果原片已经完整收到，存入相册失败后可以用它重试，不必重新发送。如果传输本身失败，则到 iPhone 或 Mac 上查看原因和重试操作。</string>
+    <string name="help2_recovery_p3">需要求助时，在“设置”底部的“诊断”里导出报告，并说明出问题的时间和两边应用是否在前台。报告不含照片或连接码，分享前先检查内容。</string>
+    <string name="help2_full_title">空间已满，接收暂停了</string>
+    <string name="help2_full_p1">先打开“存储空间”，看看哪些文件占用了容量。相册副本、备份鸭保留的原片和转换时的临时文件都需要空间。</string>
+    <string name="help2_full_p2">原片占用上限和预留可用空间都会限制新照片的接收。提高原片占用上限，不会让手机多出可用空间。</string>
+    <string name="help2_full_p3">按“存储空间”里的说明释放空间，或先导出需要保留的原片。接收运行时，因空间不足而等待保存的照片会再次自动检查。反复重新导入不能解决空间不足。</string>
+    <string name="help2_stopped_title">照片停止接收了</string>
+    <string name="help2_stopped_p1">如果是你主动停止了接收，回到“接收”页重新开启。系统省电或后台运行限制也可能打断接收；收到提示时，打开备份鸭继续。</string>
+    <string name="help2_stopped_p2">Pixel 重启后，备份鸭会在 Android 允许时恢复接收。Android 15 或更高版本需要点按通知或打开应用继续。已有接收记录和未完成的传输会保留。</string>
+    <string name="help2_stopped_p3">需要更新时，到“设置”的“关于备份鸭”里检查更新。如果 Android 提示安装来源或签名不同，先保留现有应用。卸载或清除存储可能丢失备份鸭内部的原片。</string>
+    <string name="help2_cleanup_title">自动回收没有运行</string>
+    <string name="help2_cleanup_p1">到“存储空间”查看“自动回收”这一行。账号需要重新确认、无障碍权限关闭，或上次结果还没核对时，这里会说明下一步。未设置或未开启时，不会自动释放空间。</string>
+    <string name="help2_cleanup_p2">自动回收通过无障碍权限在 Google 相册里点按“释放空间”，由它决定哪些手机副本能移除。备份鸭看不到云端上传结果；需要你核对时，到 Google 相册查看后再回来确认。</string>
+    <string name="help2_cleanup_p3">如果仍无法完成，可以在“诊断”里查看检查结果并导出。那里的相册页面检查只用来排查问题，不会释放空间。</string>
+</resources>

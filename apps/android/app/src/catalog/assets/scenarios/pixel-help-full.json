@@ -1,0 +1,10 @@
+{
+  "id": "pixel.help-full",
+  "extends": "pixel.help",
+  "page": "settings",
+  "surface": "help-full",
+  "title": "Help article: full",
+  "expect": [
+    "A short read-only article. Every paragraph remains reachable."
+  ]
+}

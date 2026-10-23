@@ -1,0 +1,15 @@
+{
+  "id": "pixel.help-connection-no-address",
+  "extends": "pixel.help-connection",
+  "page": "settings",
+  "core": {
+    "receiver_connection_info": {
+      "value": {
+        "endpoint": null
+      }
+    }
+  },
+  "expect": [
+    "No address line when there is no current address or it cannot be read. Static guidance remains available."
+  ]
+}

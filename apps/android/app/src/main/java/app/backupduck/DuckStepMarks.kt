@@ -19,7 +19,7 @@ internal object DuckFirstRunMetrics {
 }
 
 /** V6 optical metrics: original silhouettes share one centre slot, with no offsets or numerals. */
-internal class DuckStepMark(context: Context, number: Int, private val current: Boolean = true) : FrameLayout(context) {
+internal class DuckStepMark(context: Context, number: Int, private val current: Boolean = true, compact: Boolean = false) : FrameLayout(context) {
     private val image = ImageView(context)
     private val contrast = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) = updateContrast()
@@ -32,17 +32,19 @@ internal class DuckStepMark(context: Context, number: Int, private val current: 
             else -> Triple(R.drawable.mark_sparkle, 44, 44)
         }
         image.setImageResource(drawable)
-        addView(image, LayoutParams(context.dp(width), context.dp(height), Gravity.CENTER))
+        val scale = if (compact) 0.8f else 1f
+        addView(image, LayoutParams(context.dp((width * scale).toInt()), context.dp((height * scale).toInt()), Gravity.CENTER))
         layoutParams = LinearLayout.LayoutParams(context.dp(54), context.dp(44))
         updateContrast()
     }
     private fun updateContrast() {
         val high = ReceiverEnvironment.stepMarkHighContrast ?: (Settings.Secure.getInt(context.contentResolver,
             "high_text_contrast_enabled", 0) == 1)
-        // In high contrast, inactive shapes use a stronger on-surface silhouette;
-        // hue is not their only distinction. Normal progress retains brand colour.
-        image.imageTintList = if (!current && high) ColorStateList.valueOf(context.getColor(R.color.duck_role_primary_text)) else null
-        image.alpha = if (current) 1f else if (high) .55f else .25f
+        // Material's outline is the tertiary neutral emphasis on Android; do not
+        // fade the brand colours. Increased contrast uses the stronger text role.
+        image.imageTintList = if (current) null else ColorStateList.valueOf(context.getColor(
+            if (high) R.color.duck_role_secondary_text else R.color.duck_m3_outline))
+        image.alpha = 1f
     }
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()

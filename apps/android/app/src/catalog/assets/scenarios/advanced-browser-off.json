@@ -1,0 +1,6 @@
+{
+  "id": "advanced.browser-off",
+  "extends": "advanced.base",
+  "title": "browser-off",
+  "surface": "browser"
+}

@@ -1,0 +1,31 @@
+{
+  "id": "diagnostics.export-failure",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "diagnostics": {
+    "export": "failure",
+    "file": "BackupDuck-diagnostics.json",
+    "receipts": {
+      "schema_version": 1,
+      "source": "BackupDuck Pixel receiver",
+      "exported_at_ms": 1792658400000,
+      "published_count": 2,
+      "items": [
+        {
+          "id": "catalog-photo",
+          "name": "IMG_1024.jpg",
+          "size": 3145728,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "kind": "photo",
+          "published_at_ms": null
+        }
+      ],
+      "unresolved": [
+        {
+          "id": "catalog-unresolved",
+          "reason": "publication_name_unavailable"
+        }
+      ]
+    }
+  }
+}

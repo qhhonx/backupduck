@@ -1,0 +1,15 @@
+{
+  "id": "diagnostics.probe-ready",
+  "extends": "diagnostics.base",
+  "page": "settings",
+  "surface": "diagnostics-probe",
+  "cleanup": {
+    "access": true,
+    "account": true,
+    "mode": "probe",
+    "reason": "ready",
+    "running": false,
+    "seconds": 90,
+    "seen": []
+  }
+}
