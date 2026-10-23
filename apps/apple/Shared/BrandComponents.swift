@@ -26,12 +26,11 @@ extension EnvironmentValues {
   }
 }
 
-/// V6: numeral-free marks, optically balanced within one shared centre slot.
-/// The source wing keeps its original aspect ratio and has no positional offset.
+/// V6: a square column with optically matched silhouettes. Geometry belongs to
+/// the illustration, independently of page spacing and the adjacent text.
 struct DuckStepMark: View {
   let number: Int
-  var scale: CGFloat = 1
-  var strength: Double = 1
+  var active = true
   @ScaledMetric(relativeTo: .body) private var unit: CGFloat = 1
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.duckStepMarkReducedTransparency) private var previewReduceTransparency
@@ -44,24 +43,26 @@ struct DuckStepMark: View {
     default: DuckBrand.beakOrange
     }
   }
+  private var fill: AnyShapeStyle {
+    if active { return AnyShapeStyle(color) }
+    // The inactive mark has no brand hue. Use the native tertiary text role;
+    // accessibility's solid/high-contrast fallback uses secondary text.
+    if reduceTransparency || previewReduceTransparency || contrast == .increased {
+      return AnyShapeStyle(.secondary)
+    }
+    return AnyShapeStyle(.tertiary)
+  }
   var body: some View {
-    let s = unit * scale
-    let weight = strength < 1 && (reduceTransparency || previewReduceTransparency || contrast == .increased) ? 0.55 : strength
-    // Blend onto the opaque page role before masking: faint marks never rely on
-    // translucent material, and accessibility modes strengthen their silhouette.
-    ZStack {
-      DuckRole.background
-      color.opacity(weight)
-    }
-    .mask {
-      switch number {
-      case 1: Image("MarkCircle").resizable().frame(width: 32 * s, height: 32 * s)
-      case 2: Image("MarkWing").resizable().scaledToFit().frame(width: 48 * s, height: 24 * s)
-      default: Image("MarkSparkle").resizable().frame(width: 44 * s, height: 44 * s)
+    Rectangle().fill(fill)
+      .mask {
+        switch number {
+        case 1: Image("MarkCircle").resizable().frame(width: 24 * unit, height: 24 * unit)
+        case 2: Image("MarkWing").resizable().scaledToFit().frame(width: 36 * unit, height: 18 * unit)
+        default: Image("MarkSparkle").resizable().frame(width: 34 * unit, height: 34 * unit)
+        }
       }
-    }
-    .frame(width: 54 * s, height: 44 * s)
-    .accessibilityHidden(true)
+      .frame(width: 36 * unit, height: 36 * unit)
+      .accessibilityHidden(true)
   }
 }
 
@@ -71,7 +72,7 @@ struct DuckStepProgress: View {
   var body: some View {
     HStack(spacing: DuckSpacing.small) {
       ForEach(1...3, id: \.self) { number in
-        DuckStepMark(number: number, strength: number == current ? 1 : 0.25)
+        DuckStepMark(number: number, active: number == current)
       }
     }
     .accessibilityElement(children: .ignore)

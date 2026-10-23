@@ -149,17 +149,21 @@ struct IOSOnboarding: View {
   @ViewBuilder private var content: some View {
     switch step {
     case .welcome:
-      VStack(alignment: .leading, spacing: 20) {
-        DuckIllustration(pose: .welcome, size: 120).frame(maxWidth: .infinity)
-        Text("onboarding_title").font(.largeTitle.weight(.bold)).fixedSize(horizontal: false, vertical: true)
-          .accessibilityValue(DuckStepProgress.label(1))
-        Text("onboarding_subtitle").font(.title3).foregroundStyle(.secondary)
-        VStack(alignment: .leading, spacing: 14) {
-          stepRow(1, "onboarding_step_install", "onboarding_step_install_note")
-          stepRow(2, "onboarding_step_connect", "onboarding_step_connect_note")
-          stepRow(3, "onboarding_step_backup", "onboarding_step_backup_note")
-        }
+      VStack(spacing: DuckSpacing.xLarge) {
+        VStack(spacing: DuckSpacing.medium) {
+          DuckIllustration(pose: .welcome, size: 96)
+          Text("onboarding_title").font(.largeTitle.weight(.bold))
+            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            .accessibilityValue(DuckStepProgress.label(1))
+          Text("onboarding_subtitle").font(.body).foregroundStyle(.secondary)
+            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+        }.frame(maxWidth: .infinity)
+        ViewThatFits(in: .horizontal) {
+          welcomeSteps.fixedSize(horizontal: true, vertical: false)
+          welcomeSteps
+        }.frame(maxWidth: .infinity)
         Text("onboarding_fine_print").font(.caption2).foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
       }
     case .install:
       VStack(alignment: .leading, spacing: 16) {
@@ -215,7 +219,8 @@ struct IOSOnboarding: View {
           .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
         FirstPhotoFlight(
           sourceID: firstJob?.asset.source_id,
-          senderName: UIDevice.current.localizedModel, receiverName: model.peerDevice?.name ?? "Pixel",
+          senderName: model.deviceSnapshot?.device.name ?? UIDevice.current.localizedModel,
+          receiverName: model.peerDevice?.name ?? "Pixel",
           landed: landed
         ) { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { announced = true } }
         .frame(maxWidth: .infinity)
@@ -239,6 +244,14 @@ struct IOSOnboarding: View {
   private var earlierQuestion: String {
     guard let count = BackupEnvironment.libraryCount() else { return NSLocalizedString("onboarding_choose_earlier_unknown", comment: "") }
     return String(format: NSLocalizedString("onboarding_choose_earlier", comment: ""), count.formatted())
+  }
+
+  private var welcomeSteps: some View {
+    VStack(alignment: .leading, spacing: DuckSpacing.large) {
+      stepRow(1, "onboarding_step_install", "onboarding_step_install_note")
+      stepRow(2, "onboarding_step_connect", "onboarding_step_connect_note")
+      stepRow(3, "onboarding_step_backup", "onboarding_step_backup_note")
+    }
   }
 
   private func stepRow(_ number: Int, _ title: LocalizedStringKey, _ note: LocalizedStringKey) -> some View {
@@ -475,7 +488,7 @@ struct IOSFirstRunNotificationInvitation: ViewModifier {
         if invite { progress.handleNotification(); presented = true }
       }
       .sheet(isPresented: $presented, onDismiss: { progress.handleNotification() }) {
-        DuckSheetLayout(title: "onboarding_notify", closeOnly: true, cancel: { progress.handleNotification(); presented = false }) {
+        DuckSheetLayout(title: "onboarding_notify_title", closeOnly: true, cancel: { progress.handleNotification(); presented = false }) {
           VStack(spacing: 24) {
             Text("onboarding_first_notify")
             Button("onboarding_notify") {

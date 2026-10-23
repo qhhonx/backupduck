@@ -1,0 +1,53 @@
+{
+  "id": "onboarding.first-photo-save-failed",
+  "page": "onboarding",
+  "step": "first",
+  "extends": "base-paired",
+  "ios_only": true,
+  "title": "First photo: publication failed",
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1,
+        "received": 1,
+        "published": 0,
+        "publication_failed": 1,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 3400000
+      }
+    },
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "receiver_id": "catalog-pixel",
+          "asset": {
+            "kind": "photo",
+            "source_id": "onboarding-sample-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "FIRST.JPG",
+                "size": 3400000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 3400000,
+          "error_code": null,
+          "processing": "failed",
+          "processing_error": "storage"
+        }
+      ]
+    }
+  },
+  "expect": [
+    "Receipt stays distinct from Photos publication; show the failure without a success badge or landing flight."
+  ]
+}

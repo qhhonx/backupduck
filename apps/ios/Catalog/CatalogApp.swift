@@ -102,6 +102,7 @@ private struct ScenarioStage: View {
     Group { if let run { ScenarioRun(scenario: scenario, proposed: proposed).id(run) } else { DuckRole.background.ignoresSafeArea() } }
       .preferredColorScheme(scheme)
       .environment(\.duckStepMarkReducedTransparency, ProcessInfo.processInfo.arguments.contains("-reduce-transparency"))
+      .environment(\.duckFirstPhotoReducedMotion, ProcessInfo.processInfo.arguments.contains("-reduce-motion"))
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
       .overlay(alignment: .bottomTrailing) {
         if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" && !scenario.id.hasPrefix("diagnostics.") {

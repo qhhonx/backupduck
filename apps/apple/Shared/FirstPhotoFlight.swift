@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// Exercises the production reduced-motion path in Catalog without OS changes.
+private struct FirstPhotoReducedMotionKey: EnvironmentKey {
+  static let defaultValue = false
+}
+extension EnvironmentValues {
+  var duckFirstPhotoReducedMotion: Bool {
+    get { self[FirstPhotoReducedMotionKey.self] }
+    set { self[FirstPhotoReducedMotionKey.self] = newValue }
+  }
+}
+
 /// The first-run reward (design/flows.md § First run, step 6): the first photo
 /// travels from this device into the Pixel, the Pixel confirms it, and only then
 /// does the caller say so. One motion with one cause; no loop while waiting.
@@ -14,38 +25,46 @@ struct FirstPhotoFlight: View {
   var onArrive: () -> Void = {}
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.duckFirstPhotoReducedMotion) private var previewReduceMotion
   @State private var progress: CGFloat = 0
   @State private var arrived = false
 
-  private static let width: CGFloat = 280
-  private static let tile: CGFloat = 72
-  private static let pixel = CGSize(width: 76, height: 136)
-  /// Where the tile settles: centred on the Pixel's screen, scaled to fit it.
-  private static let landedScale: CGFloat = 0.62
+  // Illustration metrics: equal device slots and a photo that fits both screens.
+  private static let width: CGFloat = 264
+  private static let tile: CGFloat = 40
+  private static let device = CGSize(width: 64, height: 120)
+  private static let landedScale: CGFloat = 1
 
   var body: some View {
-    VStack(spacing: 10) {
+    VStack(spacing: DuckSpacing.small) {
       ZStack(alignment: .topLeading) {
-        HStack(alignment: .center, spacing: 0) {
-          RoundedRectangle(cornerRadius: 14)
-            .strokeBorder(.quaternary, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-            .frame(width: Self.tile, height: Self.tile)
-            .opacity(progress > 0 ? 1 : 0)
+        HStack(spacing: 0) {
+          device("iphone")
           Spacer(minLength: 0)
-          pixel
+          device("smartphone")
         }
-        .frame(width: Self.width, height: Self.pixel.height)
+        .frame(width: Self.width, height: Self.device.height)
         photo
           .frame(width: Self.tile, height: Self.tile)
           .modifier(Flight(progress: progress, start: start, end: end, endScale: Self.landedScale))
+        Image(systemName: "checkmark.circle.fill")
+          .font(.title2).symbolRenderingMode(.palette)
+          .foregroundStyle(DuckRole.background, DuckRole.saved)
+          .background(Circle().fill(DuckRole.background).padding(2))
+          .scaleEffect(arrived ? 1 : 0.6).opacity(arrived ? 1 : 0)
+          .offset(x: Self.width - DuckSpacing.medium, y: -DuckSpacing.xSmall)
       }
-      HStack {
-        Text(senderName).frame(width: Self.tile + 24)
+      HStack(alignment: .top, spacing: DuckSpacing.medium) {
+        Text(senderName).frame(width: 120)
         Spacer(minLength: 0)
-        Text(receiverName).frame(width: Self.pixel.width + 24)
+        VStack(spacing: DuckSpacing.xxSmall) {
+          Text(receiverName)
+          Text("onboarding_pixel_photos")
+        }.frame(width: 120)
       }
-      .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-      .frame(width: Self.width + 24)
+      .font(.caption).foregroundStyle(.secondary)
+      .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+      .frame(width: Self.width + 56)
     }
     // The adjacent status block owns the current fact, including blocked states.
     .accessibilityHidden(true)
@@ -53,10 +72,12 @@ struct FirstPhotoFlight: View {
     .onChange(of: landed) { _, value in if value { fly() } }
   }
 
-  // Tile positions are top-leading offsets of the tile inside the stage.
-  private var start: CGPoint { CGPoint(x: 0, y: (Self.pixel.height - Self.tile) / 2) }
+  // Tile positions are top-leading offsets inside the stage, centred in each glyph.
+  private var start: CGPoint {
+    CGPoint(x: (Self.device.width - Self.tile) / 2, y: (Self.device.height - Self.tile) / 2)
+  }
   private var end: CGPoint {
-    CGPoint(x: Self.width - Self.pixel.width / 2 - Self.tile / 2, y: (Self.pixel.height - Self.tile) / 2)
+    CGPoint(x: Self.width - (Self.device.width + Self.tile) / 2, y: start.y)
   }
 
   private var photo: some View {
@@ -64,33 +85,24 @@ struct FirstPhotoFlight: View {
       if let sourceID {
         AssetThumbnail(sourceID: sourceID, size: Self.tile)
       } else {
-        RoundedRectangle(cornerRadius: 8).fill(DuckGlyph.blue.gradient)
-          .overlay(Image(systemName: "photo").font(.system(size: 26, weight: .medium)).foregroundStyle(.white)) // design-exception: glyph sized to the illustrated photo tile
+        RoundedRectangle(cornerRadius: DuckRadius.control).fill(DuckRole.groupedSurface)
+          .overlay(Image(systemName: "photo").font(.title3).foregroundStyle(.secondary))
       }
     }
-    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .clipShape(RoundedRectangle(cornerRadius: DuckRadius.control))
     .shadow(color: .black.opacity(progress > 0 && progress < 1 ? 0.18 : 0), radius: 8, y: 4) // design-exception: lift only while the tile is in flight
   }
 
-  private var pixel: some View {
-    RoundedRectangle(cornerRadius: 16)
-      .fill(DuckRole.groupedSurface)
-      .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.quaternary, lineWidth: 1.5))
-      .overlay(RoundedRectangle(cornerRadius: 10).fill(.quaternary.opacity(0.5)).padding(7))
-      .overlay(alignment: .topTrailing) {
-        Image(systemName: "checkmark.circle.fill")
-          .font(.system(size: 26)).symbolRenderingMode(.palette) // design-exception: badge sized to the Pixel drawing
-          .foregroundStyle(.white, DuckRole.saved) // design-exception: check on the saved badge
-          .background(Circle().fill(DuckRole.background).padding(2))
-          .offset(x: 10, y: -10)
-          .scaleEffect(arrived ? 1 : 0.6).opacity(arrived ? 1 : 0)
-      }
-      .frame(width: Self.pixel.width, height: Self.pixel.height)
+  private func device(_ symbol: String) -> some View {
+    Image(systemName: symbol)
+      .resizable().scaledToFit()
+      .foregroundStyle(DuckRole.secondaryText)
+      .frame(width: Self.device.width, height: Self.device.height)
   }
 
   private func fly() {
     guard !arrived else { return }
-    if reduceMotion {
+    if reduceMotion || previewReduceMotion {
       progress = 1; arrived = true; onArrive(); return
     }
     // Brief hold so the eye finds the tile before it moves.

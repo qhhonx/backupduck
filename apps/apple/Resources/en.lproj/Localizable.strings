@@ -677,7 +677,7 @@
 "apple_camera_unavailable_note" = "Make sure another app is not using the camera, then scan again.";
 "apple_camera_restricted" = "Camera access is off. Turn it on in Settings to scan the code.";
 "apple_camera_restricted_note" = "Allow BackupDuck to use the camera in system Settings.";
-"apple_scan_again" = "Scan again";
+"apple_scan_again" = "Scan Again";
 "apple_pair_success" = "Receiver connected";
 "apple_source_manage" = "Manage source";
 "apple_source_auto_on" = "Automatic backup is on";
@@ -1284,7 +1284,7 @@
 "settings_keep_awake_footer" = "Only while BackupDuck is open and photos are waiting.";
 "settings_media_types" = "Media Types";
 "settings_albums" = "Albums";
-"onboarding_title" = "Bigger than iCloud.\nSimpler than a NAS.\nAnd free.";
+"onboarding_title" = "Bigger than iCloud. Simpler than a NAS. And free.";
 "onboarding_subtitle" = "One old Pixel backs up all your photos to Google Photos, full quality, without limits.";
 "onboarding_step_progress" = "Step %d of %d";
 "onboarding_step_install" = "Install BackupDuck on a Pixel";
@@ -1308,7 +1308,7 @@
 "onboarding_photos_private" = "Never through BackupDuck's servers";
 "onboarding_photos_quality" = "Full quality, never compressed";
 "onboarding_choose_title" = "Which photos should we back up?";
-"onboarding_choose_auto" = "Back Up New Photos";
+"onboarding_choose_auto" = "Back up new photos";
 "onboarding_choose_auto_note" = "Runs whenever your iPhone and Pixel are on the same Wi‑Fi.";
 "onboarding_choose_earlier" = "Back up your %@ earlier photos too?";
 "onboarding_choose_earlier_unknown" = "Back up your earlier photos too?";
@@ -1696,7 +1696,7 @@
 
 "records_attention_scope" = "%@ · %@ photos need you";
 
-"onboarding_first_heading" = "Sending Your First Photo";
+"onboarding_first_heading" = "Sending your first photo";
 "onboarding_first_preparing" = "Preparing your first photo…";
 "onboarding_first_failed" = "Your first photo did not arrive";
 "onboarding_first_save_failed" = "The photo could not be saved to the Pixel’s Photos";
@@ -1782,3 +1782,7 @@
 "diagnostics_event_bundle_submitted" = "Photo transfer submitted";
 "diagnostics_event_processing_finished" = "Background preparation finished";
 "diagnostics_event_preparation_storage_blocked" = "Photo preparation waiting for space";
+
+"onboarding_notify_title" = "Turn on notifications";
+
+"onboarding_pixel_photos" = "Pixel Photos";

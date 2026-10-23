@@ -1284,7 +1284,7 @@
 "settings_keep_awake_footer" = "只在备份鸭开着、并且还有照片要传时生效。";
 "settings_media_types" = "照片类型";
 "settings_albums" = "相簿";
-"onboarding_title" = "比 iCloud 大，\n比 NAS 简单，\n而且免费。";
+"onboarding_title" = "比 iCloud 大，比 NAS 简单，而且免费。";
 "onboarding_subtitle" = "一台旧 Pixel，把你所有的照片备份进 Google 相册，原画质、不限量。";
 "onboarding_step_progress" = "第 %d 步，共 %d 步";
 "onboarding_step_install" = "在 Pixel 上装好备份鸭";
@@ -1782,3 +1782,7 @@
 "diagnostics_event_bundle_submitted" = "照片传输已提交";
 "diagnostics_event_processing_finished" = "后台准备已结束";
 "diagnostics_event_preparation_storage_blocked" = "照片准备正在等待空间";
+
+"onboarding_notify_title" = "打开通知";
+
+"onboarding_pixel_photos" = "Pixel 相册";

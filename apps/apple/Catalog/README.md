@@ -487,12 +487,15 @@ window for captures. Widths below the production minimum of 900 points (down to
 640) additionally exercise native toolbar overflow. Search remains a system
 search item, reachable from Edit > Search and Command-F.
 
-First-run marks follow V6: the welcome list shares one centre column, and each
-later page keeps the same three-mark row above the scrolling content. Only its
-current mark is full strength; the row exposes one localized step count. The
+First-run marks follow V6: the welcome list shares a 36-point square column with
+optically sized silhouettes, and each later page keeps the same three-mark row
+above the scrolling content. Only its current mark uses a brand color; inactive
+marks use the native tertiary text role. The row exposes one localized step count. The
 `-reduce-transparency` iOS catalog argument injects the shared mark fallback
 environment for repeatable review without changing a device setting. In that
-mode inactive marks use stronger opaque color blends on the system page role.
+mode inactive marks use the stronger neutral secondary text role.
+The welcome duck and naturally wrapping headline are centred. The left-aligned
+step list is centred as a whole, wrapping within the available width when needed.
 
 First-photo fixtures share a leading title directly below the step marks, a
 centred decorative flight, and one factual status with at most one supporting
@@ -500,6 +503,13 @@ sentence. Known blocking causes replace the sending message immediately; slow
 recovery actions retain their 20-second gate. Receipt and publication remain
 separate. The flight is hidden from accessibility because the adjacent text
 owns the fact. Sending is shown only for observed running work.
+The flight uses symmetric SF Symbol device slots (`iphone` and `smartphone`),
+recorded device names and a localized Pixel Photos destination label. Its photo
+uses the production asset thumbnail; Catalog supplies the synthetic asset.
+`onboarding.first-photo-preparing` and `onboarding.first-photo-save-failed`
+cover preparation and failed publication. `onboarding.first-photo-flight`
+provides a timed publication transition; `-reduce-motion` injects the flight's
+immediate arrival path without changing system settings.
 
 ### Apple diagnostics and records
 
