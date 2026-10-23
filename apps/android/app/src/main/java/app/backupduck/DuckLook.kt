@@ -79,9 +79,22 @@ internal fun TextView.balanceLines() {
     hyphenationFrequency = android.text.Layout.HYPHENATION_FREQUENCY_NONE
 }
 
+/** Accessible copy stays untouched; word joiners only constrain the visual line breaker. */
+internal fun TextView.setDisplayHeadline(value: CharSequence) {
+    val display = displayHeadlineText(value)
+    text = display
+    contentDescription = if (display == value) null else value
+}
+
 /** Text in one role of the type scale: on-surface, or on-surface-variant when [secondary]. */
 internal fun Context.lookText(value: CharSequence, appearance: Int, secondary: Boolean = false, color: Int? = null) = TextView(this).apply {
     text = value; setTextAppearance(appearance)
+    if (appearance in setOf(M.style.TextAppearance_Material3_HeadlineSmall,
+            M.style.TextAppearance_Material3_HeadlineMedium, M.style.TextAppearance_Material3_HeadlineLarge,
+            M.style.TextAppearance_Material3_DisplaySmall, M.style.TextAppearance_Material3_DisplayMedium,
+            M.style.TextAppearance_Material3_DisplayLarge, R.style.TextAppearance_BackupDuck_Display)) {
+        setDisplayHeadline(value)
+    }
     balanceLines()
     setTextColor(color ?: getColor(if (secondary) R.color.duck_role_secondary_text else R.color.duck_role_primary_text))
 }
@@ -216,7 +229,7 @@ internal class StateCard(private val context: Context) {
         val replacing = shown != null && identity != listOf(state.glyph, state.title)
         shown = state.key; identity = listOf(state.glyph, state.title)
         glyph.setImageResource(state.glyph); glyph.imageTintList = ColorStateList.valueOf(state.tint)
-        title.text = state.title
+        title.setDisplayHeadline(state.title)
         note.text = state.note; note.visibility = if (state.note.isNullOrEmpty()) View.GONE else View.VISIBLE
         reading.text = state.reading; reading.visibility = if (state.reading.isNullOrEmpty()) View.GONE else View.VISIBLE
         bar.visibility = if (state.progress == null) View.GONE else View.VISIBLE
