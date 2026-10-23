@@ -91,7 +91,7 @@ private struct ScenarioStage: View {
   @State private var proposed: Bool
   init(scenario: Scenario) {
     self.scenario = scenario
-    if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" || scenario.id.hasPrefix("diagnostics.") {
+    if ProcessInfo.processInfo.arguments.contains("-appearance") || ["photoInformation", "photoViewer"].contains(scenario.step ?? "") || scenario.page == "onboarding" || scenario.id.hasPrefix("diagnostics.") {
       _scheme = State(initialValue: catalogViewerStyle(scenario) == .light ? .light : .dark)
     }
     _proposed = State(initialValue: ProcessInfo.processInfo.arguments.contains("-proposed") || scenario.id.hasPrefix("settings.scope.") || ["settings.bottom", "settings.about", "settings.feedback", "settings.about-reserved", "settings.feedback-reserved"].contains(scenario.id))

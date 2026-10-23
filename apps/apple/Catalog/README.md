@@ -515,10 +515,10 @@ immediate arrival path without changing system settings.
 
 `diagnostics.root`, `.empty`, `.failed`, `.export-success`, `.export-failure`
 and `.export-sheet` open the shared production diagnostics in the Mac Settings
-detail pane or as a pushed iPhone Settings page. Launch with `-proposed
+secondary Settings pane or as a pushed iPhone Settings page. Launch with `-proposed
 -appearance light` (or `dark`). Recent activity is read-only and limited to six
 latest events, newest first and grouped by day. Known codes use plain localized
-titles; unknown codes display the code. There are no log, entry or retention pages.
+titles; unknown codes display “Other activity”. There are no log, entry or retention pages.
 Exports write the complete synthetic core JSON, including unknown fields;
 saving/sharing uses the system interface. The failed-export scenario fails once,
 then the ordinary export row retries with a fresh snapshot. Send Feedback uses

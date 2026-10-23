@@ -17,6 +17,8 @@ struct MacSettings: View {
   var initialScopeSearch: String
   var initialDiagnosticsPage: String?
   @AppStorage("duckAppearance") private var appearance = "system"
+  private enum SecondaryPage: Hashable { case diagnostics }
+  @State private var secondaryPage: SecondaryPage?
   @State private var page: Page? = .autoBackup
   @State private var renaming = false
   @State private var retrying = false
@@ -30,14 +32,30 @@ struct MacSettings: View {
     self.model = model; self.folders = folders; self.showFolders = showFolders
     self.scopeStore = scopeStore ?? .shared; self.albumsModel = albumsModel ?? .shared
     self.initialScopeDestination = initialScopeDestination; self.initialScopeSearch = initialScopeSearch
-    _page = State(initialValue: initialPage ?? (folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup))
+    _secondaryPage = State(initialValue: initialPage == .diagnostics ? .diagnostics : nil)
+    _page = State(initialValue: (initialPage == .diagnostics ? .autoBackup : initialPage) ?? (folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup))
   }
 
   var body: some View {
-    HStack(spacing: 0) {
-      list.frame(width: DuckSettingsMetrics.listWidth)
-      Divider()
-      detail.frame(maxWidth: .infinity, maxHeight: .infinity)
+    Group {
+      if secondaryPage == .diagnostics {
+        NavigationStack {
+          DiagnosticsView(model: model, initialPage: initialDiagnosticsPage)
+            .toolbar {
+              ToolbarItem(placement: .navigation) {
+                Button { secondaryPage = nil } label: {
+                  Label("nav_settings", systemImage: "chevron.left")
+                }.labelStyle(.iconOnly).accessibilityIdentifier("settings.secondary.back")
+              }
+            }
+        }
+      } else {
+        HStack(spacing: 0) {
+          list.frame(width: DuckSettingsMetrics.listWidth)
+          Divider()
+          detail.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+      }
     }
     .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
     // Row geometry from DuckSettingsMetrics (design/visual-language.md, V7):
@@ -87,7 +105,8 @@ struct MacSettings: View {
         row(.about, "about_title", "info", DuckGlyph.gray, DuckSettingsValues.releaseVersion)
       } footer: {
         HStack(spacing: DuckSpacing.xSmall) {
-          Button("settings_diagnostics") { page = .diagnostics }.buttonStyle(.link)
+          Button("settings_diagnostics") { secondaryPage = .diagnostics }.buttonStyle(.link)
+            .accessibilityIdentifier("settings.diagnostics")
           Text(verbatim: "·")
           Button("settings_advanced") { page = .advanced }.buttonStyle(.link)
         }
@@ -168,7 +187,7 @@ struct MacSettings: View {
     case .language: MacLanguageSettings(languageName: languageName)
     case .help: NavigationStack { HelpCenter() }
     case .about: NavigationStack { MacAboutSettings() }
-    case .diagnostics: NavigationStack { DiagnosticsView(model: model, initialPage: initialDiagnosticsPage) }
+    case .diagnostics: EmptyView() // Presented through the secondary navigation path.
     case .advanced: MacAdvancedSettings(model: model)
     case nil: Color.clear
     }

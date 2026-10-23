@@ -1749,3 +1749,8 @@
 
 
 "diagnostics_recent" = "最近的活动";
+
+"diagnostics_export_action" = "导出…";
+"diagnostics_other_activity" = "其他活动";
+"diagnostics_event_originals_reclaimed" = "已保存的本机原片已清理";
+"diagnostics_event_relay_originals_reclaimed" = "已保存的中转副本已清理";

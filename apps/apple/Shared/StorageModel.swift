@@ -166,6 +166,11 @@ struct ActivityEntry: Decodable, Identifiable, Equatable {
   let bytes: Int64?
   let context: ActivityContext?
   var title: String { Bundle.main.localizedString(forKey: "diagnostics_event_" + code, value: code, table: nil) }
+  /// Raw event identity remains available to exports and internal callers only.
+  var userFacingTitle: String {
+    Bundle.main.localizedString(forKey: "diagnostics_event_" + code,
+      value: NSLocalizedString("diagnostics_other_activity", comment: ""), table: nil)
+  }
   var day: Date { timestamp > 0 ? Calendar.current.startOfDay(for: Date(timeIntervalSince1970: Double(timestamp))) : .distantPast }
   var time: String { timestamp > 0 ? Date(timeIntervalSince1970: Double(timestamp)).formatted(date: .omitted, time: .shortened) : "—" }
 }
@@ -305,46 +310,77 @@ struct DiagnosticsView: View {
     let grouped = Dictionary(grouping: journal.recentEntries, by: \.day)
     return grouped.keys.sorted(by: >).map { ($0, grouped[$0]!) }
   }
+  private var exportLabel: some View {
+    HStack(spacing: DuckSpacing.small + DuckSpacing.xSmall) {
+      DuckSettingsIcon(symbol: "square.and.arrow.up", color: DuckGlyph.blue)
+      VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
+        Text("diagnostics_export_title").font(.body).foregroundStyle(.primary)
+        Text(exportNote).font(.caption).foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
   private var settingsForm: some View {
     Form {
       Section {
-        Button { prepare() } label: {
-          HStack(spacing: DuckSpacing.small + DuckSpacing.xSmall) {
-            DuckSettingsIcon(symbol: "square.and.arrow.up", color: DuckGlyph.gray)
-            VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
-              Text("diagnostics_export_title").foregroundStyle(.primary)
-              Text(exportNote).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }.frame(maxWidth: .infinity, alignment: .leading)
+        #if os(macOS)
+        LabeledContent {
+          Button("diagnostics_export_action", action: prepare)
+            .buttonStyle(.bordered).disabled(export.preparing)
+            .accessibilityIdentifier("activity.export")
+        } label: { exportLabel }
+        #else
+        Button(action: prepare) {
+          HStack(spacing: DuckSpacing.small) {
+            exportLabel
             if export.preparing { ProgressView().controlSize(.small) }
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
           }.modifier(DiagnosticPreferencePadding()).contentShape(Rectangle())
-        }.buttonStyle(.plain).disabled(export.preparing).accessibilityIdentifier("activity.export").modifier(DiagnosticSettingsRowInsets())
-      } header: { Text("diagnostics_intro").font(.footnote).fontWeight(.regular).textCase(nil) }
-      Section {
-        VStack(alignment: .leading, spacing: DuckSpacing.medium) {
-          if journal.entries.isEmpty {
+        }.buttonStyle(.plain).disabled(export.preparing)
+          .accessibilityIdentifier("activity.export").modifier(DiagnosticSettingsRowInsets())
+        #endif
+      } footer: {
+        Text("diagnostics_intro").font(.footnote)
+          #if os(macOS)
+          .foregroundStyle(.secondary)
+          #endif
+      }
+      if journal.entries.isEmpty {
+        Section("diagnostics_recent") {
+          LabeledContent {
+            EmptyView()
+          } label: {
             Text(journal.failed ? "logs_load_failed" : journal.loaded ? "logs_empty" : "logs_loading")
-              .foregroundStyle(.secondary)
-          } else {
-            ForEach(dayGroups, id: \.0) { day, entries in
-              VStack(alignment: .leading, spacing: DuckSpacing.small) {
-                Text(day == .distantPast ? NSLocalizedString("task_order_unknown", comment: "") : day.formatted(date: .abbreviated, time: .omitted))
-                  .font(.caption).foregroundStyle(.secondary)
-                ForEach(entries) { entry in
-                  HStack(alignment: .firstTextBaseline, spacing: DuckSpacing.medium) {
-                    Text(entry.title).fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                    Text(entry.time).monospacedDigit().foregroundStyle(.secondary).fixedSize()
-                  }.accessibilityElement(children: .combine)
-                }
-              }
-            }
+              .font(.body).foregroundStyle(.secondary)
           }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-          .accessibilityIdentifier("diagnostics.recent")
-      } header: { Text("diagnostics_recent").textCase(nil) }
+        }
+      } else {
+        ForEach(dayGroups, id: \.0) { day, entries in
+          Section {
+            ForEach(entries) { entry in
+              LabeledContent {
+                Text(entry.time).font(.body.monospacedDigit()).foregroundStyle(.secondary).fixedSize()
+              } label: {
+                Text(entry.userFacingTitle).font(.body).fixedSize(horizontal: false, vertical: true)
+              }.accessibilityElement(children: .combine)
+            }
+          } header: {
+            Text(dayHeader(day)).textCase(nil)
+          }
+        }
+      }
     }
     .formStyle(.grouped)
+    #if os(macOS)
+    .labeledContentStyle(DuckPreferenceRowStyle())
+    #else
+    .labeledContentStyle(.automatic)
+    .environment(\.defaultMinListRowHeight, DuckPreferenceMetrics.rowHeight)
+    #endif
+  }
+  private func dayHeader(_ day: Date) -> String {
+    let date = day == .distantPast ? NSLocalizedString("task_order_unknown", comment: "") : day.formatted(date: .abbreviated, time: .omitted)
+    return day == dayGroups.first?.0 ? NSLocalizedString("diagnostics_recent", comment: "") + " · " + date : date
   }
   var body: some View {
     settingsForm

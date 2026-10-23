@@ -1749,3 +1749,8 @@
 
 
 "diagnostics_recent" = "Recent activity";
+
+"diagnostics_export_action" = "Export…";
+"diagnostics_other_activity" = "Other activity";
+"diagnostics_event_originals_reclaimed" = "Saved originals removed from this device";
+"diagnostics_event_relay_originals_reclaimed" = "Saved relay copies removed";
