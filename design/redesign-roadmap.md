@@ -109,9 +109,9 @@ Follow the source audit's priority order, with completed work removed:
    access; decide supported retention/archive routes and ordinary recovery UI.
 8. **Pixel records ordering:** make latest-change ordering global across core
    paging; viewer adoption, metadata, chrome and the repeated footer are resolved.
-9. **Technical pages — Apple Diagnostics built (`3ee7b96`), Pixel not started.** Was: redesign diagnostics (log, entry detail, exports) on all
-   three platforms and the Pixel compatibility/archive routes for their
-   technical audience: the same components and standards, exact detail kept.
+9. **Diagnostics — simplified (October 23):** one job, export a file and send
+   it to us, plus a short read-only recent-activity list; developer tools and
+   probes live only in debug builds and the catalog (`settings.md`).
 10. **Website:** the official site (`site/`) is redesigned with the apps, as
    the first public face of the brand: fresh structure and copy from
    `product-brief.md` (bold benefit, conditions in small print), current app

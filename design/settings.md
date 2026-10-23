@@ -111,33 +111,24 @@ Articles keep receipt, saving to Photos and Google's cloud upload apart and say
 that BackupDuck cannot see the last. "An iPhone or Mac can't connect" may show
 this Pixel's current address in a quiet line for someone helping.
 
-### Diagnostics (technical audience)
+### Diagnostics
 
-For someone troubleshooting, or helping a person troubleshoot. It keeps exact
-detail but follows every standard of the other pages. Same structure on every
-platform, in each platform's components:
+Its one job: when something goes wrong, the person can send us a file that
+lets us help. People do not read logs here; they export and send. Same
+structure on every platform:
 
-1. **One line at the top**: what this is and the privacy promise ("For
-   troubleshooting. Exports contain no photos.").
-2. **Activity log**: a dense list like a console, newest first, grouped by
-   day: one line per entry (time in tabular figures, the event in plain words,
-   its code as a small monospaced label at the end), no cards and no second
-   line. Search and a small set of filters (All, Problems, Transfers, Storage).
-   An entry opens a plain key–value list (readable label, value in monospace,
-   raw key quiet), one row per field, with Copy on each row and Copy All.
-   Empty and failed-to-read states say so; only a failure offers Retry.
-3. **Export**: an ordinary settings row, "Export diagnostics", with one small
-   supporting line naming what the file contains and its format (on the Pixel
-   it includes the record of photos saved to Photos, per `feature-triage.md`).
-   Tapping it opens the system save or share sheet; afterwards the supporting
-   line names the saved file, or says it failed and the row retries.
-4. **No retention settings**: the log keeps 14 days automatically
-   (`feature-triage.md`); the top line may say so.
-5. **Pixel tools**: the Google Photos compatibility check (observation only),
-   and the cleanup technical tools that the Storage journey does not need.
+1. **One line**: what the file is for and the privacy promise ("If something
+   goes wrong, send us this file. It contains no photos.").
+2. **Export diagnostics**: the main row, with a small line naming the contents;
+   it opens the system share or save sheet (on the Pixel the file includes the
+   record of photos saved to Photos). Afterwards the line names the file, or
+   says it failed and the row retries. Send Feedback offers the same file.
+3. **Recent activity**: a short read-only list of the latest events in plain
+   words with their time, newest first, grouped by day, so a person can see
+   that something happened. No search, filters, per-field copy or entry pages.
 
-Copy uses the same short register as other pages; codes are shown, not
-explained in prose. Nothing here starts work silently.
+The log keeps 14 days automatically. Technical probes and developer tools are
+not part of the product: they live only in debug builds and the design catalog.
 
 Resume after restart and heat protection are automatic. Freeing space after
 saving to Photos and the experimental automatic cleanup are on the Storage
