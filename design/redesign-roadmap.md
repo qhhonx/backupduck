@@ -97,19 +97,19 @@ Follow the source audit's priority order, with completed work removed:
    and recovery from first-photo waiting.
 2. **Mac notifications — done (`e325845`); system delivery and taps still need device acceptance.** Was: add explicit permission entry and receiver-scoped route
    consumption; verify cold/warm taps.
-3. **Mac Overview and History — Needs you and mosaic done (`e325845`); History toolbar built, Mac capture pending (`3ee7b96`).** Was: route Needs you to the requested records, settle
+3. **Mac Overview and History — done (`e325845`, `c49dc06`).** Was: route Needs you to the requested records, settle
    the one-grid direction and connect recent mosaic photos to the shared viewer.
-4. **Pixel cleanup recovery — in progress (`18bc59b`): row states done; switch-on journey, pending page and one line break open.** Was: finish the Storage journey and separate retained
+4. **Pixel cleanup recovery — done (`ef3a8fd`).** Was: finish the Storage journey and separate retained
    technical probes from old account-binding, setup and progress/result UI.
-5. **Apple remaining review/contracts:** redesign selected-photo review and
+5. **Apple remaining review/contracts — selection review rebuilt as a system sheet (`e3a6400`).** redesign selected-photo review and
    remove its radius override; reconcile A6 with the stale album-column rule and
    review the now-inventoried context, History and sharing routes.
-6. **Pixel Help — contract written (`settings.md` Help Center), not built.** Redesign around tasks/problems and their recovery destinations.
-7. **Pixel Advanced/compatibility — decided by `feature-triage.md` (conversion and browser access stay in Advanced; storage budget and log retention automatic; zip export removed), queued.** Redesign Format Conversion and browser
+6. **Pixel Help — done (`ef3a8fd`).** Redesign around tasks/problems and their recovery destinations.
+7. **Pixel Advanced/compatibility — done (`ef3a8fd`).** Redesign Format Conversion and browser
    access; decide supported retention/archive routes and ordinary recovery UI.
-8. **Pixel records ordering:** make latest-change ordering global across core
+8. **Pixel records ordering — done (`f9b08f4`).** make latest-change ordering global across core
    paging; viewer adoption, metadata, chrome and the repeated footer are resolved.
-9. **Diagnostics — simplified (October 23):** one job, export a file and send
+9. **Diagnostics — done on all three platforms (`a70cf0b`, `b954262`, `222c950`):** one job, export a file and send
    it to us, plus a short read-only recent-activity list; developer tools and
    probes live only in debug builds and the catalog (`settings.md`).
 10. **Website — paused until the app items above are done; start by studying why
