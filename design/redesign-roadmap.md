@@ -112,7 +112,9 @@ Follow the source audit's priority order, with completed work removed:
 9. **Diagnostics — simplified (October 23):** one job, export a file and send
    it to us, plus a short read-only recent-activity list; developer tools and
    probes live only in debug builds and the catalog (`settings.md`).
-10. **Website:** the official site (`site/`) is redesigned with the apps, as
+10. **Website — paused until the app items above are done; start by studying why
+   the current site is built as it is (it is good overall) and what no longer
+   fits.** The official site (`site/`) is redesigned with the apps, as
    the first public face of the brand: fresh structure and copy from
    `product-brief.md` (bold benefit, conditions in small print), current app
    imagery and the same visual language. Update feeds (`site/api/`) and
