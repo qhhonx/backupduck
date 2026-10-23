@@ -130,6 +130,13 @@ private struct ProcessingEventsResult: Decodable {
     } catch { receiverReadings = nil }
   }
   private var activeExport: BoundedExportWriter?
+  /// Network observation and the transfer session start only once a Pixel is
+  /// paired, so a new install first touches the network at the connect step,
+  /// where the system's network permission prompt makes sense.
+  private func observeNetwork() {
+    _ = availability
+    BackgroundTransfer.shared.connect()
+  }
   private lazy var availability = ReceiverAvailability(changed: { [weak self] in
     self?.receiverUnavailable = true
     self?.receiverConnection = .unknown
@@ -190,7 +197,9 @@ private struct ProcessingEventsResult: Decodable {
   private var discovery: PhotoLibraryChanges?
   private lazy var receiverDiscovery = ReceiverDiscovery(model: self)
   private var opening: Task<Void, Never>?
-  @Published var pairing: Pairing? { didSet { receiverReadings = nil } }
+  @Published var pairing: Pairing? {
+    didSet { receiverReadings = nil; if pairing != nil { observeNetwork() } }
+  }
   @Published var pairingError: String?
   @Published var pairingInProgress = false
   @Published var deviceSnapshot: DeviceSnapshot?
@@ -229,8 +238,10 @@ private struct ProcessingEventsResult: Decodable {
   private func initialize() async {
     guard !opened else { return }
     opened = true
-    _ = availability // Observe connectivity before asynchronous startup completes.
     do {
+      // The keychain outlives a deleted app; its pairing without the app's own
+      // queue is a leftover, so a reinstall starts as a new installation.
+      let reinstalled = !FileManager.default.fileExists(atPath: root.appendingPathComponent("queue").path)
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
       #if os(iOS)
         try FileManager.default.setAttributes(
@@ -249,6 +260,7 @@ private struct ProcessingEventsResult: Decodable {
         queueOpened = true
       }
       message = NSLocalizedString("pairing_unlock_wait", comment: "")
+      if reinstalled { try? BackupEnvironment.credentials.discardLeftover() }
       if let data = try await Keychain.readAsync() {
         pairing = try JSONDecoder().decode(Pairing.self, from: data)
       }
@@ -1036,6 +1048,10 @@ struct SystemKeychain: CredentialStore {
       status = SecItemAdd(q as CFDictionary, nil)
     }
     guard status == errSecSuccess else { throw Bridge.Failure(code: "storage") }
+  }
+  func discardLeftover() throws {
+    let status = SecItemDelete(Self.query as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else { throw Bridge.Failure(code: "storage") }
   }
 }
 

@@ -65,7 +65,7 @@ struct MacHub: View {
     case .notPaired:
       DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
         Button("hub_connect", action: pair).duckPrimaryButton()
-      }
+      }.duckFillsScrollHeight(reserving: 2 * DuckSpacing.large)
     case .opening:
       DuckStateCard(symbol: "hourglass", tone: .secondary, title: Text("hub_opening"))
     case .problem(let problem):

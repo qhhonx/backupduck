@@ -31,9 +31,9 @@ extension View {
   /// I4: the one primary action of a context, a filled capsule.
   func duckPrimaryButton() -> some View {
     #if os(iOS)
-    buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accent)
+    buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill)
     #else
-    buttonStyle(.borderedProminent).controlSize(.regular).tint(DuckRole.accent).keyboardShortcut(.defaultAction)
+    buttonStyle(.borderedProminent).controlSize(.regular).tint(DuckRole.accentFill).keyboardShortcut(.defaultAction)
     #endif
   }
 }
@@ -105,6 +105,35 @@ struct DuckStateCard<Trailing: View, Action: View>: View {
       }
     }
     .accessibilityElement(children: .contain)
+  }
+}
+
+/// A10: empty and unavailable states sit at the optical center of their area:
+/// the whole block's center at 45% of the height rather than 50%.
+struct DuckOpticalCenter<Content: View>: View {
+  @ViewBuilder var content: Content
+  var body: some View {
+    GeometryReader { area in
+      // Centering above a spacer of 10% of the height lifts the block by 5%,
+      // whether the content fills the space it is offered or not.
+      VStack(spacing: 0) {
+        content
+        Color.clear.frame(height: area.size.height * 0.1)
+      }
+      .frame(width: area.size.width, height: area.size.height)
+    }
+  }
+}
+
+extension View {
+  /// A10: an empty or unavailable state that replaces a page's content.
+  func duckOpticalCenter() -> some View {
+    DuckOpticalCenter { self }.frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+  /// The same inside a scrolling page: it fills the visible height.
+  func duckFillsScrollHeight(reserving inset: CGFloat = 0) -> some View {
+    DuckOpticalCenter { self }.frame(maxWidth: .infinity)
+      .containerRelativeFrame(.vertical) { length, _ in max(0, length - inset) }
   }
 }
 

@@ -24,6 +24,7 @@ the duck and the step marks, never as a tinted canvas.
 | `background`, `groupedSurface`, `elevatedSurface` | Page, card, sheet | System grouped colors | Material 3 surface roles from the fixed scheme |
 | `primaryText`, `secondaryText`, `separator` | Text and rules | System label colors | Material on-surface roles |
 | `accent` | Interactive or in progress | Tint derived from wing blue | Primary of the scheme seeded by wing blue |
+| `accentFill` | Fill behind white labels on prominent buttons | One deep wing-blue tone in both appearances (the dark `accent` tone is for text on dark surfaces) | Not used; Material pairs primary with on-primary |
 | `saved` | In the Pixel's Photos | Green, always with a check glyph | Same |
 | `attention` | Needs the user | Amber, always with a glyph | Same |
 | `failure` | Failed and blocked | Red, only for failures | Same |

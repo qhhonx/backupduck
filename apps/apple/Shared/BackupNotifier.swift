@@ -305,7 +305,7 @@ struct BackupNotificationPreferences: View {
         Button("notifications_allow") {
           notifier.acknowledgeExplanation(); explanation = false
           Task { await notifier.requestPermission() }
-        }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+        }.buttonStyle(.borderedProminent).tint(DuckRole.accentFill).keyboardShortcut(.defaultAction)
           .accessibilityIdentifier("notifications.consent.allow")
       }
     }

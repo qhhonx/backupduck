@@ -34,6 +34,8 @@ enum DuckBrand {
 enum DuckRole {
   /// Interactive or in progress. Used as the tint.
   static let accent = DuckPalette.adaptive(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
+  /// Fill behind white labels on prominent buttons: one deep tone in both appearances, because the dark accent tone is tuned for text on dark surfaces.
+  static let accentFill = DuckPalette.adaptive(light: 0x0A63E2, dark: 0x0A63E2, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0x004CB4)
 
   #if os(macOS)
   /// Page background beneath grouped content.
@@ -90,6 +92,7 @@ enum DuckRole {
   static let failureContainer = DuckPalette.adaptive(light: 0xFFE1DF, dark: 0x623D3B, lightIncreasedContrast: 0xFFDAD7, darkIncreasedContrast: 0x553230)
   #if os(macOS)
   static let accentNSColor = DuckPalette.adaptiveNSColor(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
+  static let accentFillNSColor = DuckPalette.adaptiveNSColor(light: 0x0A63E2, dark: 0x0A63E2, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0x004CB4)
   static let backgroundNSColor = NSColor.windowBackgroundColor
   static let groupedSurfaceNSColor = NSColor.controlBackgroundColor
   static let elevatedSurfaceNSColor = NSColor.windowBackgroundColor
@@ -108,6 +111,7 @@ enum DuckRole {
   static let failureContainerNSColor = DuckPalette.adaptiveNSColor(light: 0xFFE1DF, dark: 0x623D3B, lightIncreasedContrast: 0xFFDAD7, darkIncreasedContrast: 0x553230)
   #else
   static let accentUIColor = DuckPalette.adaptiveUIColor(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
+  static let accentFillUIColor = DuckPalette.adaptiveUIColor(light: 0x0A63E2, dark: 0x0A63E2, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0x004CB4)
   static let backgroundUIColor = UIColor.systemGroupedBackground
   static let groupedSurfaceUIColor = UIColor.secondarySystemGroupedBackground
   static let elevatedSurfaceUIColor = UIColor { traits in UIColor.systemBackground.resolvedColor(with: traits.modifyingTraits { $0.userInterfaceLevel = .elevated }) }

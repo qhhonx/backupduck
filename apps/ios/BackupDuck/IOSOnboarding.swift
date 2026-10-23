@@ -316,7 +316,7 @@ struct IOSOnboarding: View {
 
   private func primary(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
     Button(action: action) { Text(title).frame(maxWidth: .infinity) }
-      .buttonStyle(.borderedProminent).controlSize(.large)
+      .buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill)
       .disabled(working || progress.applyingScope)
   }
 
@@ -494,7 +494,7 @@ struct IOSFirstRunNotificationInvitation: ViewModifier {
             Button("onboarding_notify") {
               progress.handleNotification(); presented = false
               Task { await requestFirstRunNotifications() }
-            }.buttonStyle(.borderedProminent).controlSize(.large)
+            }.buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill)
             Button("onboarding_later") { progress.handleNotification(); presented = false }
           }
         } actions: { EmptyView() }

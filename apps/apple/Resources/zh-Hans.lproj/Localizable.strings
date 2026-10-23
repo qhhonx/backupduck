@@ -859,6 +859,7 @@
 "folders_empty_title" = "还没有文件夹";
 "folders_empty_note" = "相机导出的照片、SD 卡和外置硬盘里的照片，也能备份到你的 Pixel。";
 "folders_add" = "添加文件夹…";
+"folders_add_button" = "添加文件夹";
 "folders_add_named" = "添加“%@”";
 "folders_add_confirm" = "添加";
 "folders_show" = "显示方式";

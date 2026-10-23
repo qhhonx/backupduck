@@ -39,27 +39,6 @@ enum DuckTone {
 
 }
 
-struct DuckBrandMark: View {
-  var size: CGFloat = 64
-  private var image: Image? {
-    guard let url = Bundle.main.url(forResource: "DuckBrand", withExtension: "png") else { return nil }
-    #if os(macOS)
-      guard let value = NSImage(contentsOf: url) else { return nil }
-      return Image(nsImage: value)
-    #else
-      guard let value = UIImage(contentsOfFile: url.path) else { return nil }
-      return Image(uiImage: value)
-    #endif
-  }
-  var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: size * 0.3).fill(DuckBrand.Illustration.duckYellowTint)
-      if let image { image.resizable().scaledToFit().padding(size * 0.15) }
-      else { Image(systemName: "bird.fill").font(.system(size: size * 0.5)).foregroundStyle(DuckBrand.Illustration.duckYellow) }
-    }.frame(width: size, height: size).accessibilityHidden(true)
-  }
-}
-
 private struct DuckSheetActionsKey: EnvironmentKey {
   static let defaultValue = false
 }
@@ -81,7 +60,7 @@ private struct DuckNativeAction: ViewModifier {
   @ViewBuilder func body(content: Content) -> some View {
     #if os(iOS)
     if sheet { content.buttonStyle(.automatic) }
-    else if primary { content.buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accent) }
+    else if primary { content.buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill) }
     else { content.buttonStyle(.bordered).controlSize(.small).tint(DuckRole.accent) }
     #else
     if primary && sheet {

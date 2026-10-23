@@ -129,6 +129,13 @@ stopping a device) shows a Material snackbar with Undo.
 | --- | --- | --- |
 | The system content-unavailable structure: image, title, one sentence, one button. The duck only when there is truly nothing yet; a system symbol for no access, not connected and failures | Same as iPhone | The same structure, centered |
 
+On every platform the state takes the whole content area, centered
+horizontally, with the whole block's center at the optical center (45% of
+the height). Its one button is the filled primary action, without an
+ellipsis. An empty state has no Retry. While a page shows one of these
+states, its toolbar keeps only the title: subtitle counts and browsing
+controls (view, zoom, filter, search) appear once there is content.
+
 ## A11 More actions and context menus
 
 | iPhone | Mac | Pixel |

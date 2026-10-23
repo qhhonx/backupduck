@@ -28,7 +28,7 @@ struct LibraryPlaceholder: View {
         DuckLoadingState("library_loading")
       case .permission(let access):
         ContentUnavailableView {
-          Label("photos_access_title", systemImage: "photo.badge.exclamationmark")
+          Label("photos_access_title", systemImage: "photo.on.rectangle.angled")
         } description: {
           Text(permissionDescription(access))
           if settingsUnavailable { Text("photos_settings_unavailable") }
@@ -60,7 +60,9 @@ struct LibraryPlaceholder: View {
           } else { Button("retry_task", action: requestAccess).buttonStyle(.bordered) }
         }
       }
-    }.accessibilityIdentifier("library.placeholder")
+    }
+    .duckOpticalCenter()
+    .accessibilityIdentifier("library.placeholder")
   }
 
   private func permissionDescription(_ access: PHAuthorizationStatus) -> LocalizedStringKey {

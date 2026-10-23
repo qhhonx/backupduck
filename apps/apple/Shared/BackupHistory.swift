@@ -200,9 +200,11 @@ struct BackupHistoryView: View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
         #if os(iOS)
+        if !history.photos.isEmpty {
         Text(String(format: NSLocalizedString(filter == "attention" ? "records_attention_scope" : "records_scope", comment: ""), receiverName, history.total.formatted()))
           .font(.subheadline).foregroundStyle(.secondary)
           .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
+        }
         #endif
         if filter == "attention" {
           #if os(iOS)
@@ -217,14 +219,12 @@ struct BackupHistoryView: View {
             Label("records_load_failed", systemImage: "exclamationmark.triangle")
           } description: { Text("records_empty_note") } actions: {
             Button("records_try_again") { Task { await reload() } }
-          }
+          }.duckFillsScrollHeight()
         } else if !history.loading && history.photos.isEmpty {
           ContentUnavailableView {
             DuckIllustration(pose: .empty, size: 112)
             Text("records_empty")
-          } description: { Text("records_empty_note") } actions: {
-            Button("records_try_again") { Task { await reload() } }.buttonStyle(.bordered)
-          }
+          } description: { Text("records_empty_note") }.duckFillsScrollHeight()
         }
         ForEach(history.days, id: \.0) { day, photos in
           Section {
@@ -284,7 +284,8 @@ struct BackupHistoryView: View {
     guard photoRouter.preview == nil, photoRouter.fallback == nil else { return }
     #endif
     await history.reload(receiver: model.pairing?.receiverID, state: filter)
-    scopeChanged(String(format: NSLocalizedString(filter == "attention" ? "records_toolbar_attention" : "records_toolbar_scope", comment: ""), receiverName, history.total.formatted()))
+    // An empty page shows only its title; the empty state says the rest.
+    scopeChanged(history.photos.isEmpty ? "" : String(format: NSLocalizedString(filter == "attention" ? "records_toolbar_attention" : "records_toolbar_scope", comment: ""), receiverName, history.total.formatted()))
   }
 
   private var needsYou: some View {

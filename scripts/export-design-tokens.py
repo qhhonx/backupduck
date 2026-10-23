@@ -55,6 +55,7 @@ def tonal(source, tone_set):
 
 
 ACCENT = tonal(PRIMARIES[TOKENS['accent']['seed']], 'accent')
+ACCENT_FILL = tonal(PRIMARIES[TOKENS['accent']['seed']], 'accentFill')
 STATES = {name: {part: tonal(spec['source'], part) for part in ('foreground', 'container', 'onContainer')}
           for name, spec in TOKENS['state'].items() if isinstance(spec, dict)}
 ILLUSTRATION = {}
@@ -105,6 +106,7 @@ def check_contrast():
             need(f'accent {appearance}', ACCENT[appearance], surface, minimum)
             for name, parts in STATES.items():
                 need(f'{name} {appearance}', parts['foreground'][appearance], surface, 4.5)
+        need(f'white on accent fill {appearance}', '#FFFFFF', ACCENT_FILL[appearance], minimum)
         for name, parts in STATES.items():
             need(f'{name} on container {appearance}', parts['foreground'][appearance], parts['container'][appearance], 4.5)
             need(f'{name} onContainer {appearance}', parts['onContainer'][appearance], parts['container'][appearance], 4.5)
@@ -284,7 +286,9 @@ def apple():
               '/// Semantic interface colors (design/constitution.md#color).',
               'enum DuckRole {',
               f'  /// {TOKENS["accent"]["meaning"]}. Used as the tint.',
-              f'  static let accent = {apple_adaptive(ACCENT)}', '']
+              f'  static let accent = {apple_adaptive(ACCENT)}',
+              f'  /// {TOKENS["accent"]["fill"]}.',
+              f'  static let accentFill = {apple_adaptive(ACCENT_FILL)}', '']
     lines.append('  #if os(macOS)')
     for name, spec in NEUTRAL.items():
         lines += [f'  /// {spec["meaning"]}.', f'  static let {name} = {apple_neutral(name, "macos")}']
@@ -299,14 +303,14 @@ def apple():
     # Native callers share dynamic colors without bridging SwiftUI per tile/frame.
     for platform, native in [('macos', 'NSColor'), ('ios', 'UIColor')]:
         lines.append('  #if os(macOS)' if platform == 'macos' else '  #else')
-        for name in ['accent'] + list(NEUTRAL) + [part for name in STATES for part in (name, name + 'Container')]:
+        for name in ['accent', 'accentFill'] + list(NEUTRAL) + [part for name in STATES for part in (name, name + 'Container')]:
             if name in NEUTRAL and not (name == 'elevatedSurface' and platform == 'ios'):
                 value = f'{native}.{NEUTRAL[name][platform]}'
             elif name == 'elevatedSurface' and platform == 'ios':
                 value = ('UIColor { traits in UIColor.systemBackground.resolvedColor(with: '
                          'traits.modifyingTraits { $0.userInterfaceLevel = .elevated }) }')
             else:
-                values = ACCENT if name == 'accent' else STATES[name[:-9] if name.endswith('Container') else name]['container' if name.endswith('Container') else 'foreground']
+                values = ACCENT if name == 'accent' else ACCENT_FILL if name == 'accentFill' else STATES[name[:-9] if name.endswith('Container') else name]['container' if name.endswith('Container') else 'foreground']
                 arguments = ', '.join(f'{appearance}: {swift_hex(values[appearance])}' for appearance in APPEARANCES)
                 value = f'DuckPalette.adaptive{native}({arguments})'
             lines.append(f'  static let {name}{native} = {value}')
@@ -471,7 +475,7 @@ def css_rule(selector, declarations):
 
 def web_colors(mode, high_contrast=False):
     appearance = mode + ('IncreasedContrast' if high_contrast else '')
-    declarations = [('--duck-accent', ACCENT[appearance])]
+    declarations = [('--duck-accent', ACCENT[appearance]), ('--duck-accent-fill', ACCENT_FILL[appearance])]
     for name, parts in STATES.items():
         declarations += [(f'--duck-state-{kebab(name)}', parts['foreground'][appearance]),
                          (f'--duck-state-{kebab(name)}-container', parts['container'][appearance])]

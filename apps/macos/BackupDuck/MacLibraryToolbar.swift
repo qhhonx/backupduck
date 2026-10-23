@@ -191,7 +191,6 @@ struct MacLibraryScale: ToolbarContent {
 enum MacBrowsingToolbarMetrics {
   static let compactWidth: CGFloat = 1100
   static let periodWidth: CGFloat = 230
-  static let searchWidth: CGFloat = 242
 }
 
 /// Native fixed toolbar spacing separates semantic groups without drawing chrome.

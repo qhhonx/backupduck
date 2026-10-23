@@ -10,12 +10,10 @@ struct FolderSourcesPage: View {
   private var viewerOpen: Bool
   init(folders: FolderSources, backup: BackupModel, viewerOpen: Bool = false, settings: @escaping (String) -> Void = { _ in }) {
     self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser; self.viewerOpen = viewerOpen
-    _searchFocus = State(initialValue: folders.browser.searchExpanded)
   }
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var adding: URL?
   @State private var stopping: FolderSource?
-  @State private var searchFocus = false
   @State private var toolbarWidth: CGFloat = 1180
   var body: some View {
     Group {
@@ -27,9 +25,12 @@ struct FolderSourcesPage: View {
         ProgressView("folders_counting").frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if folders.sources.isEmpty {
         ContentUnavailableView {
-          DuckBrandMark(size: DuckSpacing.xxLarge)
+          DuckIllustration(pose: .empty, size: 112)
           Text("folders_empty_title")
-        } description: { Text("folders_empty_note") } actions: { Button("folders_add", action: choose) }
+        } description: { Text("folders_empty_note") } actions: {
+          Button("folders_add_button", action: choose).duckPrimaryButton()
+        }
+        .duckOpticalCenter()
       } else {
         VStack(spacing: 0) {
           if let error = browser.error ?? folders.error {
@@ -50,12 +51,12 @@ struct FolderSourcesPage: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .navigationSubtitle(viewerOpen ? "" : subtitle)
+    .navigationSubtitle(viewerOpen || hidesBrowsing ? "" : subtitle)
     .background(MacToolbarWidth(width: $toolbarWidth))
     .toolbar {
-      if !viewerOpen {
+      if !viewerOpen && !hidesBrowsing {
         ToolbarItem(id: "folders.view", placement: .primaryAction) {
-          if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth || browser.searchExpanded {
+          if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth {
             viewPicker.pickerStyle(.menu).fixedSize()
           } else { viewPicker.pickerStyle(.segmented).fixedSize() }
         }
@@ -84,19 +85,10 @@ struct FolderSourcesPage: View {
               .accessibilityIdentifier("folders.backup_selected")
           }
         }
-        MacBrowsingToolbarGap()
-        ToolbarItem(id: "folders.search", placement: .primaryAction) {
-          if browser.searchExpanded {
-            FolderSearchField(text: $browser.search, focus: $searchFocus) {
-              browser.searchExpanded = false
-            }.frame(width: MacBrowsingToolbarMetrics.searchWidth)
-          } else {
-            Button(action: beginSearch) { Label("folders_search", systemImage: "magnifyingglass") }
-              .help("folders_search").accessibilityIdentifier("folders.search")
-          }
-        }
       }
     }
+    // The system toolbar search animates its own expansion and collapse.
+    .modifier(FolderToolbarSearch(enabled: !viewerOpen && !hidesBrowsing, text: $browser.search, presented: $browser.searchExpanded))
     .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
     .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
@@ -122,7 +114,10 @@ struct FolderSourcesPage: View {
       }.frame(width: 0, height: 0)
     }
   }
-  private func beginSearch() { browser.searchExpanded = true; searchFocus = true }
+  private func beginSearch() { browser.searchExpanded = true }
+  /// Empty and unavailable pages show only their title (A10): there is nothing to
+  /// view, filter or search, and the empty state offers Add Folder itself.
+  private var hidesBrowsing: Bool { folders.loadFailed || folders.sources.isEmpty }
   private var viewPicker: some View {
     Picker("folders_show", selection: $browser.byFolder) {
       Text("folders_by_folder").tag(true)
@@ -365,5 +360,16 @@ struct AddFolderSheet: View {
       }
     } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     _ = try? await Bridge.call(["op": "folder", "command": ["action": "preview_cancel"]])
+  }
+}
+
+private struct FolderToolbarSearch: ViewModifier {
+  var enabled: Bool
+  @Binding var text: String
+  @Binding var presented: Bool
+  func body(content: Content) -> some View {
+    if enabled {
+      content.searchable(text: $text, isPresented: $presented, placement: .toolbar, prompt: Text("folders_search"))
+    } else { content }
   }
 }

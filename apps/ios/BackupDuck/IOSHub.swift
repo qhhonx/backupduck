@@ -109,7 +109,7 @@ struct IOSHub: View {
     case .notPaired:
       DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
         Button { pairing = true } label: { Text("hub_connect").frame(maxWidth: .infinity) }.duckPrimaryButton()
-      }
+      }.duckFillsScrollHeight(reserving: DuckSpacing.xxSmall + DuckSpacing.xLarge)
     case .opening:
       DuckStateCard(symbol: "hourglass", tone: .secondary, title: Text("hub_opening"))
     case .empty:

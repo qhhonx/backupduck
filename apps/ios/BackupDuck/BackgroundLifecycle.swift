@@ -36,7 +36,6 @@ import UIKit
         }
       }
     }
-    BackgroundTransfer.shared.connect()
     Task {
       let model = BackupModel.shared
       await model.open()

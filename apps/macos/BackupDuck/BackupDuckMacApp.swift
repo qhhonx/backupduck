@@ -286,7 +286,7 @@ struct MacWorkspace: View {
       }
     }
   }
-  if !hasViewer, destination == .transfers {
+  if !hasViewer, destination == .transfers, !historyScope.isEmpty {
     MacLibraryScale(columns: $historyColumns, stops: MacLibraryDensity.grid)
   }
   }

@@ -130,7 +130,8 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   func recordSnapshot(_ code: String, reason: String? = nil,
     tasks suppliedTasks: [URLSessionTask]? = nil, execution observedExecution: String? = nil) async {
     let model = BackupModel.shared
-    guard model.ready else { return }
+    // Nothing to record before pairing, and recording would start network observation.
+    guard model.ready, model.pairing != nil else { return }
     if model.deviceSnapshot == nil { await model.refreshDeviceStatus() }
     await model.refreshPendingImportCount()
     var context: [String: Any] = ["execution": observedExecution ?? execution,
@@ -244,7 +245,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   }
   private func pump() async {
     let model = BackupModel.shared
-    guard model.ready else { return }
+    guard model.ready, model.pairing != nil else { return }
     do {
       let tasks = await session.allTasks
       for task in tasks { observeProgress(task) }

@@ -859,6 +859,7 @@
 "folders_empty_title" = "No folders yet";
 "folders_empty_note" = "Photos from camera exports, SD cards and external drives can be backed up to your Pixel too.";
 "folders_add" = "Add Folder…";
+"folders_add_button" = "Add Folder";
 "folders_add_named" = "Add “%@”";
 "folders_add_confirm" = "Add";
 "folders_show" = "Show";

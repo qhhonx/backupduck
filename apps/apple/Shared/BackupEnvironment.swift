@@ -12,6 +12,11 @@ protocol CoreTransport: Sendable {
 protocol CredentialStore: Sendable {
   func read() throws -> Data?
   func save(_ data: Data) throws
+  /// Removes a record left behind by a deleted installation.
+  func discardLeftover() throws
+}
+extension CredentialStore {
+  func discardLeftover() throws {}
 }
 
 /// What the sender takes from outside its own process. The app uses the linked
