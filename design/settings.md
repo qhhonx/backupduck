@@ -126,6 +126,9 @@ structure on every platform:
 3. **Recent activity**: a short read-only list of the latest events in plain
    words with their time, newest first, grouped by day, so a person can see
    that something happened. No search, filters, per-field copy or entry pages.
+   On Apple, the area title uses primary text (iPhone title3 semibold, Mac
+   headline), aligned with the group's leading text inset; days use ordinary
+   section headers below it.
 
 The log keeps 14 days automatically. Technical probes and developer tools are
 not part of the product: they live only in debug builds and the design catalog.

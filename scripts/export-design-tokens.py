@@ -328,7 +328,12 @@ def android(outputs):
                        for name, value in ILLUSTRATION.items()]
             scheme += [f'<color name="duck_role_accent">@color/duck_m3_primary</color>']
             scheme += [f'<color name="duck_role_{snake(name)}">@color/duck_m3_{snake(spec["android"])}</color>'
-                       for name, spec in NEUTRAL.items()]
+                       for name, spec in NEUTRAL.items() if 'androidOpacity' not in spec]
+        for name, spec in NEUTRAL.items():
+            if 'androidOpacity' in spec:
+                alpha = round(spec['androidOpacity'] * 255)
+                foreground = SCHEME[spec['android']][index].lstrip('#')
+                scheme.append(f'<color name="duck_role_{snake(name)}">#{alpha:02X}{foreground}</color>')
         outputs[f'{ANDROID_RES}/{directory}/duck_scheme.xml'] = xml(scheme)
     theme = ['<!-- Fixed Material 3 scheme seeded from wing blue. Wallpaper dynamic color is not used. -->',
              '<style name="ThemeOverlay.BackupDuck.Scheme" parent="">']
