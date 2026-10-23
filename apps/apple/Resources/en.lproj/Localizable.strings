@@ -1232,7 +1232,7 @@
 "settings_keep_awake_footer" = "Only while BackupDuck is open and photos are waiting.";
 "settings_media_types" = "Media Types";
 "settings_albums" = "Albums";
-"onboarding_title" = "Bigger than iCloud. Simpler than a NAS. And free.";
+"onboarding_title" = "Bigger than iCloud.\nSimpler than a NAS.\nAnd free.";
 "onboarding_subtitle" = "One old Pixel backs up all your photos to Google Photos, full quality, without limits.";
 "onboarding_step_progress" = "Step %d of %d";
 "onboarding_step_install" = "Install BackupDuck on a Pixel";

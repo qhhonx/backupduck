@@ -68,16 +68,16 @@ struct DuckPill: View {
 /// I3: one card for every hub state and problem. A colored glyph, a neutral
 /// title, the note, an optional progress overlay, an optional trailing control
 /// and at most one action below. Its geometry stays stable while values change.
-struct DuckStateCard<Title: View, Trailing: View, Action: View>: View {
+struct DuckStateCard<Trailing: View, Action: View>: View {
   let symbol: String
   let tone: Color
-  let title: Title
+  let title: Text
   var note: Text?
   var progress: Double?
   @ViewBuilder var trailing: () -> Trailing
   @ViewBuilder var action: () -> Action
 
-  init(symbol: String, tone: Color, title: Title, note: Text? = nil, progress: Double? = nil,
+  init(symbol: String, tone: Color, title: Text, note: Text? = nil, progress: Double? = nil,
     @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() },
     @ViewBuilder action: @escaping () -> Action = { EmptyView() }) {
     self.symbol = symbol; self.tone = tone; self.title = title; self.note = note; self.progress = progress
@@ -112,11 +112,11 @@ struct DuckStateCard<Title: View, Trailing: View, Action: View>: View {
 /// for problems, missing access or failures (V6).
 struct DuckEmptyState<Action: View>: View {
   let pose: DuckIllustration.Pose
-  let title: String
+  let title: LocalizedStringKey
   var note: LocalizedStringKey?
   @ViewBuilder var action: () -> Action
 
-  init(pose: DuckIllustration.Pose, title: String, note: LocalizedStringKey? = nil,
+  init(pose: DuckIllustration.Pose, title: LocalizedStringKey, note: LocalizedStringKey? = nil,
     @ViewBuilder action: @escaping () -> Action = { EmptyView() }) {
     self.pose = pose; self.title = title; self.note = note; self.action = action
   }
@@ -124,10 +124,10 @@ struct DuckEmptyState<Action: View>: View {
   var body: some View {
     ContentUnavailableView {
       if pose == .pairing {
-        Label { DuckDisplayHeadline.text(title) } icon: { Image(systemName: "iphone.and.arrow.forward") }
+        Label(title, systemImage: "iphone.and.arrow.forward")
       } else {
         DuckIllustration(pose: pose, size: 112)
-        DuckDisplayHeadline.text(title)
+        Text(title)
       }
     } description: {
       if let note { Text(note) }

@@ -68,15 +68,15 @@ struct MacHub: View {
         Button("hub_connect", action: pair).duckPrimaryButton()
       }
     case .opening:
-      DuckStateCard(symbol: "hourglass", tone: .secondary, title: DuckDisplayHeadline.text("hub_opening"))
+      DuckStateCard(symbol: "hourglass", tone: .secondary, title: Text("hub_opening"))
     case .problem(let problem):
       problemCard(problem)
     case .paused:
-      card(DuckDisplayHeadline.text("hub_paused"), note: "hub_paused_note", symbol: "pause.circle.fill", tone: .secondary,
+      card(Text("hub_paused"), note: "hub_paused_note", symbol: "pause.circle.fill", tone: .secondary,
         action: "hub_resume") { Task { await model.setPaused(false) } }
     case .backingUp(let remaining, let bytes):
       DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
-        title: DuckDisplayHeadline.text(verbatim: bytes > 0
+        title: Text(verbatim: bytes > 0
           ? String(format: NSLocalizedString("hub_backing_up", comment: ""), remaining.formatted(),
             ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))
           : String(format: NSLocalizedString("hub_backing_up_count", comment: ""), remaining.formatted())),
@@ -85,7 +85,7 @@ struct MacHub: View {
       })
     case .caughtUp(let last, let saving):
       DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
-        title: DuckDisplayHeadline.text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up"),
+        title: Text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up"),
         note: saving > 0
           ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
           : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })
@@ -108,33 +108,33 @@ struct MacHub: View {
   @ViewBuilder private func problemCard(_ problem: BackupHubStatus.Problem) -> some View {
     switch problem {
     case .receiverRejected:
-      card(DuckDisplayHeadline.text("hub_problem_rejected"), note: "hub_problem_rejected_note", symbol: "exclamationmark.octagon.fill", tone: DuckRole.failure,
+      card(Text("hub_problem_rejected"), note: "hub_problem_rejected_note", symbol: "exclamationmark.octagon.fill", tone: DuckRole.failure,
         action: "hub_problem_rejected_action", perform: pair)
     case .receiverUnreachable:
-      card(DuckDisplayHeadline.text(verbatim: String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)),
+      card(Text(verbatim: String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)),
         note: "hub_problem_offline_note", symbol: "wifi.exclamationmark", tone: DuckRole.attention,
         action: "hub_problem_offline_action") { offlineHelp = true }
     case .receiverFull:
-      card(DuckDisplayHeadline.text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note", symbol: "externaldrive.badge.exclamationmark", tone: DuckRole.attention)
+      card(Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note", symbol: "externaldrive.badge.exclamationmark", tone: DuckRole.attention)
     case .phoneFull:
-      card(DuckDisplayHeadline.text("hub_problem_mac_full"), note: "hub_problem_phone_full_note", symbol: "internaldrive", tone: DuckRole.attention)
+      card(Text("hub_problem_mac_full"), note: "hub_problem_phone_full_note", symbol: "internaldrive", tone: DuckRole.attention)
     case .photoAccessDenied:
-      card(DuckDisplayHeadline.text("hub_problem_photos"), note: "hub_problem_photos_note", symbol: "photo.badge.exclamationmark", tone: DuckRole.attention,
+      card(Text("hub_problem_photos"), note: "hub_problem_photos_note", symbol: "photo.badge.exclamationmark", tone: DuckRole.attention,
         action: "hub_problem_photos_action_mac") {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") { NSWorkspace.shared.open(url) }
       }
     case .conversionNeeded(let count):
-      card(DuckDisplayHeadline.text(verbatim: String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())),
+      card(Text(verbatim: String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())),
         note: "hub_problem_convert_note", symbol: "livephoto", tone: DuckRole.attention,
         action: "hub_problem_convert_action") { showTransfers("attention") }
     case .photosNeedYou(let count):
-      card(DuckDisplayHeadline.text(verbatim: String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
+      card(Text(verbatim: String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
         note: "hub_problem_photos_need_you_note", symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention,
         action: "hub_problem_convert_action") { showTransfers("attention") }
     }
   }
 
-  private func card(_ title: some View, note: LocalizedStringKey, symbol: String, tone: Color,
+  private func card(_ title: Text, note: LocalizedStringKey, symbol: String, tone: Color,
     action: LocalizedStringKey? = nil, perform: @escaping () -> Void = {}) -> some View {
     DuckStateCard(symbol: symbol, tone: tone, title: title, note: Text(note), trailing: {
       if let action { DuckTintedButton(action, action: perform) }

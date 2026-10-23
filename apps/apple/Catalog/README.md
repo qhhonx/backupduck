@@ -539,8 +539,8 @@ Mac snapshot runs expose a New Design catalog Window command. When another
 catalog instance shares the bundle identity, target the launched executable
 and open its window with Accessibility before the snapshot delay expires.
 
-Display headlines share `DuckDisplayHeadline` on iPhone and Mac. Chinese clauses
-use indivisible native text runs, wrapping after full-width commas and full stops; localized copy and accessibility labels
-retain the original text. Review welcome in both languages and appearances, then
-the later first-run titles and hub status headlines. Native SwiftUI captures are
-required: lower-level text layout alone does not prove the final line breaks.
+Parallel display-headline clauses occupy separate centred lines in every language.
+The localized `onboarding_title` supplies explicit line breaks; native `Text`
+wraps an overlong clause inside its own paragraph. Review Chinese and English
+welcome in light and dark. No width-dependent clause layout or invisible break
+characters are used. Mac currently does not show this welcome headline.

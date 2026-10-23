@@ -152,7 +152,7 @@ struct IOSOnboarding: View {
       VStack(spacing: DuckSpacing.xLarge) {
         VStack(spacing: DuckSpacing.medium) {
           DuckIllustration(pose: .welcome, size: 96)
-          DuckDisplayHeadline.text("onboarding_title").font(.largeTitle.weight(.bold))
+          Text("onboarding_title").font(.largeTitle.weight(.bold))
             .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             .accessibilityValue(DuckStepProgress.label(1))
           Text("onboarding_subtitle").font(.body).foregroundStyle(.secondary)
@@ -167,7 +167,7 @@ struct IOSOnboarding: View {
       }
     case .install:
       VStack(alignment: .leading, spacing: 16) {
-        DuckDisplayHeadline.text("onboarding_install_title").font(.title2.bold())
+        Text("onboarding_install_title").font(.title2.bold())
         Text("onboarding_install_body").foregroundStyle(.secondary)
         VStack(spacing: 8) {
           DuckQRCode(text: Self.downloadPage).frame(width: 200, height: 200).padding(16)
@@ -177,20 +177,20 @@ struct IOSOnboarding: View {
       }
     case .connect:
       VStack(alignment: .leading, spacing: 16) {
-        DuckDisplayHeadline.text("onboarding_connect_title").font(.title2.bold())
+        Text("onboarding_connect_title").font(.title2.bold())
         Text("onboarding_connect_body").foregroundStyle(.secondary)
         IOSPixelScanner(model: model, state: scanner, showsRecoveryActions: false) { go(.connected) }
       }
     case .connected:
       VStack(spacing: 16) {
         DuckIllustration(pose: .pairing, size: 160).padding(.top, 40)
-        DuckDisplayHeadline.text(verbatim: String(format: NSLocalizedString("onboarding_connected_title", comment: ""),
+        Text(verbatim: String(format: NSLocalizedString("onboarding_connected_title", comment: ""),
           model.peerDevice?.name ?? "Pixel")).font(.title2.bold()).multilineTextAlignment(.center)
         Text("onboarding_connected_body").foregroundStyle(.secondary).multilineTextAlignment(.center)
       }.frame(maxWidth: .infinity)
     case .photos:
       VStack(alignment: .leading, spacing: 16) {
-        DuckDisplayHeadline.text("onboarding_photos_title").font(.title2.bold())
+        Text("onboarding_photos_title").font(.title2.bold())
         VStack(alignment: .leading, spacing: 12) {
           Label("onboarding_photos_direct", systemImage: "arrow.right.circle")
           Label("onboarding_photos_private", systemImage: "lock")
@@ -199,7 +199,7 @@ struct IOSOnboarding: View {
       }
     case .choose:
       VStack(alignment: .leading, spacing: 16) {
-        DuckDisplayHeadline.text("onboarding_choose_title").font(.title2.bold())
+        Text("onboarding_choose_title").font(.title2.bold())
         if BackupEnvironment.photoAccess() == .limited { Text("onboarding_access_limited").font(.subheadline).foregroundStyle(.secondary) }
         if let error = choiceError ?? progress.scopeError { Text(error).foregroundStyle(.secondary) }
         VStack(alignment: .leading, spacing: 6) {
@@ -215,7 +215,7 @@ struct IOSOnboarding: View {
       }
     case .first:
       VStack(alignment: .leading, spacing: DuckSpacing.medium) {
-        DuckDisplayHeadline.text(announced ? "onboarding_first_title" : "onboarding_first_heading")
+        Text(announced ? "onboarding_first_title" : "onboarding_first_heading")
           .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
         FirstPhotoFlight(
           sourceID: firstJob?.asset.source_id,
