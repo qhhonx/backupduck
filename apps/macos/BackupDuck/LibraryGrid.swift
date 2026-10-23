@@ -1174,8 +1174,8 @@ private final class MacMarqueeView: NSView {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
-    layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.15).cgColor
-    layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.8).cgColor
+    layer?.backgroundColor = DuckSelection.fillNSColor.cgColor
+    layer?.borderColor = DuckSelection.borderNSColor.cgColor
     layer?.borderWidth = 1
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -1188,7 +1188,7 @@ private final class MacMarqueeView: NSView {
 /// added layer-tree and tracking-area work. A cell is now one view.
 @MainActor final class MacBadgeLayer: CALayer {
   var symbol: String? { didSet { if symbol != oldValue { refresh() } } }
-  var tint: NSColor = .white { didSet { if tint != oldValue { refresh() } } }
+  var tint: NSColor = DuckMedia.onMediaNSColor { didSet { if tint != oldValue { refresh() } } }
   var scale: CGFloat = 2 { didSet { if scale != oldValue { refresh() } } }
   private let glyph = CALayer()
   private static var cache: [String: CGImage] = [:]
@@ -1259,7 +1259,7 @@ private final class MacMarqueeView: NSView {
     let key = "\(text)|\(weight.rawValue)|\(scale)"
     if let cached = cache[key] { return cached }
     let string = NSAttributedString(string: text, attributes: [
-      .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: weight), .foregroundColor: NSColor.white,
+      .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: weight), .foregroundColor: DuckMedia.onMediaNSColor,
     ])
     let measured = string.size()
     let size = CGSize(width: ceil(measured.width), height: ceil(measured.height))
@@ -1288,8 +1288,8 @@ private final class MacMarqueeView: NSView {
   private let selectionMark = MacBadgeLayer()
   private var selectionVisible = true
   private var statusState: String?
-  private let burstCount = MacTextBadgeLayer(weight: .medium, fill: .black.withAlphaComponent(0.45), radius: 4)
-  private let duration = MacTextBadgeLayer(weight: .semibold, fill: .black.withAlphaComponent(0.55), radius: 5)
+  private let burstCount = MacTextBadgeLayer(weight: .medium, fill: DuckMedia.scrimBurstNSColor, radius: 4)
+  private let duration = MacTextBadgeLayer(weight: .semibold, fill: DuckMedia.scrimDurationNSColor, radius: 5)
   /// Hover help for the visible status and burst badges, as tooltip rectangles
   /// on the cell's one view.
   private var statusTip: String?
@@ -1298,7 +1298,7 @@ private final class MacMarqueeView: NSView {
   override func loadView() {
     view = NSView()
     view.wantsLayer = true
-    view.layer?.backgroundColor = NSColor(DuckColors.subtle).cgColor
+    view.layer?.backgroundColor = DuckRole.mediaPlaceholderNSColor.cgColor
     view.layer?.masksToBounds = true
     view.layer?.cornerRadius = 0
     photoLayer.contentsGravity = .resizeAspectFill
@@ -1311,14 +1311,14 @@ private final class MacMarqueeView: NSView {
     view.layer?.addSublayer(selectionOutline)
     selectionOutline.borderColor = NSColor.controlAccentColor.cgColor
     for badge in [media, status, cloud, selectionMark] {
-      badge.backgroundColor = NSColor.black.withAlphaComponent(0.38).cgColor
+      badge.backgroundColor = DuckMedia.scrimMarkCGColor
       badge.cornerRadius = 12
       view.layer?.addSublayer(badge)
     }
     // design/library.md § Tile marks: white glyphs with a soft shadow, no circles.
     for badge in [media, status, cloud] {
       badge.backgroundColor = nil
-      badge.shadowColor = NSColor.black.cgColor  // design-exception: legibility shadow on photos
+      badge.shadowColor = DuckMedia.shadowCGColor
       badge.shadowOpacity = 0.45
       badge.shadowRadius = 2
       badge.shadowOffset = CGSize(width: 0, height: -0.5)
@@ -1464,7 +1464,7 @@ private final class MacMarqueeView: NSView {
   private func photoRadius() -> CGFloat { fitted ? max(2, view.bounds.width * 0.035) : 0 }
   private func applyPhotoFrame(animated: Bool) {
     let target = photoFrame()
-    view.layer?.backgroundColor = fitted ? NSColor.clear.cgColor : NSColor(DuckColors.subtle).cgColor
+    view.layer?.backgroundColor = fitted ? NSColor.clear.cgColor : DuckRole.mediaPlaceholderNSColor.cgColor
     for layer in [photoLayer, selectionOutline] {
       let fromRadius = layer.presentation()?.cornerRadius ?? layer.cornerRadius
       layer.cornerRadius = photoRadius()
@@ -1516,9 +1516,9 @@ private final class MacMarqueeView: NSView {
   func setState(_ state: String?) {
     statusState = state
     status.symbol = libraryTileSymbol(state)
-    status.tint = .white  // design-exception: V5 white media mark with shadow
+    status.tint = DuckMedia.onMediaNSColor
     status.backgroundColor = nil
-    status.shadowColor = NSColor.black.cgColor  // design-exception: V5 legibility shadow on photos
+    status.shadowColor = DuckMedia.shadowCGColor
     status.shadowOpacity = 0.45
     status.shadowRadius = 2
     status.shadowOffset = CGSize(width: 0, height: -0.5)
@@ -2147,9 +2147,9 @@ struct MacCalendarGrid: NSViewRepresentable {
       image.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
       addSubview(image)
     }
-    let shadow = NSShadow(); shadow.shadowColor = .black.withAlphaComponent(0.65); shadow.shadowBlurRadius = 4
+    let shadow = NSShadow(); shadow.shadowColor = DuckMedia.scrimTextShadowNSColor; shadow.shadowBlurRadius = 4
     for label in days {
-      label.font = .systemFont(ofSize: 13, weight: .bold); label.textColor = .white; label.shadow = shadow
+      label.font = .systemFont(ofSize: 13, weight: .bold); label.textColor = DuckMedia.onMediaNSColor; label.shadow = shadow
       label.lineBreakMode = .byClipping
       addSubview(label)
     }
@@ -2164,8 +2164,8 @@ struct MacCalendarGrid: NSViewRepresentable {
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   private func configureKind() {
     if kind == .years {
-      title.font = .systemFont(ofSize: 27, weight: .bold); title.textColor = .white
-      title.shadow = { let s = NSShadow(); s.shadowColor = .black.withAlphaComponent(0.65); s.shadowBlurRadius = 5; return s }()
+      title.font = .systemFont(ofSize: 27, weight: .bold); title.textColor = DuckMedia.onMediaNSColor
+      title.shadow = { let s = NSShadow(); s.shadowColor = DuckMedia.scrimTextShadowNSColor; s.shadowBlurRadius = 5; return s }()
     } else {
       title.font = .systemFont(ofSize: 20, weight: .bold); title.textColor = .labelColor
       title.shadow = nil
@@ -2448,14 +2448,14 @@ struct MacCalendarGrid: NSViewRepresentable {
     let cacheKey = "\(yearly)|\(scale)|\(title)"
     if let cached = pillImages[cacheKey] { return cached }
     let text = NSMutableAttributedString(string: title, attributes: [
-      .foregroundColor: NSColor.black, .font: NSFont.systemFont(ofSize: 15, weight: .semibold)])
+      .foregroundColor: DuckMedia.labelTextNSColor, .font: NSFont.systemFont(ofSize: 15, weight: .semibold)])
     if !yearly, let year = title.range(of: "[0-9]{4}年?", options: .regularExpression) {
-      text.addAttribute(.foregroundColor, value: NSColor.black.withAlphaComponent(0.5), range: NSRange(year, in: title))
+      text.addAttribute(.foregroundColor, value: DuckMedia.labelTextSecondaryNSColor, range: NSRange(year, in: title))
     }
     let size = text.size()
     let pill = CGSize(width: ceil(size.width) + 20, height: 30)
     let image = NSImage(size: pill, flipped: false) { rect in
-      NSColor.white.withAlphaComponent(0.88).setFill()
+      DuckMedia.labelPlateNSColor.setFill()
       NSBezierPath(roundedRect: rect, xRadius: 12, yRadius: 12).fill()
       text.draw(at: CGPoint(x: 10, y: (pill.height - size.height) / 2))
       return true
@@ -2514,11 +2514,11 @@ struct MacCalendarGrid: NSViewRepresentable {
     layer?.addSublayer(content)
     content.anchorPoint = .zero
     photo.contentsGravity = .resizeAspectFill; photo.masksToBounds = true
-    photo.backgroundColor = NSColor(DuckColors.subtle).cgColor
+    photo.backgroundColor = DuckRole.mediaPlaceholderNSColor.cgColor
     content.addSublayer(photo)
     durationLayer.fontSize = 12; durationLayer.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-    durationLayer.foregroundColor = .white; durationLayer.alignmentMode = .center
-    durationLayer.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
+    durationLayer.foregroundColor = DuckMedia.onMediaCGColor; durationLayer.alignmentMode = .center
+    durationLayer.backgroundColor = DuckMedia.scrimDurationCGColor
     durationLayer.cornerRadius = 5; durationLayer.isHidden = true
     content.addSublayer(durationLayer)
     mediaLayer.contentsGravity = .resizeAspect; mediaLayer.isHidden = true
@@ -2555,7 +2555,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   private static func symbol(_ name: String, scale: CGFloat) -> CGImage? {
     if let cached = symbols[name] { return cached }
     guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-      .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold).applying(.init(paletteColors: [.white]))) else { return nil }
+      .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold).applying(.init(paletteColors: [DuckMedia.onMediaNSColor]))) else { return nil }
     var rect = CGRect(origin: .zero, size: base.size)
     let image = base.cgImage(forProposedRect: &rect, context: nil, hints: [.ctm: AffineTransform(scale: scale)])
     symbols[name] = image

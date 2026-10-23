@@ -179,7 +179,6 @@ private struct ProcessingEventsResult: Decodable {
   @Published var cacheReclaimError: String?
   @Published var savingStorage = false
   @Published var reclaimingCache = false
-  @Published var cacheReclaimResult: String?
   @Published var pendingImports = 0
   @Published var preparationReason: String?
   private var lastStorageRefresh = Date.distantPast
@@ -864,21 +863,13 @@ private struct ProcessingEventsResult: Decodable {
       storageSettingsError = NSLocalizedString("storage_settings_invalid", comment: "")
     } catch { storageSettingsError = error.localizedDescription }
   }
-  func reclaimCache(reportResult: Bool = false) async {
+  func reclaimCache() async {
     guard !reclaimingCache else { return }
     reclaimingCache = true
     cacheReclaimError = nil
-    if reportResult { cacheReclaimResult = nil }
     defer { reclaimingCache = false }
     do {
-      let data = try await Bridge.call(["op": "reclaim_sender_cache"])
-      if reportResult {
-        let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let bytes = (result?["reclaimed_bytes"] as? NSNumber)?.int64Value ?? 0
-        cacheReclaimResult = bytes == 0 ? NSLocalizedString("storage_reclaim_none", comment: "")
-          : String(format: NSLocalizedString("storage_reclaim_result", comment: ""),
-            ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
-      }
+      _ = try await Bridge.call(["op": "reclaim_sender_cache"])
       await refreshStorage()
     } catch { cacheReclaimError = error.localizedDescription }
   }

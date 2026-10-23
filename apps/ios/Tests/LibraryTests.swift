@@ -42,7 +42,7 @@ import XCTest
         PhotoMetadataPanel(preview: model).padding(20)
         Spacer(minLength: 0)
       }.frame(width: width,height: 1400,alignment: .topLeading)
-        .background(Color(DuckColors.surface))
+        .background(Color(DuckRole.background))
         .environment(\.dynamicTypeSize,width == 320 ? .large : .accessibility3).environment(\.colorScheme,.dark)
       let renderer = ImageRenderer(content: root); renderer.scale = 2
       _ = renderer.uiImage

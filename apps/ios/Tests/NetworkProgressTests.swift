@@ -389,7 +389,7 @@ extension NetworkProgressTests {
       let sheet = DuckSheetLayout(title: title,busy: mode == 2,
         error: mode == 1 ? NSLocalizedString("apple_retry_failed",comment: "") : nil) {
         Text("Example-photo.HEIC").font(.headline)
-        Text("state_preparing").foregroundStyle(DuckColors.textSecondary)
+        Text("state_preparing").foregroundStyle(DuckRole.secondaryText)
       } actions: {
         DuckSheetAction(title: "settings_done") {}.disabled(mode == 2)
         if mode == 1 { DuckSheetAction(title: "retry_task",primary: true) {} }

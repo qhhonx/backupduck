@@ -35,5 +35,5 @@
     <string name="help2_cleanup_title">Auto cleanup didn’t run</string>
     <string name="help2_cleanup_p1">Check the Auto cleanup row in Storage. It shows the next step if the account needs confirmation, Accessibility access is off or the last result needs your review. Cleanup must be set up and turned on before it can run automatically.</string>
     <string name="help2_cleanup_p2">Auto cleanup uses Accessibility to tap “Free up space” in Google Photos. Google Photos decides which phone copies can be removed. BackupDuck cannot see cloud upload results; when asked, check in Google Photos and return to confirm.</string>
-    <string name="help2_cleanup_p3">If it still cannot finish, inspect and export the check result in Diagnostics. The photo-service page check there is for troubleshooting only and does not free space.</string>
+    <string name="help2_cleanup_p3">If it still cannot finish, export a report from Diagnostics at the bottom of Settings for help. Review its contents before sharing.</string>
 </resources>

@@ -47,6 +47,19 @@
     <color name="duck_state_failure">#A93535</color>
     <color name="duck_state_failure_container">#FFE1DF</color>
     <color name="duck_state_on_failure_container">#410005</color>
+    <color name="duck_media_on_media">#FFFFFFFF</color>
+    <color name="duck_media_on_media_secondary">#EBFFFFFF</color>
+    <color name="duck_media_shadow">#FF000000</color>
+    <color name="duck_media_scrim">#FF000000</color>
+    <color name="duck_media_scrim_gradient">#52000000</color>
+    <color name="duck_media_scrim_mark">#61000000</color>
+    <color name="duck_media_scrim_burst">#73000000</color>
+    <color name="duck_media_scrim_duration">#8C000000</color>
+    <color name="duck_media_scrim_text_shadow">#A6000000</color>
+    <color name="duck_media_label_plate">#E0FFFFFF</color>
+    <color name="duck_media_label_text">#FF000000</color>
+    <color name="duck_media_label_text_secondary">#80000000</color>
+    <color name="duck_media_background">#FF000000</color>
     <color name="duck_brand_wing_blue">#1065E4</color>
     <color name="duck_brand_duck_yellow">#FEC613</color>
     <color name="duck_brand_beak_orange">#FA7212</color>
@@ -64,6 +77,7 @@
     <color name="duck_role_elevated_surface">@color/duck_m3_surface_container_high</color>
     <color name="duck_role_primary_text">@color/duck_m3_on_surface</color>
     <color name="duck_role_secondary_text">@color/duck_m3_on_surface_variant</color>
+    <color name="duck_role_media_placeholder">@color/duck_m3_surface_container_highest</color>
     <color name="duck_role_separator">@color/duck_m3_outline_variant</color>
     <color name="duck_role_tertiary_text">#471A1B20</color>
 </resources>

@@ -21,6 +21,7 @@ class CatalogApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         CatalogRuntime.install()
+        CatalogIconReview.install()
         CatalogViewerProbe.install(this)
         CatalogCompatibility.install(this)
         registerActivityLifecycleCallbacks(CatalogOverlay)
@@ -58,6 +59,8 @@ class CatalogActivity : BackupDuckActivity() {
         CatalogViewerProbe.pending = intent.getStringExtra("viewerProbe")
         ReceiverEnvironment.stepMarkHighContrast = if (intent.hasExtra("highContrastText")) intent.getBooleanExtra("highContrastText", false) else null
         CatalogOverlay.showInfo = intent.getBooleanExtra("catalogInfo", false)
+        CatalogIconReview.pending = intent.getStringExtra("iconReview")
+        CatalogIconReview.fault = intent.getStringExtra("iconFault")
         CatalogTextAudit.enabled = intent.getBooleanExtra("auditText", false)
         CatalogTextAudit.staticCapture = intent.getBooleanExtra("staticCapture", false)
         // `--es language zh-CN` shows the pages in that language for this process.
@@ -113,6 +116,7 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
             }
         }
         if (activity !is MainActivity) return
+        CatalogIconReview.attach(activity)
         if (!showInfo) return
         val scenario = CatalogRuntime.current ?: return
         showInfo = false

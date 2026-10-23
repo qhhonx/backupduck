@@ -70,7 +70,6 @@
 
 "nav_backup" = "Backup";
 "nav_settings" = "Settings";
-"settings_diagnostics" = "Diagnostics";
 "settings_version" = "Version";
 
 // Structured background diagnostics
@@ -119,6 +118,7 @@
 "updates_title" = "App updates";
 "updates_automatic" = "Automatically check for updates";
 "updates_check" = "Check for Updates…";
+"updates_check_button" = "Check for Updates";
 "official_website" = "Official website";
 
 "error_receiver_unavailable" = "Waiting for the receiver on your local network. Photo preparation is paused.";
@@ -138,9 +138,7 @@
 
 
 
-"storage_reclaim_none" = "No eligible cache to reclaim. Remaining files may be awaiting transfer or still in use.";
 
-"storage_reclaim_result" = "Reclaimed %@ of local cache.";
 
 
 // Transfer browser order
@@ -696,9 +694,10 @@
 "onboarding_first_notify" = "We only notify you when something needs you. Turn on notifications?";
 "onboarding_notify" = "Turn On Notifications";
 "onboarding_later" = "Not Now";
-"settings_advanced" = "Advanced";
+"settings_advanced" = "Advanced Settings";
 "settings_temp_files" = "Temporary Files";
 "settings_temp_files_note" = "Files used to prepare photos for backup. They're cleared automatically once sent.";
+"settings_temp_files_clear_failed" = "Couldn't clear: %@";
 "settings_thumbnails" = "Thumbnails";
 "settings_thumbnails_note" = "Thumbnails saved while browsing your library. They're rebuilt after clearing.";
 "settings_clear_now" = "Clear Now";

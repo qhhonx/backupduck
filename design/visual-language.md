@@ -83,6 +83,8 @@ grids use 2 pt gaps and no radius; photos inside a card take the card radius.
 ## V5 Icons and media marks
 
 - SF Symbols and Material Symbols at the text weight, monochrome.
+- Android monochrome vector assets inherit the primary-text theme color unless
+  their caller supplies a state, control or media tint.
 - Colored icon tiles appear only in Apple settings rows, with one stable color
   per row; they help users find a row and never carry state. Pixel settings use
   monochrome leading icons.

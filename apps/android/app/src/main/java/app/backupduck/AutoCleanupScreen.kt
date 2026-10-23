@@ -23,8 +23,6 @@ internal class AutoCleanupScreen(private val activity: MainActivity, restored: B
         page.body.addView(controls, LinearLayout.LayoutParams(-1,-2).apply { topMargin = token(R.dimen.duck_space_medium) })
         val explanation = lookContentSection(page.body, getString(R.string.auto_cleanup_how_title))
         lookCard(explanation).addView(lookText(getString(R.string.auto_cleanup_how), M.style.TextAppearance_Material3_BodyMedium, secondary = true))
-        page.body.addView(lookButton(getString(R.string.auto_cleanup_diagnostics), LookButton.TEXT) { showDiagnostics() },
-            LinearLayout.LayoutParams(-2,-2).apply { topMargin = token(R.dimen.duck_space_small) })
         journey = CleanupJourney(this, page, ::render)
         page.resumed = { journey.resumed(); render() }
         page.setOnDismissListener { journey.close() }

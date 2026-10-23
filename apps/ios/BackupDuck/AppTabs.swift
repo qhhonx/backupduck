@@ -31,7 +31,7 @@ extension View {
   @ViewBuilder func duckTabSurface() -> some View {
     if #available(iOS 26.0, *) { self }
     else {
-      self.toolbarBackground(DuckColors.surface, for: .tabBar)
+      self.toolbarBackground(DuckRole.elevatedSurface, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
     }
   }

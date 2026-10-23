@@ -5,7 +5,7 @@
   "surface": "diagnostics",
   "title": "Diagnostics navigation",
   "expect": [
-    "Opens the production page directly as a Fragment destination with a small Material top app bar.",
+    "Opens the production Diagnostics page directly as a Fragment destination; the small Material top app bar title matches its Settings footer link.",
     "System Back and the toolbar arrow return to Settings. Recreating the activity keeps this destination."
   ]
 }

@@ -184,10 +184,11 @@ private struct IOSAdvancedSettings: View {
     Form {
       Section {
         LabeledContent("settings_temp_files", value: model.storage.map { ByteCountFormatter.string(fromByteCount: Int64($0.used_bytes), countStyle: .file) } ?? "—")
-        Button("settings_clear_now") { Task { await model.reclaimCache(reportResult: true) } }
+        Button("settings_clear_now") { Task { await model.reclaimCache() } }
           .disabled(!model.ready || model.reclaimingCache)
+          .accessibilityIdentifier("settings.cache.clear")
       } footer: {
-        Text(model.cacheReclaimResult.map { LocalizedStringKey($0) } ?? "settings_temp_files_note")
+        DuckCacheCleanupFooter(error: model.cacheReclaimError)
       }
       Section {
         LabeledContent("settings_thumbnails", value: thumbnailBytes.map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file) } ?? "—")

@@ -7,7 +7,7 @@
   "expect": [
     "Settings bottom: Help & feedback has monochrome-icon Help Center and Send Feedback rows; feedback has its supporting sentence.",
     "A separate group contains About BackupDuck with Version 0.4.1 read from package metadata.",
-    "Centered Diagnostics · Advanced text links have 48 dp minimum touch height and comfortable navigation spacing.",
+    "Centered Diagnostics · Advanced settings text links have 48 dp minimum touch height and comfortable navigation spacing.",
     "All row text and monochrome icons are vertically centered; long translations and large text grow rows."
   ],
   "storage": {

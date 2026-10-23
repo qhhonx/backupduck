@@ -33,5 +33,4 @@
     <string name="auto_cleanup_result_unknown">Completed · %1$s; amount unavailable</string>
     <string name="auto_cleanup_how_title">How it works</string>
     <string name="auto_cleanup_how">When space runs low, BackupDuck uses accessibility access to tap Free up space in Google Photos. Google Photos decides what can be removed from this Pixel; those photos stay in its cloud. BackupDuck cannot check which photos are backed up.</string>
-    <string name="auto_cleanup_diagnostics">Diagnostics</string>
 </resources>

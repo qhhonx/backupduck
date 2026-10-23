@@ -96,7 +96,7 @@ struct MacWorkspace: View {
       canShrink: historyColumns < 9, canGrow: historyColumns > 3) : nil)
     .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
       info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
-    .tint(DuckColors.action)
+    .tint(DuckRole.accent)
     .background(DuckRole.background)
     .background(MacSheetInitialFocus())
     .navigationSplitViewStyle(.balanced)

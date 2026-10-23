@@ -42,6 +42,22 @@ struct DuckSettingsLabel: View {
 }
 
 
+/// One in-place footer for temporary-file cleanup on both Apple hosts.
+/// The group's existing Clear Now action also retries a failed cleanup.
+struct DuckCacheCleanupFooter: View {
+  let error: String?
+
+  var body: some View {
+    if let error {
+      Text(String(format: NSLocalizedString("settings_temp_files_clear_failed", comment: ""), error))
+        .foregroundStyle(DuckRole.failure)
+        .accessibilityIdentifier("settings.cache.failure")
+    } else {
+      Text("settings_temp_files_note")
+    }
+  }
+}
+
 /// Values the settings rows show, derived once from the model.
 @MainActor struct DuckSettingsValues {
   let model: BackupModel

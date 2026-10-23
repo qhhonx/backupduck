@@ -6,7 +6,7 @@
   "title": "Format conversion, off",
   "expect": [
     "Pushed preference page with a small Material app bar and a shared switch row.",
-    "The switch saves immediately. Back returns to Advanced with the new value; recreation keeps the page and saved choice.",
+    "The switch saves immediately. Back returns to Advanced settings with the new value; recreation keeps the page and saved choice.",
     "Turning off keeps originals of photos that need conversion for a later retry."
   ],
   "prefs": {

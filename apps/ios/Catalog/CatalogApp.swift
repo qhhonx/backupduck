@@ -220,7 +220,7 @@ private struct ScenarioRun: View {
     }
     .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
     .background(DuckRole.background.ignoresSafeArea())
-    .tint(DuckColors.action)
+    .tint(DuckRole.accent)
     .task { await model.open() }
     .onDisappear { model.stop() }
   }

@@ -139,7 +139,6 @@
     <string name="onb_space_enable">Turn on auto cleanup</string>
     <string name="onb_later">Not now</string>
     <string name="pref_diagnostics">Diagnostics</string>
-    <string name="pref_advanced">Advanced</string>
     <string name="rhub_stopped">Receiving is off</string>
     <string name="rhub_stopped_note">Turn it on so your iPhone and Mac can send photos to this Pixel.</string>
     <string name="rhub_start">Start receiving</string>

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate Apple, Android and browser design tokens from design/backupduck-v1/tokens.json.
 
-Outputs brand primaries, the accent, neutral and state roles, the illustration
-palette, semantic text styles, spacing, radius and motion, plus the legacy
+Outputs brand primaries, accent/neutral/state roles, fixed media overlays and
+Apple selection, the illustration palette, semantic text styles, spacing, radius
+and motion, plus the legacy
 0.3.0 palette under its original names. `--check` fails when any generated file
 is stale or a derived color misses its contrast floor.
 """
@@ -142,6 +143,50 @@ def apple_neutral(name, platform):
     return f'Color({"nsColor" if platform == "macos" else "uiColor"}: .{system})'
 
 
+def media_colors():
+    """Flatten named scrim opacities without introducing appearance variants."""
+    colors = {}
+    for name, spec in TOKENS['media'].items():
+        if not isinstance(spec, dict):
+            continue
+        colors[name] = spec
+        for opacity_name, opacity in spec.get('opacities', {}).items():
+            colors[name + upper_first(opacity_name)] = dict(value=spec['value'], opacity=opacity,
+                meaning=f"{spec['meaning']}; existing {opacity_name} opacity")
+    return colors
+
+
+def apple_media():
+    lines = [f"/// {TOKENS['media']['note']}", 'enum DuckMedia {']
+    for platform, native, suffix, label in [('macOS', 'NSColor', 'NSColor', 'nsColor'),
+                                             ('iOS', 'UIColor', 'UIColor', 'uiColor')]:
+        lines.append('  #if os(macOS)' if platform == 'macOS' else '  #else')
+        for name, spec in media_colors().items():
+            base = '.white' if spec['value'] == '#FFFFFF' else '.black'
+            value = native + base
+            if 'opacity' in spec:
+                value += f".withAlphaComponent({spec['opacity']:g})"
+            lines += [f"  /// {spec['meaning']}.", f'  static let {name}{suffix} = {value}',
+                      f'  static let {name} = Color({label}: {name}{suffix})',
+                      f'  static let {name}CGColor = {name}{suffix}.cgColor']
+    lines += ['  #endif', '}', '', f"/// {TOKENS['selection']['note']}", 'enum DuckSelection {', '  #if os(macOS)']
+    for name, spec in TOKENS['selection'].items():
+        if not isinstance(spec, dict):
+            continue
+        lines += [f"  /// {spec['meaning']}.",
+                  f"  static let {name}NSColor = NSColor.controlAccentColor.withAlphaComponent({spec['opacity']:g})",
+                  f'  static let {name} = Color(nsColor: {name}NSColor)']
+    lines.append('  #else')
+    for name, spec in TOKENS['selection'].items():
+        if not isinstance(spec, dict):
+            continue
+        lines += [f"  static let {name} = AnyShapeStyle(TintShapeStyle().opacity({spec['opacity']:g}))",
+                  f"  static func {name}(tint: Color) -> Color {{ tint.opacity({spec['opacity']:g}) }}",
+                  f"  static func {name}UIColor(tint: UIColor) -> UIColor {{ tint.withAlphaComponent({spec['opacity']:g}) }}"]
+    lines += ['  #endif', '}', '']
+    return lines
+
+
 APPLE_WEIGHTS = {'regular': 'regular', 'medium': 'medium', 'semibold': 'semibold', 'bold': 'bold'}
 
 
@@ -192,6 +237,39 @@ def apple_text_styles():
     return lines
 
 
+def apple_native_palette():
+    """Cached dynamic native providers for HCT roles, without SwiftUI bridging."""
+    return '''
+extension DuckPalette {
+  #if os(macOS)
+  static func adaptiveNSColor(light: UInt32, dark: UInt32, lightIncreasedContrast: UInt32, darkIncreasedContrast: UInt32) -> NSColor {
+    NSColor(name: nil) { appearance in
+      let names: [NSAppearance.Name] = [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua]
+      let value: UInt32
+      switch appearance.bestMatch(from: names) {
+      case .darkAqua: value = dark
+      case .accessibilityHighContrastAqua: value = lightIncreasedContrast
+      case .accessibilityHighContrastDarkAqua: value = darkIncreasedContrast
+      default: value = light
+      }
+      let c = components(value)
+      return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+    }
+  }
+  #else
+  static func adaptiveUIColor(light: UInt32, dark: UInt32, lightIncreasedContrast: UInt32, darkIncreasedContrast: UInt32) -> UIColor {
+    UIColor { traits in
+      let high = traits.accessibilityContrast == .high
+      let value = traits.userInterfaceStyle == .dark ? (high ? darkIncreasedContrast : dark) : (high ? lightIncreasedContrast : light)
+      let c = components(value)
+      return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
+    }
+  }
+  #endif
+}
+'''.strip().splitlines()
+
+
 def apple():
     lines = [f'// {NOTICE}', 'import SwiftUI', '#if os(macOS)', 'import AppKit', 'typealias PlatformFont = NSFont',
              '#else', 'import UIKit', 'typealias PlatformFont = UIFont', '#endif', '',
@@ -218,13 +296,29 @@ def apple():
         lines += ['', f'  /// {TOKENS["state"][name]["meaning"]}. Pair with an icon or text.',
                   f'  static let {name} = {apple_adaptive(parts["foreground"])}',
                   f'  static let {name}Container = {apple_adaptive(parts["container"])}']
+    # Native callers share dynamic colors without bridging SwiftUI per tile/frame.
+    for platform, native in [('macos', 'NSColor'), ('ios', 'UIColor')]:
+        lines.append('  #if os(macOS)' if platform == 'macos' else '  #else')
+        for name in ['accent'] + list(NEUTRAL) + [part for name in STATES for part in (name, name + 'Container')]:
+            if name in NEUTRAL and not (name == 'elevatedSurface' and platform == 'ios'):
+                value = f'{native}.{NEUTRAL[name][platform]}'
+            elif name == 'elevatedSurface' and platform == 'ios':
+                value = ('UIColor { traits in UIColor.systemBackground.resolvedColor(with: '
+                         'traits.modifyingTraits { $0.userInterfaceLevel = .elevated }) }')
+            else:
+                values = ACCENT if name == 'accent' else STATES[name[:-9] if name.endswith('Container') else name]['container' if name.endswith('Container') else 'foreground']
+                arguments = ', '.join(f'{appearance}: {swift_hex(values[appearance])}' for appearance in APPEARANCES)
+                value = f'DuckPalette.adaptive{native}({arguments})'
+            lines.append(f'  static let {name}{native} = {value}')
+    lines += ['  #endif']
     lines += ['}', '',
               f'/// {TOKENS["glyph"]["note"]}',
               'enum DuckGlyph {']
     for name, spec in TOKENS['glyph']['colors'].items():
-        lines += ['  #if os(macOS)', f'  static let {name} = Color(nsColor: .{spec["apple"]})',
-                  '  #else', f'  static let {name} = Color(uiColor: .{spec["apple"]})', '  #endif']
+        lines += ['  #if os(macOS)', f'  static let {name}NSColor = NSColor.{spec["apple"]}', f'  static let {name} = Color(nsColor: {name}NSColor)',
+                  '  #else', f'  static let {name}UIColor = UIColor.{spec["apple"]}', f'  static let {name} = Color(uiColor: {name}UIColor)', '  #endif']
     lines += ['}', '']
+    lines += apple_media()
     lines += apple_text_styles()
     lines += ['', '/// Spacing for custom-drawn surfaces. System controls keep their own metrics.', 'enum DuckSpacing {']
     for name, value in TOKENS['spacing'].items():
@@ -284,7 +378,7 @@ def apple():
               '    (CGFloat((value >> 16) & 0xFF) / 255, CGFloat((value >> 8) & 0xFF) / 255, CGFloat(value & 0xFF) / 255)',
               '  }',
               '}']
-    return '\n'.join(lines) + '\n'
+    return '\n'.join(lines + [''] + apple_native_palette()) + '\n'
 
 
 # Android ----------------------------------------------------------------------
@@ -323,6 +417,10 @@ def android(outputs):
                        f'<color name="duck_state_{snake(name)}_container">{parts["container"][theme]}</color>',
                        f'<color name="duck_state_on_{snake(name)}_container">{parts["onContainer"][theme]}</color>']
         if theme == 'light':
+            # Media colors are fixed and inherited unchanged by values-night.
+            for name, spec in media_colors().items():
+                alpha = round(spec.get('opacity', 1) * 255)
+                scheme.append(f'<color name="duck_media_{snake(name)}">#{alpha:02X}{spec["value"].lstrip("#")}</color>')
             scheme += [f'<color name="duck_brand_{snake(name)}">{value}</color>' for name, value in PRIMARIES.items()]
             scheme += [f'<color name="duck_illustration_{snake(name)}">{value}</color>'
                        for name, value in ILLUSTRATION.items()]
@@ -387,6 +485,12 @@ def web_colors(mode, high_contrast=False):
 def web():
     shared = [(f'--duck-brand-{kebab(name)}', value) for name, value in PRIMARIES.items()]
     shared += [(f'--duck-illustration-{kebab(name)}', value) for name, value in ILLUSTRATION.items()]
+    for name, spec in media_colors().items():
+        value = spec['value']
+        if 'opacity' in spec:
+            rgb = [int(value[i:i + 2], 16) for i in (1, 3, 5)]
+            value = f'rgba({rgb[0]},{rgb[1]},{rgb[2]},{spec["opacity"]:g})'
+        shared.append((f'--duck-media-{kebab(name)}', value))
     family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif'
     shared.append(('--duck-font-family', family))
     for name, spec in TOKENS['text']['styles'].items():

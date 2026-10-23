@@ -37,7 +37,7 @@ struct MacScopeAlbumBrowser: View {
     switch library.placeholder {
     case .loading?: DuckLoadingState("library_loading")
     case .empty?:
-      Text("scope_album_no_photos").foregroundStyle(DuckColors.textSecondary)
+      Text("scope_album_no_photos").foregroundStyle(DuckRole.secondaryText)
         .frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityIdentifier("backup.scope.album_browser.empty")
     case let placeholder?:
       MacLibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,

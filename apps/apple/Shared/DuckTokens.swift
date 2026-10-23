@@ -48,6 +48,8 @@ enum DuckRole {
   static let secondaryText = Color(nsColor: .secondaryLabelColor)
   /// Faint neutral decorative marks; use secondary text for increased contrast.
   static let tertiaryText = Color(nsColor: .tertiaryLabelColor)
+  /// Neutral photo-tile backing while its thumbnail is unavailable; never a state or a themed photo overlay.
+  static let mediaPlaceholder = Color(nsColor: .quaternarySystemFill)
   /// Hairlines between rows and around groups.
   static let separator = Color(nsColor: .separatorColor)
   #else
@@ -65,6 +67,8 @@ enum DuckRole {
   static let secondaryText = Color(uiColor: .secondaryLabel)
   /// Faint neutral decorative marks; use secondary text for increased contrast.
   static let tertiaryText = Color(uiColor: .tertiaryLabel)
+  /// Neutral photo-tile backing while its thumbnail is unavailable; never a state or a themed photo overlay.
+  static let mediaPlaceholder = Color(uiColor: .systemGray6)
   /// Hairlines between rows and around groups.
   static let separator = Color(uiColor: .separator)
   #endif
@@ -84,44 +88,225 @@ enum DuckRole {
   /// A named stage failed; originals are preserved. Pair with an icon or text.
   static let failure = DuckPalette.adaptive(light: 0xA93535, dark: 0xFFB3AF, lightIncreasedContrast: 0x891C21, darkIncreasedContrast: 0xFFDAD7)
   static let failureContainer = DuckPalette.adaptive(light: 0xFFE1DF, dark: 0x623D3B, lightIncreasedContrast: 0xFFDAD7, darkIncreasedContrast: 0x553230)
+  #if os(macOS)
+  static let accentNSColor = DuckPalette.adaptiveNSColor(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
+  static let backgroundNSColor = NSColor.windowBackgroundColor
+  static let groupedSurfaceNSColor = NSColor.controlBackgroundColor
+  static let elevatedSurfaceNSColor = NSColor.windowBackgroundColor
+  static let primaryTextNSColor = NSColor.labelColor
+  static let secondaryTextNSColor = NSColor.secondaryLabelColor
+  static let tertiaryTextNSColor = NSColor.tertiaryLabelColor
+  static let mediaPlaceholderNSColor = NSColor.quaternarySystemFill
+  static let separatorNSColor = NSColor.separatorColor
+  static let savedNSColor = DuckPalette.adaptiveNSColor(light: 0x0A6C45, dark: 0x83D8A8, lightIncreasedContrast: 0x005232, darkIncreasedContrast: 0x9FF5C2)
+  static let savedContainerNSColor = DuckPalette.adaptiveNSColor(light: 0xD0F0D9, dark: 0x314D3C, lightIncreasedContrast: 0xCAEAD4, darkIncreasedContrast: 0x254131)
+  static let receivedNSColor = DuckPalette.adaptiveNSColor(light: 0x006973, dark: 0x7ED4E0, lightIncreasedContrast: 0x004F57, darkIncreasedContrast: 0x9BF0FC)
+  static let receivedContainerNSColor = DuckPalette.adaptiveNSColor(light: 0xCAEFF4, dark: 0x2A4C51, lightIncreasedContrast: 0xC5E9EF, darkIncreasedContrast: 0x1E4045)
+  static let attentionNSColor = DuckPalette.adaptiveNSColor(light: 0x855400, dark: 0xFDBA64, lightIncreasedContrast: 0x653E00, darkIncreasedContrast: 0xFFDDB7)
+  static let attentionContainerNSColor = DuckPalette.adaptiveNSColor(light: 0xFFE4C7, dark: 0x5B4223, lightIncreasedContrast: 0xFFDDB7, darkIncreasedContrast: 0x4E3719)
+  static let failureNSColor = DuckPalette.adaptiveNSColor(light: 0xA93535, dark: 0xFFB3AF, lightIncreasedContrast: 0x891C21, darkIncreasedContrast: 0xFFDAD7)
+  static let failureContainerNSColor = DuckPalette.adaptiveNSColor(light: 0xFFE1DF, dark: 0x623D3B, lightIncreasedContrast: 0xFFDAD7, darkIncreasedContrast: 0x553230)
+  #else
+  static let accentUIColor = DuckPalette.adaptiveUIColor(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
+  static let backgroundUIColor = UIColor.systemGroupedBackground
+  static let groupedSurfaceUIColor = UIColor.secondarySystemGroupedBackground
+  static let elevatedSurfaceUIColor = UIColor { traits in UIColor.systemBackground.resolvedColor(with: traits.modifyingTraits { $0.userInterfaceLevel = .elevated }) }
+  static let primaryTextUIColor = UIColor.label
+  static let secondaryTextUIColor = UIColor.secondaryLabel
+  static let tertiaryTextUIColor = UIColor.tertiaryLabel
+  static let mediaPlaceholderUIColor = UIColor.systemGray6
+  static let separatorUIColor = UIColor.separator
+  static let savedUIColor = DuckPalette.adaptiveUIColor(light: 0x0A6C45, dark: 0x83D8A8, lightIncreasedContrast: 0x005232, darkIncreasedContrast: 0x9FF5C2)
+  static let savedContainerUIColor = DuckPalette.adaptiveUIColor(light: 0xD0F0D9, dark: 0x314D3C, lightIncreasedContrast: 0xCAEAD4, darkIncreasedContrast: 0x254131)
+  static let receivedUIColor = DuckPalette.adaptiveUIColor(light: 0x006973, dark: 0x7ED4E0, lightIncreasedContrast: 0x004F57, darkIncreasedContrast: 0x9BF0FC)
+  static let receivedContainerUIColor = DuckPalette.adaptiveUIColor(light: 0xCAEFF4, dark: 0x2A4C51, lightIncreasedContrast: 0xC5E9EF, darkIncreasedContrast: 0x1E4045)
+  static let attentionUIColor = DuckPalette.adaptiveUIColor(light: 0x855400, dark: 0xFDBA64, lightIncreasedContrast: 0x653E00, darkIncreasedContrast: 0xFFDDB7)
+  static let attentionContainerUIColor = DuckPalette.adaptiveUIColor(light: 0xFFE4C7, dark: 0x5B4223, lightIncreasedContrast: 0xFFDDB7, darkIncreasedContrast: 0x4E3719)
+  static let failureUIColor = DuckPalette.adaptiveUIColor(light: 0xA93535, dark: 0xFFB3AF, lightIncreasedContrast: 0x891C21, darkIncreasedContrast: 0xFFDAD7)
+  static let failureContainerUIColor = DuckPalette.adaptiveUIColor(light: 0xFFE1DF, dark: 0x623D3B, lightIncreasedContrast: 0xFFDAD7, darkIncreasedContrast: 0x553230)
+  #endif
 }
 
 /// Icon tiles on Apple settings rows, from the system palette as in System Settings. They help users find a row and never carry state. Android uses monochrome icons.
 enum DuckGlyph {
   #if os(macOS)
-  static let blue = Color(nsColor: .systemBlue)
+  static let blueNSColor = NSColor.systemBlue
+  static let blue = Color(nsColor: blueNSColor)
   #else
-  static let blue = Color(uiColor: .systemBlue)
+  static let blueUIColor = UIColor.systemBlue
+  static let blue = Color(uiColor: blueUIColor)
   #endif
   #if os(macOS)
-  static let green = Color(nsColor: .systemGreen)
+  static let greenNSColor = NSColor.systemGreen
+  static let green = Color(nsColor: greenNSColor)
   #else
-  static let green = Color(uiColor: .systemGreen)
+  static let greenUIColor = UIColor.systemGreen
+  static let green = Color(uiColor: greenUIColor)
   #endif
   #if os(macOS)
-  static let orange = Color(nsColor: .systemOrange)
+  static let orangeNSColor = NSColor.systemOrange
+  static let orange = Color(nsColor: orangeNSColor)
   #else
-  static let orange = Color(uiColor: .systemOrange)
+  static let orangeUIColor = UIColor.systemOrange
+  static let orange = Color(uiColor: orangeUIColor)
   #endif
   #if os(macOS)
-  static let indigo = Color(nsColor: .systemIndigo)
+  static let indigoNSColor = NSColor.systemIndigo
+  static let indigo = Color(nsColor: indigoNSColor)
   #else
-  static let indigo = Color(uiColor: .systemIndigo)
+  static let indigoUIColor = UIColor.systemIndigo
+  static let indigo = Color(uiColor: indigoUIColor)
   #endif
   #if os(macOS)
-  static let teal = Color(nsColor: .systemTeal)
+  static let tealNSColor = NSColor.systemTeal
+  static let teal = Color(nsColor: tealNSColor)
   #else
-  static let teal = Color(uiColor: .systemTeal)
+  static let tealUIColor = UIColor.systemTeal
+  static let teal = Color(uiColor: tealUIColor)
   #endif
   #if os(macOS)
-  static let pink = Color(nsColor: .systemPink)
+  static let pinkNSColor = NSColor.systemPink
+  static let pink = Color(nsColor: pinkNSColor)
   #else
-  static let pink = Color(uiColor: .systemPink)
+  static let pinkUIColor = UIColor.systemPink
+  static let pink = Color(uiColor: pinkUIColor)
   #endif
   #if os(macOS)
-  static let gray = Color(nsColor: .systemGray)
+  static let grayNSColor = NSColor.systemGray
+  static let gray = Color(nsColor: grayNSColor)
   #else
-  static let gray = Color(uiColor: .systemGray)
+  static let grayUIColor = UIColor.systemGray
+  static let gray = Color(uiColor: grayUIColor)
+  #endif
+}
+
+/// Appearance-independent colors drawn over photos and video; never themed. Existing scrim opacities preserve pixels first and are candidates for later consolidation.
+enum DuckMedia {
+  #if os(macOS)
+  /// Text, glyphs and state marks on photos (V5).
+  static let onMediaNSColor = NSColor.white
+  static let onMedia = Color(nsColor: onMediaNSColor)
+  static let onMediaCGColor = onMediaNSColor.cgColor
+  /// Secondary text on photos.
+  static let onMediaSecondaryNSColor = NSColor.white.withAlphaComponent(0.92)
+  static let onMediaSecondary = Color(nsColor: onMediaSecondaryNSColor)
+  static let onMediaSecondaryCGColor = onMediaSecondaryNSColor.cgColor
+  /// Shadow for marks and text on photos; opacity and radius remain owned by the existing call site.
+  static let shadowNSColor = NSColor.black
+  static let shadow = Color(nsColor: shadowNSColor)
+  static let shadowCGColor = shadowNSColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation.
+  static let scrimNSColor = NSColor.black
+  static let scrim = Color(nsColor: scrimNSColor)
+  static let scrimCGColor = scrimNSColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing gradient opacity.
+  static let scrimGradientNSColor = NSColor.black.withAlphaComponent(0.32)
+  static let scrimGradient = Color(nsColor: scrimGradientNSColor)
+  static let scrimGradientCGColor = scrimGradientNSColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing mark opacity.
+  static let scrimMarkNSColor = NSColor.black.withAlphaComponent(0.38)
+  static let scrimMark = Color(nsColor: scrimMarkNSColor)
+  static let scrimMarkCGColor = scrimMarkNSColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing burst opacity.
+  static let scrimBurstNSColor = NSColor.black.withAlphaComponent(0.45)
+  static let scrimBurst = Color(nsColor: scrimBurstNSColor)
+  static let scrimBurstCGColor = scrimBurstNSColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing duration opacity.
+  static let scrimDurationNSColor = NSColor.black.withAlphaComponent(0.55)
+  static let scrimDuration = Color(nsColor: scrimDurationNSColor)
+  static let scrimDurationCGColor = scrimDurationNSColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing textShadow opacity.
+  static let scrimTextShadowNSColor = NSColor.black.withAlphaComponent(0.65)
+  static let scrimTextShadow = Color(nsColor: scrimTextShadowNSColor)
+  static let scrimTextShadowCGColor = scrimTextShadowNSColor.cgColor
+  /// Plate behind year and month titles on poster tiles.
+  static let labelPlateNSColor = NSColor.white.withAlphaComponent(0.88)
+  static let labelPlate = Color(nsColor: labelPlateNSColor)
+  static let labelPlateCGColor = labelPlateNSColor.cgColor
+  /// Primary year and month text on the fixed light poster plate.
+  static let labelTextNSColor = NSColor.black
+  static let labelText = Color(nsColor: labelTextNSColor)
+  static let labelTextCGColor = labelTextNSColor.cgColor
+  /// Secondary year text on the fixed light poster plate.
+  static let labelTextSecondaryNSColor = NSColor.black.withAlphaComponent(0.5)
+  static let labelTextSecondary = Color(nsColor: labelTextSecondaryNSColor)
+  static let labelTextSecondaryCGColor = labelTextSecondaryNSColor.cgColor
+  /// Camera preview and full-screen media backdrop.
+  static let backgroundNSColor = NSColor.black
+  static let background = Color(nsColor: backgroundNSColor)
+  static let backgroundCGColor = backgroundNSColor.cgColor
+  #else
+  /// Text, glyphs and state marks on photos (V5).
+  static let onMediaUIColor = UIColor.white
+  static let onMedia = Color(uiColor: onMediaUIColor)
+  static let onMediaCGColor = onMediaUIColor.cgColor
+  /// Secondary text on photos.
+  static let onMediaSecondaryUIColor = UIColor.white.withAlphaComponent(0.92)
+  static let onMediaSecondary = Color(uiColor: onMediaSecondaryUIColor)
+  static let onMediaSecondaryCGColor = onMediaSecondaryUIColor.cgColor
+  /// Shadow for marks and text on photos; opacity and radius remain owned by the existing call site.
+  static let shadowUIColor = UIColor.black
+  static let shadow = Color(uiColor: shadowUIColor)
+  static let shadowCGColor = shadowUIColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation.
+  static let scrimUIColor = UIColor.black
+  static let scrim = Color(uiColor: scrimUIColor)
+  static let scrimCGColor = scrimUIColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing gradient opacity.
+  static let scrimGradientUIColor = UIColor.black.withAlphaComponent(0.32)
+  static let scrimGradient = Color(uiColor: scrimGradientUIColor)
+  static let scrimGradientCGColor = scrimGradientUIColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing mark opacity.
+  static let scrimMarkUIColor = UIColor.black.withAlphaComponent(0.38)
+  static let scrimMark = Color(uiColor: scrimMarkUIColor)
+  static let scrimMarkCGColor = scrimMarkUIColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing burst opacity.
+  static let scrimBurstUIColor = UIColor.black.withAlphaComponent(0.45)
+  static let scrimBurst = Color(uiColor: scrimBurstUIColor)
+  static let scrimBurstCGColor = scrimBurstUIColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing duration opacity.
+  static let scrimDurationUIColor = UIColor.black.withAlphaComponent(0.55)
+  static let scrimDuration = Color(uiColor: scrimDurationUIColor)
+  static let scrimDurationCGColor = scrimDurationUIColor.cgColor
+  /// Photo legibility scrim; named existing opacities preserve pixels and are candidates for later consolidation; existing textShadow opacity.
+  static let scrimTextShadowUIColor = UIColor.black.withAlphaComponent(0.65)
+  static let scrimTextShadow = Color(uiColor: scrimTextShadowUIColor)
+  static let scrimTextShadowCGColor = scrimTextShadowUIColor.cgColor
+  /// Plate behind year and month titles on poster tiles.
+  static let labelPlateUIColor = UIColor.white.withAlphaComponent(0.88)
+  static let labelPlate = Color(uiColor: labelPlateUIColor)
+  static let labelPlateCGColor = labelPlateUIColor.cgColor
+  /// Primary year and month text on the fixed light poster plate.
+  static let labelTextUIColor = UIColor.black
+  static let labelText = Color(uiColor: labelTextUIColor)
+  static let labelTextCGColor = labelTextUIColor.cgColor
+  /// Secondary year text on the fixed light poster plate.
+  static let labelTextSecondaryUIColor = UIColor.black.withAlphaComponent(0.5)
+  static let labelTextSecondary = Color(uiColor: labelTextSecondaryUIColor)
+  static let labelTextSecondaryCGColor = labelTextSecondaryUIColor.cgColor
+  /// Camera preview and full-screen media backdrop.
+  static let backgroundUIColor = UIColor.black
+  static let background = Color(uiColor: backgroundUIColor)
+  static let backgroundCGColor = backgroundUIColor.cgColor
+  #endif
+}
+
+/// Apple-only grid selection highlight; Mac uses controlAccentColor and iPhone owners pass their current inherited tint to native accessors. Resolve layer colors when appearance or tint changes, never during drawing.
+enum DuckSelection {
+  #if os(macOS)
+  /// Translucent grid selection fill.
+  static let fillNSColor = NSColor.controlAccentColor.withAlphaComponent(0.15)
+  static let fill = Color(nsColor: fillNSColor)
+  /// Grid selection border.
+  static let borderNSColor = NSColor.controlAccentColor.withAlphaComponent(0.8)
+  static let border = Color(nsColor: borderNSColor)
+  #else
+  static let fill = AnyShapeStyle(TintShapeStyle().opacity(0.15))
+  static func fill(tint: Color) -> Color { tint.opacity(0.15) }
+  static func fillUIColor(tint: UIColor) -> UIColor { tint.withAlphaComponent(0.15) }
+  static let border = AnyShapeStyle(TintShapeStyle().opacity(0.8))
+  static func border(tint: Color) -> Color { tint.opacity(0.8) }
+  static func borderUIColor(tint: UIColor) -> UIColor { tint.withAlphaComponent(0.8) }
   #endif
 }
 
@@ -302,4 +487,32 @@ enum DuckPalette {
   private static func components(_ value: UInt32) -> (CGFloat, CGFloat, CGFloat) {
     (CGFloat((value >> 16) & 0xFF) / 255, CGFloat((value >> 8) & 0xFF) / 255, CGFloat(value & 0xFF) / 255)
   }
+}
+
+extension DuckPalette {
+  #if os(macOS)
+  static func adaptiveNSColor(light: UInt32, dark: UInt32, lightIncreasedContrast: UInt32, darkIncreasedContrast: UInt32) -> NSColor {
+    NSColor(name: nil) { appearance in
+      let names: [NSAppearance.Name] = [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua]
+      let value: UInt32
+      switch appearance.bestMatch(from: names) {
+      case .darkAqua: value = dark
+      case .accessibilityHighContrastAqua: value = lightIncreasedContrast
+      case .accessibilityHighContrastDarkAqua: value = darkIncreasedContrast
+      default: value = light
+      }
+      let c = components(value)
+      return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+    }
+  }
+  #else
+  static func adaptiveUIColor(light: UInt32, dark: UInt32, lightIncreasedContrast: UInt32, darkIncreasedContrast: UInt32) -> UIColor {
+    UIColor { traits in
+      let high = traits.accessibilityContrast == .high
+      let value = traits.userInterfaceStyle == .dark ? (high ? darkIncreasedContrast : dark) : (high ? lightIncreasedContrast : light)
+      let c = components(value)
+      return UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
+    }
+  }
+  #endif
 }

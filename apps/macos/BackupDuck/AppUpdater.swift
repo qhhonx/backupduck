@@ -117,7 +117,7 @@ struct MacUpdateSection: View {
           Section {
             Text(status.title).foregroundStyle(.primary)
               .accessibilityIdentifier("settings.updates.status")
-            Button("updates_check", action: check).buttonStyle(.bordered).disabled(!canCheck)
+            Button("updates_check_button", action: check).buttonStyle(.bordered).disabled(!canCheck)
               .accessibilityIdentifier("settings.updates.check")
             Toggle("updates_automatic", isOn: automaticChecks)
               .toggleStyle(DuckPreferenceToggleStyle())

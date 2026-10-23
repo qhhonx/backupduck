@@ -6,7 +6,7 @@
   "title": "About · direct updates ready",
   "extends": "base-paired",
   "expect": [
-    "About shows one Version row with the update-status subtitle and a system disclosure. Its destination shows only status, Check for Updates… and the Automatic Updates switch.",
+    "About shows one Version row with the update-status subtitle and a system disclosure. Its destination shows only status, Check for Updates and the Automatic Updates switch.",
     "Check is enabled."
   ],
   "actions": [
@@ -19,7 +19,7 @@
       "result": "The switch changes immediately in isolated catalog state."
     },
     {
-      "action": "Press Check for Updates….",
+      "action": "Press Check for Updates.",
       "result": "The synthetic driver disables the button; no network or installation occurs."
     }
   ]

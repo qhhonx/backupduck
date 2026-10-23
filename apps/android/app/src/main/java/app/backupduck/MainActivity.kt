@@ -226,7 +226,7 @@ class MainActivity : BackupDuckActivity() {
         if (!::navigation.isInitialized) return
         if (attention || unseen) navigation.getOrCreateBadge(4).apply {
             clearNumber()
-            backgroundColor = getColor(if (attention) R.color.duck_state_attention else R.color.duck_brand_accent)
+            backgroundColor = getColor(if (attention) R.color.duck_state_attention else R.color.duck_brand_duck_yellow)
             setContentDescriptionNumberless(getString(if (attention) R.string.attention_required else R.string.discovery_available))
             isVisible = true
         } else navigation.removeBadge(4)
@@ -473,7 +473,7 @@ class MainActivity : BackupDuckActivity() {
     /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
     private fun openAdvanced() { createAdvancedPage().show() }
     private fun createAdvancedPage(): LookPage {
-        val page=LookPage(this,getString(R.string.pref_advanced), "advanced")
+        val page=LookPage(this,getString(R.string.pref_advanced_settings), "advanced")
         val body=lookGroup(page.body)
         fun onOff(on:Boolean)=getString(if(on) R.string.pref_on else R.string.pref_off)
         lateinit var browser:TextView

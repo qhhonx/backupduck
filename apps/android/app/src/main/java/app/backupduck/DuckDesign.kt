@@ -20,24 +20,24 @@ internal fun Context.duckText(text: String, size: Int = 16, secondary: Boolean =
         size >= 13 -> com.google.android.material.R.style.TextAppearance_Material3_BodyMedium
         else -> com.google.android.material.R.style.TextAppearance_Material3_LabelLarge
     }, secondary)
-internal fun Context.duckBackground(color: Int = R.color.duck_surface, radius: Int = 12, border: Boolean = true) = GradientDrawable().apply {
+internal fun Context.duckBackground(color: Int = R.color.duck_role_grouped_surface, radius: Int = 12, border: Boolean = true) = GradientDrawable().apply {
     setColor(getColor(color)); cornerRadius = dp(radius).toFloat()
-    if (border) setStroke(dp(1), getColor(R.color.duck_border))
+    if (border) setStroke(dp(1), getColor(R.color.duck_role_separator))
 }
-internal fun Context.duckRule() = View(this).apply { setBackgroundColor(getColor(R.color.duck_border)); layoutParams = LinearLayout.LayoutParams(-1, dp(1)) }
+internal fun Context.duckRule() = View(this).apply { setBackgroundColor(getColor(R.color.duck_role_separator)); layoutParams = LinearLayout.LayoutParams(-1, dp(1)) }
 /** A quiet discovery mark; its owner supplies a localized, non-color accessibility label. */
 internal fun Context.duckDiscoveryDot() = View(this).apply {
     layoutParams = LinearLayout.LayoutParams(token(R.dimen.duck_space_x_small), token(R.dimen.duck_space_x_small))
     tag = "duck.discovery"
-    background = duckBackground(R.color.duck_brand_accent, 4, false)
+    background = duckBackground(R.color.duck_brand_duck_yellow, 4, false)
     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
 }
 /** Attention and discovery share geometry and placement; their meaning and role differ. */
 internal fun View.setDuckEntryMark(attention: Boolean) {
     tag = if (attention) "duck.attention" else "duck.discovery"
-    background = context.duckBackground(if (attention) R.color.duck_state_attention else R.color.duck_brand_accent, 4, false)
+    background = context.duckBackground(if (attention) R.color.duck_state_attention else R.color.duck_brand_duck_yellow, 4, false)
 }
-internal fun Context.duckPill(text: String, color: Int = R.color.duck_text_secondary, backgroundColor: Int = R.color.duck_subtle) = duckText(text, 12, bold = true).apply {
+internal fun Context.duckPill(text: String, color: Int = R.color.duck_role_secondary_text, backgroundColor: Int = R.color.duck_role_elevated_surface) = duckText(text, 12, bold = true).apply {
     tag = "duck.pill"; gravity = Gravity.CENTER_VERTICAL
     setTextColor(getColor(color)); setPadding(dp(8), dp(5), dp(8), dp(5))
     background = duckBackground(backgroundColor, 6, false)
@@ -75,7 +75,7 @@ internal fun Context.duckSetting(parent: LinearLayout, title: String, descriptio
     words.addView(heading)
     if (!description.isNullOrEmpty()) words.addView(duckText(description, 13, true).apply { setPadding(0, dp(5), 0, 0) })
     row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-    val accessory = control ?: if (action != null) ImageView(this).apply {setImageResource(R.drawable.ic_chevron);imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_action));layoutParams=LinearLayout.LayoutParams(dp(22),dp(22))}
+    val accessory = control ?: if (action != null) ImageView(this).apply {setImageResource(R.drawable.ic_chevron);imageTintList=android.content.res.ColorStateList.valueOf(getColor(R.color.duck_role_accent));layoutParams=LinearLayout.LayoutParams(dp(22),dp(22))}
         else View(this).apply {visibility=View.GONE}
     row.addView(accessory, LinearLayout.LayoutParams(if(control==null) dp(22) else -2, if(control==null) dp(22) else -2).apply { marginStart = dp(12) })
     if (action != null) {
@@ -90,14 +90,14 @@ internal fun Context.duckSwitch(on: Boolean, changed: (Boolean) -> Unit) = Mater
     setOnCheckedChangeListener { _, value -> changed(value) }
 }
 internal fun Context.duckNotice(parent:LinearLayout,title:String,description:String?=null):View {
-    val row=duckMessageRow(title,description).apply {setPadding(dp(12),dp(12),dp(12),dp(12));background=duckBackground(R.color.duck_subtle,12,false)}
+    val row=duckMessageRow(title,description).apply {setPadding(dp(12),dp(12),dp(12),dp(12));background=duckBackground(R.color.duck_role_elevated_surface,12,false)}
     parent.addView(row,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(16)})
     return row
 }
 /** Align the optical icon centre to the first rendered line, including fallback CJK fonts.
  * A fixed top margin aligns neither small Latin labels nor large/multiline Chinese labels. */
 internal fun Context.duckMessageRow(title:String,description:String?=null,icon:Int=R.drawable.ic_info,
-    iconColor:Int=R.color.duck_text_secondary,titleColor:Int=R.color.duck_text,bold:Boolean=true):LinearLayout {
+    iconColor:Int=R.color.duck_role_secondary_text,titleColor:Int=R.color.duck_role_primary_text,bold:Boolean=true):LinearLayout {
     val symbol=ImageView(this).apply {setImageResource(icon);imageTintList=android.content.res.ColorStateList.valueOf(getColor(iconColor));importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO}
     val heading=duckParagraph(title).apply {setTextColor(getColor(titleColor));if(bold) typeface=Typeface.create("sans-serif",Typeface.BOLD)}
     val words=LinearLayout(this).apply {
@@ -188,8 +188,8 @@ internal class DuckField(context:Context,label:String,value:String="",numeric:Bo
         box.addView(input,LinearLayout.LayoutParams(-1,-2));view.addView(box,LinearLayout.LayoutParams(-1,-2))
     }
 }
-internal fun Context.duckWarning(parent:LinearLayout,title:String,description:String?=null):View = duckMessageRow(title,description,R.drawable.ic_alert,R.color.duck_attention).apply {
-    background=duckBackground(R.color.duck_attention_background,12,false);setPadding(dp(12),dp(12),dp(12),dp(12))
+internal fun Context.duckWarning(parent:LinearLayout,title:String,description:String?=null):View = duckMessageRow(title,description,R.drawable.ic_alert,R.color.duck_state_attention).apply {
+    background=duckBackground(R.color.duck_state_attention_container,12,false);setPadding(dp(12),dp(12),dp(12),dp(12))
     parent.addView(this,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(16)})
 }
 internal fun Context.duckProblem(parent:LinearLayout,message:String):View=duckFailure(parent,message).apply {visibility=View.VISIBLE}

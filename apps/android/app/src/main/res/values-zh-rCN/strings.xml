@@ -139,7 +139,6 @@
     <string name="onb_space_enable">开启自动回收</string>
     <string name="onb_later">以后再说</string>
     <string name="pref_diagnostics">诊断信息</string>
-    <string name="pref_advanced">高级</string>
     <string name="rhub_stopped">接收已关闭</string>
     <string name="rhub_stopped_note">打开后，iPhone 和 Mac 就能把照片送到这台 Pixel。</string>
     <string name="rhub_start">开始接收</string>

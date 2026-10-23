@@ -21,6 +21,8 @@ struct Scenario: Identifiable {
     /// Command fields this answer is for, such as a records filter. Answers with
     /// `when` are chosen by match, not in order; one without it is the fallback.
     let when: [String: String]?
+    /// Facts that become available only after this successful synthetic action.
+    var updates: [String: Any] = [:]
   }
 
   let id: String
@@ -121,7 +123,8 @@ struct Scenario: Identifiable {
         let answer = item as? [String: Any] ?? [:]
         return Response(value: answer["value"], error: answer["error"] as? String,
           delay: answer["delay"] as? Double ?? 0,
-          when: (answer["when"] as? [String: Any])?.mapValues { "\($0)" })
+          when: (answer["when"] as? [String: Any])?.mapValues { "\($0)" },
+          updates: answer["updates"] as? [String: Any] ?? [:])
       }
     }
   }
@@ -258,6 +261,7 @@ final class ScenarioCore: CoreTransport, @unchecked Sendable {
     // A scenario switch while this answer waited belongs to the old model.
     guard lock.withLock({ generation }) == loaded else { throw CancellationError() }
     if let error = answer.error { return try Self.envelope(error: error) }
+    for (operation, value) in answer.updates { setValue(value, for: operation) }
     return try JSONSerialization.data(withJSONObject: ["ok": true, "value": answer.value ?? NSNull()],
       options: [.fragmentsAllowed])
   }

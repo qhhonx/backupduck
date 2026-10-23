@@ -25,6 +25,14 @@ list rows that select a detail pane have no trailing glyph. Rate BackupDuck uses
 the external arrow on both hosts. The existing `settings.updates.ready` and
 `settings.updates.unavailable` fixtures review the direct-update controls.
 
+`settings.advanced.cache-failure` reviews temporary-file cleanup recovery on
+both Apple hosts. Press Clear Now to show the localized storage failure in the
+shared plain-text group footer, then press Clear Now again to restore the normal
+explanation and reduce the size by 1 MiB. No separate Retry button
+appears; thumbnail cleanup remains independent. The successful scripted response
+uses `updates` to publish the new `storage_status` value before the production
+model refreshes it; repeated reads before cleanup retain the original size.
+
 The production `settings.feedback` scenario opens the user group directly when
 the row is activated, with an external arrow and no one-item menu.
 `settings.feedback-reserved` automatically opens the two-item native menu from

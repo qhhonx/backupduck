@@ -628,6 +628,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
 }
 
 @MainActor final class PhotoCell: UICollectionViewCell {
+  private static let badgeScrim = DuckMedia.scrimUIColor.withAlphaComponent(0.35)
   private let photo = UIImageView()
   var displayedImage: UIImage? { photo.image }
   private let media = UIImageView()
@@ -652,15 +653,15 @@ struct IOSLibraryGrid: UIViewRepresentable {
     photo.clipsToBounds = true
     contentView.addSubview(photo)
     for badge in [media, status, cloud] {
-      badge.tintColor = .white
-      badge.backgroundColor = .black.withAlphaComponent(0.35)
+      badge.tintColor = DuckMedia.onMediaUIColor
+      badge.backgroundColor = Self.badgeScrim
       badge.layer.cornerRadius = 11
       badge.clipsToBounds = true
       badge.contentMode = .scaleAspectFit
       contentView.addSubview(badge)
     }
-    burstCount.textColor = .white
-    burstCount.backgroundColor = .black.withAlphaComponent(0.45)
+    burstCount.textColor = DuckMedia.onMediaUIColor
+    burstCount.backgroundColor = DuckMedia.scrimBurstUIColor
     burstCount.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
     burstCount.textAlignment = .center
     burstCount.layer.cornerRadius = 9
@@ -668,8 +669,8 @@ struct IOSLibraryGrid: UIViewRepresentable {
     burstCount.adjustsFontSizeToFitWidth = true
     burstCount.isHidden = true
     contentView.addSubview(burstCount)
-    duration.textColor = .white
-    duration.backgroundColor = .black.withAlphaComponent(0.55)
+    duration.textColor = DuckMedia.onMediaUIColor
+    duration.backgroundColor = DuckMedia.scrimDurationUIColor
     duration.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
     duration.textAlignment = .center
     duration.adjustsFontSizeToFitWidth = true
@@ -679,7 +680,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     contentView.addSubview(duration)
     cloud.isHidden = true
     media.isHidden = true
-    media.backgroundColor = .black.withAlphaComponent(0.35)
+    media.backgroundColor = Self.badgeScrim
     media.layer.cornerRadius = 5; media.clipsToBounds = true
     DuckMediaSelection.configure(selection); contentView.addSubview(selection)
     isAccessibilityElement = true
@@ -717,7 +718,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
     if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
       // A layer stores a resolved CGColor; UIKit cannot automatically refresh
       // it when the app appearance changes while a selection is retained.
-      contentView.layer.borderColor = UIColor(DuckColors.action)
+      contentView.layer.borderColor = DuckRole.accentUIColor
         .resolvedColor(with: traitCollection).cgColor
     }
   }
@@ -771,10 +772,10 @@ struct IOSLibraryGrid: UIViewRepresentable {
   func setState(_ state: String?) {
     status.image = libraryTileSymbol(state).flatMap { UIImage(systemName: $0) }
     status.isHidden = showsSelection || status.image == nil
-    status.tintColor = .white  // design-exception: V5 white media mark with shadow
+    status.tintColor = DuckMedia.onMediaUIColor
     status.backgroundColor = .clear
     status.clipsToBounds = false
-    status.layer.shadowColor = UIColor.black.cgColor  // design-exception: V5 legibility shadow on photos
+    status.layer.shadowColor = DuckMedia.shadowCGColor
     status.layer.shadowOpacity = 0.45
     status.layer.shadowRadius = 2
     status.layer.shadowOffset = CGSize(width: 0, height: 0.5)
@@ -838,7 +839,7 @@ private struct IOSCalendarLibraryPage: View {
       } else {
         calendar
       }
-    }.background(Color(uiColor: .systemBackground)).tint(DuckColors.action)
+    }.background(Color(uiColor: .systemBackground)).tint(DuckRole.accent)
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
@@ -941,7 +942,7 @@ private struct IOSLegacyLibraryPage: View {
         Image(systemName: "line.3.horizontal.decrease.circle")
           .font(.system(size: 20)).frame(width: 44,height: 44)
           .overlay(alignment: .topTrailing) {
-            if library.filter != .all { Circle().fill(DuckColors.action).frame(width: 6,height: 6).padding(7) }
+            if library.filter != .all { Circle().fill(DuckRole.accent).frame(width: 6,height: 6).padding(7) }
           }
       }.buttonStyle(.plain).accessibilityIdentifier("library.filter")
         .accessibilityLabel(Text("media_type"))
@@ -998,7 +999,7 @@ private struct IOSLibraryHeader: View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Text(String(format: NSLocalizedString("library_count", comment: ""), library.total))
-          .font(.system(size: caption)).foregroundStyle(DuckColors.textSecondary)
+          .font(.system(size: caption)).foregroundStyle(DuckRole.secondaryText)
         Spacer()
         Picker("task_filter", selection: Binding(get: { library.filter },
           set: { option in Task { await library.changeFilter(option) } })) {
@@ -1009,7 +1010,7 @@ private struct IOSLibraryHeader: View {
           .accessibilityIdentifier("library.filter")
       }
       if library.authorizationStatus == .limited {
-        Text("apple_photos_limited_note").font(.system(size: caption)).foregroundStyle(DuckColors.textSecondary)
+        Text("apple_photos_limited_note").font(.system(size: caption)).foregroundStyle(DuckRole.secondaryText)
           .accessibilityIdentifier("library.limited_scope")
       }
     }.padding(.horizontal, 20).padding(.vertical, 4)
@@ -1173,7 +1174,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     layer.addSublayer(ring)
     isAccessibilityElement = true
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (button: MediaViewerInfoButton, _: UITraitCollection) in
-      button.ring.strokeColor = UIColor(DuckRole.accent).resolvedColor(with: button.traitCollection).cgColor
+      button.ring.strokeColor = DuckRole.accentUIColor.resolvedColor(with: button.traitCollection).cgColor
     }
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -1224,7 +1225,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       let changes = {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         self.ring.isHidden = progress == nil
-        self.ring.strokeColor = UIColor(DuckRole.accent).resolvedColor(with: self.traitCollection).cgColor
+        self.ring.strokeColor = DuckRole.accentUIColor.resolvedColor(with: self.traitCollection).cgColor
         self.ring.strokeEnd = progress ?? 0
         CATransaction.commit()
       }
@@ -1560,7 +1561,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let selected = review.selected.contains(reviewID(session.current.asset))
     selectionBadge.isHidden = !selected
     selectionButton.setImage(selected ? nil : UIImage(systemName: "circle"),for: .normal)
-    selectionButton.tintColor = UIColor(DuckColors.action)
+    selectionButton.tintColor = DuckRole.accentUIColor
     selectionButton.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 23),forImageIn: .normal)
     selectionButton.accessibilityLabel = NSLocalizedString(selected ? "library_deselect_item" : "library_select_item",comment: "")
     selectionButton.accessibilityTraits = selected ? [.button,.selected] : .button
@@ -2083,7 +2084,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     unclipMedia(); pages[1].flightLocked = true
     let base = surface.convert(surface.bounds,to: view)
     let flight = MediaFlightGeometry(bounds: surface.bounds, fitted: base, thumbnail: view.convert(item.frame,from: nil))
-    let clip = UIView(frame: flight.crop); clip.backgroundColor = .black; surface.mask = clip
+    let clip = UIView(frame: flight.crop); clip.backgroundColor = DuckMedia.backgroundUIColor; surface.mask = clip
     UIView.performWithoutAnimation { surface.transform = flight.transform; self.stage.alpha = 1 }
     // Commit the small pose before UIKit starts interpolating. Revealing a
     // newly attached page at its fitted pose for one frame creates a flash.
@@ -2138,7 +2139,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       surface.transform = held
       let target = view.convert(destination,from: nil)
       let flight = MediaFlightGeometry(bounds: CGRect(origin: .zero,size: size),fitted: base,thumbnail: target)
-      let clip = UIView(frame: surface.bounds); clip.backgroundColor = .black; surface.mask = clip
+      let clip = UIView(frame: surface.bounds); clip.backgroundColor = DuckMedia.backgroundUIColor; surface.mask = clip
       for page in pages where page !== pages[1] { page.view.alpha = 0 }
       // Preserve UIKit controller ownership and live playback. Only transform
       // and crop the existing media node; no player view changes parent.
@@ -2284,10 +2285,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   var retry: (() -> Void)?
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = UIColor.black.withAlphaComponent(0.45); layer.cornerRadius = 18
+    backgroundColor = DuckMedia.scrimBurstUIColor; layer.cornerRadius = 18
     for shape in [track,arc] { shape.fillColor = UIColor.clear.cgColor; shape.lineWidth = 2; shape.lineCap = .round; layer.addSublayer(shape) }
-    track.strokeColor = UIColor.white.withAlphaComponent(0.3).cgColor; arc.strokeColor = UIColor.white.cgColor
-    symbol.tintColor = .white; symbol.contentMode = .scaleAspectFit; addSubview(symbol)
+    track.strokeColor = DuckMedia.onMediaUIColor.withAlphaComponent(0.3).cgColor; arc.strokeColor = DuckMedia.onMediaCGColor
+    symbol.tintColor = DuckMedia.onMediaUIColor; symbol.contentMode = .scaleAspectFit; addSubview(symbol)
     let tap = UITapGestureRecognizer(target: self,action: #selector(retryTapped)); addGestureRecognizer(tap)
     isAccessibilityElement = true; accessibilityIdentifier = "library.preview.loading"
   }

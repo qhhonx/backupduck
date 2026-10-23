@@ -53,9 +53,9 @@ struct DuckBrandMark: View {
   }
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: size * 0.3).fill(DuckColors.brandAccentBackground)
+      RoundedRectangle(cornerRadius: size * 0.3).fill(DuckBrand.Illustration.duckYellowTint)
       if let image { image.resizable().scaledToFit().padding(size * 0.15) }
-      else { Image(systemName: "bird.fill").font(.system(size: size * 0.5)).foregroundStyle(DuckColors.brandAccent) }
+      else { Image(systemName: "bird.fill").font(.system(size: size * 0.5)).foregroundStyle(DuckBrand.Illustration.duckYellow) }
     }.frame(width: size, height: size).accessibilityHidden(true)
   }
 }
@@ -373,11 +373,11 @@ private extension View {
   static let inset: CGFloat = 6
   static let selectedOpacity: CGFloat = 0.72
   private static let checkmark = UIImage(systemName: "checkmark.circle.fill")
-  private static let tint = UIColor(DuckColors.action)
+  private static let tint = DuckRole.accentUIColor
   static func configure(_ badge: UIImageView) {
     badge.image = checkmark
     badge.tintColor = tint
-    badge.backgroundColor = .white
+    badge.backgroundColor = DuckMedia.onMediaUIColor
     badge.layer.cornerRadius = size/2
     badge.clipsToBounds = true
     badge.contentMode = .scaleAspectFit

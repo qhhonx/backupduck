@@ -33,6 +33,11 @@ import SwiftUI
     Task { @MainActor in
       do {
         print("Layout check main-actor task entered")
+        let chinese = Bundle.main.preferredLocalizations.first == "zh-Hans"
+        precondition(NSLocalizedString("settings_diagnostics", comment: "") == (chinese ? "诊断信息" : "Diagnostics"))
+        precondition(NSLocalizedString("settings_advanced", comment: "") == (chinese ? "高级设置" : "Advanced Settings"))
+        precondition(NSLocalizedString("updates_check_button", comment: "") == (chinese ? "检查更新" : "Check for Updates"))
+        precondition(NSLocalizedString("updates_check", comment: "").hasSuffix("…"))
         if CommandLine.arguments.contains("--local-preview-policy") {
           let defaults = UserDefaults(suiteName: "layout.preview-policy." + UUID().uuidString)!
           defaults.set("deny", forKey: "previewCloudConsent")
@@ -62,7 +67,7 @@ import SwiftUI
           app.terminate(nil); return
         }
         if CommandLine.arguments.contains("--submission-controls") {
-          precondition(!NSLocalizedString("updates_check", comment: "").hasSuffix("…"))
+          precondition(!NSLocalizedString("updates_check_button", comment: "").hasSuffix("…"))
           for dark in [false, true] {
             for width in [440.0, 720.0] {
               try await capture("submission-controls-" + (dark ? "dark" : "light") + "-" + String(Int(width)),
@@ -1018,7 +1023,7 @@ private struct SubmissionControlsFixture: View {
           .fixedSize(horizontal: true, vertical: true).frame(width: 180, height: 32, alignment: .trailing)
       }
       HStack { Image(systemName: "checkmark.circle"); Text("state_received") }.foregroundStyle(.secondary)
-      Button("updates_check") {}.duckPrimaryAction()
+      Button("updates_check_button") {}.duckPrimaryAction()
     }.padding(24).frame(maxWidth: .infinity, alignment: .trailing)
   }
 }

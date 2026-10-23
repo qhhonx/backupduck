@@ -35,7 +35,7 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
   required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .black
+    view.backgroundColor = DuckMedia.backgroundUIColor
     view.accessibilityLabel = NSLocalizedString("apple_scan_frame_note", comment: "")
     errorObserver = NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError,
       object: session, queue: nil) { [weak self] _ in self?.report(.unavailable) }

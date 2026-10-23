@@ -1,0 +1,65 @@
+{
+  "id": "settings.advanced.cache-failure",
+  "extends": "settings.advanced",
+  "title": "Advanced Settings · temporary-file cleanup failure and retry",
+  "expect": [
+    "Clear Now shows the localized storage failure as plain failure-coloured text in the temporary-files group footer.",
+    "Clear Now again succeeds, restores the normal explanation and updates the size. No separate Retry action appears; thumbnails remain independent."
+  ],
+  "actions": [
+    {
+      "action": "Press Clear Now.",
+      "result": "The temporary-files footer shows the localized failure reason."
+    },
+    {
+      "action": "Press Clear Now again.",
+      "result": "The second scripted reclaim succeeds; the normal footer returns and the size decreases by 1 MiB."
+    }
+  ],
+  "core": {
+    "reclaim_sender_cache": [
+      {
+        "error": "storage",
+        "delay": 1
+      },
+      {
+        "value": {
+          "reclaimed_bytes": 1048576
+        },
+        "updates": {
+          "storage_status": {
+            "settings": {
+              "cache_budget_bytes": 2147483648,
+              "receiver_budget_bytes": 0,
+              "min_free_bytes": 5368709120,
+              "auto_reclaim": false,
+              "log_days": 30,
+              "log_limit": 2000
+            },
+            "used_bytes": 313524224,
+            "free_bytes": 64424509440,
+            "export_allowance": 1833959424,
+            "reason": null
+          }
+        },
+        "delay": 1
+      }
+    ],
+    "storage_status": {
+      "value": {
+        "settings": {
+          "cache_budget_bytes": 2147483648,
+          "receiver_budget_bytes": 0,
+          "min_free_bytes": 5368709120,
+          "auto_reclaim": false,
+          "log_days": 30,
+          "log_limit": 2000
+        },
+        "used_bytes": 314572800,
+        "free_bytes": 64424509440,
+        "export_allowance": 1832910848,
+        "reason": null
+      }
+    }
+  }
+}

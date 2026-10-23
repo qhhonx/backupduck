@@ -311,7 +311,7 @@ final class CalendarGlassHeading: UICollectionReusableView {
     addSubview(glass)
     glass.contentView.addSubview(label)
     label.font = .preferredFont(forTextStyle: .headline)
-    label.textColor = UIColor(DuckColors.text)
+    label.textColor = DuckRole.primaryTextUIColor
     label.accessibilityIdentifier = "calendar.date_badge"
   }
   /// Dense pills read like Photos: a light pill with a quiet year and a dark
@@ -319,11 +319,11 @@ final class CalendarGlassHeading: UICollectionReusableView {
   static func pillText(_ text: String, yearly: Bool) -> NSAttributedString {
     let title = NSMutableAttributedString(
       string: text, attributes: [
-        .foregroundColor: UIColor.black, .font: UIFont.systemFont(ofSize: 15, weight: .semibold),
+        .foregroundColor: DuckMedia.labelTextUIColor, .font: UIFont.systemFont(ofSize: 15, weight: .semibold),
       ])
     if !yearly, let year = text.range(of: "[0-9]{4}年?", options: .regularExpression) {
       title.addAttribute(
-        .foregroundColor, value: UIColor.black.withAlphaComponent(0.5), range: NSRange(year, in: text))
+        .foregroundColor, value: DuckMedia.labelTextSecondaryUIColor, range: NSRange(year, in: text))
     }
     return title
   }
@@ -335,7 +335,7 @@ final class CalendarGlassHeading: UICollectionReusableView {
       label.attributedText = Self.pillText(text, yearly: yearly)
     } else {
       label.attributedText = nil
-      label.textColor = UIColor(DuckColors.text)
+      label.textColor = DuckRole.primaryTextUIColor
       label.text = text
     }
     setNeedsLayout()
@@ -411,8 +411,8 @@ final class CalendarTileDecorations: UIView {
   /// when a launch creates a screen of cells. Colors stay dynamic.
   @MainActor enum Style {
     static let photo = UIImage(systemName: "photo"), cloud = UIImage(systemName: "icloud")
-    static let secondary = UIColor(DuckColors.textSecondary), subtle = UIColor(DuckColors.subtle)
-    static let failure = UIColor(DuckColors.failure), saved = UIColor(DuckColors.saved)
+    static let secondary = DuckRole.secondaryTextUIColor, subtle = DuckRole.mediaPlaceholderUIColor
+    static let failure = DuckRole.failureUIColor, saved = DuckRole.savedUIColor
     static var symbols: [String: UIImage] = [:]
     static func symbol(_ name: String) -> UIImage? {
       if let image = symbols[name] { return image }
@@ -438,11 +438,11 @@ final class CalendarTileDecorations: UIView {
     check.isHidden = true
     addSubview(check)
     duration.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-    duration.textColor = .white
+    duration.textColor = DuckMedia.onMediaUIColor
     addSubview(duration)
     stateMark.contentMode = .scaleAspectFit
     addSubview(stateMark)
-    liveMark.tintColor = .white
+    liveMark.tintColor = DuckMedia.onMediaUIColor
     liveMark.contentMode = .scaleAspectFit
     addSubview(liveMark)
     // design/library.md § Tile marks: every mark on a photo is a white glyph
@@ -451,7 +451,7 @@ final class CalendarTileDecorations: UIView {
     for mark in [duration, stateMark, liveMark] as [UIView] {
       mark.backgroundColor = .clear
       mark.clipsToBounds = false
-      mark.layer.shadowColor = UIColor.black.cgColor  // design-exception: legibility shadow on photos
+      mark.layer.shadowColor = DuckMedia.shadowCGColor
       mark.layer.shadowOpacity = 0.45
       mark.layer.shadowRadius = 2
       mark.layer.shadowOffset = CGSize(width: 0, height: 0.5)
@@ -483,11 +483,11 @@ final class CalendarTileDecorations: UIView {
     stateMark.image = visible ? symbol.flatMap {
       UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold))
     } : nil
-    stateMark.tintColor = .white  // design-exception: V5 white media mark with shadow
+    stateMark.tintColor = DuckMedia.onMediaUIColor
     stateMark.contentMode = .center
     stateMark.backgroundColor = .clear
     stateMark.clipsToBounds = false
-    stateMark.layer.shadowColor = UIColor.black.cgColor  // design-exception: V5 legibility shadow on photos
+    stateMark.layer.shadowColor = DuckMedia.shadowCGColor
     stateMark.layer.shadowOpacity = 0.45
     stateMark.layer.shadowRadius = 2
     stateMark.layer.shadowOffset = CGSize(width: 0, height: 0.5)
@@ -566,10 +566,10 @@ final class CalendarGridCell: UICollectionViewCell {
     image.clipsToBounds = true
     contentView.addSubview(image)
     contentView.backgroundColor = CalendarTileDecorations.Style.subtle
-    scrim.colors = [UIColor.black.withAlphaComponent(0.32).cgColor, UIColor.clear.cgColor]
+    scrim.colors = [DuckMedia.scrimGradientCGColor, UIColor.clear.cgColor]
     contentView.layer.addSublayer(scrim)
     label.font = .systemFont(ofSize: 23, weight: .semibold)
-    label.textColor = .white
+    label.textColor = DuckMedia.onMediaUIColor
     contentView.addSubview(label)
     contentView.addSubview(decorations)
     isAccessibilityElement = true
@@ -1404,7 +1404,7 @@ final class CalendarZoomStage: UIView {
           tileLayer.presentedImage = nil
           tileLayer.photo.contents = nil
           tileLayer.cloud = false
-          tileLayer.backgroundColor = (face.columns <= 5 ? UIColor(DuckColors.subtle) : UIColor.systemBackground).cgColor
+          tileLayer.backgroundColor = (face.columns <= 5 ? DuckRole.mediaPlaceholderUIColor : UIColor.systemBackground).cgColor
           if face.columns <= 5 {
             let badges = tileLayer.decorations ?? CalendarTileDecorations()
             tileLayer.decorations = badges
@@ -1490,7 +1490,7 @@ final class CalendarZoomStage: UIView {
     let tile = Tile()
     tile.actions = tileActions
     tile.photo.actions = tileActions
-    tile.backgroundColor = UIColor(DuckColors.subtle).cgColor
+    tile.backgroundColor = DuckRole.mediaPlaceholderUIColor.cgColor
     return tile
   }
   private func recycle(_ tile: Tile) {
@@ -1807,12 +1807,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     grid.addInteraction(UIContextMenuInteraction(delegate: self))
     titleLabel.text = NSLocalizedString("nav_library", comment: "")
     titleLabel.font = .systemFont(ofSize: 32, weight: .bold)
-    titleLabel.textColor = .white
+    titleLabel.textColor = DuckMedia.onMediaUIColor
     subtitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
       for: .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 22)
     subtitleLabel.adjustsFontSizeToFitWidth = true
     subtitleLabel.minimumScaleFactor = 0.8
-    subtitleLabel.textColor = UIColor.white.withAlphaComponent(0.92)
+    subtitleLabel.textColor = DuckMedia.onMediaSecondaryUIColor
     subtitleLabel.accessibilityIdentifier = "library.count"
     titleView.addSubview(titleLabel)
     // The subtitle belongs below the native navigation bar, not in an oversized
@@ -1850,7 +1850,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     navigationController?.navigationBar.scrollEdgeAppearance = appearance
     navigationController?.navigationBar.compactAppearance = appearance
     navigationController?.navigationBar.overrideUserInterfaceStyle = .dark
-    navigationController?.navigationBar.tintColor = .white
+    navigationController?.navigationBar.tintColor = DuckMedia.onMediaUIColor
     dock.selectedSegmentIndex = 2
     dock.accessibilityIdentifier = "library.view_mode"
     dock.addTarget(self, action: #selector(levelChosen), for: .valueChanged)
@@ -1881,7 +1881,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     backupItem = UIBarButtonItem(
       title: NSLocalizedString("calendar_backup_short", comment: ""), style: .done, target: self, action: #selector(backUpSelected))
     if #available(iOS 26.0, *) { backupItem.style = .prominent }
-    backupItem.tintColor = .systemBlue
+    backupItem.tintColor = DuckGlyph.blueUIColor
     backupItem.isEnabled = false
     backupItem.accessibilityIdentifier = "calendar.backup_selected"
     backupItem.accessibilityLabel = NSLocalizedString("calendar_backup_action",comment: "")
@@ -1893,9 +1893,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       normal = .bordered()
     }
     selectedButton.configuration = normal
-    normal.baseBackgroundColor = UIColor(DuckColors.surface)
+    normal.baseBackgroundColor = DuckRole.elevatedSurfaceUIColor
     normal.cornerStyle = .capsule
-    normal.baseForegroundColor = UIColor(DuckColors.text)
+    normal.baseForegroundColor = DuckRole.primaryTextUIColor
     normal.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { original in
       var result = original
       result.font = UIFontMetrics(forTextStyle: .headline).scaledFont(
@@ -2089,11 +2089,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       headerOverPhotos = hasMedia
       navigationController?.setNeedsStatusBarAppearanceUpdate()
     }
-    titleLabel.textColor = hasMedia ? .white : UIColor(DuckColors.text)
-    subtitleLabel.textColor = hasMedia ? UIColor.white.withAlphaComponent(0.92) : UIColor(DuckColors.textSecondary)
+    titleLabel.textColor = hasMedia ? DuckMedia.onMediaUIColor : DuckRole.primaryTextUIColor
+    subtitleLabel.textColor = hasMedia ? DuckMedia.onMediaSecondaryUIColor : DuckRole.secondaryTextUIColor
     headerBackdrop.isHidden = !hasMedia || navigationController?.isNavigationBarHidden == true
     navigationController?.navigationBar.overrideUserInterfaceStyle = hasMedia ? .dark : .unspecified
-    navigationController?.navigationBar.tintColor = hasMedia ? .white : UIColor(DuckColors.action)
+    navigationController?.navigationBar.tintColor = hasMedia ? DuckMedia.onMediaUIColor : DuckRole.accentUIColor
   }
   func updateHeaderFade() {
     // Native bars retain their own materials; no extra scrolling shadow or
@@ -3158,7 +3158,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
           ?? transitionSmallImages.object(forKey:id as NSString)
         context.cgContext.saveGState()
         UIBezierPath(roundedRect:frame,cornerRadius:geometry.level == .all ? 0 : 12).addClip()
-        UIColor(DuckColors.subtle).setFill(); context.fill(frame)
+        DuckRole.mediaPlaceholderUIColor.setFill(); context.fill(frame)
         if let image {
           // UIImageView layer contents can still be empty in a hidden reloaded
           // collection. Draw the resolved UIImage, never a pending display layer.
@@ -3702,7 +3702,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let format = UIGraphicsImageRendererFormat()
     format.scale = traitCollection.displayScale
     let image = UIGraphicsImageRenderer(size: pill, format: format).image { _ in
-      UIColor.white.withAlphaComponent(0.88).setFill()
+      DuckMedia.labelPlateUIColor.setFill()
       UIBezierPath(roundedRect: CGRect(origin: .zero, size: pill), cornerRadius: 12).fill()
       label.draw(at: CGPoint(x: 10, y: (pill.height - size.height) / 2))
     }

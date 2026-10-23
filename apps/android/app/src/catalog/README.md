@@ -140,7 +140,7 @@ Review `pixel.storage`, `pixel.storage-on`, `pixel.storage-cleanup-failed` and
 `pixel.cleanup-consent` in both languages and appearances, at ordinary and
 enlarged text sizes. Check the group footnotes, the next heading, recovery text,
 and scrolling the Free up space now action fully above the bottom inset.
-Settings and Connected devices use the same section-header spacing; Advanced
+Settings and Connected devices use the same section-header spacing; Advanced settings
 has one row-only group and no footnote/next-section combination.
 
 ## Optional local photo pool
@@ -569,3 +569,19 @@ absence. `compat-pending-result.json` with synthetic `contents` delivers a pendi
 camera Activity result before STARTED on the next restored MainActivity. Query
 traces log operation names and caller types, never pairing contents. A normal
 scenario launch ends the probe. These fixtures are absent from production builds.
+
+### Vector colour review
+
+Add `--es iconReview vectors` to a normal scenario launch for the seven
+monochrome vector assets, with their default theme tint beside an explicit
+accent override. `--es iconReview failure` opens the production
+`DuckConfirmation.showFailure()` path with synthetic failure text.
+`--es iconReview sheet-failure` opens the existing operation-failed sheet. Retry
+dismisses the specimen without issuing a receiver operation. Both hooks are
+Catalog-only, opt-in, and leave ordinary scenario pages unobstructed.
+
+For task-context error glyphs, `--es iconFault photos|devices|rename|storage|sender|retry`
+fails only that Catalog core operation. The normal production page retains its
+input/selection and draws its own failure. `--es iconReview rename` opens the
+production name editor for the rename-save fixture. No fault or review hook is
+present in production builds.

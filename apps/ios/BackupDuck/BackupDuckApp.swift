@@ -8,7 +8,7 @@ import SwiftUI
       // Legacy scroll-edge appearance must not turn transparent above media.
       let appearance = UITabBarAppearance()
       appearance.configureWithOpaqueBackground()
-      appearance.backgroundColor = UIColor(DuckColors.surface)
+      appearance.backgroundColor = DuckRole.elevatedSurfaceUIColor
       UITabBar.appearance().standardAppearance = appearance
       UITabBar.appearance().scrollEdgeAppearance = appearance
     }
@@ -90,7 +90,7 @@ import SwiftUI
           activityReceiver = receiver
           consumeActivityLink()
         }
-        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckRole.background.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckColors.action).task {
+        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckRole.background.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckRole.accent).task {
           await model.open()
           BackupNotifier.shared.start(model)
           BackupLiveActivity.shared.start(model)

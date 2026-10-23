@@ -16,6 +16,7 @@ import argparse
 import json
 import re
 import sys
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
@@ -99,17 +100,39 @@ def strip_comment(line, language):
     return re.sub(r'(?<!:)//.*$', '', line)
 
 
+def tinted_vector_source(source):
+    """Mask only path color literals replaced by an explicit vector tint."""
+    try:
+        root = ET.fromstring(source)
+    except ET.ParseError:
+        return source
+    tint = (root.get('{http://schemas.android.com/apk/res/android}tint') or '').strip()
+    if root.tag != 'vector' or not tint or tint == '@null':
+        return source
+    attributes = re.compile(r'\bandroid:(?:fillColor|strokeColor)\s*=\s*([\'\"])(.*?)\1', re.DOTALL)
+
+    def mask(match):
+        # Preserve line breaks and offsets for findings and exception comments.
+        if not re.fullmatch(r'\s*#[0-9A-Fa-f]{3,8}\s*', match.group(2)):
+            return match.group()
+        return re.sub(r'#[0-9A-Fa-f]{3,8}\b', lambda color: ' ' * len(color.group()), match.group())
+
+    return attributes.sub(mask, source)
+
+
 def scan():
     findings = defaultdict(list)
     for file, language in scanned_files():
         path = file.relative_to(ROOT).as_posix()
         if path in ALLOWED_FILES:
             continue
-        lines = file.read_text(encoding='utf-8').splitlines()
+        source = file.read_text(encoding='utf-8')
+        lines = source.splitlines()
+        scan_lines = tinted_vector_source(source).splitlines() if language == 'xml' else lines
         for index, line in enumerate(lines):
             if EXCEPTION.search(line) or (index and EXCEPTION.search(lines[index - 1])):
                 continue
-            code = strip_comment(line, language)
+            code = strip_comment(scan_lines[index], language)
             for kind, label, pattern in RULES[language]:
                 for _ in pattern.finditer(code):
                     findings[(path, kind)].append((index + 1, label, line.strip()))

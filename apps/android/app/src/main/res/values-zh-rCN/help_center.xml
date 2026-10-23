@@ -23,7 +23,7 @@
     <string name="help2_recovery_title">照片没存进相册</string>
     <string name="help2_recovery_p1">在“照片”的“需要你处理”里查看原因，再重试保存。点了重试，不代表已经保存成功。</string>
     <string name="help2_recovery_p2">如果原片已经完整收到，存入相册失败后可以用它重试，不必重新发送。如果传输本身失败，则到 iPhone 或 Mac 上查看原因和重试操作。</string>
-    <string name="help2_recovery_p3">需要求助时，在“设置”底部的“诊断”里导出报告，并说明出问题的时间和两边应用是否在前台。报告不含照片或连接码，分享前先检查内容。</string>
+    <string name="help2_recovery_p3">需要求助时，在“设置”底部的“诊断信息”里导出报告，并说明出问题的时间和两边应用是否在前台。报告不含照片或连接码，分享前先检查内容。</string>
     <string name="help2_full_title">空间已满，接收暂停了</string>
     <string name="help2_full_p1">先打开“存储空间”，看看哪些文件占用了容量。相册副本、备份鸭保留的原片和转换时的临时文件都需要空间。</string>
     <string name="help2_full_p2">原片占用上限和预留可用空间都会限制新照片的接收。提高原片占用上限，不会让手机多出可用空间。</string>
@@ -35,5 +35,5 @@
     <string name="help2_cleanup_title">自动回收没有运行</string>
     <string name="help2_cleanup_p1">到“存储空间”查看“自动回收”这一行。账号需要重新确认、无障碍权限关闭，或上次结果还没核对时，这里会说明下一步。未设置或未开启时，不会自动释放空间。</string>
     <string name="help2_cleanup_p2">自动回收通过无障碍权限在 Google 相册里点按“释放空间”，由它决定哪些手机副本能移除。备份鸭看不到云端上传结果；需要你核对时，到 Google 相册查看后再回来确认。</string>
-    <string name="help2_cleanup_p3">如果仍无法完成，可以在“诊断”里查看检查结果并导出。那里的相册页面检查只用来排查问题，不会释放空间。</string>
+    <string name="help2_cleanup_p3">如果仍无法完成，可以在“设置”底部的“诊断信息”里导出报告以便求助。分享前先检查内容。</string>
 </resources>

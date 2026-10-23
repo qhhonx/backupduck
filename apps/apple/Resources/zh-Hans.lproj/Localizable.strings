@@ -70,7 +70,6 @@
 
 "nav_backup" = "备份";
 "nav_settings" = "设置";
-"settings_diagnostics" = "诊断";
 "settings_version" = "版本";
 
 // Structured background diagnostics
@@ -119,6 +118,7 @@
 "updates_title" = "应用更新";
 "updates_automatic" = "自动检查更新";
 "updates_check" = "检查更新…";
+"updates_check_button" = "检查更新";
 "official_website" = "官方网站";
 
 "error_receiver_unavailable" = "等待局域网接收端恢复，已暂停准备照片。";
@@ -138,9 +138,7 @@
 
 
 
-"storage_reclaim_none" = "当前没有符合回收条件的缓存。已有副本可能仍在等待传输或被任务使用。";
 
-"storage_reclaim_result" = "已回收 %@ 本地缓存。";
 
 
 // Transfer browser order
@@ -436,7 +434,7 @@
 
 "mac_fidelity_help_album_retry" = "原件保留；处理重试请求不代表已经成功。";
 
-"mac_fidelity_help_export_path" = "操作路径：设置 → 诊断 → 导出诊断报告。";
+"mac_fidelity_help_export_path" = "操作路径：设置 → 诊断信息 → 导出诊断报告。";
 
 "mac_fidelity_help_update_path" = "操作路径：设置 → 帮助与关于 → 检查更新。";
 
@@ -696,9 +694,10 @@
 "onboarding_first_notify" = "只在需要你处理时提醒你，要打开通知吗？";
 "onboarding_notify" = "打开通知";
 "onboarding_later" = "以后再说";
-"settings_advanced" = "高级";
+"settings_advanced" = "高级设置";
 "settings_temp_files" = "临时文件";
 "settings_temp_files_note" = "备份时准备照片用到的文件，传完会自动清理。";
+"settings_temp_files_clear_failed" = "清理失败：%@";
 "settings_thumbnails" = "缩略图";
 "settings_thumbnails_note" = "浏览图库时存下的缩略图，清除后会重新生成。";
 "settings_clear_now" = "立即清理";

@@ -59,6 +59,38 @@ class LiteralRuleTests(unittest.TestCase):
         self.assertTrue(matches('xml', 'android:fillColor="#202C3E"'))
         self.assertFalse(matches('xml', 'android:fillColor="?attr/colorOnSurface"'))
 
+    def test_tinted_vector_exempts_only_paint_literals(self):
+        source = ('<vector xmlns:android="http://schemas.android.com/apk/res/android" '
+                  'android:tint="#ABCDEF"><path android:fillColor="#123456" '
+                  'android:strokeColor="#654321" android:color="#FEDCBA"/></vector>')
+        masked = literals.tinted_vector_source(source)
+        self.assertEqual(len(masked), len(source))
+        self.assertEqual(literals.RULES['xml'][0][2].findall(masked), ['#ABCDEF', '#FEDCBA'])
+
+    def test_vector_exemption_requires_explicit_root_tint(self):
+        prefix = '<vector xmlns:android="http://schemas.android.com/apk/res/android" '
+        for source in (
+            prefix + '><path android:fillColor="#123456"/></vector>',
+            prefix + 'android:tint="@null"><path android:fillColor="#123456"/></vector>',
+            prefix + 'android:tint=""><path android:fillColor="#123456"/></vector>',
+            prefix + '><path android:tint="@color/token" android:fillColor="#123456"/></vector>',
+            prefix + '><!-- android:tint="@color/token" --><path android:fillColor="#123456"/></vector>',
+            prefix + 'android:tint="@color/token"><path android:fillColor="#123456"></vector>',
+            '<shape xmlns:android="http://schemas.android.com/apk/res/android" '
+            'android:tint="@color/token"><solid android:fillColor="#123456"/></shape>',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(literals.tinted_vector_source(source), source)
+
+    def test_tinted_vector_preserves_multiline_diagnostic_positions(self):
+        source = ('<vector xmlns:android="http://schemas.android.com/apk/res/android" '
+                  'android:tint="?attr/colorOnSurface">\n<path android:fillColor=\n'
+                  '"#123456" android:strokeColor=\n\'#654321\'/></vector>')
+        masked = literals.tinted_vector_source(source)
+        self.assertEqual([len(line) for line in masked.splitlines()],
+                         [len(line) for line in source.splitlines()])
+        self.assertFalse(matches('xml', masked))
+
 
 if __name__ == '__main__':
     unittest.main()

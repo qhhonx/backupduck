@@ -63,7 +63,7 @@ internal fun Instrumentation.checkFullReplica(args:Bundle):String {
         main {conversion=activity.restorePage("conversion",Bundle()) as LookPage;conversion!!.show()};settle()
         main {
             check(activity.supportFragmentManager.backStackEntryCount==1)
-            check(views(conversion!!.root).filterIsInstance<com.google.android.material.appbar.MaterialToolbar>().single().title==activity.getString(R.string.pref_advanced))
+            check(views(conversion!!.root).filterIsInstance<com.google.android.material.appbar.MaterialToolbar>().single().title==activity.getString(R.string.pref_advanced_settings))
         }
         shot("conversion")
         main {views(conversion!!.root).filterIsInstance<MaterialSwitch>().single().performClick()}

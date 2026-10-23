@@ -6,7 +6,7 @@
   "title": "About · direct updates unavailable",
   "extends": "base-paired",
   "expect": [
-    "About shows one Version row with the update-status subtitle and a system disclosure. Its destination shows only status, Check for Updates… and the Automatic Updates switch.",
+    "About shows one Version row with the update-status subtitle and a system disclosure. Its destination shows only status, Check for Updates and the Automatic Updates switch.",
     "Check is disabled while the updater cannot check."
   ],
   "actions": [

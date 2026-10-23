@@ -227,7 +227,7 @@ import UIKit
   private let label = UILabel()
   override init(frame: CGRect) {
     super.init(frame: frame); backgroundColor = UIColor.systemBackground; label.font = .preferredFont(forTextStyle: .subheadline)
-    label.adjustsFontForContentSizeCategory = true; label.textColor = UIColor(DuckColors.text); addSubview(label)
+    label.adjustsFontForContentSizeCategory = true; label.textColor = DuckRole.primaryTextUIColor; addSubview(label)
     label.accessibilityIdentifier = "library.timeline.date"
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -379,7 +379,7 @@ import AppKit
 }
 @MainActor final class TimelineDateHeader: NSView {
   private let label = NSTextField(labelWithString: "")
-  override init(frame: NSRect) { super.init(frame: frame); label.font = .systemFont(ofSize: 16, weight: .semibold); label.textColor = NSColor(DuckColors.text); addSubview(label) }
+  override init(frame: NSRect) { super.init(frame: frame); label.font = .systemFont(ofSize: 16, weight: .semibold); label.textColor = DuckRole.primaryTextNSColor; addSubview(label) }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override func layout() { super.layout(); label.frame = bounds }
   func setTitle(_ title: String) { label.stringValue = title }

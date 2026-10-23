@@ -303,11 +303,12 @@ private struct MacAdvancedSettings: View {
         LabeledContent("settings_temp_files") {
           HStack {
             Text(model.storage.map { ByteCountFormatter.string(fromByteCount: Int64($0.used_bytes), countStyle: .file) } ?? "—").foregroundStyle(.secondary)
-            Button("settings_clear_now") { Task { await model.reclaimCache(reportResult: true) } }.disabled(!model.ready || model.reclaimingCache)
+            Button("settings_clear_now") { Task { await model.reclaimCache() } }.disabled(!model.ready || model.reclaimingCache)
+              .accessibilityIdentifier("settings.cache.clear")
           }
         }
       } footer: {
-        Text(model.cacheReclaimResult.map { LocalizedStringKey($0) } ?? "settings_temp_files_note").foregroundStyle(.secondary)
+        DuckCacheCleanupFooter(error: model.cacheReclaimError)
       }
       Section {
         LabeledContent("settings_thumbnails") {
