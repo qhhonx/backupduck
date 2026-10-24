@@ -12,6 +12,7 @@ struct MacHub: View {
   var sources: () -> Void
   var showTransfers: (String) -> Void
   @State private var offlineHelp = false
+  @State private var livePhotoHelp = false
   @StateObject private var photoRouter = BackupPhotoRouter()
   @Environment(\.macViewerPresentation) private var presentPhoto
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -27,8 +28,8 @@ struct MacHub: View {
         if connected, let history = model.historicalImport, history.state != "idle" { earlier(history) }
         if connected, !recentSources.isEmpty {
           VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-            DuckSectionHeader(title: "hub_recent", link: "hub_see_all") { showTransfers("all") }
-            DuckPhotoMosaic(sources: recentSources, open: { source, frame in
+            DuckSectionHeader(title: "hub_recent")
+            DuckPhotoMosaic(sources: recentSources, twoRows: true, open: { source, frame in
               guard let photo = recentPhotos.first(where: { $0.source == source }) else { return }
               photoRouter.macPresent = presentPhoto
               photoRouter.open(photo, collection: recentPhotos, frame: frame)
@@ -44,18 +45,13 @@ struct MacHub: View {
     }
     .background(DuckRole.background)
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet }
+    .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
   }
 
   private var devicePill: some View {
-    DuckPill(title: Text(verbatim: receiverName), dot: {
-      switch model.hubStatus {
-      case .problem: DuckRole.attention
-      case .backingUp: DuckRole.accent
-      case .caughtUp(_, let saving): saving > 0 ? DuckRole.accent : DuckRole.saved
-      default: Color.secondary
-      }
-    }())
+    DuckPill(title: Text(verbatim: receiverName), dot: model.receiverConnection.identityTone)
+      .accessibilityValue(model.receiverConnection.identityLabel)
   }
 
   // MARK: - Status (I3: one state at a time)
@@ -63,7 +59,7 @@ struct MacHub: View {
   @ViewBuilder private var status: some View {
     switch model.hubStatus {
     case .notPaired:
-      DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
+      DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note_mac") {
         Button("hub_connect", action: pair).duckPrimaryButton()
       }.duckFillsScrollHeight(reserving: 2 * DuckSpacing.large)
     case .opening:
@@ -125,11 +121,11 @@ struct MacHub: View {
     case .conversionNeeded(let count):
       card(Text(verbatim: String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())),
         note: "hub_problem_convert_note", symbol: "livephoto", tone: DuckRole.attention,
-        action: "hub_problem_convert_action") { showTransfers("attention") }
+        action: "hub_problem_convert_action") { livePhotoHelp = true }
     case .photosNeedYou(let count):
       card(Text(verbatim: String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
         note: "hub_problem_photos_need_you_note", symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention,
-        action: "hub_problem_convert_action") { showTransfers("attention") }
+        action: "hub_problem_review_action") { showTransfers("attention") }
     }
   }
 
@@ -143,6 +139,7 @@ struct MacHub: View {
   private var offlineHelpSheet: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("hub_help_title").font(.title2.bold())
+      Label("hub_help_local_network_mac", systemImage: "network")
       Label("hub_help_wifi_mac", systemImage: "wifi")
       Label("hub_help_running", systemImage: "iphone.gen3")
       Label("hub_help_vpn", systemImage: "lock.shield")
@@ -160,18 +157,9 @@ struct MacHub: View {
   // MARK: - Earlier photos, evidence and summaries
 
   private func earlier(_ history: HistoricalImportStatus) -> some View {
-    let done = history.state == "scanned" && history.pending == 0
-    let paused = history.state == "paused"
-    return DuckStateCard(symbol: done ? "checkmark.circle.fill" : "clock.arrow.circlepath", tone: done ? DuckRole.saved : DuckRole.accent,
-      title: Text(done ? "hub_earlier_done" : "hub_earlier"),
-      note: done ? nil : Text(String(format: NSLocalizedString("hub_earlier_progress", comment: ""),
-        history.checked.formatted(), history.pending.formatted())), trailing: {
-      if !done {
-        DuckTintedButton(paused ? "hub_resume" : "hub_pause") {
-          Task { await model.controlHistoricalImport(paused ? "resume" : "pause") }
-        }.disabled(model.changingHistory)
-      }
-    })
+    DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
+      Task { await model.controlHistoricalImport(command) }
+    }
   }
 
   /// Photos the Pixel has received, newest change first.
@@ -180,7 +168,7 @@ struct MacHub: View {
     return model.jobs.filter { $0.state == "received" && ($0.receiverID == nil || $0.receiverID == model.pairing?.receiverID) }
       .sorted { ($0.stateChangedAt ?? 0) > ($1.stateChangedAt ?? 0) }
       .filter { seen.insert($0.asset.source_id).inserted }
-      .prefix(5).map(HistoryPhoto.init(job:))
+      .prefix(8).map(HistoryPhoto.init(job:))
   }
   private var recentSources: [String] { recentPhotos.map(\.source)
   }
@@ -188,16 +176,18 @@ struct MacHub: View {
   private var summaryRows: some View {
     VStack(spacing: 0) {
       let attention = model.summary.count(for: "attention")
-      if attention > 0 {
+      if attention > 0 && !model.hubStatus.showsAttentionDetails {
         row(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
           symbol: "exclamationmark.triangle.fill") { showTransfers("attention") }
           .accessibilityIdentifier("hub.needsYou")
         Divider().padding(.leading, DuckSpacing.small)
       }
       row(Text("records_title"), value: model.summary.total.formatted(), symbol: nil) { showTransfers("all") }
+      if !folders.sources.isEmpty {
       Divider().padding(.leading, DuckSpacing.small)
       row(Text("settings_folders"), value: String(format: NSLocalizedString("settings_folders_value", comment: ""), folders.sources.count),
         symbol: nil, action: sources)
+      }
     }
     .background(DuckLook.cardSurface, in: RoundedRectangle(cornerRadius: DuckLook.cardRadius, style: .continuous))
   }

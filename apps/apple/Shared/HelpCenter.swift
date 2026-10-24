@@ -10,9 +10,17 @@ struct HelpCenter: View {
     let id: String
     let symbol: String
     var title: LocalizedStringKey { LocalizedStringKey("help2_" + id + "_title") }
-    var body: LocalizedStringKey { LocalizedStringKey("help2_" + id + "_body") }
+    private var bodyKey: String {
+      let key = "help2_" + id + "_body"
+      #if os(macOS)
+      let variant = key + "_mac"
+      if NSLocalizedString(variant, comment: "") != variant { return variant }
+      #endif
+      return key
+    }
+    var body: LocalizedStringKey { LocalizedStringKey(bodyKey) }
     var searchable: String {
-      NSLocalizedString("help2_\(id)_title", comment: "") + " " + NSLocalizedString("help2_\(id)_body", comment: "")
+      NSLocalizedString("help2_\(id)_title", comment: "") + " " + NSLocalizedString(bodyKey, comment: "")
     }
   }
 
@@ -27,18 +35,26 @@ struct HelpCenter: View {
   ]
 
   var body: some View {
-    List {
-      section("help2_tasks", topics: Self.tasks)
-      section("help2_problems", topics: Self.problems)
+    Group {
+      #if os(macOS)
+      Form { sections }.formStyle(.grouped)
+      #else
+      List { sections }.listStyle(.insetGrouped)
+      #endif
     }
     #if os(iOS)
-    .listStyle(.insetGrouped)
     .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("help2_search"))
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar(.visible, for: .navigationBar)
     #else
     .searchable(text: $search, prompt: Text("help2_search"))
     #endif
     .navigationTitle("settings_help_center")
-    .navigationDestination(for: Topic.self) { HelpArticle(topic: $0) }
+  }
+
+  @ViewBuilder private var sections: some View {
+    section("help2_tasks", topics: Self.tasks)
+    section("help2_problems", topics: Self.problems)
   }
 
   @ViewBuilder private func section(_ title: LocalizedStringKey, topics: [Topic]) -> some View {
@@ -46,8 +62,9 @@ struct HelpCenter: View {
     if !visible.isEmpty {
       Section(title) {
         ForEach(visible) { topic in
-          NavigationLink(value: topic) { Label(topic.title, systemImage: topic.symbol) }
-            .accessibilityIdentifier("help." + topic.id)
+          DuckSettingsLink(title: Text(topic.title)) { HelpArticle(topic: topic) } label: {
+            Label(topic.title, systemImage: topic.symbol)
+          }.accessibilityIdentifier("help." + topic.id)
         }
       }
     }
@@ -71,6 +88,36 @@ struct HelpArticle: View {
     .background(DuckRole.background)
     #if os(iOS)
     .navigationBarTitleDisplayMode(.inline)
+    #endif
+  }
+}
+
+/// Contextual recovery uses the same article as Settings, with native dismissal.
+struct LivePhotoHelpSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  private let topic = HelpCenter.Topic(id: "live", symbol: "livephoto")
+
+  var body: some View {
+    #if os(iOS)
+    NavigationStack {
+      HelpArticle(topic: topic)
+        .toolbar {
+          ToolbarItem(placement: .confirmationAction) {
+            DuckSheetDismissButton(title: "settings_done") { dismiss() }
+          }
+        }
+    }
+    .presentationDetents([.medium, .large])
+    #else
+    VStack(spacing: 0) {
+      HelpArticle(topic: topic)
+      HStack {
+        Spacer()
+        Button("settings_done") { dismiss() }.duckPrimaryButton()
+          .keyboardShortcut(.defaultAction)
+      }.padding(DuckSpacing.large)
+    }
+    .frame(width: 520, height: 400)
     #endif
   }
 }

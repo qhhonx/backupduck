@@ -93,27 +93,12 @@ class MainActivity : BackupDuckActivity() {
         val canvas = getColor(R.color.duck_role_background)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(canvas) }
         val toolbar = MaterialToolbar(this)
-        val coordinator = androidx.coordinatorlayout.widget.CoordinatorLayout(this)
-        val appBar = com.google.android.material.appbar.AppBarLayout(this)
-        val collapsing = com.google.android.material.appbar.CollapsingToolbarLayout(this, null,
-            com.google.android.material.R.attr.collapsingToolbarLayoutLargeStyle).apply {
-            title = getString(R.string.nav_receive)
-            minimumHeight = resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact)
-        }
-        toolbar.id = View.generateViewId()
-        collapsing.addView(toolbar, com.google.android.material.appbar.CollapsingToolbarLayout.LayoutParams(-1, resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact)).apply {
-            collapseMode = com.google.android.material.appbar.CollapsingToolbarLayout.LayoutParams.COLLAPSE_MODE_PIN
-        })
-        appBar.addView(collapsing, com.google.android.material.appbar.AppBarLayout.LayoutParams(-1, resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_large)).apply {
-            scrollFlags = com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
-                com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED
-        })
-        coordinator.addView(appBar, androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(-1, -2))
+        toolbar.title = getString(R.string.nav_receive)
+        toolbar.setBackgroundColor(canvas)
+        root.addView(toolbar, LinearLayout.LayoutParams(-1,
+            resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact)))
         val host = FrameLayout(this)
-        coordinator.addView(host, androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(-1, -1).apply {
-            behavior = com.google.android.material.appbar.AppBarLayout.ScrollingViewBehavior()
-        })
-        root.addView(coordinator, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
         receivedPhotos = receivedPhotosPage()
         // Saved IDs 1/2/4 are stable; the retired Storage ID 3 restores under Settings.
         val pages = linkedMapOf(1 to receiverPage(), 2 to receivedPhotos.view, 4 to settingsPage())
@@ -127,14 +112,7 @@ class MainActivity : BackupDuckActivity() {
                 selectedPage = item.itemId
                 updateRootBack()
                 // Top-level tabs retain the same compact chrome when switching.
-                collapsing.isTitleEnabled = false
-                collapsing.title = null
                 toolbar.title = getString(titles.getValue(selectedPage))
-                collapsing.layoutParams = (collapsing.layoutParams as com.google.android.material.appbar.AppBarLayout.LayoutParams).apply {
-                    height = resources.getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact)
-                    scrollFlags = 0
-                }
-                appBar.setExpanded(true, false)
                 pages.forEach { (id, page) -> page.visibility = if (id == selectedPage) View.VISIBLE else View.GONE }
                 true
             }
@@ -215,7 +193,8 @@ class MainActivity : BackupDuckActivity() {
         if (::navigation.isInitialized) refreshDiscovery()
     }
     private fun refreshDiscovery() {
-        val unseen = FeatureDiscovery(this).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP)
+        val unseen = ReceiverEnvironment.deviceStorage(this).low &&
+            FeatureDiscovery(this).isUnseen(FeatureDiscovery.PHOTOS_CLEANUP)
         val attention = currentCleanupStatus().needsAttention
         storageDiscoveryDot?.apply {
             visibility = if (attention || unseen) View.VISIBLE else View.GONE
@@ -282,6 +261,8 @@ class MainActivity : BackupDuckActivity() {
             "browser"->startActivity(Intent(this,BrowserManagementActivity::class.java))
             "updates"->startActivity(Intent(this,UpdatesActivity::class.java))
             "about"->createAboutPage().show()
+            "source-licenses" -> createSourceLicensesPage().show()
+            "third-party-notices" -> createLicenseTextPage("third-party-notices").show()
             "feedback"->showFeedback()
             "settings-bottom"->findViewById<androidx.core.widget.NestedScrollView>(R.id.settings_scroll)?.let { scroll ->
                 scroll.post {scroll.fullScroll(View.FOCUS_DOWN)}
@@ -395,7 +376,7 @@ class MainActivity : BackupDuckActivity() {
     private fun scanCode(done:(String?)->Unit) {
         ReceiverEnvironment.scanOverride?.let {it(done);return}
         connectScan=done
-        runCatching {scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.connect_mac_title)).setBeepEnabled(false).setBarcodeImageEnabled(false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))}
+        runCatching {scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.connect_mac_title)).setBeepEnabled(false).setBarcodeImageEnabled(false).addExtra(com.google.zxing.client.android.Intents.Scan.SHOW_MISSING_CAMERA_PERMISSION_DIALOG, false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))}
             .onFailure {connectScan=null;done(null)}
     }
     private fun pauseReceiving() {
@@ -406,7 +387,7 @@ class MainActivity : BackupDuckActivity() {
                 try {ReceiverHolds.sync(this@MainActivity)} catch(error:Exception) {ReceiverPreferences.setPaused(this@MainActivity,paused);throw error}
             }}
             renderReceiver(ReceiverState.snapshot.value)
-            if(result.isFailure) showActionFailure(R.string.settings_failed,::pauseReceiving)
+            if(result.isFailure) showActionFailure(if (paused) R.string.receiver_resume_failed else R.string.receiver_pause_failed,::pauseReceiving)
         }
     }
     private fun appearanceLabel() = getString(when(delegate.localNightMode) { AppCompatDelegate.MODE_NIGHT_YES -> R.string.appearance_dark;AppCompatDelegate.MODE_NIGHT_NO -> R.string.appearance_light;else -> R.string.appearance_system })
@@ -486,7 +467,7 @@ class MainActivity : BackupDuckActivity() {
         currentSettingValues+=status to {refresh();status.text.toString()}
     }.apply {id=R.id.settings_scroll}
     /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
-    private fun openAdvanced() { createAdvancedPage().show() }
+    internal fun openAdvanced() { createAdvancedPage().show() }
     private fun createAdvancedPage(): LookPage {
         val page=LookPage(this,getString(R.string.pref_advanced_settings), "advanced")
         val body=lookGroup(page.body)
@@ -523,8 +504,22 @@ class MainActivity : BackupDuckActivity() {
     internal fun exportGalleryRecords() { showDiagnostics() }
     private fun showReportExport(gallery: Boolean) { showDiagnostics() }
     internal fun showActionFailure(message:Int,retry:()->Unit) {
-        val sheet=DuckSheet(this,getString(R.string.duck_operation_failed));duckProblem(sheet.body,getString(message))
-        sheet.body.addView(duckButton(getString(R.string.duck_retry)) {sheet.dismiss();retry()});sheet.show()
+        val needsApp = message == R.string.receiver_photos_missing || message == R.string.support_open_failed
+        val title = when (message) {
+            R.string.receiver_photos_missing -> R.string.action_photos_failed_title
+            R.string.support_open_failed -> R.string.action_open_failed_title
+            else -> message
+        }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(if (needsApp) message else R.string.action_retry_note)
+        if (needsApp) {
+            dialog.setPositiveButton(R.string.action_acknowledge, null)
+        } else {
+            dialog.setNegativeButton(R.string.action_acknowledge, null)
+                .setPositiveButton(R.string.duck_retry) { _, _ -> retry() }
+        }
+        dialog.show()
     }
     internal val hasKnownSenders get()=devicePanels.hasSenders
     internal val receiverDeviceName get()=devicePanels.name ?: Build.MODEL
@@ -554,6 +549,8 @@ class MainActivity : BackupDuckActivity() {
         "storage" -> createStoragePage(state).page
         "auto-cleanup" -> AutoCleanupScreen(this, state).page
         "about" -> createAboutPage()
+        "source-licenses" -> createSourceLicensesPage()
+        "project-license", "third-party-notices" -> createLicenseTextPage(route)
         "advanced" -> createAdvancedPage()
         "conversion" -> createAdvancedPage()
         "storage-limits", "retention", "reclaim-originals", "relay-history" -> createStoragePage().page

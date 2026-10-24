@@ -140,8 +140,15 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         val body = sheet.body
         body.addView(activity.lookText(causeTitle(activity, group), M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true },
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), 0, activity.dp(24), 0) })
-        body.addView(activity.lookText(activity.getString(causeNote(group.cause)), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
+        body.addView(activity.lookText(activity.getString(if (group.cause == PhotoCause.LIVE_PHOTO) R.string.photos_live_help_body else causeNote(group.cause)), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
             LinearLayout.LayoutParams(-1, -2).apply { setMargins(activity.dp(24), activity.dp(4), activity.dp(24), activity.dp(16)) })
+        if (group.cause == PhotoCause.LIVE_PHOTO) body.addView(activity.lookButton(activity.getString(R.string.pref_advanced_settings), LookButton.TONAL) {
+            sheet.dismiss()
+            activity.openAdvanced()
+        }, LinearLayout.LayoutParams(-2, -2).apply {
+            marginStart = activity.token(R.dimen.duck_space_large)
+            bottomMargin = activity.token(R.dimen.duck_space_medium)
+        })
         lateinit var grid: RecyclerView
         val tiles = PhotoAdapter(activity, images, { _, _ -> }, { item, source ->
             open(item, source, grid)
@@ -457,7 +464,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         }
         fun bind(group: CauseGroup) {
             currentGroup = group
-            card.show(LookState(R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), causeTitle(activity, group), activity.getString(causeNote(group.cause)),
+            card.show(LookState(if (group.cause == PhotoCause.LIVE_PHOTO) R.drawable.ic_motion else R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), causeTitle(activity, group), activity.getString(causeNote(group.cause)),
                 action = activity.getString(if (group.cause == PhotoCause.LIVE_PHOTO) R.string.photos_view else R.string.photos_try_again) to {
                     currentGroup?.let { current -> card.actionButton?.let { cardAction(current, it) } }
                 }))
@@ -571,7 +578,8 @@ private fun scopeLine(context: android.content.Context, scope: PhotoScope): Stri
         ?: resources.getQuantityString(R.plurals.photos_scope, scope.total, total)
     val saved = if (scope.allSaved) getString(R.string.photos_scope_all_saved)
         else getString(R.string.photos_scope_saved, String.format(java.util.Locale.getDefault(), "%,d", scope.saved))
-    getString(R.string.photos_scope_summary, photos, saved)
+    getString(R.string.photos_scope_summary, photos, saved) + if (scope.pending > 0) " · " + resources.getQuantityString(
+        R.plurals.photos_scope_pending, scope.pending, scope.pending) else ""
 }
 
 /** What a tile says to a screen reader: its kind and where it is. */
@@ -605,8 +613,11 @@ private fun dayLabel(context: android.content.Context, epochDay: Long): String {
 }
 
 /** Dates in the app's own language, which can differ from the system's. */
-private fun formatted(context: android.content.Context, skeleton: String, ms: Long): String =
-    android.icu.text.DateFormat.getInstanceForSkeleton(skeleton, context.resources.configuration.locales[0]).format(java.util.Date(ms))
+internal fun formatted(context: android.content.Context, skeleton: String, ms: Long): String {
+    val systemSkeleton = skeleton.replace("j",
+        if (android.text.format.DateFormat.is24HourFormat(context)) "H" else "h")
+    return android.icu.text.DateFormat.getInstanceForSkeleton(systemSkeleton, context.resources.configuration.locales[0]).format(java.util.Date(ms))
+}
 
 internal fun shortTime(context: android.content.Context, ms: Long): String =
     dayLabel(context, epochDay(ms, ZoneId.systemDefault())) + " " + formatted(context, "jm", ms)

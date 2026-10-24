@@ -59,6 +59,7 @@ class CatalogActivity : BackupDuckActivity() {
         CatalogViewerProbe.pending = intent.getStringExtra("viewerProbe")
         ReceiverEnvironment.stepMarkHighContrast = if (intent.hasExtra("highContrastText")) intent.getBooleanExtra("highContrastText", false) else null
         CatalogOverlay.showInfo = intent.getBooleanExtra("catalogInfo", false)
+        CatalogOverlay.selectPhotos = intent.getBooleanExtra("selectPhotos", false)
         CatalogIconReview.pending = intent.getStringExtra("iconReview")
         CatalogIconReview.fault = intent.getStringExtra("iconFault")
         CatalogTextAudit.enabled = intent.getBooleanExtra("auditText", false)
@@ -76,19 +77,24 @@ class CatalogActivity : BackupDuckActivity() {
             getSharedPreferences("appearance", MODE_PRIVATE).edit().putInt("mode", mode).commit()
         }
         CatalogCompatibility.configure(this, intent, scenario)
-        if (scenario.surface == "metadata") {
+        if (scenario.surface == "waking") {
+            startActivity(Intent(this, CatalogWakeActivity::class.java))
+        } else if (scenario.surface == "metadata") {
             val row = (CatalogMedia.history(scenario.core.getValue("receiver_history").first().value) as org.json.JSONObject).getJSONArray("items").getJSONObject(0)
             val item = HistoryItem(row.getLong("cursor"), row.getString("id"), row.getString("filename"), row.getString("kind"),
-                row.getLong("total_bytes"), 0, "received", "complete", null, false,
+                row.getLong("total_bytes"), row.optLong("confirmed_bytes"), row.optString("receipt", "received"),
+                row.optString("processing", "complete"),
+                row.optString("processing_error").takeUnless { it.isBlank() || it == "null" },
+                row.optBoolean("originals_released"),
                 senderNames = row.optJSONArray("senders")?.let { peers ->
                     (0 until peers.length()).mapNotNull { peers.optJSONObject(it)?.optJSONObject("profile")?.optString("name")?.takeIf(String::isNotBlank) }.joinToString(" · ")
                 }.orEmpty(),
-                capturedAtMs = row.optLong("captured_at_ms").takeIf { it > 0 },
+                capturedAtMs = CatalogMedia.captureTime(row.optString("id")) ?: row.optLong("captured_at_ms").takeIf { it > 0 },
                 receivedAtMs = row.optLong("received_at_ms").takeIf { it > 0 },
                 publishedAtMs = row.optLong("published_at_ms").takeIf { it > 0 })
             startActivity(Intent(this, NativePhotoViewerActivity::class.java).putExtra("photo", item.toBundle()))
         } else if (scenario.page == "onboarding") {
-            startActivity(Intent(this, ReceiverOnboardingActivity::class.java).putExtra("step", scenario.step))
+            startActivity(Intent(this, ReceiverOnboardingActivity::class.java).putExtra("step", scenario.step).putExtra("senderName", "Lin's iPhone"))
         } else {
             startActivity(Intent(this, MainActivity::class.java).putExtra("destination", scenario.page).putExtra("surface", scenario.launchSurface))
         }
@@ -98,6 +104,26 @@ class CatalogActivity : BackupDuckActivity() {
 /** Scenario review is opt-in via Intent; the production view tree receives no controls or margins. */
 internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
     var showInfo = false
+    var selectPhotos = false
+    private fun selectSyntheticPhotos(activity: MainActivity, attempt: Int = 0) {
+        if (!selectPhotos || activity.isDestroyed) return
+        val root = activity.window.decorView
+        root.postDelayed({
+            fun tiles(view: View): List<View> {
+                if (view is androidx.recyclerview.widget.RecyclerView) {
+                    return (0 until view.childCount).map { view.getChildAt(it) }.filter {
+                        view.getChildViewHolder(it).javaClass.simpleName == "TileHolder"
+                    }
+                }
+                return if (view is ViewGroup) (0 until view.childCount).flatMap { tiles(view.getChildAt(it)) } else emptyList()
+            }
+            val photos = tiles(root)
+            if (photos.size >= 2 && photos[0].performLongClick()) {
+                photos[1].performClick()
+                selectPhotos = false
+            } else if (attempt < 40) selectSyntheticPhotos(activity, attempt + 1)
+        }, 100)
+    }
     override fun onActivityResumed(activity: Activity) {
         CatalogTextAudit.attach(activity)
         if (activity is NativePhotoViewerActivity) CatalogViewerProbe.attach(activity)
@@ -116,7 +142,19 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
             }
         }
         if (activity !is MainActivity) return
+        if (CatalogRuntime.current?.surface in setOf("action-failure", "action-failure-retry") && activity.window.decorView.tag != "catalog-action-failure") {
+            activity.window.decorView.tag = "catalog-action-failure"
+            activity.window.decorView.postDelayed({
+                if (!activity.isDestroyed && activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    val retryable = CatalogRuntime.current?.surface == "action-failure-retry"
+                    activity.showActionFailure(if (retryable) R.string.receiver_pause_failed else R.string.support_open_failed) {
+                        java.io.File(activity.getExternalFilesDir(null), "action-retry.txt").writeText("retry invoked")
+                    }
+                }
+            }, 500)
+        }
         CatalogIconReview.attach(activity)
+        selectSyntheticPhotos(activity)
         if (!showInfo) return
         val scenario = CatalogRuntime.current ?: return
         showInfo = false
@@ -159,4 +197,13 @@ internal object CatalogOverlay : Application.ActivityLifecycleCallbacks {
     override fun onActivityStopped(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {}
+}
+
+/** Preview only: no live cleanup request or keyguard operation. */
+class CatalogWakeActivity : BackupDuckActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        super.onCreate(savedInstanceState)
+        setContentView(cleanupWakeContent(this))
+    }
 }

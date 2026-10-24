@@ -8,12 +8,20 @@ import UIKit
 /// addresses, headers, photo names or certificate material.
 @MainActor final class TransferDiagnostics {
   static let shared = TransferDiagnostics()
-  private let monitor = NWPathMonitor()
+  private var monitor: NWPathMonitor?
+  private(set) var monitoring = false
   private var network: [String: Any] = [:]
   private init() {
+  }
+  /// Reading local diagnostics must never request network access.
+  func startMonitoring() {
+    guard BackupEnvironment.usesNetwork, !monitoring else { return }
+    monitoring = true
     #if os(iOS)
     UIDevice.current.isBatteryMonitoringEnabled = true
     #endif
+    let monitor = NWPathMonitor()
+    self.monitor = monitor
     monitor.pathUpdateHandler = { [weak self] path in
       let flags: [String: Any] = [
         "network_available": path.status == .satisfied,

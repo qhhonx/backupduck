@@ -6,6 +6,8 @@ export MACOSX_DEPLOYMENT_TARGET=14.0
 # malformed Mach-O LINKEDIT on macOS. Strip the final application below.
 export CARGO_PROFILE_RELEASE_STRIP=none
 ./scripts/fetch-sparkle.sh
+cargo fetch --locked
+python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
 export CARGO_ENCODED_RUSTFLAGS=$(printf '%s\037%s' "--remap-path-prefix=$PWD=/backupduck" "--remap-path-prefix=$HOME=/builder")
 cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
 app=build/macos/BackupDuck.app
@@ -15,7 +17,9 @@ python3 scripts/stamp-version.py "$app/Contents/Info.plist"
 ditto build/dependencies/sparkle/Sparkle.framework "$app/Contents/Frameworks/Sparkle.framework"
 cp assets/BackupDuck.icns "$app/Contents/Resources/"
 cp LICENSE "$app/Contents/Resources/"
-cp build/dependencies/sparkle/LICENSE "$app/Contents/Resources/Sparkle-LICENSE.txt"
+cp apps/apple/Resources/BackupDuckLicense.txt "$app/Contents/Resources/"
+rm -f "$app/Contents/Resources/ThirdPartyLicenses-mac.json" "$app/Contents/Resources/ThirdPartyLicenses-sparkle.json" "$app/Contents/Resources/Sparkle-LICENSE.txt"
+cp apps/apple/Resources/ThirdPartyNotices-mac-sparkle.txt "$app/Contents/Resources/"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
 cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
 xcrun swift -module-cache-path build/SwiftModuleCache-mac scripts/export-menu-bar-icon.swift

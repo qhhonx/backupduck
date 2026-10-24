@@ -21,7 +21,8 @@ never places a content component inside them.
 BackupDuck's own expression lives in content: the status card, problem card,
 photo grids and media marks, the settings identity header, step marks and the
 duck in guided flows and empty states, the first-photo flight, copy and the
-accent color passed to the system as tint (Apple) or seed (Material).
+accent color passed to the system as tint (iPhone), accent color (Mac) or seed
+(Material).
 
 A review that finds a drawn close button in a sheet, card-style buttons in a
 sheet footer, or a brand block in a sidebar is a violation of this item, not a
@@ -31,7 +32,7 @@ matter of taste.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Primary action: system `.borderedProminent`, large control size (the system draws the capsule). Secondary action inside a card: `.bordered`, small. Optional action under a primary: plain text button | Push buttons: the default button is `.borderedProminent` (Return activates it), others `.bordered`, regular size. Inside a card: small `.bordered` | Material buttons: Filled for the one primary action, Tonal inside cards, Text for optional actions |
+| Primary action: system `.borderedProminent`, large control size (the system draws the capsule). Secondary action inside a card: `.bordered`, small. Optional action under a primary: plain text button | Push buttons: the default button is `.borderedProminent` (Return activates it), others neutral `.bordered`, regular size. Inside a form or card: regular/small neutral `.bordered`, without ellipsis. Pass the accent to the system with `.accentColor`, so secondary push buttons keep their neutral fill and label; do not tint the Mac root | Material buttons: Filled for the one primary action, Tonal inside cards, Text for optional actions |
 
 The capsule look approved on October 19 is kept, but the system button styles
 produce it. BackupDuck passes the role and the accent; it does not draw shape,
@@ -43,7 +44,7 @@ bottom capsule.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Top-level pages: system large title. Pushed pages: inline title and the system back button. At most one or two borderless symbol items on the trailing side; the system groups them on glass. Photos tab: the title floats over the grid, as in the system photo library | One unified toolbar: sidebar toggle, title (under 15 characters), at most three groups. Symbols without borders; one primary action on the trailing edge when there is one. Every toolbar item also exists as a menu bar command | All three top-level tabs (Receive, Photos, Settings) use the same compact top app bar with a small title and trailing actions, so switching tabs never changes the bar and content leads immediately, as the system gallery does; pushed pages use a compact bar with Back |
+| Top-level pages: system large title. Pushed pages: inline title and the system back button. At most one or two borderless symbol items on the trailing side; the system groups them on glass. Photos tab: the title floats over the grid on a media scrim through the subtitle, with a light status bar only over photos; empty, permission and loading placeholders keep the system scheme. Selection shows the selected count | One unified toolbar: sidebar toggle, title (under 15 characters), at most three groups. Symbols without borders; one primary action on the trailing edge when there is one. Every toolbar item also exists as a menu bar command | All three top-level tabs (Receive, Photos, Settings) use the same compact top app bar with a small title and trailing actions, so switching tabs never changes the bar and content leads immediately, as the system gallery does; pushed pages use a compact bar with Back |
 
 ## A3 Moving between positions
 
@@ -66,14 +67,15 @@ bottom capsule.
 ## A6 Choosing from many (albums, subfolders)
 
 A6 is for large or unbounded sets. A small fixed set (up to about seven
-options, such as media types) is an inline checklist in a grouped list: no
-search field and no selection summary. Rows that stand for photo collections
+options, such as media types) is inline in a grouped list: a checklist on
+iPhone and Pixel, leading-label/trailing-switch rows on Mac. It has no search
+field or selection summary. Rows that stand for photo collections
 (albums, folders) lead with a cover thumbnail from that collection; symbols
 in a checklist share one column width so titles align.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Push a system list with search, a selection summary and checkmarks. Changes apply at once; no Save | A list with a search field in the settings detail; from a task, a sheet with Done | A full-screen pushed page with a search bar and checkbox rows |
+| Push a system list with search, a selection summary and checkmarks. Preference rows include list insets in their 52 pt minimum and grow for wrapping; covers fit inside the row. Changes apply at once; no Save | A list with a search field in the settings detail; from a task, a sheet with Done | A full-screen pushed page with a search bar and checkbox rows |
 
 ## A7 Explanation, Learn more, help
 
@@ -84,6 +86,14 @@ and is pushed like any other settings page.
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
 | Sheet at the medium detent, expandable, close button (xmark) trailing | One or two sentences: popover from an info button, closed by clicking outside. Longer: a sheet with Done | Modal bottom sheet with a drag handle |
+
+### Third-party software reader
+
+From Source code & licenses, iPhone pushes a native text reader, Mac replaces
+the settings detail with a native text reader, and Pixel pushes a plain-text
+page. Each is a single scrollable, selectable offline document; component names
+are text rather than navigation rows. Native text controls own selection,
+copying, wrapping and scrolling.
 
 ## A8 One photo's information
 
@@ -167,3 +177,46 @@ states the count and the device.
   opens the system context menu with a full-aspect preview, and the viewer
   chrome follows the system photo library, including the light background and
   tap-for-black immersion (A8). The Pixel comparison continues.
+
+### Apple selected-photo review
+
+The iPhone selected-photo review follows `library.md`: a native large sheet
+with the selected count, the system browse button leading and checkmark
+confirmation trailing. The native bottom toolbar has Deselect All / 取消全选
+leading and prominent Back Up N Photos / 备份 N 张 trailing. Closing preserves
+selection; the backup action registers the same durable intent as the library.
+
+## Pixel task recovery and transient handoff
+
+Android action failures use a Material 3 basic AlertDialog. The title names what
+failed in ordinary words; the body says what to do. Got it / 知道了 is always
+available. Retry / 重试 appears only when retrying the original action can
+succeed, never for a cause that requires installing another app. Dismissal
+preserves the parent and its input.
+
+The wake/unlock handoff uses the receiver surface with only a small Material
+circular progress indicator, title and one-sentence note. The complete block is
+horizontally centered at the optical center (45% of the content height). There
+is no large icon, card or action. The system owns keyguard dismissal; secure
+locks require manual unlock and never accept credentials in the app. Catalog
+previews render the same content without operating the keyguard.
+
+The receive hub uses the compact native top bar from its first layout, the page
+surface, centered unconnected/first-photo states and one filled connect action.
+Connected devices remain in Settings rather than a duplicate hub list. The
+Pixel status card retains one secondary line naming the most recently connected
+enabled device and its recorded connection time, using the localized date/time
+skeleton without a weekday or a colon after Last connected / 上次连接; omit it when no time is known. Calm
+recent-photo evidence on all three platforms can show two rows (up to eight photos). Device temperature
+and free-space readings are plain secondary text, without chip backgrounds.
+
+### Apple content details
+
+An Apple unavailable-state title uses the primary-text role even when the system
+container inherits a secondary style. Photo access states name the unavailable
+access, with the system-owned permission or Settings action.
+
+The Mac split workspace hides the automatic native toolbar backdrop so the
+shared window surface continues across the titlebar; no content column paints
+a separate toolbar surface. Folder preferences use leading labels, trailing
+native buttons and a current file-rule summary.

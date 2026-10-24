@@ -7,12 +7,54 @@
   "expect": [
     "Settings bottom: Help & feedback has monochrome-icon Help Center and Send Feedback rows; feedback has its supporting sentence.",
     "A separate group contains About BackupDuck with Version 0.4.1 read from package metadata.",
-    "Centered Diagnostics · Advanced settings text links have 48 dp minimum touch height and comfortable navigation spacing.",
+    "Centered Diagnostics \u00b7 Advanced settings text links have 48 dp minimum touch height and comfortable navigation spacing.",
     "All row text and monochrome icons are vertically centered; long translations and large text grow rows."
   ],
   "storage": {
     "total_bytes": 68719476736,
     "free_bytes": 6657199308,
     "photos_bytes": 42949672960
+  },
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Pixel XL"
+        },
+        "peers": [
+          {
+            "key": "catalog-peer-1",
+            "profile": {
+              "id": "catalog-peer-1",
+              "name": "Lin's iPhone"
+            },
+            "last_seen": 1792334520,
+            "device_type": "iPhone",
+            "enabled": true
+          },
+          {
+            "key": "catalog-peer-2",
+            "profile": {
+              "id": "catalog-peer-2",
+              "name": "Lin's MacBook Air"
+            },
+            "last_seen": 1792285500,
+            "device_type": "Mac",
+            "enabled": true
+          },
+          {
+            "key": "catalog-peer-3",
+            "profile": {
+              "id": "catalog-peer-3",
+              "name": "Lin's old iPad"
+            },
+            "last_seen": 1790946900,
+            "device_type": "iPad",
+            "enabled": false
+          }
+        ]
+      }
+    }
   }
 }

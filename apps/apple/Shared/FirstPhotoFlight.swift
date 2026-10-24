@@ -47,6 +47,7 @@ struct FirstPhotoFlight: View {
         photo
           .frame(width: Self.tile, height: Self.tile)
           .modifier(Flight(progress: progress, start: start, end: end, endScale: Self.landedScale))
+          .opacity(arrived ? 0 : 1)
         Image(systemName: "checkmark.circle.fill")
           .font(.title2).symbolRenderingMode(.palette)
           .foregroundStyle(DuckRole.background, DuckRole.saved)
@@ -55,7 +56,10 @@ struct FirstPhotoFlight: View {
           .offset(x: Self.width - DuckSpacing.medium, y: -DuckSpacing.xSmall)
       }
       HStack(alignment: .top, spacing: DuckSpacing.medium) {
-        Text(senderName).frame(width: 120)
+        VStack(spacing: DuckSpacing.xxSmall) {
+          Text(senderName)
+          Text("onboarding_sender_photos")
+        }.frame(width: 120)
         Spacer(minLength: 0)
         VStack(spacing: DuckSpacing.xxSmall) {
           Text(receiverName)
@@ -65,6 +69,8 @@ struct FirstPhotoFlight: View {
       .font(.caption).foregroundStyle(.secondary)
       .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
       .frame(width: Self.width + 56)
+      DuckIllustration(pose: .done, size: 72)
+        .opacity(arrived ? 1 : 0)
     }
     // The adjacent status block owns the current fact, including blocked states.
     .accessibilityHidden(true)
@@ -94,9 +100,19 @@ struct FirstPhotoFlight: View {
   }
 
   private func device(_ symbol: String) -> some View {
-    Image(systemName: symbol)
-      .resizable().scaledToFit()
-      .foregroundStyle(DuckRole.secondaryText)
+    RoundedRectangle(cornerRadius: DuckRadius.control)
+      .fill(DuckRole.groupedSurface)
+      .overlay {
+        if let sourceID {
+          AssetThumbnail(sourceID: sourceID, size: Self.device.height, cornerRadius: DuckRadius.control)
+            .frame(width: Self.device.width - DuckSpacing.small, height: Self.device.height - DuckSpacing.large)
+            .clipped().opacity(symbol == "iphone" || arrived ? 1 : 0)
+        }
+      }
+      .overlay(alignment: .top) {
+        Capsule().fill(DuckRole.separator).frame(width: DuckSpacing.large, height: DuckSpacing.xxSmall)
+          .padding(.top, DuckSpacing.xxSmall)
+      }
       .frame(width: Self.device.width, height: Self.device.height)
   }
 

@@ -22,6 +22,7 @@ enum ReceiverConnection: Equatable {
   private var result = ReceiverConnection.unknown
   private var expires = Date.distantPast
   private var pending: Task<ReceiverConnection, Never>?
+  private(set) var started = false
 
   init(monitorNetwork: Bool = true, changed: @escaping () -> Void = {},
     probe: ((Pairing) async -> Bool)? = nil,
@@ -43,6 +44,10 @@ enum ReceiverConnection: Equatable {
         self?.networkChanged(satisfied: path.status == .satisfied, interfaces: interfaces)
       }
     }
+  }
+  func start() {
+    guard !started else { return }
+    started = true
     monitor?.start(queue: DispatchQueue(label: "app.backupduck.network"))
   }
   deinit { monitor?.cancel() }

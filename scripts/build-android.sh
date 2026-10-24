@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+cargo fetch --locked
 : "${ANDROID_HOME:=$HOME/Library/Android/sdk}"
 : "${ANDROID_NDK_HOME:=$ANDROID_HOME/ndk/27.1.12297006}"
 case "$(uname -s)" in Darwin) host=darwin-x86_64;; Linux) host=linux-x86_64;; *) echo 'Use macOS or Linux to build Android.' >&2; exit 1;; esac

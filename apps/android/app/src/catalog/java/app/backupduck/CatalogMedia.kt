@@ -28,7 +28,7 @@ internal object CatalogMedia {
         fun photo(id: String): Photo {
             val chosen = when (id) {
                 "catalog-2000", "metadata-video", "metadata-live" -> "0013.jpg"
-                "catalog-1999" -> "metadata-gps.heic"
+                "metadata-gps" -> "metadata-gps.heic"
                 "catalog-1998" -> "0023.jpg"
                 "metadata-portrait" -> "0020.jpg"
                 "metadata-landscape" -> "0013.jpg"
@@ -41,7 +41,8 @@ internal object CatalogMedia {
             for (byte in id.toByteArray(Charsets.UTF_8)) {
                 hash = (hash xor byte.toUByte().toULong()) * 1099511628211uL
             }
-            return photos[(hash % photos.size.toULong()).toInt()]
+            val ordinary = photos.filterNot { it.file.name.startsWith("metadata-") }.ifEmpty { photos }
+            return ordinary[(hash % ordinary.size.toULong()).toInt()]
         }
     }
 
@@ -77,7 +78,7 @@ internal object CatalogMedia {
         .recoverCatching { LocalDateTime.parse(value).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }
         .recoverCatching { LocalDate.parse(value).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull()
 
-    /** Copy scripted answers; never overwrite an explicit scenario capture date or receipt time. */
+    /** Copy scripted answers; use the selected fixture photo’s capture date and preserve receipt times. */
     fun history(value: Any?): Any? {
         val active = pool ?: return value
         val source = value as? JSONObject ?: return value
@@ -91,10 +92,12 @@ internal object CatalogMedia {
             val original = originalsFor(id, item.optString("kind"))
             item.put("filename", original.firstOrNull()?.first?.name ?: photo.file.name)
             item.put("total_bytes", original.sumOf { it.first.length() })
-            if (item.optLong("captured_at_ms") <= 0) photo.takenMs?.let { item.put("captured_at_ms", it) }
+            photo.takenMs?.let { item.put("captured_at_ms", it) }
         }
         return copy
     }
+
+    fun captureTime(id: String): Long? = pool?.photo(id)?.takenMs
 
     /** Read the unmodified pool file with the production metadata parser. */
     fun originals(item: HistoryItem): List<Pair<File, String>> = originalsFor(item.id, item.kind)

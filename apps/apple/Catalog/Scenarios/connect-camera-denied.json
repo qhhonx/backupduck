@@ -1,0 +1,13 @@
+{
+  "id": "connect.camera-denied",
+  "extends": "onboarding.connect",
+  "page": "connect",
+  "step": "connect",
+  "ios_only": true,
+  "title": "connect camera denied",
+  "expect": [
+    "Recovery stays on the connect page.",
+    "No real network, camera or system permission requests."
+  ],
+  "camera_failure": "permission"
+}

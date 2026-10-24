@@ -21,12 +21,12 @@
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		10C05972F063622785014F89 /* MacPreferenceGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */; };
-		11E1E4F2B7365B30325A64FC /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */; };
 		16747707B98624D480EC06F4 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		17A337617A0FFA79F33E0348 /* FolderWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8092617AEB476C19587672C8 /* FolderWatch.swift */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1DAE3203534279498E99F2AA /* FolderSourcesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C6225CA051D4BF9220D34 /* FolderSourcesPage.swift */; };
 		22C1BB50D4A30FF3ED81B30E /* MacAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC664820D43C5E36E1794DA7 /* MacAppMain.swift */; };
+		230187633955F7DCA32D842E /* ThirdPartyNotices-mac.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1EBE7D8C230F84D6C57E032 /* ThirdPartyNotices-mac.txt */; };
 		235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84136452F1E989052208E2AB /* SettingsComponents.swift */; };
 		251C1B7908667CE2569B137D /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
@@ -51,7 +51,6 @@
 		3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		3F43E8E21C37E3789C551032 /* MacPreferenceGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */; };
 		42BD32B15D22DD2843812553 /* BackupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE07F217EB8033B1FFFB8DB /* BackupModel.swift */; };
-		42C44665C6E247B4EE0BFA3C /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */; };
 		45F3EC9793898807E3C7F0A6 /* MacThumbnailTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */; };
 		47309D330F957E977938E162 /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
@@ -106,6 +105,7 @@
 		7A2F288A085221BD17FDFE0F /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		7A70A6663423068994494CF6 /* MacStatusMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCBAA8805437D418DF9BA83A /* MacStatusMenu.swift */; };
 		7A79CC65C29E91F446FEED54 /* BackupNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADE5026D42A517B3311ACC0 /* BackupNotifier.swift */; };
+		7C8EDA21C9A70EBA6609C4A8 /* ThirdPartyNotices-mac.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1EBE7D8C230F84D6C57E032 /* ThirdPartyNotices-mac.txt */; };
 		7CB64490194DB59972D9AB47 /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
 		7DE87A51B40F959AE4594E22 /* FolderSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C5E73E62B1162CA263129F3 /* FolderSources.swift */; };
 		7F543094142AE648AECCF7F9 /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
@@ -132,7 +132,6 @@
 		A122E7180C1B7B2ACA2E3656 /* FolderCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF53297C0C9639F1F9CB121 /* FolderCatalog.swift */; };
 		A3AB83FB2236EBBB671A9102 /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
 		A3BA6C64446ADDB42929DF69 /* FileThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354D47FCA5E06447D8ACA477 /* FileThumbnails.swift */; };
-		A46B841E1340C059028CE7DC /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */; };
 		A68938D2A00AC9978B35AF8C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		A6AFFE2A2B12685D8F9E3A84 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */; };
 		AC269BB78501B58AF1A523FB /* FirstPhotoFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */; };
@@ -141,6 +140,7 @@
 		AE07C56044FC909304692C2A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = FC24582406B7B42FD52AC817 /* InfoPlist.strings */; };
 		AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		AE0CCA33751E1E44FA797F71 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
+		AE2FD6AB1ADA3D326F5259E9 /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C219E57CD18E908CEBCAFE /* MacScopeAlbumBrowser.swift */; };
 		AFC9EA81012B7495174DB088 /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
 		B01AEC47980BCD9CBB8E842F /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E384A4DF9856B6B9654C459A /* Sparkle.framework */; };
 		B0E4854DB314017A80B1084B /* MacLibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C22A10344FF24A5AFAAC246 /* MacLibraryPlaceholder.swift */; };
@@ -182,6 +182,7 @@
 		D63988A6A0724C364B6ECB6E /* FolderSourcesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C6225CA051D4BF9220D34 /* FolderSourcesPage.swift */; };
 		D655F97542A4138CC3DD18A9 /* MacConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72FC357EF7DA79C6D4817FE /* MacConnect.swift */; };
 		D847A2C63159C3C172FE1DBB /* MacLibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C22A10344FF24A5AFAAC246 /* MacLibraryPlaceholder.swift */; };
+		DB14522B9295FEB7F58DC823 /* ThirdPartyNotices-mac-sparkle.txt in Resources */ = {isa = PBXBuildFile; fileRef = 75D1625C6E8D8087EE1D9718 /* ThirdPartyNotices-mac-sparkle.txt */; };
 		DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		DF7263A9E007B8391F0D56C4 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		E2070812D8170B88C3610BAF /* BackupDuckMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B4243B08406794F3828620 /* BackupDuckMacApp.swift */; };
@@ -189,6 +190,7 @@
 		E40D70B20FB7B82F9D189304 /* LibraryScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887AAC5805C34A2E272FCEF2 /* LibraryScenario.swift */; };
 		E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84136452F1E989052208E2AB /* SettingsComponents.swift */; };
 		E5C60307D89C89193AAD3CB9 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BF6D3EC9E65372524F6513 /* HistoricalImport.swift */; };
+		E5D0DA522B1004E7DE396225 /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C219E57CD18E908CEBCAFE /* MacScopeAlbumBrowser.swift */; };
 		E60A52D1FA9D133A3D13EE9B /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B2BBD178F50928C83270C3 /* MediaPreview.swift */; };
 		E66296A8B106DA4ACCBDE504 /* MediaPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B2BBD178F50928C83270C3 /* MediaPreview.swift */; };
 		E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB133CC50DD99335AC701EF8 /* TesterFeedback.swift */; };
@@ -199,6 +201,7 @@
 		F067AE6BF18952343ADC3FA2 /* LibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */; };
 		F4FC9E0EDD0EBFFD4212A634 /* MacConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72FC357EF7DA79C6D4817FE /* MacConnect.swift */; };
 		F55CC1E31039A4BF0005D291 /* FolderBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB01DB498C8F14558F65316 /* FolderBrowse.swift */; };
+		F563290CC5275B9CF4995283 /* MacScopeAlbumBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C219E57CD18E908CEBCAFE /* MacScopeAlbumBrowser.swift */; };
 		F65BCEF4C6BC545C79593A9E /* MacSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28814E83AEE7E65D31C3D8E /* MacSettings.swift */; };
 		FACC1EE20BC6633FD73F2901 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2240B6B1E76D07784056F214 /* AppUpdater.swift */; };
 		FAF632A4CAC32C0C8CA6C99F /* MacHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96643277A7E41AF1DC12B80A /* MacHub.swift */; };
@@ -228,7 +231,6 @@
 		060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnostics.swift; sourceTree = "<group>"; };
 		083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacThumbnailTables.swift; sourceTree = "<group>"; };
 		094878371404AC47EB9890CE /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
-		0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScopeAlbumBrowser.swift; sourceTree = "<group>"; };
 		0B879720B5A1DAB699000E2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1AF53297C0C9639F1F9CB121 /* FolderCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderCatalog.swift; sourceTree = "<group>"; };
 		1C5E73E62B1162CA263129F3 /* FolderSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSources.swift; sourceTree = "<group>"; };
@@ -259,6 +261,7 @@
 		6EA2148CAC472733E514F516 /* BrandComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandComponents.swift; sourceTree = "<group>"; };
 		6F298E2FF730C3406DC3E27A /* BackupDuckStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BackupDuckStore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		728F0586C99805E1F1C10684 /* DuckTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckTokens.swift; sourceTree = "<group>"; };
+		75D1625C6E8D8087EE1D9718 /* ThirdPartyNotices-mac-sparkle.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ThirdPartyNotices-mac-sparkle.txt"; sourceTree = "<group>"; };
 		774C6225CA051D4BF9220D34 /* FolderSourcesPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSourcesPage.swift; sourceTree = "<group>"; };
 		78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		790522FA25588024EE51100B /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
@@ -268,11 +271,13 @@
 		831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverDiscovery.swift; sourceTree = "<group>"; };
 		84136452F1E989052208E2AB /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		8544D07DE28FC92FCC6C01EC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		87C219E57CD18E908CEBCAFE /* MacScopeAlbumBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScopeAlbumBrowser.swift; sourceTree = "<group>"; };
 		887AAC5805C34A2E272FCEF2 /* LibraryScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScenario.swift; sourceTree = "<group>"; };
 		89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = DuckBrand.png; sourceTree = "<group>"; };
 		96643277A7E41AF1DC12B80A /* MacHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacHub.swift; sourceTree = "<group>"; };
 		97B2FA3346C393306279C748 /* Scenarios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Scenarios; path = ../apple/Catalog/Scenarios; sourceTree = SOURCE_ROOT; };
 		9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPresentation.swift; sourceTree = "<group>"; };
+		A1EBE7D8C230F84D6C57E032 /* ThirdPartyNotices-mac.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ThirdPartyNotices-mac.txt"; sourceTree = "<group>"; };
 		A6976C2350E3EACD23E2E645 /* MacPhotoPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPhotoPreview.swift; sourceTree = "<group>"; };
 		A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupEnvironment.swift; sourceTree = "<group>"; };
 		AAB01DB498C8F14558F65316 /* FolderBrowse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderBrowse.swift; sourceTree = "<group>"; };
@@ -350,7 +355,6 @@
 				8092617AEB476C19587672C8 /* FolderWatch.swift */,
 				ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */,
 				BC664820D43C5E36E1794DA7 /* MacAppMain.swift */,
-				0AB2023BBE2954441584C5C4 /* MacScopeAlbumBrowser.swift */,
 				B72FC357EF7DA79C6D4817FE /* MacConnect.swift */,
 				31AC10787D2AAAF253FC9C46 /* MacFolderGrid.swift */,
 				B692BFA0AC244130E4163BA1 /* MacFolderSettings.swift */,
@@ -360,6 +364,7 @@
 				EF765111BDFA86DCC54E86EC /* MacLibraryToolbar.swift */,
 				A6976C2350E3EACD23E2E645 /* MacPhotoPreview.swift */,
 				C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */,
+				87C219E57CD18E908CEBCAFE /* MacScopeAlbumBrowser.swift */,
 				B28814E83AEE7E65D31C3D8E /* MacSettings.swift */,
 				CCBAA8805437D418DF9BA83A /* MacStatusMenu.swift */,
 				083BB0A5F0C9F30866BCC0CB /* MacThumbnailTables.swift */,
@@ -406,6 +411,8 @@
 				89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */,
 				E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */,
 				4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */,
+				75D1625C6E8D8087EE1D9718 /* ThirdPartyNotices-mac-sparkle.txt */,
+				A1EBE7D8C230F84D6C57E032 /* ThirdPartyNotices-mac.txt */,
 				FC24582406B7B42FD52AC817 /* InfoPlist.strings */,
 				D54CA1F1DA8164B463AAC43D /* Localizable.strings */,
 			);
@@ -583,6 +590,7 @@
 				EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */,
 				473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */,
 				3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */,
+				7C8EDA21C9A70EBA6609C4A8 /* ThirdPartyNotices-mac.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -597,6 +605,7 @@
 				5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
+				DB14522B9295FEB7F58DC823 /* ThirdPartyNotices-mac-sparkle.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -611,6 +620,7 @@
 				D10B35DF72278E1BFC075963 /* Illustrations.xcassets in Resources */,
 				AE07C56044FC909304692C2A /* InfoPlist.strings in Resources */,
 				0BE4D0EA2DB8BE499CDC1BE9 /* Localizable.strings in Resources */,
+				230187633955F7DCA32D842E /* ThirdPartyNotices-mac.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -634,7 +644,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\ncd \"$SRCROOT/../..\"\nexport MACOSX_DEPLOYMENT_TARGET=14.0\ncase \"$TARGET_NAME\" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac\ncargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source\ncp target/aarch64-apple-darwin/release/libbackupduck_native.a \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\ncd \"$SRCROOT/../..\"\ncargo fetch --locked\nexport MACOSX_DEPLOYMENT_TARGET=14.0\ncase \"$TARGET_NAME\" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac\ncargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source\ncp target/aarch64-apple-darwin/release/libbackupduck_native.a \"$BUILT_PRODUCTS_DIR/\"\npython3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check\n";
 		};
 		70CB9A72A5EA6B656ADBE753 /* Build shared Rust engine */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -653,7 +663,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\ncd \"$SRCROOT/../..\"\nexport MACOSX_DEPLOYMENT_TARGET=14.0\ncase \"$TARGET_NAME\" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac\ncargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source\ncp target/aarch64-apple-darwin/release/libbackupduck_native.a \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\ncd \"$SRCROOT/../..\"\ncargo fetch --locked\nexport MACOSX_DEPLOYMENT_TARGET=14.0\ncase \"$TARGET_NAME\" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac\ncargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source\ncp target/aarch64-apple-darwin/release/libbackupduck_native.a \"$BUILT_PRODUCTS_DIR/\"\npython3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check\n";
 		};
 		9E44AA07A281FF47AB125399 /* Build shared Rust engine */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -672,7 +682,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\ncd \"$SRCROOT/../..\"\nexport MACOSX_DEPLOYMENT_TARGET=14.0\ncase \"$TARGET_NAME\" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac\ncargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source\ncp target/aarch64-apple-darwin/release/libbackupduck_native.a \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\ncd \"$SRCROOT/../..\"\ncargo fetch --locked\nexport MACOSX_DEPLOYMENT_TARGET=14.0\ncase \"$TARGET_NAME\" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac\ncargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source\ncp target/aarch64-apple-darwin/release/libbackupduck_native.a \"$BUILT_PRODUCTS_DIR/\"\npython3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -714,7 +724,6 @@
 				6784E6BFA763808AEC7A5628 /* LibraryRefreshScheduler.swift in Sources */,
 				E40D70B20FB7B82F9D189304 /* LibraryScenario.swift in Sources */,
 				6BFAC815C1DA328654CA01E7 /* LibraryTimeline.swift in Sources */,
-				11E1E4F2B7365B30325A64FC /* MacScopeAlbumBrowser.swift in Sources */,
 				502470C1347465D6666D9F6F /* MacCatalogApp.swift in Sources */,
 				F4FC9E0EDD0EBFFD4212A634 /* MacConnect.swift in Sources */,
 				B3F4976C54F7C3984303F851 /* MacFolderGrid.swift in Sources */,
@@ -725,6 +734,7 @@
 				5EB4567D14B16CE6EB91345D /* MacLibraryToolbar.swift in Sources */,
 				BA8710EAA96F24748B80A4F9 /* MacPhotoPreview.swift in Sources */,
 				3F43E8E21C37E3789C551032 /* MacPreferenceGroup.swift in Sources */,
+				AE2FD6AB1ADA3D326F5259E9 /* MacScopeAlbumBrowser.swift in Sources */,
 				F65BCEF4C6BC545C79593A9E /* MacSettings.swift in Sources */,
 				FDBEDFB2C7DB05CBD54CFFEA /* MacStatusMenu.swift in Sources */,
 				45F3EC9793898807E3C7F0A6 /* MacThumbnailTables.swift in Sources */,
@@ -782,7 +792,6 @@
 				DF7263A9E007B8391F0D56C4 /* LibraryRefreshScheduler.swift in Sources */,
 				91CDFB25BE6272ADF8938558 /* LibraryTimeline.swift in Sources */,
 				97646AB62ACAAE3ADA6EE5F4 /* MacAppMain.swift in Sources */,
-				42C44665C6E247B4EE0BFA3C /* MacScopeAlbumBrowser.swift in Sources */,
 				D655F97542A4138CC3DD18A9 /* MacConnect.swift in Sources */,
 				ADDAF266E9DFDD06AE01C137 /* MacFolderGrid.swift in Sources */,
 				09E334BC6B8BD2D32FB10AF2 /* MacFolderSettings.swift in Sources */,
@@ -792,6 +801,7 @@
 				EE006A9638DF6BACBA1472D3 /* MacLibraryToolbar.swift in Sources */,
 				6BBF604F88535126A72A12FE /* MacPhotoPreview.swift in Sources */,
 				0BF3A6449A54CDF360F817A6 /* MacPreferenceGroup.swift in Sources */,
+				E5D0DA522B1004E7DE396225 /* MacScopeAlbumBrowser.swift in Sources */,
 				7225487446C54C5E547FC03F /* MacSettings.swift in Sources */,
 				7A70A6663423068994494CF6 /* MacStatusMenu.swift in Sources */,
 				5A5E6C3AB210B8C9C05DBC43 /* MacThumbnailTables.swift in Sources */,
@@ -847,7 +857,6 @@
 				D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */,
 				E30A638B8FE3F262C9CAE9F5 /* LibraryTimeline.swift in Sources */,
 				22C1BB50D4A30FF3ED81B30E /* MacAppMain.swift in Sources */,
-				A46B841E1340C059028CE7DC /* MacScopeAlbumBrowser.swift in Sources */,
 				FF84744BF101E8461C92FD39 /* MacConnect.swift in Sources */,
 				ADCF2EB6CD7ABD6398ECD488 /* MacFolderGrid.swift in Sources */,
 				CFAB5050229635A9A0ACDBF5 /* MacFolderSettings.swift in Sources */,
@@ -857,6 +866,7 @@
 				5DE59819DB2238A145624F54 /* MacLibraryToolbar.swift in Sources */,
 				FBF5CF90C803E0003DA41C9E /* MacPhotoPreview.swift in Sources */,
 				10C05972F063622785014F89 /* MacPreferenceGroup.swift in Sources */,
+				F563290CC5275B9CF4995283 /* MacScopeAlbumBrowser.swift in Sources */,
 				6676DEDA53A39BFA9E259F44 /* MacSettings.swift in Sources */,
 				01606A41F73328383C06A185 /* MacStatusMenu.swift in Sources */,
 				FD84BAE50E4DAA4D37C1EF4F /* MacThumbnailTables.swift in Sources */,

@@ -186,35 +186,46 @@ struct BackupScopeEditor: View {
       .task { if destination == .albums { await loadAlbums() } }
   }
 
+  private var showsAlbumSearch: Bool {
+    guard destination == .albums && !model.denied else { return false }
+    #if os(macOS)
+    return !model.albums.isEmpty
+    #else
+    return true
+    #endif
+  }
+
   private var searchableContent: some View {
     Group {
-      #if os(macOS)
-      VStack(spacing: 0) {
-        if destination == .albums {
-          TextField(LocalizedStringKey("scope_search_albums"), text: $search)
-            .textFieldStyle(.roundedBorder).padding(DuckSpacing.medium)
-            .accessibilityIdentifier("backup.scope.search")
-        }
-        scopeContent
-      }
-      #else
-      if destination == .albums {
-        scopeContent.searchable(text: $search, prompt: Text("scope_search_albums"))
+      // Search only where there is a list to search; the window toolbar on the Mac.
+      if showsAlbumSearch {
+        #if os(macOS)
+        scopeContent.searchable(text: $search, placement: .toolbar, prompt: Text("scope_search_albums"))
+        #else
+        scopeContent.searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("scope_search_albums"))
+        #endif
       } else { scopeContent }
-      #endif
     }
       .navigationTitle(LocalizedStringKey(destination.title))
       #if os(iOS)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar(.visible, for: .navigationBar)
       #endif
-      .navigationDestination(item: $openedAlbum) { album in
-        #if os(iOS)
-        ScopeAlbumBrowser(album: album, store: store)
-        #else
-        MacScopeAlbumBrowser(album: album, store: store)
-        #endif
-      }
+      .navigationDestination(item: $openedAlbum) { album in albumBrowser(album) }
+  }
+
+  @ViewBuilder private func albumBrowser(_ album: ScopeAlbum) -> some View {
+    #if os(iOS)
+    ScopeAlbumBrowser(album: album, store: store)
+    #else
+    MacScopeAlbumBrowser(album: album, store: store)
+    #endif
+  }
+
+  @Environment(\.duckSettingsNavigator) private var navigator
+  private func view(_ album: ScopeAlbum) {
+    if let navigator { navigator.open(DuckSettingsPage(title: Text(verbatim: album.name), content: AnyView(albumBrowser(album)))) }
+    else { openedAlbum = album }
   }
 
   @ViewBuilder private var scopeContent: some View {
@@ -222,27 +233,63 @@ struct BackupScopeEditor: View {
       Form {
         Section {
           ForEach(BackupMediaKind.allCases) { kind in
+            #if os(macOS)
+            // Mac preference rows: leading label, trailing switch (V7).
+            Toggle(isOn: typeBinding(kind)) {
+              HStack(spacing: DuckSpacing.small) {
+                Image(systemName: kind.symbol).foregroundStyle(DuckRole.secondaryText)
+                  .frame(width: DuckSpacing.large).accessibilityHidden(true)
+                Text(LocalizedStringKey(kind.title))
+              }
+            }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
+            #else
             ScopeChoiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol,
               selected: store.rule.types.contains(kind)) {
-              var next = store.rule
-              if next.types.contains(kind) { next.types.remove(kind) } else { next.types.insert(kind) }
-              store.save(next)
+              typeBinding(kind).wrappedValue.toggle()
             }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
+            #endif
           }
         }
       }
       .formStyle(.grouped)
       .accessibilityIdentifier("backup.scope.choices")
     } else if model.denied {
-      ContentUnavailableView {
-        Label("photos_access_title", systemImage: "photo.badge.exclamationmark")
-      } description: {
-        Text("photos_permission_needed")
-      } actions: {
-        Button("library_request_access") { Task { await loadAlbums(requestPermission: true) } }.duckPrimaryButton()
-      }
+      // The library's own permission state: the right copy and action for
+      // denied, restricted or undecided access, at the optical center.
+      LibraryPlaceholder(kind: .permission(BackupEnvironment.usesPhotoLibrary
+          ? PHPhotoLibrary.authorizationStatus(for: .readWrite) : .denied),
+        requestingAccess: model.loading,
+        requestAccess: { Task { await loadAlbums(requestPermission: true) } })
     } else {
+      #if os(macOS)
+      if model.albums.isEmpty && !model.loading && missing.isEmpty {
+        VStack(spacing: 0) {
+          Form { Section { albumSelection } }.formStyle(.grouped)
+            .fixedSize(horizontal: false, vertical: true)
+          ContentUnavailableView {
+            Label("scope_albums_empty", systemImage: "rectangle.stack")
+          } description: { Text("scope_summary_note") }
+            .labeledContentStyle(.automatic)
+            .duckOpticalCenter()
+        }
+      } else { albumList }
+      #else
       albumList
+      #endif
+    }
+  }
+
+  private var albumSelection: some View {
+    Group {
+      Text(selectionSummary).foregroundStyle(.secondary)
+        .accessibilityIdentifier("backup.scope.album_count")
+      Toggle("scope_all_albums", isOn: allAlbums)
+        #if os(macOS)
+        .toggleStyle(DuckPreferenceToggleStyle())
+        #else
+        .toggleStyle(.switch).frame(minHeight: DuckPreferenceMetrics.rowHeight)
+        #endif
+        .accessibilityIdentifier("backup.scope.all_albums")
     }
   }
 
@@ -251,12 +298,7 @@ struct BackupScopeEditor: View {
     let visible = model.albums.filter { (!$0.system || chosen.contains($0.id)) && matches($0.name) }
     return List {
       Section {
-        Text(selectionSummary).foregroundStyle(.secondary)
-          .accessibilityIdentifier("backup.scope.album_count")
-        Toggle("scope_all_albums", isOn: allAlbums)
-          .toggleStyle(.switch)
-          .frame(minHeight: DuckPreferenceMetrics.rowHeight)
-          .accessibilityIdentifier("backup.scope.all_albums")
+        albumSelection
       }
       Section {
         if visible.isEmpty && !model.loading {
@@ -273,10 +315,10 @@ struct BackupScopeEditor: View {
           ScopeChoiceRow(title: album.name, subtitle: albumItemCount(album.count),
             showsCover: true, cover: album.cover, selected: chosen.contains(album.id)) { selectAlbum(album) }
             .contextMenu {
-              Button("scope_album_view") { openedAlbum = album }
+              Button("scope_album_view") { view(album) }
               Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
             }
-            .accessibilityAction(named: Text("scope_album_view")) { openedAlbum = album }
+            .accessibilityAction(named: Text("scope_album_view")) { view(album) }
             .accessibilityIdentifier("backup.scope.album." + album.id)
         }
       }
@@ -322,6 +364,13 @@ struct BackupScopeEditor: View {
       store.save(next)
     })
   }
+  private func typeBinding(_ kind: BackupMediaKind) -> Binding<Bool> {
+    Binding(get: { store.rule.types.contains(kind) }, set: { included in
+      var next = store.rule
+      if included { next.types.insert(kind) } else { next.types.remove(kind) }
+      store.save(next)
+    })
+  }
   private func selectAlbum(_ album: ScopeAlbum) {
     store.save(store.rule.toggling(album: album.id, name: album.name))
   }
@@ -339,7 +388,7 @@ private struct ScopeChoiceRow: View {
   var body: some View {
     Button(action: action) {
       HStack(spacing: DuckSpacing.small) {
-        if showsCover { ReadOnlyMediaThumbnail(asset: cover) }
+        if showsCover { ReadOnlyMediaThumbnail(asset: cover, width: 36, height: 36) }
         else if let symbol {
           Image(systemName: symbol).foregroundStyle(DuckRole.secondaryText)
             .frame(width: DuckSpacing.large).accessibilityHidden(true)
@@ -353,6 +402,7 @@ private struct ScopeChoiceRow: View {
           .opacity(selected ? 1 : 0).accessibilityHidden(true)
       }.font(.body).frame(minHeight: DuckPreferenceMetrics.rowHeight).contentShape(Rectangle())
     }.buttonStyle(.borderless).transaction { $0.animation = nil }
+      .listRowInsets(EdgeInsets(top: 0, leading: DuckSpacing.medium, bottom: 0, trailing: DuckSpacing.medium))
       .accessibilityAddTraits(selected ? .isSelected : [])
   }
 }
@@ -386,6 +436,9 @@ struct ReadOnlyMediaThumbnail: View {
         #else
         Image(uiImage: image).resizable().scaledToFill()
         #endif
+      } else {
+        Image(systemName: "photo.on.rectangle").foregroundStyle(DuckRole.secondaryText)
+          .accessibilityHidden(true)
       }
     }.frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: DuckRadius.control)).accessibilityHidden(true)
       .task(id: "\(asset.map { $0.localIdentifier + "|" + PhotoLibraryModel.revision($0) } ?? "")|\(Int(width*displayScale))|\(Int(height*displayScale))|\(policy.choice)") {

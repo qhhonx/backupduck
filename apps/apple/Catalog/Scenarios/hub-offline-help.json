@@ -1,0 +1,8 @@
+{
+  "id": "hub.offline-help",
+  "extends": "hub.offline",
+  "page": "backup",
+  "step": "offlineHelp",
+  "ios_only": true,
+  "title": "hub.offline-help"
+}

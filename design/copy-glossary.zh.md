@@ -49,9 +49,57 @@ by page with the redesign.
 | 兼容转换 / compatibility conversion | Re-encoding motion photos so other apps can open them | 格式转换 | format conversion | Live Photos only: used when the still and video cannot be saved to Photos together; the video is re-encoded |
 | 中转模式 / relay mode | Deletes BackupDuck's own copy once the Pixel's Photos copy is verified; Photos copies are never deleted | 存进相册后释放空间 | free up space after saving to Photos | Footer: "照片仍在 Pixel 相册里" / "Your photos stay in the Pixel's Photos" |
 
+## Apple vocabulary alignment
+
+These Apple labels follow the shared chosen concepts; other platforms retain
+the same vocabulary when their corresponding controls are updated.
+
+| Concept | zh-Hans | English |
+| --- | --- | --- |
+| Backup media categories, entry and page | 媒体类型 | Media Types |
+| Album scope, entry and page | 相簿 | Albums |
+| All albums / selected album count | 全部相簿 / 3 个相簿 | All Albums / 3 Albums |
+| Backup records, including viewer command | 备份记录 / 在备份记录中显示 | Backup History / Show in Backup History |
+| Version row / Mac update page | 版本 / 版本与更新 | Version / Version & Updates |
+| Live Photo category | 实况照片 | Live Photos |
+| Earlier-photo scan action (Apple) | 暂停 | Pause |
+| Project source and licensing | 源代码与许可 | Source Code & Licenses |
+| Bundled dependency notices, all platforms | 第三方软件 | Third-Party Software (Apple); Third-party software (Android) |
+
+PolyForm Noncommercial is source-available; do not describe it as open source.
+Apple help uses 腾出空间 for the section, 自动回收（实验） for the feature,
+and 释放空间 for the action. Photos and videos together use 项; pure photos
+may use 张; albums use 个. Album rows and their selected estimates include photos
+and videos, so both use 项 / items. A library view that includes photos and
+videos uses 项 in both its total and removable filtered-view marker. A Live
+Photo failure retains the full term 实况照片 / Live Photo. Apple and Android Chinese prose, including format strings, uses full-width ？（）;
+recent activity names the outcome and object rather than requests or queues.
+
+## Pixel first-run vocabulary
+
+The optional cleanup link is 试试自动回收（实验） / Try auto cleanup (experimental).
+It opens the existing cleanup page; system Smart Storage remains the primary
+first-run action.
+
 ## Voice
 
 - Address the user directly, without 请 in labels. Keep 请 for a rare request in
   a sentence.
+- Say what happens in ordinary words. A card note is one short sentence;
+  procedures and settings paths belong in Help, reached by one action.
+- Same-network help says 同一个 Wi‑Fi（不是访客网络） / the same Wi-Fi
+  (not a guest network); do not introduce network configuration jargon.
 - Say what happens next, not what the system did ("会在连上 Wi‑Fi 后继续").
 - Do not claim more than the product guarantees (constitution § Copy).
+
+## Pixel storage and source terms
+
+| Concept | Chinese | English |
+| --- | --- | --- |
+| Storage section | 腾出空间 | Free up space |
+| Accessibility-based optional feature | 自动回收（实验） | Auto cleanup (experimental) |
+| Remove safe device copies now | 释放空间 | Free up space |
+| Source and dependency licenses | 源代码与许可 | Source code & licenses |
+
+Help on all three platforms uses 我想… / I want to… and 遇到问题时 / When
+something's wrong. Connection codes use 连接码; full-quality files use 原片.

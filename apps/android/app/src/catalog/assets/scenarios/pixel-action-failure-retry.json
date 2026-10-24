@@ -1,0 +1,7 @@
+{
+  "id": "pixel.action-failure-retry",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "action-failure-retry",
+  "title": "Retryable action failure"
+}

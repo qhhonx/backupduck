@@ -16,6 +16,7 @@ import UserNotifications
     BackupEnvironment.core = Self.core
     BackupEnvironment.credentials = Self.credentials
     BackupEnvironment.discoversReceivers = false
+    BackupEnvironment.usesNetwork = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
   }
@@ -29,6 +30,11 @@ import UserNotifications
       CommandGroup(replacing: .appInfo) {
         Button("about_title") { MacAboutNavigation.open {} }
       }
+    }
+    MenuBarExtra(isInserted: .constant(ProcessInfo.processInfo.arguments.contains("-status-menu-bar"))) {
+      MacCatalogStatusMenuItems(model: BackupEnvironment.activeModel())
+    } label: {
+      Image(nsImage: MacMenuBarIcon.image)
     }
   }
 }
@@ -95,6 +101,8 @@ private enum MacCatalogLaunch {
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // Direct CLI launches must participate in normal foreground activation.
+    NSApp.setActivationPolicy(.regular)
     Task { @MainActor in
       for _ in 0..<40 {
         Self.sizeWindow()
@@ -128,9 +136,33 @@ private enum MacCatalogLaunch {
         Self.sizeWindow()
         let delay = max(0, Double(MacCatalogLaunch.value("-snapshot-delay") ?? "") ?? 9)
         try await Task.sleep(for: .seconds(delay))
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
-        try await Task.sleep(for: .milliseconds(150))
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else {
+          throw NSError(domain: "CatalogSnapshot", code: 1)
+        }
+        for _ in 0..<30 {
+          NSApp.activate(ignoringOtherApps: true)
+          window.makeMain()
+          (window.attachedSheet ?? window).makeKeyAndOrderFront(nil)
+          try await Task.sleep(for: .milliseconds(100))
+          if NSApp.isActive && (window.attachedSheet ?? window).isKeyWindow { break }
+        }
+        guard NSApp.isActive, (window.attachedSheet ?? window).isKeyWindow else {
+          throw NSError(domain: "CatalogSnapshotInactiveWindow", code: 2)
+        }
+        // Give the selected native collection/list keyboard focus so AppKit
+        // renders its emphasized selection rather than the unfocused gray style.
+        if window.attachedSheet == nil, let root = window.contentView {
+          func selectionView(_ view: NSView) -> NSView? {
+            if let collection = view as? NSCollectionView, !collection.selectionIndexPaths.isEmpty { return collection }
+            return view.subviews.lazy.compactMap { selectionView($0) }.first
+          }
+          func selectedTable(_ view: NSView) -> NSTableView? {
+            if let table = view as? NSTableView, table.selectedRow >= 0 { return table }
+            return view.subviews.lazy.compactMap { selectedTable($0) }.first
+          }
+          if let focus = selectionView(root) ?? selectedTable(root) { window.makeFirstResponder(focus) }
+        }
+        try await Task.sleep(for: .milliseconds(350))
         try await MacWindowSnapshot.write(to: URL(fileURLWithPath: path))
         print("Catalog snapshot written: \(path)")
         NSApp.terminate(nil)
@@ -174,8 +206,10 @@ private struct MacCatalogRoot: View {
         MacScenarioRun(scenario: open)
           .id(run)
           .overlay(alignment: .bottomTrailing) {
-            MacScenarioControls(scenario: open, scheme: $scheme, restart: restart, close: { self.open = nil })
-              .padding(16)
+            if MacCatalogLaunch.value("-snapshot") == nil {
+              MacScenarioControls(scenario: open, scheme: $scheme, restart: restart, close: { self.open = nil })
+                .padding(16)
+            }
           }
       } else {
         list
@@ -219,7 +253,7 @@ private struct MacScenarioRun: View {
   let scenario: Scenario
   @StateObject private var session: MacScenarioSession
   @State private var automaticChecks = true
-  @State private var checkingUpdates = false
+  @State private var renaming = false
 
   init(scenario: Scenario) {
     self.scenario = scenario
@@ -231,9 +265,45 @@ private struct MacScenarioRun: View {
     case "devices": .devices
     case "autoBackup": .autoBackup
     case "advanced": .advanced
-    case "about": .about
-    case "help": .help
+    case "appearance": .appearance
+    case "language": .language
+    case "about", "updates", "licenses", "thirdPartyLicenses": .about
+    case "help", "help.offline", "help.faster", "help.live", "help.space": .help
     default: nil
+    }
+  }
+
+  private var updateSection: MacUpdateSection? {
+    guard scenario.step == "updates" else { return nil }
+    return MacUpdateSection(automaticChecks: $automaticChecks,
+      liveDetail: AnyView(MacCatalogUpdateDetail(unavailable: scenario.id.hasSuffix("unavailable"), automaticChecks: $automaticChecks)))
+  }
+
+  private func openSettingsDetail(_ navigator: DuckSettingsNavigator) {
+    if let step = scenario.step, step.hasPrefix("help."),
+      let topic = (HelpCenter.tasks + HelpCenter.problems).first(where: { "help." + $0.id == step }) {
+      navigator.open(DuckSettingsPage(title: Text(topic.title), content: AnyView(HelpArticle(topic: topic))))
+    } else if scenario.id == "settings.scope.browser", let scope = session.scope,
+      let album = scope.albums.albums.first(where: { $0.name == "Family" }) {
+      navigator.open(DuckSettingsPage(title: Text(verbatim: album.name),
+        content: AnyView(MacScopeAlbumBrowser(album: album, store: scope.store))))
+    } else if scenario.step == "thirdPartyLicenses" {
+      navigator.open(DuckSettingsPage(title: Text("settings_third_party_licenses"), content: AnyView(DuckThirdPartyLicensesPage())))
+    } else if scenario.step == "licenses" || MacCatalogLaunch.value("-start-route") == "licenses" {
+      navigator.open(DuckSettingsPage(title: Text("settings_source_licenses"), content: AnyView(DuckLicensesPage())))
+    } else if scenario.step == "updates" {
+      navigator.open(DuckSettingsPage(title: Text("updates_title"),
+        content: AnyView(MacCatalogUpdateDetail(unavailable: scenario.id.hasSuffix("unavailable"), automaticChecks: $automaticChecks))))
+    }
+    if let count = MacCatalogLaunch.value("-settings-back").flatMap(Int.init), count > 0 {
+      Task { @MainActor in
+        // Exercise the same action as toolbar Back after the start route mounts.
+        try? await Task.sleep(for: .milliseconds(700))
+        for _ in 0..<min(count, 3) {
+          navigator.back()
+          try? await Task.sleep(for: .milliseconds(200))
+        }
+      }
     }
   }
 
@@ -241,11 +311,6 @@ private struct MacScenarioRun: View {
     Group {
       if scenario.step == "selectedBackup" {
         SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
-      } else if scenario.step == "updates" {
-        NavigationStack { MacAboutSettings(updateSection: MacUpdateSection(status: checkingUpdates ? .checking : .notChecked, canCheck: !checkingUpdates && !scenario.id.hasSuffix("unavailable"),
-          automaticChecks: $automaticChecks, check: { checkingUpdates = true })) }
-          .labeledContentStyle(DuckPreferenceRowStyle())
-          .navigationTitle("about_title")
       } else if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
         MacStatusMenuCatalog(model: session.model)
       } else if scenario.step == "macViewer" {
@@ -263,7 +328,8 @@ private struct MacScenarioRun: View {
         initialSettingsPage: scenario.id.hasPrefix("diagnostics.") ? .diagnostics : settingsPage,
         scopeStore: session.scope?.store ?? .shared, albumsModel: session.scope?.albums ?? .shared,
         initialScopeDestination: session.scope?.destination, initialScopeSearch: session.scope?.search ?? "",
-        initialViewerInfo: scenario.id == "folders.viewer-received", initialDiagnosticsPage: scenario.id.hasPrefix("diagnostics.") ? scenario.step : nil)
+        initialViewerInfo: scenario.id == "folders.viewer-received", initialDiagnosticsPage: scenario.id.hasPrefix("diagnostics.") ? scenario.step : nil,
+        openInitialSettingsDetail: openSettingsDetail, settingsUpdateSection: updateSection)
         .background {
           if scenario.id.hasPrefix("folders.viewer"), MacCatalogLaunch.value("-folder-viewer-state") != "browse" {
             FolderViewerCatalogOpening(source: scenario.id == "folders.viewer-received" ? "fixture-photo-0-4" : nil)
@@ -273,7 +339,29 @@ private struct MacScenarioRun: View {
     }
       .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
       .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
+      .sheet(isPresented: $renaming) {
+        DeviceNameEditor(model: session.model, name: session.model.deviceSnapshot?.device.name ?? "")
+      }
+      .task {
+        if scenario.step == "rename" { await session.model.open(); renaming = true }
+        if MacCatalogLaunch.value("-cache-action") == "clear" {
+          await session.model.open()
+          await session.model.reclaimCache()
+        }
+      }
       .onDisappear { session.model.stop() }
+  }
+}
+
+/// Owns synthetic update state after opening through the production pane navigator.
+private struct MacCatalogUpdateDetail: View {
+  let unavailable: Bool
+  @Binding var automaticChecks: Bool
+  @State private var checking = false
+  var body: some View {
+    MacUpdateDetail(status: checking ? .checking : .notChecked, canCheck: !unavailable && !checking,
+      automaticChecks: $automaticChecks, check: { checking = true })
+      .task { if MacCatalogLaunch.value("-updates-check") == "yes" { checking = true } }
   }
 }
 
@@ -336,6 +424,18 @@ private struct MacStatusMenuCatalog: View {
     }
     .padding(DuckSpacing.large)
     .task { await model.open() }
+  }
+}
+
+/// An opt-in system menu-bar host for the production items. Commands that
+/// navigate or quit remain inert; Pause addresses only the scripted core.
+private struct MacCatalogStatusMenuItems: View {
+  @ObservedObject var model: BackupModel
+  var body: some View {
+    MacStatusMenuItems(status: MacMenuStatus(model: model), paused: model.paused,
+      pauseEnabled: model.ready && model.pairing != nil && !model.changingPause,
+      togglePause: { Task { await model.setPaused(!model.paused) } },
+      openMain: {}, openSettings: {}, quit: {})
   }
 }
 
@@ -478,6 +578,14 @@ enum MacWindowSnapshot {
       throw SnapshotError("The catalog window is not visible (\(NSApp.windows.count) windows).")
     }
     let window = candidate.sheetParent ?? candidate
+    guard NSApp.isActive, (window.attachedSheet ?? window).isKeyWindow else {
+      throw SnapshotError("Refusing to capture an inactive catalog window.")
+    }
+    let activation: [String: Any] = ["active": NSApp.isActive, "key": (window.attachedSheet ?? window).isKeyWindow,
+      "main": window.isMainWindow, "pid": ProcessInfo.processInfo.processIdentifier,
+      "bundle": Bundle.main.bundleIdentifier ?? "", "windowNumber": window.windowNumber]
+    try JSONSerialization.data(withJSONObject: activation, options: [.prettyPrinted, .sortedKeys])
+      .write(to: url.deletingPathExtension().appendingPathExtension("activation.json"))
     let bitmap: NSBitmapImageRep
     if #available(macOS 14.4, *) {
       // Restrict capture to this process; no screen-recording consent is needed.

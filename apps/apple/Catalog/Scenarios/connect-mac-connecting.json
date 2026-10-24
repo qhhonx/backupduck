@@ -1,0 +1,26 @@
+{
+  "id": "connect.mac-connecting",
+  "extends": "connect.mac",
+  "mac_only": true,
+  "title": "Mac connecting to the synthetic Pixel",
+  "core": {
+    "desktop_pairing_status": {
+      "value": {
+        "pairing": {
+          "version": 2,
+          "receiver_id": "catalog-pixel",
+          "endpoint": "https://192.0.2.20:8484",
+          "certificate": "synthetic-certificate",
+          "token": "synthetic-token"
+        }
+      }
+    },
+    "check_pairing": {
+      "value": {},
+      "delay": 60
+    }
+  },
+  "expect": [
+    "The code is replaced by progress and the connecting message while synthetic authentication is pending."
+  ]
+}

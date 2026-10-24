@@ -376,9 +376,9 @@ URI as Intent data; this changes only catalog data providers and never writes me
 ### Viewer file metadata
 
 `pixel.photos-metadata-camera`, `pixel.photos-metadata-gps-heic` and
-`pixel.photos-metadata-no-camera` directly open production information. The first
-three `pixel.photos` items use those same unmodified local pool files: `0013.jpg`,
-`metadata-gps.heic` and `0023.jpg`. The GPS HEIC is an explicitly synthetic CC0
+`pixel.photos-metadata-no-camera` directly open production information. The camera and no-camera fixtures use the unmodified pool files `0013.jpg`
+and `0023.jpg`. The dedicated GPS fixture uses `metadata-gps.heic`; general
+photo browsing excludes metadata charts. The GPS HEIC is an explicitly synthetic CC0
 chart from https://heic.fyi/heic-sample-files; its embedded location is test data.
 Supply these through the Catalog's external `catalog-media/manifest.json` pool.
 Camera/lens/capture, measured file facts and recorded location share one card
@@ -585,3 +585,37 @@ fails only that Catalog core operation. The normal production page retains its
 input/selection and draws its own failure. `--es iconReview rename` opens the
 production name editor for the rename-save fixture. No fault or review hook is
 present in production builds.
+
+### Synthetic photo selection
+
+Launch `pixel.photos-clean` with `--ez selectPhotos true` to select the first
+two synthetic photo tiles through their native selection callbacks. The hook
+exists only in the catalog source set and waits for the virtualized tiles to
+mount; it does not send input to another app or change the photo library.
+
+### Receiver review states
+
+`onboarding.space-on` / `onboarding.space-off` and
+`pixel.storage-smart-off` show explicit system Smart Storage values.
+`pixel.auto-cleanup-on` / `pixel.auto-cleanup-off` open the feature's enabled
+state. `pixel.source-licenses`, `pixel.action-failure` and `pixel.waking`
+render production source attribution, task recovery and neutral wake content.
+The wake preview never invokes keyguard APIs. The generic media pool excludes
+metadata charts; the GPS chart is bound only to `metadata-gps` in its dedicated
+metadata scenario. Capture dates follow the chosen pool photo consistently,
+while receipt/publication timestamps stay scenario facts. Settings and Devices
+use the same synthetic devices, with explicit phone/computer/tablet kinds.
+
+The Catalog keeps a scripted Connected first-run step visible across locale and
+theme recreation. Production still resumes at the next durable step rather than
+replaying a live connection confirmation. Run
+`python3 apps/android/scripts/check-catalog-fixtures.py` from the repository root
+to validate inheritance and complete synthetic storage readings before capture.
+
+The task-failure fixture opens its production explanation only after the host
+resumes, so a theme recreation does not discard the synthetic failure. It adds
+no diagnostic failure route to the production app.
+
+`pixel.third-party-notices` opens the production selectable plain-text reader
+with the generated combined Android/Rust document. `pixel.source-licenses`
+checks its parent entry; neither surface lists components as navigation rows.

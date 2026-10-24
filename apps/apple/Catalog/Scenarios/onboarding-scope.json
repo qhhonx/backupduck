@@ -4,7 +4,8 @@
   "step": "choose",
   "ios_only": true,
   "extends": "base-paired",
-  "title": "First run: scope",
+  "title": "First run: scope with limited photo access",
+  "photo_access": "limited",
   "core": {
     "backup_summary": {
       "value": {

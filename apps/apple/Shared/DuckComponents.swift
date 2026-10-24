@@ -135,11 +135,17 @@ struct DuckSheetAction: View {
 }
 
 /// A0/A4: the system owns the sheet frame and controls on both platforms.
+/// Mac sheet widths: the standard task sheet, and a single-field editor.
+enum DuckSheetMetrics {
+  static let width: CGFloat = 560
+  static let compactWidth: CGFloat = 420
+}
+
 struct DuckSheetLayout<Content: View, Actions: View>: View {
   let title: LocalizedStringKey
   var busy = false
   var error: String? = nil
-  var desktopWidth: CGFloat = 560
+  var desktopWidth: CGFloat = DuckSheetMetrics.width
   var desktopMinHeight: CGFloat = 360
   var desktopIdealHeight: CGFloat = 560
   var desktopFitsContent = false
@@ -210,7 +216,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
           Button("cancel", action: cancel).buttonStyle(.bordered).keyboardShortcut(.cancelAction).disabled(busy)
         }
         actions().environment(\.duckSheetActions, true)
-      }.controlSize(.regular)
+      }.buttonStyle(.bordered).controlSize(.regular)
     }.padding(DuckSpacing.large)
       .frame(width: desktopWidth)
       .frame(minHeight: desktopFitsContent ? nil : desktopMinHeight, idealHeight: desktopFitsContent ? nil : desktopIdealHeight, maxHeight: 760)

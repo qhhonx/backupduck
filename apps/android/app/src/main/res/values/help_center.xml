@@ -3,13 +3,13 @@
     <string name="help2_results_title">Check that photos are saved</string>
     <string name="help2_results_p1">“Received” means the original arrived in full and passed an integrity check. For a Live Photo, this includes both the photo and its video.</string>
     <string name="help2_results_p2">“Saved to the Pixel’s Photos” means a gallery copy exists on this phone. BackupDuck prepares supported motion formats and burst information. The gallery decides whether to group burst photos.</string>
-    <string name="help2_results_p3">Cloud upload is separate and belongs to Google Photos. Check the account and backup status there, and enable backup for the BackupDuck folder if needed. BackupDuck cannot see whether cloud upload has finished.</string>
+    <string name="help2_results_p3">Cloud upload is separate and belongs to Google Photos. Check the account and backup status there, and enable backup for the BackupDuck folder if needed. BackupDuck cannot see whether cloud upload has finished.</string>
     <string name="help2_background_title">Keep receiving in the background</string>
     <string name="help2_background_p1">Turn on receiving on the Receive tab before leaving BackupDuck. Android shows a notification while it runs. Allow notifications if the system asks.</string>
     <string name="help2_background_p2">Battery restrictions can interrupt background reception. Check BackupDuck’s battery restrictions in this Pixel’s system settings. A ready Pixel cannot keep the sending device running.</string>
     <string name="help2_background_p3">iOS decides how much background time an iPhone gets, so continuous transfer while locked is not guaranteed. Keep BackupDuck open for a large first transfer. On a Mac, keep the app running and the computer awake.</string>
     <string name="help2_storage_title">Free up space on this Pixel</string>
-    <string name="help2_storage_p1">Google Photos decides which phone copies it can remove with “Free up space”, based on its own backup checks. This does not remove originals kept inside BackupDuck.</string>
+    <string name="help2_storage_p1">Google Photos decides which phone copies it can remove with “Free up space”, based on its own backup checks. This does not remove originals kept inside BackupDuck.</string>
     <string name="help2_storage_p2">“Free up space after saving to Photos” in Storage checks the gallery copy before removing BackupDuck’s copy. Missing, changed or unverified copies keep their originals. Turning this off cannot restore removed files or confirm cloud upload.</string>
     <string name="help2_storage_p3">Keeping originals lets BackupDuck retry a failed save to Photos. A converted motion photo is not an exact archive of the original photo and video.</string>
     <string name="help2_connect_title">Connect another iPhone or Mac</string>
@@ -17,9 +17,8 @@
     <string name="help2_connect_p2">For an iPhone, use the iPhone to scan the code on this Pixel. For a Mac, show the code on the Mac and scan it with the Pixel. Camera access is needed only for scanning.</string>
     <string name="help2_connect_p3">Choosing a connection method starts receiving. Once ready, BackupDuck shows a code or opens the scanner. Check the device names on both sides after connecting.</string>
     <string name="help2_connection_title">An iPhone or Mac can’t connect</string>
-    <string name="help2_connection_p1">Check that both devices are on the same Wi-Fi and can reach each other. This Pixel needs an available IPv4 address. Guest networks, device isolation or a VPN can block access even when the network names match.</string>
+    <string name="help2_connection_p1">Make sure both devices use the same Wi‑Fi and can reach each other. Guest networks or a VPN can block a connection even when the network name is the same.</string>
     <string name="help2_connection_p2">If the Pixel cannot start receiving, its Wi-Fi address may be unavailable or another app may be using the connection. Return to Receive and follow the reason shown there.</string>
-    <string name="help2_connection_p3">When available, this Pixel’s current receiving address appears below for someone helping you troubleshoot. It is not the browser management address or a connection code.</string>
     <string name="help2_recovery_title">A photo wasn’t saved to Photos</string>
     <string name="help2_recovery_p1">Open Needs you on the Photos tab to see the cause, then retry saving. Starting a retry does not mean the photo has been saved.</string>
     <string name="help2_recovery_p2">If the original arrived in full, BackupDuck can use it to retry without sending it again. If the transfer itself failed, check the cause and retry controls on the iPhone or Mac.</string>
@@ -34,6 +33,6 @@
     <string name="help2_stopped_p3">To update, open About BackupDuck in Settings and check for updates. If Android reports a different installation source or signature, keep the existing app. Uninstalling or clearing storage may lose originals kept inside BackupDuck.</string>
     <string name="help2_cleanup_title">Auto cleanup didn’t run</string>
     <string name="help2_cleanup_p1">Check the Auto cleanup row in Storage. It shows the next step if the account needs confirmation, Accessibility access is off or the last result needs your review. Cleanup must be set up and turned on before it can run automatically.</string>
-    <string name="help2_cleanup_p2">Auto cleanup uses Accessibility to tap “Free up space” in Google Photos. Google Photos decides which phone copies can be removed. BackupDuck cannot see cloud upload results; when asked, check in Google Photos and return to confirm.</string>
+    <string name="help2_cleanup_p2">Auto cleanup uses Accessibility to tap “Free up space” in Google Photos. Google Photos decides which phone copies can be removed. BackupDuck cannot see cloud upload results; when asked, check in Google Photos and return to confirm.</string>
     <string name="help2_cleanup_p3">If it still cannot finish, export a report from Diagnostics at the bottom of Settings for help. Review its contents before sharing.</string>
 </resources>

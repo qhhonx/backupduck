@@ -179,10 +179,11 @@ struct BackupHistoryView: View {
   var filter = "all"
   var initialFocus: HistoryPhoto? = nil
   var columns: Int? = nil
-  var scopeChanged: (String) -> Void = { _ in }
+  var scopeChanged: (String, Int) -> Void = { _, _ in }
   @StateObject private var history = BackupHistoryModel()
   @StateObject private var photoRouter = BackupPhotoRouter()
   @State private var retrying: HistoryCause?
+  @State private var livePhotoHelp = false
   @State private var didFocus = false
   @Environment(\.dynamicTypeSize) private var textSize
   #if os(iOS)
@@ -206,14 +207,7 @@ struct BackupHistoryView: View {
           .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
         }
         #endif
-        if filter == "attention" {
-          #if os(iOS)
-          HStack {
-            Text("records_needs_you").font(.headline)
-            Spacer()
-          }.padding(.horizontal, DuckSpacing.medium).padding(.bottom, DuckSpacing.small)
-          #endif
-        } else if !history.attention.isEmpty { needsYou }
+        if !history.attention.isEmpty { needsYou }
         if history.failed && history.photos.isEmpty {
           ContentUnavailableView {
             Label("records_load_failed", systemImage: "exclamationmark.triangle")
@@ -268,13 +262,10 @@ struct BackupHistoryView: View {
         await Task.yield()
         position.scrollTo(initialFocus.id, anchor: .top)
         didFocus = true
-      } else if !didFocus, filter == "attention", let first = history.photos.first {
-        await Task.yield()
-        position.scrollTo(first.id, anchor: .top)
-        didFocus = true
       }
     }
     .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
+    .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
     }
   }
 
@@ -285,7 +276,7 @@ struct BackupHistoryView: View {
     #endif
     await history.reload(receiver: model.pairing?.receiverID, state: filter)
     // An empty page shows only its title; the empty state says the rest.
-    scopeChanged(history.photos.isEmpty ? "" : String(format: NSLocalizedString(filter == "attention" ? "records_toolbar_attention" : "records_toolbar_scope", comment: ""), receiverName, history.total.formatted()))
+    scopeChanged(history.photos.isEmpty ? "" : String(format: NSLocalizedString(filter == "attention" ? "records_toolbar_attention" : "records_toolbar_scope", comment: ""), receiverName, history.total.formatted()), history.total)
   }
 
   private var needsYou: some View {
@@ -323,13 +314,23 @@ struct BackupHistoryView: View {
           }
         }.padding(.top, 4)
         if cause.retries && textSize.isAccessibilitySize { retryButton(cause, photos).padding(.top, 6) }
+        if cause == .liveConversion && textSize.isAccessibilitySize { livePhotoHelpButton.padding(.top, 6) }
       }
       if cause.retries && !textSize.isAccessibilitySize {
         Spacer(minLength: 8)
         retryButton(cause, photos)
       }
+      if cause == .liveConversion && !textSize.isAccessibilitySize {
+        Spacer(minLength: 8)
+        livePhotoHelpButton
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var livePhotoHelpButton: some View {
+    Button("hub_problem_convert_action") { livePhotoHelp = true }
+      .buttonStyle(.bordered).controlSize(.small)
   }
 
   private func retryButton(_ cause: HistoryCause, _ photos: [HistoryPhoto]) -> some View {

@@ -1,0 +1,13 @@
+{
+  "id": "onboarding.connect-local-network-denied",
+  "extends": "onboarding.connect",
+  "page": "onboarding",
+  "step": "connect",
+  "ios_only": true,
+  "title": "onboarding connect local network denied",
+  "expect": [
+    "Recovery stays on the connect page.",
+    "No real network, camera or system permission requests."
+  ],
+  "connection_failure": "connect_local_access"
+}

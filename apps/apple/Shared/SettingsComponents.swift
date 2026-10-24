@@ -42,6 +42,53 @@ struct DuckSettingsLabel: View {
 }
 
 
+/// A page below a settings page.
+struct DuckSettingsPage {
+  let title: Text
+  let content: AnyView
+}
+
+/// Opens pages inside the Mac Settings detail pane, so the category list and
+/// its selection stay while Back returns (design/settings.md, Mac dialect). A
+/// NavigationStack nested in the window's split view would push over the list.
+struct DuckSettingsNavigator {
+  let open: (DuckSettingsPage) -> Void
+  let back: () -> Void
+}
+
+private struct DuckSettingsNavigatorKey: EnvironmentKey {
+  static let defaultValue: DuckSettingsNavigator? = nil
+}
+extension EnvironmentValues {
+  var duckSettingsNavigator: DuckSettingsNavigator? {
+    get { self[DuckSettingsNavigatorKey.self] }
+    set { self[DuckSettingsNavigatorKey.self] = newValue }
+  }
+}
+
+/// A row that opens a page below it: inside the Mac Settings detail pane when
+/// one is present, otherwise an ordinary navigation push.
+struct DuckSettingsLink<Label: View, Destination: View>: View {
+  let title: Text
+  @ViewBuilder var destination: () -> Destination
+  @ViewBuilder var label: () -> Label
+  @Environment(\.duckSettingsNavigator) private var navigator
+
+  var body: some View {
+    if let navigator {
+      Button { navigator.open(DuckSettingsPage(title: title, content: AnyView(destination()))) } label: {
+        HStack(spacing: DuckSpacing.small) {
+          label().frame(maxWidth: .infinity, alignment: .leading)
+          Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
+        }.contentShape(Rectangle())
+      }.buttonStyle(.plain)
+    } else {
+      NavigationLink { destination() } label: { label() }
+    }
+  }
+}
+
 /// One in-place footer for temporary-file cleanup on both Apple hosts.
 /// The group's existing Clear Now action also retries a failed cleanup.
 struct DuckCacheCleanupFooter: View {

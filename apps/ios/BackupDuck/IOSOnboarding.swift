@@ -44,6 +44,13 @@ import UserNotifications
     }
   }
   func leave() { update { $0.completed = true } }
+  static func allowsRestoredNetwork(defaults: UserDefaults = .standard) -> Bool {
+    guard let data = defaults.data(forKey: "firstRunProgress.v1"),
+      let record = try? JSONDecoder().decode(Record.self, from: data) else {
+      return defaults.bool(forKey: "firstRunDone")
+    }
+    return record.completed || ["connected", "photos", "choose", "first"].contains(record.step)
+  }
   func handleNotification() { update { $0.notificationHandled = true } }
   func shouldInvite(ready: Bool, receiver: String?, published: Int) -> Bool {
     guard let record else { return false }
@@ -79,12 +86,13 @@ import UserNotifications
 /// First run on iPhone (design/flows.md §1), retained through confirmed Photos
 /// publication or explicit departure. Every decision survives process restart.
 struct IOSOnboarding: View {
-  enum Step: String, CaseIterable { case welcome, install, connect, connected, photos, choose, first }
+  enum Step: String, CaseIterable, Hashable { case welcome, install, connect, connected, photos, choose, first }
 
   @ObservedObject var model: BackupModel
   var finish: () -> Void = {}
   @ObservedObject var progress: IOSFirstRunProgress
   private var step: Step { Step(rawValue: progress.record?.step ?? "") ?? .welcome }
+  @State private var spaceHelp = false
   private var autoBackup: Binding<Bool> {
     Binding(get: { progress.record?.autoBackup ?? true }, set: { value in progress.update { $0.autoBackup = value } })
   }
@@ -98,16 +106,36 @@ struct IOSOnboarding: View {
   @Environment(\.openURL) private var openURL
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.duckFirstPhotoReducedMotion) private var previewReduceMotion
+
+  /// Without a flight, the observed publication and its announcement are one
+  /// presentation update; no animation completion is needed to advance the page.
+  private var showsArrival: Bool { announced || (landed && (reduceMotion || previewReduceMotion)) }
 
   static let downloadPage = "https://backupduck.app/#download"
 
-  init(model: BackupModel, progress: IOSFirstRunProgress, finish: @escaping () -> Void = {}) {
+  init(model: BackupModel, progress: IOSFirstRunProgress, scanner: IOSPixelScannerState? = nil, finish: @escaping () -> Void = {}) {
     self.model = model
     self.finish = finish
     self.progress = progress
+    _scanner = StateObject(wrappedValue: scanner ?? IOSPixelScannerState())
+  }
+
+  private var navigationPath: Binding<[Step]> {
+    Binding(get: { step == .welcome ? [] : Array(Step.allCases.dropFirst().prefix { $0 != step }) + [step] },
+      set: { path in go(path.last ?? .welcome) })
   }
 
   var body: some View {
+    NavigationStack(path: navigationPath) {
+      page(.welcome)
+        .navigationDestination(for: Step.self) { page($0) }
+    }
+    .tint(DuckRole.accent)
+    .toolbar(step == .welcome ? .hidden : .visible, for: .navigationBar)
+  }
+
+  private func page(_ step: Step) -> some View {
     VStack(spacing: 0) {
       if step != .welcome {
         DuckStepProgress(current: step == .install ? 1 : [.connect, .connected].contains(step) ? 2 : 3)
@@ -117,18 +145,26 @@ struct IOSOnboarding: View {
           .frame(maxWidth: 520).frame(maxWidth: .infinity)
       }
       ScrollView {
-        content.frame(maxWidth: .infinity, alignment: .leading)
+        content(step).frame(maxWidth: .infinity, alignment: .leading)
           .padding(.horizontal, DuckSpacing.large)
           .padding(.top, step == .welcome ? DuckSpacing.xLarge : 0)
           .frame(maxWidth: 520).frame(maxWidth: .infinity)
       }
       .scrollBounceBehavior(.basedOnSize)
-      actions.padding(.horizontal, 24).padding(.bottom, 16).frame(maxWidth: 520)
+      actions(step).padding(.horizontal, 24).padding(.bottom, 16).frame(maxWidth: 520)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(DuckRole.background.ignoresSafeArea())
     .tint(DuckRole.accent)
-    .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: step)
+    .navigationTitle("")
+    .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(working || progress.applyingScope)
+    .sheet(isPresented: $spaceHelp) {
+      NavigationStack {
+        HelpArticle(topic: HelpCenter.Topic(id: "space", symbol: "externaldrive"))
+          .toolbar { ToolbarItem(placement: .confirmationAction) { Button("settings_done") { spaceHelp = false } } }
+      }.presentationDetents([.medium, .large])
+    }
     .onAppear { if step == .first { checkLanded() } }
     .task(id: progress.record?.firstPhotoStarted) {
       guard step == .first, let started = progress.record?.firstPhotoStarted else { return }
@@ -146,7 +182,7 @@ struct IOSOnboarding: View {
 
   // MARK: - Content
 
-  @ViewBuilder private var content: some View {
+  @ViewBuilder private func content(_ step: Step) -> some View {
     switch step {
     case .welcome:
       VStack(spacing: DuckSpacing.xLarge) {
@@ -191,31 +227,30 @@ struct IOSOnboarding: View {
     case .photos:
       VStack(alignment: .leading, spacing: 16) {
         Text("onboarding_photos_title").font(.title2.bold())
-        VStack(alignment: .leading, spacing: 12) {
-          Label("onboarding_photos_direct", systemImage: "arrow.right.circle")
-          Label("onboarding_photos_private", systemImage: "lock")
-          Label("onboarding_photos_quality", systemImage: "sparkles")
+        Text("onboarding_photos_body").foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: DuckSpacing.medium) {
+          photoPoint("onboarding_photos_direct", symbol: "arrow.right.circle")
+          photoPoint("onboarding_photos_private", symbol: "lock")
+          photoPoint("onboarding_photos_quality", symbol: "sparkles")
         }.font(.body)
       }
     case .choose:
       VStack(alignment: .leading, spacing: 16) {
-        Text("onboarding_choose_title").font(.title2.bold())
+        Text(earlierQuestion).font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
         if BackupEnvironment.photoAccess() == .limited { Text("onboarding_access_limited").font(.subheadline).foregroundStyle(.secondary) }
         if let error = choiceError ?? progress.scopeError { Text(error).foregroundStyle(.secondary) }
-        VStack(alignment: .leading, spacing: 6) {
-          Toggle("onboarding_choose_auto", isOn: autoBackup).font(.headline).toggleStyle(DuckPreferenceToggleStyle())
-          Text("onboarding_choose_auto_note").font(.footnote).foregroundStyle(.secondary)
-        }.duckCard()
+        Text("onboarding_choose_auto_note").font(.subheadline).foregroundStyle(.secondary)
         // Photos lead (visual-language.md): the question shows the user's own photos.
         VStack(alignment: .leading, spacing: 10) {
           OnboardingLibraryStrip()
-          Text(earlierQuestion).font(.headline)
           Text("onboarding_choose_earlier_note").font(.footnote).foregroundStyle(.secondary)
+          Button("onboarding_choose_learn_more") { spaceHelp = true }
         }.duckCard()
       }
     case .first:
-      VStack(alignment: .leading, spacing: DuckSpacing.medium) {
-        Text(announced ? "onboarding_first_title" : "onboarding_first_heading")
+      VStack(alignment: .center, spacing: DuckSpacing.medium) {
+        Text(showsArrival ? "onboarding_first_title" : "onboarding_first_heading")
           .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
         FirstPhotoFlight(
           sourceID: firstJob?.asset.source_id,
@@ -225,8 +260,8 @@ struct IOSOnboarding: View {
         ) { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { announced = true } }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DuckSpacing.medium)
-        VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-          if announced {
+        VStack(alignment: .center, spacing: DuckSpacing.xSmall) {
+          if showsArrival {
             Text("onboarding_first_notify").foregroundStyle(.secondary)
           } else {
             Text(firstPhotoMessage)
@@ -235,9 +270,16 @@ struct IOSOnboarding: View {
             }
           }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .fixedSize(horizontal: false, vertical: true)
-      }.frame(maxWidth: .infinity, alignment: .leading)
+      }.frame(maxWidth: .infinity).multilineTextAlignment(.center)
+    }
+  }
+
+  private func photoPoint(_ title: LocalizedStringKey, symbol: String) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: DuckSpacing.small) {
+      Image(systemName: symbol).frame(width: DuckSpacing.large).accessibilityHidden(true)
+      Text(title).fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -266,7 +308,7 @@ struct IOSOnboarding: View {
 
   // MARK: - Actions
 
-  @ViewBuilder private var actions: some View {
+  @ViewBuilder private func actions(_ step: Step) -> some View {
     VStack(spacing: 8) {
       switch step {
       case .welcome:
@@ -275,9 +317,13 @@ struct IOSOnboarding: View {
         primary("onboarding_install_done") { go(.connect) }
       case .connect:
         if scanner.needsRecovery {
-          primary(scanner.cameraFailure == .permission ? "photos_open_settings" : "apple_scan_again") {
-            if scanner.cameraFailure == .permission { openURL(URL(string: UIApplication.openSettingsURLString)!) }
+          primary(scanner.needsSettings ? "photos_open_settings" : scanner.payload == nil ? "apple_scan_again" : "retry_task") {
+            if scanner.needsSettings { openURL(URL(string: UIApplication.openSettingsURLString)!) }
             else { scanner.retry() }
+          }
+          if scanner.payload != nil {
+            if scanner.needsSettings { secondary("retry_task") { scanner.retry() } }
+            secondary("apple_scan_again") { scanner.scanAgain() }
           }
         } else { primary("apple_scan_again") {}.hidden().accessibilityHidden(true) }
       case .connected:
@@ -295,7 +341,7 @@ struct IOSOnboarding: View {
         primary("onboarding_choose_all") { Task { await choose(earlier: true) } }
         secondary("onboarding_choose_new_only") { Task { await choose(earlier: false) } }
       case .first:
-        if announced {
+        if showsArrival {
           primary("onboarding_notify") {
             progress.handleNotification()
             leave()
@@ -428,7 +474,7 @@ struct IOSOnboarding: View {
 
   private func choose(earlier: Bool) async {
     working = true; choiceError = nil
-    progress.update { $0.earlierPhotos = earlier; $0.receiver = model.pairing?.receiverID; $0.scopeRegistered = false }
+    progress.update { $0.autoBackup = true; $0.earlierPhotos = earlier; $0.receiver = model.pairing?.receiverID; $0.scopeRegistered = false }
     // Persist choices before registering work. Never recreate an existing run.
     let access = BackupEnvironment.photoAccess()
     if access == .full || access == .limited {

@@ -15,10 +15,13 @@ struct MacSettings: View {
   var initialScopeDestination: BackupScopeDestination?
   var initialScopeSearch: String
   var initialDiagnosticsPage: String?
+  var openInitialDetail: ((DuckSettingsNavigator) -> Void)?
+  var updateSection: MacUpdateSection?
+  @State private var openedInitialDetail = false
   @AppStorage("duckAppearance") private var appearance = "system"
-  private enum SecondaryPage: Hashable { case diagnostics }
-  @State private var secondaryPage: SecondaryPage?
   @State private var page: Page? = .autoBackup
+  /// Pages opened below the selected category, inside the detail pane.
+  @State private var pages: [DuckSettingsPage] = []
   @State private var renaming = false
   @State private var retrying = false
   @State private var connecting = false
@@ -26,39 +29,35 @@ struct MacSettings: View {
 
   @MainActor init(model: BackupModel, folders: FolderSources, showFolders: @escaping () -> Void,
     initialPage: Page? = nil, scopeStore: BackupScopeStore? = nil,
-    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialDiagnosticsPage: String? = nil) {
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialDiagnosticsPage: String? = nil, openInitialDetail: ((DuckSettingsNavigator) -> Void)? = nil, updateSection: MacUpdateSection? = nil) {
+    self.openInitialDetail = openInitialDetail; self.updateSection = updateSection
     self.initialDiagnosticsPage = initialDiagnosticsPage
     self.model = model; self.folders = folders; self.showFolders = showFolders
     self.scopeStore = scopeStore ?? .shared; self.albumsModel = albumsModel ?? .shared
     self.initialScopeDestination = initialScopeDestination; self.initialScopeSearch = initialScopeSearch
-    _secondaryPage = State(initialValue: initialPage == .diagnostics ? .diagnostics : nil)
-    _page = State(initialValue: (initialPage == .diagnostics ? .autoBackup : initialPage) ?? (folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup))
+    _page = State(initialValue: initialPage ?? (folders.initialSettingsFolder != nil || folders.initialSheet == "rules" || folders.previewSettings ? .folders : .autoBackup))
   }
 
   var body: some View {
-    Group {
-      if secondaryPage == .diagnostics {
-        NavigationStack {
-          DiagnosticsView(model: model, initialPage: initialDiagnosticsPage)
-            .toolbar {
-              ToolbarItem(placement: .navigation) {
-                Button { secondaryPage = nil } label: {
-                  Label("nav_settings", systemImage: "chevron.left")
-                }.labelStyle(.iconOnly).accessibilityIdentifier("settings.secondary.back")
-              }
-            }
-        }
-      } else {
-        HStack(spacing: 0) {
-          list.frame(width: DuckSettingsMetrics.listWidth)
-          Divider()
-          detail.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-      }
+    HStack(spacing: 0) {
+      list.frame(width: DuckSettingsMetrics.listWidth)
+      Divider()
+      detail.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
+    .onAppear {
+      guard !openedInitialDetail else { return }
+      openedInitialDetail = true
+      // Start routes use the same pane navigator as interactive links.
+      if let destination = initialScopeDestination, page == .autoBackup, pages.isEmpty {
+        navigator.open(DuckSettingsPage(title: Text(LocalizedStringKey(destination.title)), content: AnyView(
+          BackupScopeEditor(destination: destination, store: scopeStore, model: albumsModel, search: destination == .albums ? initialScopeSearch : ""))))
+      }
+      openInitialDetail?(navigator)
+    }
     // Row geometry from DuckSettingsMetrics (design/visual-language.md, V7):
     // the category list through the list row default, detail forms through the row styles.
+    .buttonStyle(.bordered)
     .environment(\.defaultMinListRowHeight, DuckSettingsMetrics.rowHeight)
     .labeledContentStyle(DuckPreferenceRowStyle())
     .toggleStyle(DuckPreferenceToggleStyle())
@@ -104,7 +103,7 @@ struct MacSettings: View {
         row(.about, "about_title", "info", DuckGlyph.gray, DuckSettingsValues.releaseVersion)
       } footer: {
         HStack(spacing: DuckSpacing.xSmall) {
-          Button("settings_diagnostics") { secondaryPage = .diagnostics }.buttonStyle(.link)
+          Button("settings_diagnostics") { page = .diagnostics }.buttonStyle(.link)
             .accessibilityIdentifier("settings.diagnostics")
           Text(verbatim: "·")
           Button("settings_advanced") { page = .advanced }.buttonStyle(.link)
@@ -155,8 +154,28 @@ struct MacSettings: View {
     .padding(.vertical, 6)
   }
 
+  /// The selected category, or the page last opened below it. The list column
+  /// and its selection stay; Back (⌘[) returns one page.
+  private var navigator: DuckSettingsNavigator {
+    DuckSettingsNavigator(open: { pages.append($0) }, back: { _ = pages.popLast() })
+  }
+
   private var detail: some View {
-    detailContent.navigationTitle(pageTitle)
+    Group {
+      if let top = pages.last { top.content.navigationTitle(top.title).id(pages.count) }
+      else { detailContent.navigationTitle(pageTitle) }
+    }
+    .environment(\.duckSettingsNavigator, navigator)
+    .toolbar {
+      if !pages.isEmpty {
+        ToolbarItem(placement: .navigation) {
+          Button(action: navigator.back) { Label("mac_fidelity_back", systemImage: "chevron.left") }
+            .labelStyle(.iconOnly).keyboardShortcut("[", modifiers: .command)
+            .accessibilityIdentifier("settings.secondary.back")
+        }
+      }
+    }
+    .onChange(of: page) { _, _ in pages = [] }
   }
 
   private var pageTitle: LocalizedStringKey {
@@ -176,17 +195,17 @@ struct MacSettings: View {
 
   @ViewBuilder private var detailContent: some View {
     switch page {
-    case .folders: MacFolderSettings(folders: folders, backup: model, selectedID: folders.initialSettingsFolder)
+    case .folders: MacFolderSettings(folders: folders, backup: model)
     case .devices:
       DevicePage(model: model) { connecting = true }
         .sheet(isPresented: $connecting) { MacConnectSheet(model: model) }
     case .autoBackup:
-      MacAutoBackupSettings(model: model, scope: scopeStore, albums: albumsModel, initialDestination: initialScopeDestination, initialSearch: initialScopeSearch)
+      MacAutoBackupSettings(model: model, scope: scopeStore, albums: albumsModel, initialSearch: initialScopeSearch)
     case .appearance: MacAppearanceSettings()
     case .language: MacLanguageSettings(languageName: languageName)
-    case .help: NavigationStack { HelpCenter() }
-    case .about: NavigationStack { MacAboutSettings() }
-    case .diagnostics: EmptyView() // Presented through the secondary navigation path.
+    case .help: HelpCenter()
+    case .about: MacAboutSettings(updateSection: updateSection)
+    case .diagnostics: DiagnosticsView(model: model, initialPage: initialDiagnosticsPage)
     case .advanced: MacAdvancedSettings(model: model)
     case nil: Color.clear
     }
@@ -202,44 +221,39 @@ private struct MacAutoBackupSettings: View {
   @ObservedObject var scope: BackupScopeStore
   var albums: ScopeAlbumsModel
   var initialSearch: String
-  @State private var path: [BackupScopeDestination]
-  init(model: BackupModel, scope: BackupScopeStore, albums: ScopeAlbumsModel,
-    initialDestination: BackupScopeDestination? = nil, initialSearch: String = "") {
-    self.model = model; self.scope = scope; self.albums = albums; self.initialSearch = initialSearch
-    _path = State(initialValue: initialDestination.map { [$0] } ?? [])
-  }
   var body: some View {
-    NavigationStack(path: $path) {
-      Form {
-        Section {
-          Toggle("settings_auto_switch", isOn: Binding(get: { model.autoBackup }, set: { value in Task { await model.setAutoBackup(value) } }))
-            .toggleStyle(.switch)
-            .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
-        } footer: {
-          if let error = model.autoBackupError {
-            DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
-          } else if model.ready {
-            Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
-              : String(format: NSLocalizedString("settings_auto_footer_mac", comment: ""), DuckSettingsValues(model: model).receiverName))
-              .foregroundStyle(.secondary)
-          }
-        }
-        BackupNotificationPreferences()
-        Section("settings_includes") {
-          NavigationLink(value: BackupScopeDestination.types) {
-            LabeledContent("settings_media_types", value: scope.typesSummary)
-          }.accessibilityIdentifier("backup.scope.types")
-          NavigationLink(value: BackupScopeDestination.albums) {
-            LabeledContent("settings_specific_albums", value: scope.albumsSummary)
-          }.accessibilityIdentifier("backup.scope.albums")
+    Form {
+      Section {
+        Toggle("settings_auto_switch", isOn: Binding(get: { model.autoBackup }, set: { value in Task { await model.setAutoBackup(value) } }))
+          .toggleStyle(.switch)
+          .disabled(!model.ready || model.pairing == nil || model.changingAutoBackup)
+      } footer: {
+        if let error = model.autoBackupError {
+          DuckNotice(title: LocalizedStringKey(error), tone: .failure, symbol: "exclamationmark.circle")
+        } else if model.ready {
+          Text(model.pairing == nil ? NSLocalizedString("settings_auto_footer_unpaired", comment: "")
+            : String(format: NSLocalizedString("settings_auto_footer_mac", comment: ""), DuckSettingsValues(model: model).receiverName))
+            .foregroundStyle(.secondary)
         }
       }
-      .formStyle(.grouped)
-      .navigationTitle("settings_auto_backup")
-      .navigationDestination(for: BackupScopeDestination.self) { destination in
-        BackupScopeEditor(destination: destination, store: scope, model: albums, search: destination == .albums ? initialSearch : "")
+      Section {
+        DuckSettingsLink(title: Text(LocalizedStringKey(BackupScopeDestination.types.title))) { editor(.types) } label: {
+          LabeledContent("settings_media_types", value: scope.typesSummary)
+        }.accessibilityIdentifier("backup.scope.types")
+        DuckSettingsLink(title: Text(LocalizedStringKey(BackupScopeDestination.albums.title))) { editor(.albums) } label: {
+          LabeledContent("settings_specific_albums", value: scope.albumsSummary)
+        }.accessibilityIdentifier("backup.scope.albums")
+      } header: { Text("settings_includes") } footer: {
+        if scope.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure, symbol: "exclamationmark.circle") }
+        else { Text("settings_includes_footer") }
       }
+      BackupNotificationPreferences()
     }
+    .formStyle(.grouped)
+    .navigationTitle("settings_auto_backup")
+  }
+  private func editor(_ destination: BackupScopeDestination) -> BackupScopeEditor {
+    BackupScopeEditor(destination: destination, store: scope, model: albums, search: destination == .albums ? initialSearch : "")
   }
 }
 
@@ -269,9 +283,15 @@ private struct MacLanguageSettings: View {
   var body: some View {
     Form {
       Section {
-        LabeledContent("apple_language", value: languageName)
-        Button("apple_language_open_settings") {
-          failed = !NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
+        LabeledContent("apple_language") {
+          HStack {
+            Text(languageName)
+            Button("apple_language_open_settings") {
+              // Language & Region, where the per-app language lives; System Settings otherwise.
+              failed = !(NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension")!)
+                || NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app")))
+            }
+          }
         }
       } footer: {
         Text(failed ? "mac_language_open_failed" : "mac_language_system_note").foregroundStyle(failed ? DuckRole.failure : .secondary)
@@ -285,6 +305,7 @@ struct MacAboutSettings: View {
   var updateSection: MacUpdateSection? = nil
   var body: some View {
     Form {
+      DuckAboutIdentitySection()
       DuckAboutAuthorSection()
       if let updateSection { updateSection } else { UpdateSettings() }
       DuckAboutLinksSection()

@@ -1,0 +1,7 @@
+{
+  "id": "pixel.action-failure",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "action-failure",
+  "title": "action-failure"
+}

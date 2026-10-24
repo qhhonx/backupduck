@@ -8,12 +8,7 @@ import android.widget.LinearLayout
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.widget.NestedScrollView
-import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import com.google.android.material.R as M
 
 /** Stable keys retain the five existing help links while the articles follow the task contract. */
@@ -22,7 +17,7 @@ internal enum class ReceiverHelpTopic(val key: String, val title: Int, val icon:
     BACKGROUND("background", R.string.help2_background_title, R.drawable.ic_bell, listOf(R.string.help2_background_p1, R.string.help2_background_p2, R.string.help2_background_p3)),
     STORAGE("storage", R.string.help2_storage_title, R.drawable.ic_storage, listOf(R.string.help2_storage_p1, R.string.help2_storage_p2, R.string.help2_storage_p3)),
     CONNECT("connect", R.string.help2_connect_title, R.drawable.ic_qr, listOf(R.string.help2_connect_p1, R.string.help2_connect_p2, R.string.help2_connect_p3)),
-    CONNECTION("connection", R.string.help2_connection_title, R.drawable.ic_wifi, listOf(R.string.help2_connection_p1, R.string.help2_connection_p2, R.string.help2_connection_p3)),
+    CONNECTION("connection", R.string.help2_connection_title, R.drawable.ic_wifi, listOf(R.string.help2_connection_p1, R.string.help2_connection_p2)),
     RECOVERY("recovery", R.string.help2_recovery_title, R.drawable.ic_photo, listOf(R.string.help2_recovery_p1, R.string.help2_recovery_p2, R.string.help2_recovery_p3)),
     FULL("full", R.string.help2_full_title, R.drawable.ic_storage, listOf(R.string.help2_full_p1, R.string.help2_full_p2, R.string.help2_full_p3)),
     STOPPED("stopped", R.string.help2_stopped_title, R.drawable.ic_receiver, listOf(R.string.help2_stopped_p1, R.string.help2_stopped_p2, R.string.help2_stopped_p3)),
@@ -35,7 +30,7 @@ internal enum class ReceiverHelpTopic(val key: String, val title: Int, val icon:
     }
 }
 
-/** Packaged, read-only guidance. Only the connection article reads a current receiver fact. */
+/** Packaged, read-only guidance. */
 class ReceiverHelpActivity : BackupDuckActivity() {
     private var query = ""
     private var searchExpanded = false
@@ -143,25 +138,6 @@ class ReceiverHelpActivity : BackupDuckActivity() {
             body.addView(lookText(getString(text), M.style.TextAppearance_Material3_BodyLarge),
                 LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = token(R.dimen.duck_space_medium) })
         }
-        if (topic == ReceiverHelpTopic.CONNECTION) {
-            val address = lookText("", M.style.TextAppearance_Material3_BodySmall, secondary = true).apply {
-                visibility = View.GONE
-                setTextIsSelectable(true)
-                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-            }
-            body.addView(address)
-            lifecycleScope.launch {
-                val endpoint = withContext(Dispatchers.IO) {
-                    runCatching {
-                        val result = NativeBridge.request(JSONObject().put("op", "receiver_connection_info").put("root", "$filesDir/receiver")) as JSONObject
-                        if (result.isNull("endpoint")) null else result.optString("endpoint").takeIf { it.isNotBlank() }
-                    }.getOrNull()
-                }
-                if (endpoint != null) {
-                    address.text = getString(R.string.help_address_saved, endpoint)
-                    address.visibility = View.VISIBLE
-                }
-            }
-        }
+
     }
 }

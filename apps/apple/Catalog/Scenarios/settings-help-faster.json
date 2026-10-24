@@ -1,0 +1,7 @@
+{
+  "id": "settings.help-faster",
+  "extends": "base-paired",
+  "page": "settings",
+  "step": "help.faster",
+  "title": "settings.help-faster"
+}

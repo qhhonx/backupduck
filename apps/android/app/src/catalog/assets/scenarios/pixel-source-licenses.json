@@ -1,0 +1,7 @@
+{
+  "id": "pixel.source-licenses",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "source-licenses",
+  "title": "source-licenses"
+}

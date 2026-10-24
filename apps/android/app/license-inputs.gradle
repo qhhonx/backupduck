@@ -1,0 +1,82 @@
+// Generate the offline attribution inventory from the resolved shipping graph.
+// Missing license metadata fails the build rather than silently omitting a library.
+import groovy.json.JsonOutput
+import groovy.xml.XmlSlurper
+import org.gradle.maven.MavenModule
+import org.gradle.maven.MavenPomArtifact
+
+def licenseInputs = layout.buildDirectory.file('license-inputs.json')
+def exportInputs = tasks.register('exportLicenseInputs') {
+    outputs.file(licenseInputs)
+    inputs.files(configurations.releaseRuntimeClasspath)
+    inputs.file(file('license-texts/Apache-2.0.txt'))
+    inputs.property('releaseDependencyIds', providers.provider {
+        configurations.releaseRuntimeClasspath.incoming.resolutionResult.allComponents.collect { it.id.displayName }.sort()
+    })
+    doLast {
+        def components = configurations.releaseRuntimeClasspath.incoming.resolutionResult.allComponents
+            .findAll { it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+            .collect { it.id }
+        def query = dependencies.createArtifactResolutionQuery().forComponents(components)
+            .withArtifacts(MavenModule, MavenPomArtifact).execute()
+        if (query.resolvedComponents.collect { it.id }.toSet() != components.toSet())
+            throw new GradleException('License inventory does not cover the resolved Android dependency graph')
+        def inheritedLicenses
+        inheritedLicenses = { xml, int depth ->
+            if (depth > 8) throw new GradleException('POM parent chain too deep')
+            def found = xml.licenses.license.collect { [name: it.name.text(), url: it.url.text()] }
+            if (!found.isEmpty() || xml.parent.size() == 0) return found
+            def parent = xml.parent
+            def dependency = dependencies.create("${parent.groupId.text()}:${parent.artifactId.text()}:${parent.version.text()}@pom")
+            def config = configurations.detachedConfiguration(dependency)
+            config.transitive = false
+            return inheritedLicenses(new XmlSlurper(false, false).parse(config.singleFile), depth + 1)
+        }
+        def rows = []
+        query.resolvedComponents.each { component ->
+            def pom = component.getArtifacts(MavenPomArtifact).find { it instanceof org.gradle.api.artifacts.result.ResolvedArtifactResult }
+            if (pom == null) throw new GradleException("No POM for ${component.id}")
+            def xml = new XmlSlurper(false, false).parse(pom.file)
+            def licenses = inheritedLicenses(xml, 0)
+            if (licenses.isEmpty()) throw new GradleException("No license metadata for ${component.id}")
+            if (!licenses.every { it.name.toLowerCase().contains('apache') && it.name.contains('2.0') })
+                throw new GradleException("Bundle the license text for ${component.id} before shipping")
+            rows << [component: component.id.displayName, name: xml.name.text(), licenses: licenses]
+        }
+        def notices = []
+        def collectNotices
+        collectNotices = { InputStream input, String component ->
+            def zip = new java.util.zip.ZipInputStream(input)
+            for (def entry = zip.nextEntry; entry != null; entry = zip.nextEntry) {
+                if (!entry.directory && entry.name.toUpperCase().matches('(^|.*/)(LICENSE|NOTICE|COPYING)([.].*)?')) {
+                    notices << [component: component, text: new String(zip.readAllBytes(), 'UTF-8')]
+                } else if (!entry.directory && entry.name == 'classes.jar') {
+                    collectNotices(new ByteArrayInputStream(zip.readAllBytes()), component)
+                }
+            }
+            zip.close()
+        }
+        configurations.releaseRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.sort { it.moduleVersion.id.toString() }.each { artifact ->
+            if (artifact.file.name.endsWith('.jar') || artifact.file.name.endsWith('.aar')) {
+                collectNotices(new FileInputStream(artifact.file), artifact.moduleVersion.id.toString())
+            }
+        }
+        def inventory = rows.sort { it.component }.collect { row ->
+            def id = row.component.lastIndexOf(':')
+            [name: row.component.substring(0, id), version: row.component.substring(id + 1),
+             license: 'Apache License 2.0', texts: [file('license-texts/Apache-2.0.txt').getText('UTF-8')] +
+                notices.findAll { it.component == row.component }.collect { it.text }]
+        }
+        def out = licenseInputs.get().asFile
+        out.parentFile.mkdirs()
+        out.setText(JsonOutput.prettyPrint(JsonOutput.toJson(inventory)) + '\n', 'UTF-8')
+    }
+}
+// Builds verify the checked-in document; regeneration is an explicit operation.
+def checkNotices = tasks.register('checkThirdPartyNotices', Exec) {
+    dependsOn(exportInputs)
+    workingDir(rootProject.file('../..'))
+    commandLine 'python3', 'apps/apple/Scripts/generate-third-party-licenses.py',
+        '--platform', 'android', '--android-input', licenseInputs.get().asFile.absolutePath, '--check'
+}
+tasks.named('preBuild').configure { dependsOn(checkNotices) }

@@ -32,6 +32,13 @@ enum BackupEnvironment {
   nonisolated(unsafe) static var activeNotifier: @MainActor () -> BackupNotifier = { .shared }
   /// Bonjour browsing proposes new receiver routes. Off where no real receiver exists.
   nonisolated(unsafe) static var discoversReceivers = true
+  /// Catalogs replace network operations, including monitors and OS sessions.
+  nonisolated(unsafe) static var usesNetwork = true
+  nonisolated(unsafe) static var usesCamera = true
+  /// Restoring trust is not permission to interrupt an unfinished scan step.
+  nonisolated(unsafe) static var restoresSenderNetwork: @MainActor () -> Bool = { true }
+  /// iOS serializes network access before Rust authenticates a scanned peer.
+  nonisolated(unsafe) static var prepareConnection: @MainActor (Pairing) async throws -> Void = { _ in }
   /// Reading and observing the photo library (thumbnails, change observers).
   /// Off in the catalog, so it never touches the device's real photos or prompts.
   nonisolated(unsafe) static var usesPhotoLibrary = true
@@ -82,3 +89,10 @@ struct NativeCore: CoreTransport {
 }
 
 enum PhotoAccess: String { case full, limited, denied, undetermined }
+
+enum ConnectAccessFailure: String, LocalizedError {
+  case wireless = "connect_wireless_access"
+  case localNetwork = "connect_local_access"
+  case unavailable = "connect_network_unavailable"
+  var errorDescription: String? { NSLocalizedString(rawValue, comment: "") }
+}

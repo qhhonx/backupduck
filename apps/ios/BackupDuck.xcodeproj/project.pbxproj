@@ -13,16 +13,18 @@
 		07F5A5D3282BE243ED5451B7 /* BackupDuckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C3380BBAA4BF7AD71DEDF0 /* BackupDuckApp.swift */; };
 		0A0F659EA7BD7EB13A287872 /* BrandComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA2148CAC472733E514F516 /* BrandComponents.swift */; };
 		0C9D7AD807073F2661301B5D /* LibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA1DF0F69ACC8A8878DBA91 /* LibraryPresentation.swift */; };
-		0CEB9ABBB14216BB794F58E3 /* IOSPresentationCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */; };
 		0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */; };
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
+		11E8EFF2EC7E3E52C2B2D177 /* ThirdPartyNotices-ios.txt in Resources */ = {isa = PBXBuildFile; fileRef = B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */; };
 		156EE3F6047F2638470B0047 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */; };
 		222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
 		235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84136452F1E989052208E2AB /* SettingsComponents.swift */; };
+		2501460A2728BDFAB656FBF1 /* IOSConnectNetworkAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DCFE1E45BFAE94BDE09700 /* IOSConnectNetworkAccess.swift */; };
 		25A6A073446F5BD8CF8E810C /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		26B7E3DE460BC5B459D16995 /* BackupScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA4F7B4794F768E7D3071B /* BackupScope.swift */; };
+		26D2B9BAE24C048D41836B37 /* IOSPresentationCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF3D3A62A231D88FDA73FF64 /* IOSPresentationCompatibility.swift */; };
 		2B05516DFB7975C99E1413BF /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
 		2C5C90A755B29BC8B45E8DEC /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
 		2D202037E82213C36D8B014A /* BackupDuckLicense.txt in Resources */ = {isa = PBXBuildFile; fileRef = EB6ECA8CF58B3514AD00ED97 /* BackupDuckLicense.txt */; };
@@ -88,10 +90,12 @@
 		84E19CAC314F3724C5D1E921 /* DevicePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F78F39A26D0185F6DC47C69 /* DevicePage.swift */; };
 		850B8427BB4BF0DF4AF71B37 /* Scenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9DC3066EDAD759AC94A12F8 /* Scenario.swift */; };
 		85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D54CA1F1DA8164B463AAC43D /* Localizable.strings */; };
+		87542CC29092659BF075E2CD /* IOSPresentationCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF3D3A62A231D88FDA73FF64 /* IOSPresentationCompatibility.swift */; };
 		87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */; };
 		8933930286FA62C95995E273 /* SettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B3868DBAEACC46DF1CAC96 /* SettingsTests.swift */; };
 		8F1B6E81FDDF6E284B34A4F0 /* GridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC599E760BD43DB668596349 /* GridZoom.swift */; };
 		91B34306380AFC106472164B /* LibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94C4B44B41B9AAD96A51E7E3 /* LibraryTests.swift */; };
+		926F47DBCF65C47C3368AD72 /* ConnectPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F6F85441FF999570ADC1F3 /* ConnectPermissionTests.swift */; };
 		93C3AB83EF889D78A5C6E6B9 /* BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2952CF6A3A582257A66A4A /* BackupHistory.swift */; };
 		94E8C583B194F42A5585B965 /* DuckBrand.png in Resources */ = {isa = PBXBuildFile; fileRef = 89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */; };
 		9523B09BB2EE875AB0F1314A /* BurstPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6941384B4E73A3DF79B5EE30 /* BurstPhotos.swift */; };
@@ -129,7 +133,6 @@
 		D051A3A22D11DDB4D3A76610 /* LibraryRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0844CBA74DBDE843EE4C8E5 /* LibraryRefreshScheduler.swift */; };
 		D07B3C7795ABA40D894DA26B /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
 		D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05D4B05F1A2E0005A464006 /* LibraryPlaceholder.swift */; };
-		D39276A745BE767B3F33C721 /* IOSPresentationCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */; };
 		D6E78194CB84A18136D8892A /* BackupLiveActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686C340C683B91E66C51FAEE /* BackupLiveActivityTests.swift */; };
 		DEDF21076E7B0135E016A82F /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		E30A638B8FE3F262C9CAE9F5 /* LibraryTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D92D022A9FA3DDDAFDD8CD /* LibraryTimeline.swift */; };
@@ -147,6 +150,8 @@
 		F10EF15B88883D3D721D247A /* BackupHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */; };
 		F2BEEAB9407D8CFA18090452 /* CalendarGridController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A160B6BAB13F144F368454F2 /* CalendarGridController.swift */; };
 		F69787C40DFA7D9F1C0FCB75 /* LibraryPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */; };
+		FBD98B94832C96416B3D3E72 /* ThirdPartyNotices-ios.txt in Resources */ = {isa = PBXBuildFile; fileRef = B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */; };
+		FFDF5ADBACF403DE3923F692 /* IOSConnectNetworkAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DCFE1E45BFAE94BDE09700 /* IOSConnectNetworkAccess.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -156,6 +161,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 4C12B6378330946494E34178;
 			remoteInfo = BackupDuck;
+		};
+		C65BC9B92093B79446DCAEED /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A6AC491E80E5EC54949903E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5174466870F3026BCA358C53;
+			remoteInfo = BackupDuckCatalog;
 		};
 		C954AD15E365EDB3B0C6BC98 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -188,6 +200,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		04DCFE1E45BFAE94BDE09700 /* IOSConnectNetworkAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSConnectNetworkAccess.swift; sourceTree = "<group>"; };
 		060DC83C5DD462AF0201FB43 /* TransferDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnostics.swift; sourceTree = "<group>"; };
 		094878371404AC47EB9890CE /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		0B879720B5A1DAB699000E2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -214,6 +227,7 @@
 		48543A6804607508613E2435 /* PairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
 		533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPhotoFlight.swift; sourceTree = "<group>"; };
 		5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistoryTests.swift; sourceTree = "<group>"; };
+		56F6F85441FF999570ADC1F3 /* ConnectPermissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectPermissionTests.swift; sourceTree = "<group>"; };
 		57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActivityAttributes.swift; sourceTree = "<group>"; };
 		59C34141DC38638A5D3BAC59 /* CalendarGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridTests.swift; sourceTree = "<group>"; };
 		5CBA4F7B4794F768E7D3071B /* BackupScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupScope.swift; sourceTree = "<group>"; };
@@ -230,6 +244,7 @@
 		78DDF52CDD4B1B245A0B2793 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		790522FA25588024EE51100B /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
 		7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopeAlbumGrid.swift; sourceTree = "<group>"; };
+		7C9EFA2041C34F8E6CAF7A46 /* BackupDuckCatalogTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BackupDuckCatalogTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBackupOrder.swift; sourceTree = "<group>"; };
 		805BF9DCDC6A0FA2B95D9C34 /* LibraryPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPresentationTests.swift; sourceTree = "<group>"; };
 		831E3F2F49F936B437BB7A3A /* ReceiverDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverDiscovery.swift; sourceTree = "<group>"; };
@@ -251,7 +266,7 @@
 		B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLifecycle.swift; sourceTree = "<group>"; };
 		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
-		B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSPresentationCompatibility.swift; sourceTree = "<group>"; };
+		B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ThirdPartyNotices-ios.txt"; sourceTree = "<group>"; };
 		B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransfer.swift; sourceTree = "<group>"; };
 		BC599E760BD43DB668596349 /* GridZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoom.swift; sourceTree = "<group>"; };
 		BF2952CF6A3A582257A66A4A /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
@@ -263,6 +278,7 @@
 		D39898A776B4A23AF72454A2 /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
 		D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnosticsTests.swift; sourceTree = "<group>"; };
 		D41EB33EF719860F9DC39522 /* AppTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTabs.swift; sourceTree = "<group>"; };
+		DF3D3A62A231D88FDA73FF64 /* IOSPresentationCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSPresentationCompatibility.swift; sourceTree = "<group>"; };
 		E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = DuckMenuBar.pdf; sourceTree = "<group>"; };
 		E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BackupDuckLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E38563283F39B8785CDA2F1E /* ReceiverAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverAvailability.swift; sourceTree = "<group>"; };
@@ -282,6 +298,7 @@
 			children = (
 				C2DDE6D0D49315701CCCE445 /* BackupDuck.app */,
 				F216BA9DB13FA7A6DAE85EC0 /* BackupDuckCatalog.app */,
+				7C9EFA2041C34F8E6CAF7A46 /* BackupDuckCatalogTests.xctest */,
 				E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */,
 				16B3C1C169CA7713E06B26B3 /* BackupDuckTests.xctest */,
 				36B169D63C5CECC627CB1FA4 /* BackupDuckUITests.xctest */,
@@ -298,6 +315,14 @@
 			path = Catalog;
 			sourceTree = "<group>";
 		};
+		31EC1A52A7BFD8A07A803F52 /* CatalogTests */ = {
+			isa = PBXGroup;
+			children = (
+				56F6F85441FF999570ADC1F3 /* ConnectPermissionTests.swift */,
+			);
+			path = CatalogTests;
+			sourceTree = "<group>";
+		};
 		33538B84AF814E9BBAD6BADE /* BackupDuck */ = {
 			isa = PBXGroup;
 			children = (
@@ -309,13 +334,14 @@
 				A160B6BAB13F144F368454F2 /* CalendarGridController.swift */,
 				63393D3E70EEF613D5806923 /* CalendarLibrary.swift */,
 				354FD796EC38268C550E83C1 /* IOSConnect.swift */,
+				04DCFE1E45BFAE94BDE09700 /* IOSConnectNetworkAccess.swift */,
 				15C8DAED4BC83F757CD44368 /* IOSHub.swift */,
 				1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */,
+				DF3D3A62A231D88FDA73FF64 /* IOSPresentationCompatibility.swift */,
 				FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */,
 				ABCFCB6FCB0CDFED5197D845 /* LibraryGrid.swift */,
 				48543A6804607508613E2435 /* PairingScanner.swift */,
 				7A2B3F04E5A11056741C304E /* ScopeAlbumGrid.swift */,
-				B344E5B85F383ED1CEE5AF16 /* IOSPresentationCompatibility.swift */,
 			);
 			path = BackupDuck;
 			sourceTree = "<group>";
@@ -338,6 +364,7 @@
 				33538B84AF814E9BBAD6BADE /* BackupDuck */,
 				2F41044B0F36D1918ED7F1CC /* Catalog */,
 				DCC6BE1769D03BE7D0F19B9F /* Catalog */,
+				31EC1A52A7BFD8A07A803F52 /* CatalogTests */,
 				F51DFEB7E8BB86488FC6AF3B /* LiveActivity */,
 				8B1BA4F931D5BD124606C855 /* Resources */,
 				E1F0E283D93E21E408019AB0 /* Shared */,
@@ -372,6 +399,7 @@
 				89D43DD2E0BCCA07983D4DE7 /* DuckBrand.png */,
 				E0097B11B3EE4800E3140477 /* DuckMenuBar.pdf */,
 				4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */,
+				B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */,
 				FC24582406B7B42FD52AC817 /* InfoPlist.strings */,
 				D54CA1F1DA8164B463AAC43D /* Localizable.strings */,
 			);
@@ -538,6 +566,24 @@
 			productReference = E23FF356B83DDC81AAE84079 /* BackupDuckLiveActivity.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C31F4FDD46B66F1356CA39E7 /* BackupDuckCatalogTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A67559EE10BD5141CE57A2DC /* Build configuration list for PBXNativeTarget "BackupDuckCatalogTests" */;
+			buildPhases = (
+				8AD81C95447FF7055B3ACE5B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B6425D31406CE73C693969E9 /* PBXTargetDependency */,
+			);
+			name = BackupDuckCatalogTests;
+			packageProductDependencies = (
+			);
+			productName = BackupDuckCatalogTests;
+			productReference = 7C9EFA2041C34F8E6CAF7A46 /* BackupDuckCatalogTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		D401BFD42D81D88C547FAAE6 /* BackupDuckUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E303A627AC1C2B4A7DE93238 /* Build configuration list for PBXNativeTarget "BackupDuckUITests" */;
@@ -577,6 +623,9 @@
 					82264A7BF318595CC8D5E254 = {
 						ProvisioningStyle = Automatic;
 					};
+					C31F4FDD46B66F1356CA39E7 = {
+						ProvisioningStyle = Automatic;
+					};
 					D401BFD42D81D88C547FAAE6 = {
 						ProvisioningStyle = Automatic;
 						TestTargetID = 4C12B6378330946494E34178;
@@ -601,6 +650,7 @@
 				4C12B6378330946494E34178 /* BackupDuck */,
 				5174466870F3026BCA358C53 /* BackupDuckCatalog */,
 				82264A7BF318595CC8D5E254 /* BackupDuckLiveActivity */,
+				C31F4FDD46B66F1356CA39E7 /* BackupDuckCatalogTests */,
 				70D0830E89D6BCB35FF2DEEB /* BackupDuckTests */,
 				D401BFD42D81D88C547FAAE6 /* BackupDuckUITests */,
 			);
@@ -619,6 +669,7 @@
 				EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */,
 				473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */,
 				3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */,
+				FBD98B94832C96416B3D3E72 /* ThirdPartyNotices-ios.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -633,6 +684,7 @@
 				5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
+				11E8EFF2EC7E3E52C2B2D177 /* ThirdPartyNotices-ios.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -664,7 +716,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\ncargo fetch --locked\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\npython3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check\n";
 		};
 		70CB9A72A5EA6B656ADBE753 /* Build shared Rust engine */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -683,7 +735,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\n";
+			shellScript = "set -eu\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\nexport CARGO_PROFILE_RELEASE_STRIP=none\nexport IPHONEOS_DEPLOYMENT_TARGET=17.0\ncase \"$PLATFORM_NAME\" in\n  iphonesimulator) rust_target=aarch64-apple-ios-sim;;\n  iphoneos) rust_target=aarch64-apple-ios;;\n  *) exit 1;;\nesac\ncd \"$SRCROOT/../..\"\ncargo fetch --locked\nexport SDKROOT=\"$(xcrun --sdk macosx --show-sdk-path)\"\ncargo build --locked --release -p backupduck-native --no-default-features --target \"$rust_target\"\ncp \"target/$rust_target/release/libbackupduck_native.a\" \"$BUILT_PRODUCTS_DIR/\"\npython3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -719,8 +771,10 @@
 				4A399B931DB6FEC5E0A49513 /* HelpCenter.swift in Sources */,
 				77B8C66807C296F365A76E85 /* HistoricalImport.swift in Sources */,
 				C7CDA8C605F5293ACB108257 /* IOSConnect.swift in Sources */,
+				2501460A2728BDFAB656FBF1 /* IOSConnectNetworkAccess.swift in Sources */,
 				4E6FB956C1C9A3E5FCF20408 /* IOSHub.swift in Sources */,
 				A191EF4D9C43B6FD26D84C39 /* IOSOnboarding.swift in Sources */,
+				26D2B9BAE24C048D41836B37 /* IOSPresentationCompatibility.swift in Sources */,
 				222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */,
 				C84580505ED4197D543ED861 /* LibraryGrid.swift in Sources */,
 				D1D683C7392D1D98C7EC84D9 /* LibraryPlaceholder.swift in Sources */,
@@ -741,7 +795,6 @@
 				41AAB44E642F3269F1BE18D5 /* ScopeAlbumGrid.swift in Sources */,
 				9B9F793EF074BA92F213034B /* SetBackupPauseIntent.swift in Sources */,
 				E4C9033A9F5D827BA6C4CA0C /* SettingsComponents.swift in Sources */,
-				D39276A745BE767B3F33C721 /* IOSPresentationCompatibility.swift in Sources */,
 				BC8BBCDBBC2D4415D7BC6127 /* SettingsSupport.swift in Sources */,
 				100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */,
 				E6D13F11708548559236F780 /* TesterFeedback.swift in Sources */,
@@ -756,6 +809,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				8933930286FA62C95995E273 /* SettingsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8AD81C95447FF7055B3ACE5B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				926F47DBCF65C47C3368AD72 /* ConnectPermissionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -819,8 +880,10 @@
 				701194CE8C03BBCFEF4494DC /* HelpCenter.swift in Sources */,
 				718CE8E542E1D28884FA8092 /* HistoricalImport.swift in Sources */,
 				54853049A123D203EE45E18C /* IOSConnect.swift in Sources */,
+				FFDF5ADBACF403DE3923F692 /* IOSConnectNetworkAccess.swift in Sources */,
 				6A96F3520E8795522AAE6615 /* IOSHub.swift in Sources */,
 				1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */,
+				87542CC29092659BF075E2CD /* IOSPresentationCompatibility.swift in Sources */,
 				4DCDDE21481BA90B60D7FD73 /* IOSSettings.swift in Sources */,
 				87D12B2B20221BF67A9DCC61 /* LibraryGrid.swift in Sources */,
 				50D40D339C1B8E1CC0776BF0 /* LibraryPlaceholder.swift in Sources */,
@@ -837,7 +900,6 @@
 				3D3307D03D8CDBBCC37D95AD /* ScopeAlbumGrid.swift in Sources */,
 				E460E0E4645FC1F093CCA0D7 /* SetBackupPauseIntent.swift in Sources */,
 				235B34366369DD4B8B9D8F8A /* SettingsComponents.swift in Sources */,
-				0CEB9ABBB14216BB794F58E3 /* IOSPresentationCompatibility.swift in Sources */,
 				528CE89269DCC74AF6657D1C /* SettingsSupport.swift in Sources */,
 				AE0C557C585D8E3A39310FAF /* StorageModel.swift in Sources */,
 				561D68B98B8B53F59C3CBE14 /* TesterFeedback.swift in Sources */,
@@ -854,6 +916,11 @@
 			isa = PBXTargetDependency;
 			target = 4C12B6378330946494E34178 /* BackupDuck */;
 			targetProxy = F1222FA05F9EA07F56CF4A5E /* PBXContainerItemProxy */;
+		};
+		B6425D31406CE73C693969E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5174466870F3026BCA358C53 /* BackupDuckCatalog */;
+			targetProxy = C65BC9B92093B79446DCAEED /* PBXContainerItemProxy */;
 		};
 		C7A2F56A0A66B4E1ADBF0DCB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1160,6 +1227,40 @@
 			};
 			name = Release;
 		};
+		D68231358B0901CAEE85871F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.catalog.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BackupDuckCatalog.app/BackupDuckCatalog";
+			};
+			name = Release;
+		};
+		EF82C91E658C07C43506FE04 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.catalog.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BackupDuckCatalog.app/BackupDuckCatalog";
+			};
+			name = Debug;
+		};
 		FBE43B025637AC68446F7CCB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1268,6 +1369,15 @@
 			buildConfigurations = (
 				770F7755423170F5546337E0 /* Debug */,
 				1F4D0B7B8C616454A2EB46D6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A67559EE10BD5141CE57A2DC /* Build configuration list for PBXNativeTarget "BackupDuckCatalogTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EF82C91E658C07C43506FE04 /* Debug */,
+				D68231358B0901CAEE85871F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

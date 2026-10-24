@@ -16,7 +16,7 @@ import Darwin
   init(model: BackupModel) { self.model = model }
 
   func update(pairing: Pairing?, active: Bool) {
-    guard active, let pairing else { stop(); return }
+    guard BackupEnvironment.usesNetwork, active, let pairing else { stop(); return }
     if receiverID != pairing.receiverID { stop(); receiverID = pairing.receiverID }
     if browser == nil, Date() >= nextBrowse {
       let browser = NetServiceBrowser()

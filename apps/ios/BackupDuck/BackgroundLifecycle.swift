@@ -53,9 +53,14 @@ import UIKit
       return
     }
     BackgroundTransfer.shared.eventsCompletion = completionHandler
-    BackgroundTransfer.shared.connect()
     Task {
       await BackupModel.shared.open()
+      guard BackupModel.shared.networkingStarted else {
+        BackgroundTransfer.shared.eventsCompletion = nil
+        completionHandler()
+        return
+      }
+      BackgroundTransfer.shared.connect()
       BackupNotifier.shared.start(BackupModel.shared)
       BackupLiveActivity.shared.start(BackupModel.shared)
       await BackgroundTransfer.shared.recordSnapshot("background_session_wake")

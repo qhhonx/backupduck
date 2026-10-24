@@ -1,7 +1,7 @@
 <resources>
     <string name="duck_exporting_report">正在导出报告…</string>
     <string name="duck_export_report_failure">报告未能写入所选位置，请重新选择位置后重试。</string>
-    <string name="duck_stop_service_intro">停止局域网接收服务？新的发送请求和浏览器管理将无法连接。已接收原件与备份记录保留，已有相册处理任务继续运行。</string>
-    <string name="duck_update_signature">安装包签名与现有应用不同。不要卸载或清除存储，先保留原件和记录。</string>
+    <string name="duck_stop_service_intro">停止局域网接收服务？新的发送请求和浏览器管理将无法连接。已接收原片与备份记录保留，已有相册处理任务继续运行。</string>
+    <string name="duck_update_signature">安装包签名与现有应用不同。不要卸载或清除存储，先保留原片和记录。</string>
     <string name="duck_update_development">这是独立验收应用，使用独立安装包更新，不能直接安装正式包。</string>
 </resources>

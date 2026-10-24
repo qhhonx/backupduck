@@ -11,7 +11,7 @@
     <string name="duck_start_port_busy">接收端口被其他应用占用。请停止该应用的接收服务后重试。</string>
     <string name="duck_start_network_failed">无法使用当前 Wi-Fi 地址。请连接 Wi-Fi 后重试。</string>
     <string name="duck_reset_random_code">重置为随机访问码</string>
-    <string name="duck_reset_unchanged">不会改变设备配对和备份任务。</string>
+    <string name="duck_reset_unchanged">不会改变已连接的设备和备份任务。</string>
     <string name="duck_resetting">正在重置…</string>
     <string name="duck_revoking">正在退出浏览器…</string>
 </resources>

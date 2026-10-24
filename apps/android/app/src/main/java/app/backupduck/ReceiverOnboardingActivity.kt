@@ -17,7 +17,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.google.android.material.R as M
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
+import app.backupduck.FirstRunStep as Step
 import com.google.android.material.button.MaterialButton
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
@@ -33,12 +35,9 @@ import org.json.JSONObject
  * First run on the Pixel (design/flows.md § First run, P6): one decision per
  * screen, the step mark of the journey on top, the primary action fixed at the
  * bottom (I2 guided flow) and system prompts explained first. Built from the
- * shared components; shown by the design catalog until migration step 6 opens
- * it on first launch.
+ * shared components, retained until the final space choice is made.
  */
 class ReceiverOnboardingActivity : BackupDuckActivity() {
-    enum class Step { WELCOME, RUNNING, CODE, CONNECTED, GPHOTOS, SPACE }
-
     private lateinit var band: FrameLayout
     private lateinit var progress: FrameLayout
     private lateinit var pageScroll: ScrollView
@@ -66,7 +65,13 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
         val background = getColor(R.color.duck_role_background)
-        step = intent.getStringExtra("step")?.let { name -> Step.values().firstOrNull { it.name.equals(name, true) } } ?: Step.WELCOME
+        step = Step.restore(savedInstanceState?.getString("step") ?: intent.getStringExtra("step"))
+        if (packageName.endsWith(".catalog")) {
+            val scripted = savedInstanceState?.getString("step") ?: intent.getStringExtra("step")
+            step = Step.entries.firstOrNull { it.name.equals(scripted, true) } ?: Step.WELCOME
+        }
+        askedNotify = savedInstanceState?.getBoolean("askedNotify") ?: false
+        askedBattery = savedInstanceState?.getBoolean("askedBattery") ?: false
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(background) }
         val margin = token(R.dimen.duck_space_large)
         progress = FrameLayout(this).apply { setPadding(margin, margin, margin, 0) }
@@ -80,7 +85,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         pageScroll = ScrollView(this).apply { addView(page) }
         root.addView(pageScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(margin, token(R.dimen.duck_space_x_small), margin, token(R.dimen.duck_space_medium)) }
-        fine = lookText(getString(R.string.onb_fine_print), M.style.TextAppearance_Material3_BodySmall, secondary = true)
+        fine = lookText(getString(R.string.onb_fine_print), M.style.TextAppearance_Material3_BodySmall, secondary = true).apply { gravity = Gravity.CENTER_HORIZONTAL }
         actions.addView(fine, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = token(R.dimen.duck_space_small) })
         primary = lookButton("", LookButton.FILLED, large = true) {}
         secondary = lookButton("", LookButton.TEXT, large = true) {}
@@ -89,12 +94,32 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         root.addView(actions)
         setContentView(root)
         show(step)
+        if (step == Step.CODE) savedInstanceState?.getBundle("connect")?.let { state ->
+            connect.restore(state)
+            if (state.getBoolean("scan")) connectScan = connect::scanned
+        }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (step == Step.CODE && connect.back()) return
+                val previous = step.previous
+                if (previous == null) moveTaskToBack(true) else show(previous)
+            }
+        })
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("step", if (packageName.endsWith(".catalog")) step.name else step.resumable.name)
+        outState.putBoolean("askedNotify", askedNotify)
+        outState.putBoolean("askedBattery", askedBattery)
+        if (step == Step.CODE) outState.putBundle("connect", connect.snapshot())
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
         super.onResume()
         // Permissions and Smart Storage may have changed in Settings.
         if (step == Step.SPACE || step == Step.RUNNING) show(step)
+        if (step == Step.CODE) connect.resume()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -113,6 +138,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         runCatching {
             scanner.launch(com.journeyapps.barcodescanner.ScanOptions().setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
                 .setPrompt(getString(R.string.connect_mac_title)).setBeepEnabled(false).setBarcodeImageEnabled(false)
+                .addExtra(com.google.zxing.client.android.Intents.Scan.SHOW_MISSING_CAMERA_PERMISSION_DIALOG, false)
                 .setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
         }.onFailure { connectScan = null; done(null) }
     }
@@ -121,7 +147,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
         step = next
         // The connected screen needs the live sender, so an interruption resumes after it.
         // Catalog scenarios open single steps and must not leave a flow to resume.
-        if (!packageName.endsWith(".catalog")) firstRun.edit().putString("step", (if (next == Step.CONNECTED) Step.GPHOTOS else next).name).apply()
+        if (!packageName.endsWith(".catalog")) firstRun.edit().putString("step", next.resumable.name).apply()
         watcher?.cancel()
         connect.stop()
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -154,7 +180,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 lead(getString(R.string.onb_running_lead))
                 val group = lookGroup(content)
                 (group.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_large) }
-                val notifying = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                val notifying = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
                 val unrestricted = getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
                 lookRow(group, R.drawable.ic_bell, getString(R.string.onb_running_notify), getString(R.string.onb_running_notify_note), done(notifying))
                 lookRow(group, R.drawable.ic_bolt, getString(R.string.onb_running_battery), getString(R.string.onb_running_battery_note), done(unrestricted))
@@ -166,7 +192,11 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                     when {
                         !notifying && !askedNotify -> {
                             askedNotify = true
-                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+                            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+                            } else {
+                                runCatching { startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)) }
+                            }
                         }
                         !unrestricted && !askedBattery -> {
                             askedBattery = true
@@ -182,7 +212,7 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 }
             }
             Step.CODE -> connect.showCode()
-            Step.CONNECTED -> connect.showConnected(senderName, mac = false)
+            Step.CONNECTED -> connect.showConnected(intent.getStringExtra("senderName") ?: senderName, mac = false)
             Step.GPHOTOS -> {
                 showProgress(3)
                 title(getString(R.string.onb_gphotos_title))
@@ -205,23 +235,28 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
             Step.SPACE -> {
                 showProgress(3)
                 title(getString(R.string.onb_space_title))
-                val smart = ReceiverEnvironment.smartStorage(this) == true
-                lead(getString(if (smart) R.string.onb_space_smart_lead_on else R.string.onb_space_smart_lead_off))
-                if (!smart) {
-                    val group = lookGroup(content)
-                    (group.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_medium) }
-                    lookRow(group, R.drawable.ic_storage, getString(R.string.onb_space_smart), getString(R.string.onb_space_smart_off)) {
-                        runCatching { startActivity(Intent().setComponent(ComponentName("com.android.settings", "com.android.settings.Settings\$AutomaticStorageManagerSettingsActivity"))) }
-                    }
+                lead(getString(R.string.onb_space_smart_lead))
+                val group = lookGroup(content)
+                lookRow(group, R.drawable.ic_storage, getString(R.string.onb_space_smart), smartStorageLabel())
+                val details = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val inset = token(R.dimen.duck_space_medium)
+                    setPadding(inset + dp(24) + inset, token(R.dimen.duck_space_x_small), inset, 0)
                 }
-                val card = lookCard(content, params = LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium) })
-                val heading = FlowRow(this, token(R.dimen.duck_space_x_small))
-                heading.addView(lookText(getString(R.string.onb_space_auto_title), M.style.TextAppearance_Material3_TitleMedium))
-                heading.addView(lookPill(getString(R.string.onb_space_experiment), null))
-                card.addView(heading)
-                card.addView(lookText(getString(R.string.onb_space_auto_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true),
-                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_x_small) })
-                action(R.string.onb_space_enable) { complete(); startActivity(Intent(this, MainActivity::class.java).putExtra("destination","storage").putExtra("surface","cleanup")); finish() }
+                details.addView(lookText(getString(R.string.storage_free_up_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true))
+                details.addView(lookButton(getString(R.string.onb_space_try_auto), LookButton.TEXT) {
+                    complete()
+                    startActivity(Intent(this, MainActivity::class.java).putExtra("destination", "storage").putExtra("surface", "auto-cleanup"))
+                    finish()
+                }.apply { setPadding(0, paddingTop, 0, paddingBottom) },
+                    LinearLayout.LayoutParams(-2, -2))
+                content.addView(details, LinearLayout.LayoutParams(-1, -2))
+                action(R.string.onb_space_open_smart) {
+                    runCatching { startActivity(smartStorageIntent()) }
+                        .recoverCatching { startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }
+                        .onSuccess { complete(); finish() }
+                        .onFailure { lead(getString(R.string.storage_smart_unavailable)) }
+                }
                 secondary(R.string.onb_later) { complete(); finish() }
             }
         }
@@ -232,22 +267,21 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     private fun action(text: Int, onClick: () -> Unit) { primary.text = getString(text); primary.setOnClickListener { onClick() } }
     private fun secondary(text: Int, onClick: () -> Unit) { secondary.visibility = View.VISIBLE; secondary.text = getString(text); secondary.setOnClickListener { onClick() } }
 
-    /** A check at the end of a row whose system permission is already granted. */
-    private fun done(granted: Boolean): View? = if (!granted) null else ImageView(this).apply {
-        setImageResource(R.drawable.ic_check); imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.duck_state_saved))
-        contentDescription = getString(R.string.onb_allowed)
-    }.also { it.layoutParams = LinearLayout.LayoutParams(dp(24), dp(24)) }
+    /** Permission rows use the same explicit state for granted and denied access. */
+    private fun done(granted: Boolean): View = lookText(getString(if (granted) R.string.onb_allowed else R.string.onb_not_allowed),
+        M.style.TextAppearance_Material3_BodySmall, secondary = true)
 
     /** Guided-flow title: balanced wrapping preserves explicit paragraph breaks in the copy. */
-    private fun title(text: String, centered: Boolean = false) {
+    private fun title(text: String, centered: Boolean = true) {
         content.addView(lookText(text, M.style.TextAppearance_Material3_HeadlineSmall).apply {
             isAccessibilityHeading = true
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
             if (centered) gravity = Gravity.CENTER_HORIZONTAL
         },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_medium); bottomMargin = token(R.dimen.duck_space_small) })
     }
 
-    private fun lead(text: String) = content.addView(lookText(text, M.style.TextAppearance_Material3_BodyLarge, secondary = true))
+    private fun lead(text: String) = content.addView(lookText(text, M.style.TextAppearance_Material3_BodyLarge, secondary = true).apply { gravity = Gravity.CENTER_HORIZONTAL })
 
     /** A fixed square optical column, no taller than two body lines. */
     private fun stepRow(number: Int, title: Int) {

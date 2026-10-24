@@ -1,0 +1,6 @@
+{
+  "id": "pixel.auto-cleanup-off",
+  "extends": "pixel.storage",
+  "page": "storage",
+  "surface": "auto-cleanup"
+}

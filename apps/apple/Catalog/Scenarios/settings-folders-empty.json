@@ -1,0 +1,11 @@
+{
+  "id": "settings.folders-empty",
+  "page": "settings",
+  "mac_only": true,
+  "title": "Settings · no folders yet",
+  "extends": "base-paired",
+  "expect": [
+    "Folders stays selected beside the optically centered empty state.",
+    "Add Folder is the single prominent action, without ellipsis."
+  ]
+}

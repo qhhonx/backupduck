@@ -19,6 +19,7 @@ jobs:
       - run: python3 scripts/export-design-tokens.py --check
       - run: python3 scripts/check-design-literals.py
       - run: python3 -m unittest discover -s scripts/tests -p 'test_design_tokens.py'
+      - run: python3 -m unittest discover -s scripts/tests -p 'test_third_party_licenses.py'
       - run: python3 scripts/check-release.py
       - run: node --check crates/native/src/dashboard/app.js
       - run: python3 scripts/audit-public.py --documentation
@@ -47,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: rustup target add aarch64-apple-ios-sim
+      - run: cargo fetch --locked
       - run: scripts/test-ios-ci.sh
   macos:
     runs-on: macos-26
@@ -59,7 +61,10 @@ jobs:
           xcrun swiftc --version
           xcrun --sdk macosx --show-sdk-version
       - run: rustup target add aarch64-apple-darwin
+      - run: cargo fetch --locked
       - run: scripts/build-macos.sh
+      - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
+      - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
       - run: scripts/test-folder-native.sh
       - name: Compile the sandboxed TestFlight target without distribution credentials
         run: >-
@@ -82,6 +87,7 @@ jobs:
       - run: rustup target add aarch64-linux-android
       - run: sdkmanager 'platforms;android-36' 'ndk;27.1.12297006'
       - run: scripts/build-android.sh
+      - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform android --check
       - run: ./gradlew testDebugUnitTest
         working-directory: apps/android
       - run: ./gradlew assembleDebugAndroidTest

@@ -1,0 +1,16 @@
+{
+  "id": "hub.earlier-paused",
+  "extends": "hub.backing-up",
+  "page": "backup",
+  "title": "Earlier-photo counting paused",
+  "core": {
+    "history_status": {
+      "value": {
+        "run": 1,
+        "state": "paused",
+        "checked": 4120,
+        "pending": 812
+      }
+    }
+  }
+}

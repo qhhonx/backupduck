@@ -40,6 +40,9 @@ struct ActivityEntry: Decodable, Identifiable, Equatable {
     Bundle.main.localizedString(forKey: "diagnostics_event_" + code,
       value: NSLocalizedString("diagnostics_other_activity", comment: ""), table: nil)
   }
+  var hasUserFacingTitle: Bool {
+    Bundle.main.localizedString(forKey: "diagnostics_event_" + code, value: "", table: nil) != "diagnostics_event_" + code
+  }
   var day: Date { timestamp > 0 ? Calendar.current.startOfDay(for: Date(timeIntervalSince1970: Double(timestamp))) : .distantPast }
   var time: String { timestamp > 0 ? Date(timeIntervalSince1970: Double(timestamp)).formatted(date: .omitted, time: .shortened) : "—" }
 }
@@ -73,7 +76,7 @@ struct ActivityLogUpdate: Decodable {
   @Published private(set) var pendingCount = 0
   @Published private(set) var failed = false
   @Published private(set) var loaded = false
-  var recentEntries: [ActivityEntry] { Array(entries.prefix(6)) }
+  var recentEntries: [ActivityEntry] { Array(entries.filter(\.hasUserFacingTitle).prefix(6)) }
   private var latest: [ActivityEntry] = []
   private(set) var cursor: Int64 = 0
   private let fetch: (Int64) async throws -> ActivityLogUpdate
@@ -214,7 +217,7 @@ struct DiagnosticsView: View {
           .foregroundStyle(.secondary)
           #endif
       }
-      if journal.entries.isEmpty {
+      if journal.recentEntries.isEmpty {
         Section {
           LabeledContent {
             EmptyView()

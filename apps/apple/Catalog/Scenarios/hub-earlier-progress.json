@@ -1,0 +1,17 @@
+{
+  "id": "hub.earlier-progress",
+  "extends": "hub.backing-up",
+  "page": "backup",
+  "title": "Earlier photos with confirmed saved progress",
+  "core": {
+    "history_status": {
+      "value": {
+        "run": 1,
+        "state": "scanned",
+        "checked": 12384,
+        "pending": 0,
+        "published": 3210
+      }
+    }
+  }
+}

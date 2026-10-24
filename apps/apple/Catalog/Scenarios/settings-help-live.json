@@ -1,0 +1,7 @@
+{
+  "id": "settings.help-live",
+  "extends": "base-paired",
+  "page": "settings",
+  "step": "help.live",
+  "title": "settings.help-live"
+}

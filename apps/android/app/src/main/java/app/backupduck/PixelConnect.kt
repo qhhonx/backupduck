@@ -6,7 +6,7 @@ package app.backupduck
  * groups devices. Pure, so the rules are unit tested.
  */
 internal data class DevicePeer(val id: String, val name: String, val kind: String?, val lastSeenSec: Long, val enabled: Boolean) {
-    /** Phones and tablets get the phone mark; Macs and PCs the computer mark. */
+    /** Macs and PCs use the computer mark; phone and tablet marks remain distinct. */
     val computer: Boolean get() = kind in setOf("Mac", "Windows", "Linux")
 }
 

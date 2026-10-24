@@ -854,6 +854,7 @@ private struct IOSCalendarLibraryPage: View {
       var transaction=Transaction();transaction.disablesAnimations=true
       withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for:asset)) }
     }, backupAction: backupAction).ignoresSafeArea(.container)
+      .toolbarColorScheme(library.placeholder == nil && library.loaded > 0 ? .dark : nil, for: .navigationBar)
   }
 
 }

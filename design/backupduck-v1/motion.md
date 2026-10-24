@@ -15,7 +15,9 @@ priority on older devices. Use native transitions for standard system controls.
 | Confirmed progress | 320 ms | Interpolate actual progress |
 | Filter/sort | Immediate | Update data without moving the entire list |
 
-Progress is a 2-unit overlay on a stable status region, not another layout row.
+Progress is a thin overlay on a stable status region. Apple cards reserve an
+inset final 3 pt region aligned with their text column from construction;
+value updates and the end of counting never add a layout row.
 Show byte progress only during actual transfer with meaningful partial progress;
 waiting, completed and unrelated preparation states do not leave an empty track.
 Large text adapts the layout without clipping. Failures and important consequences
@@ -28,6 +30,9 @@ A retry request must not trigger a completion animation.
 
 Respect Reduce Motion/Remove Animations and `prefers-reduced-motion`: remove
 spatial motion and progress interpolation while retaining immediate feedback.
+For the first-photo reward, reduced motion adopts both the landed illustration
+and the completion heading/actions together once publication is observed; it
+does not wait for an animation-completion callback.
 Reduced transparency and contrast settings are separate and do not hide content.
 Return focus to the trigger after closing an overlay; do not repeatedly interrupt
 screen readers for every progress update.

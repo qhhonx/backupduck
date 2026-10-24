@@ -5,9 +5,10 @@ inspect every use of the same component or interaction.
 
 ## Content and feedback
 
-English first-run headings, labels and supporting text use sentence case on
-iPhone and Mac. Button titles use Title Case; retain proper names and the
-capitalization of controls referenced in instructions.
+English Apple buttons and titles follow Apple title-style capitalization;
+supporting prose uses sentence case. Android buttons and titles use sentence
+case. Retain proper names and the capitalization of controls referenced in
+instructions. Full-sentence question headings retain sentence capitalization.
 
 Working screens show the current state, the next action, and consequences that
 change a decision. Show each current state or selection count once. Ordinary
@@ -40,6 +41,14 @@ Errors remain visible with a recovery action. Routine persistence and preparatio
 use neutral busy feedback, not warnings. Only an unfinished operation after
 execution ends exposes recovery. Do not permanently stack a submitted message
 under an existing status. Label file totals as totals, not current-run progress.
+
+## Third-party software notices
+
+The Third-Party Software (Apple) / Third-party software (Android) destination is one selectable plain-text document,
+grouped by distinct license text. Component names, versions and copyright
+attribution precede the shared body. Preserve additional terms and notices;
+never replace this reader with per-component navigation or a dependency table.
+The document is generated from shipping dependency graphs and stays offline.
 
 ## Connection and system notifications
 
@@ -82,7 +91,8 @@ result to check, failed) mark the Storage row and the Settings tab this way.
 Inside the destination page the row's own line and action suffice; no dot there.
 
 The Android receiver marks Settings and the Storage row with the discovery dot
-until Storage has been opened once after auto cleanup was introduced. Google Photos automatic cleanup remains off until separately
+only while space is low, until Storage has been opened once after auto cleanup
+was introduced. Google Photos automatic cleanup remains off until separately
 configured and explicitly enabled. Other platforms do not add discovery dots
 without a specific discoverability need.
 
@@ -135,8 +145,9 @@ earlier versions use Cancel/Done. Fitted detents retain a large option for growi
 content. Background, corners and the drag indicator remain system-owned.
 
 On Mac, the title is bold semantic content text, forms use grouped `Form`, and
-native push buttons sit at the bottom trailing edge. Cancel uses the cancel
-keyboard shortcut; the default action is prominent and Return-activated. There
+native push buttons sit at the bottom trailing edge. Secondary actions, including
+Cancel, use neutral bordered buttons at regular size; only the default action
+is prominent and Return-activated. Cancel uses the cancel keyboard shortcut. There
 is no close X or painted header/footer. Long explanations end with Done.
 
 A dirty name editor blocks interactive dismissal and offers a native discard
@@ -150,7 +161,9 @@ new sheets use the complete layout so navigation owns its toolbar.
 Use the approved `assets/AppIcon.png` as the source for launch and system marks.
 System-chrome marks remove the background and derive a monochrome mask while
 preserving the original silhouette, wing and eye. Do not redraw a similar duck
-or place a scaled full-color launch tile in the menu bar.
+or place a scaled full-color launch tile in the menu bar. About identity headers
+use the original full-color platform app icon with its platform corner mask,
+followed by the app name and one-line tagline; the version belongs in its row.
 
 The Mac template uses a 20 pt canvas with an approximately 18 pt mark. Check it
 beside system symbols in light and dark appearances. Regenerate derivatives
@@ -240,12 +253,11 @@ obsolete motion before replacing membership. Reduce Motion adopts the anchored
 layout immediately. Desktop magnification also updates during the gesture.
 Virtualization uses bounded visible-rectangle lookup for cells and headings.
 
-Backup scope shows two summary destinations, Media types and Specified albums.
+Backup scope shows two summary destinations, Media Types and Albums.
 All albums is an explicit switch. Removing the final explicit choice keeps the
 scope restricted and empty until All albums is turned on again. Retained but unavailable selected albums never widen the scope. Show user
 albums initially; fetch previously selected system albums only to preserve edits.
-iPhone album covers use three reusable native columns (a readable list at
-accessibility sizes), explicit item-count units, and display-scale thumbnail targets. Album
+iPhone album choices use virtualized preference rows with 36 pt covers, a 52 pt minimum row height including the list insets, explicit item-count units, and display-scale thumbnail targets. Wrapped and accessibility text grows the row. Album
 selection is searchable and virtualized; it never expands the parent page.
 A tap (iPhone) or click (Mac) on a cover toggles its choice; covers stay the
 choosing surface because unselected covers carry no mark to aim at. The cover's
@@ -263,7 +275,7 @@ trailing-switch preference rows.
 iPhone image-based choices share one selection treatment across gallery, album
 covers and selected-item review: a 23 pt blue filled check circle with a white
 backing, inset 6 pt at bottom trailing. Only selected cells show the mark. Selected
-media opacity is 0.72; the cover bounds, caption and image request identity stay
+media opacity is 0.72 in the library; selected-photo review keeps original opacity; the cover bounds, caption and image request identity stay
 unchanged. Do not add a second border or top-corner check. Form preference rows
 retain a trailing plain checkmark and a fixed slot; selection changes neither
 fade the row nor replace it. Pressing a scope choice does not dim its entire label.
@@ -277,3 +289,61 @@ Standalone Apple loading states use `DuckLoadingState`, centered across their
 content region with a specific action label. A cache-settings read must not say
 that a backup is loading. Initialization failures expose recovery rather than an
 indefinite spinner. Inline progress beside an action or control retains its slot.
+
+## Apple status-card progress and media headers
+
+A progress card reserves an inset final slot aligned with the text column,
+with standard spacing above and bottom padding. Updating progress never inserts
+a slot. The Mac trailing action is centered with the title/note region and never
+shares the progress track. Mac earlier-photo cards use the same trailing-action layout as the running card;
+iPhone retains its below-text action. Both label the scanning action Pause. Scanned and
+prepared counts do not establish successful transfer or Photos publication.
+
+The iPhone floating library header uses the shared media scrim from the status
+bar through the subtitle, fading below it. It retains white media text and a
+light status bar over photos, including the media exposed above a selected-photo
+page sheet. Empty, permission and loading placeholders retain the system
+navigation-bar scheme and text. Selection names its item count; Back Up is
+the only prominent action, and Show Selected is secondary. Reserve bottom scroll
+space for the selection controls so the last photo remains reachable.
+
+## Android receiver presentation
+
+Medium title/label roles and button labels retain their native Material font
+family and weight; guided-flow headings use one bold family and a centered axis.
+Shared rendering preserves supplied text, including user names. Body text uses
+balanced native line breaking. Apple and Android localized product copy uses a
+no-break space in Google Photos / Google 相册, without altering other words.
+Chinese prose, including format strings, uses full-width question marks and
+parentheses; platform copy checks inspect escaped punctuation too.
+
+Photos saved to the Pixel use a saved-role check in the information panel. Live
+Photo problem groups use the Live Photo glyph and one short sentence saying
+they are kept safely on the Pixel. Their explanation sheet holds the
+format-conversion procedure, quality consequence and Advanced settings link. Global unfinished counts name receiving or saving together;
+a loaded prefix must not invent a saving-only count. Dates share localized
+skeletons and the system 12/24-hour preference. Diagnostics omits unrecognized
+activity codes from its short list while retaining them in the export.
+
+## Apple copy and supporting content
+
+Chinese Apple prose uses full-width question marks and parentheses; run
+python3 apps/apple/Scripts/check-ui-copy.py. Keep the chosen 原片 and 连接/连接码
+vocabulary in ordinary content and help. Mixed photo/video album totals use 项
+(items), including the selected estimate; reserve 张 for a photo-only count.
+
+Missing Apple album covers retain the same fixed thumbnail slot and show a
+secondary photo symbol. Selection, paging and cancellation keep their owners.
+
+Recent Apple diagnostic events name the result and object in ordinary language.
+Unknown codes are omitted from the short preview, while the complete export
+preserves every code and field. Times use the system localized shortened time;
+day headings use localized calendar formats. Do not invent device names or
+counts absent from an event.
+
+Apple Catalog evidence must leave production actions unobstructed. Snapshot
+runs hide review controls, and permission fixtures render shared production
+placeholders without changing system grants. A limited-access scope fixture is
+the existing choice step, not another first-run step. Label activity previews
+and menu-content fixtures as synthetic; they do not prove system delivery or
+menu-bar placement.

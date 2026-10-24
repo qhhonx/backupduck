@@ -1,53 +1,36 @@
 import AppKit
 import SwiftUI
 
-/// A6: canonical management destination, reached from Settings or a folder's menu.
+/// A6: canonical management destination, reached from Settings or a folder's
+/// menu. A folder's page opens below the list inside the Settings pane.
 struct MacFolderSettings: View {
   @ObservedObject var folders: FolderSources
   @ObservedObject var backup: BackupModel
-  @State var selectedID: String?
+  @Environment(\.duckSettingsNavigator) private var navigator
   @State private var adding: URL?
-  @State private var rules: FolderSource?
-  @State private var stopping: FolderSource?
-  private var selected: FolderSource? { folders.sources.first { $0.id == selectedID } }
   var body: some View {
     Group {
-      if let selected {
-        VStack(alignment: .leading, spacing: 0) {
-          Button { selectedID = nil } label: { Label("settings_folders", systemImage: "chevron.left") }
-            .buttonStyle(.bordered).padding(.horizontal, DuckSpacing.large).padding(.top, DuckSpacing.medium)
-          Form {
-            Section {
-              HStack(alignment: .top, spacing: DuckSpacing.small) {
-                Image(systemName: "folder").font(.largeTitle).foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-                  Text(folders.displayName(selected)).font(.headline)
-                  Text(folders.location(selected)).foregroundStyle(.secondary)
-                  Text(folderSentence(folders.facts[selected.id])).font(.callout).foregroundStyle(.secondary)
-                }
-              }.padding(.vertical, DuckSpacing.xSmall)
-            }
-            Section {
-              actionRow("folder_reveal") { folders.reveal(selected) }
-              actionRow("folders_file_rules") { rules = selected }
-            } footer: { Text("folders_rules_hint") }
-            if selected.pendingControl != nil && !folders.recoveringControls.contains(selected.id) {
-              Section {
-                actionRow("mac_folder_recover_operation") {
-                  Task { if await folders.recoverPendingControl(selected.id), !folders.sources.contains(where: { $0.id == selected.id }) { selectedID = nil } }
-                }
-              }
-            }
-            Section {
-              actionRow("folders_stop_title") { stopping = selected }.disabled(selected.pendingControl != nil)
-            }
-          }.formStyle(.grouped)
+      if folders.loadFailed {
+        ContentUnavailableView {
+          Label("mac_folder_settings_unavailable", systemImage: "exclamationmark.folder")
+        } actions: { Button("retry_task") { Task { await folders.open() } } }
+        .duckOpticalCenter()
+      } else if !folders.loaded && !folders.isPreview {
+        ProgressView("folders_counting").frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if folders.sources.isEmpty {
+        // The same empty state as the Folders position.
+        ContentUnavailableView {
+          DuckIllustration(pose: .empty, size: 112)
+          Text("folders_empty_title")
+        } description: { Text("folders_empty_note") } actions: {
+          Button("folders_add_button", action: choose).duckPrimaryButton().disabled(!backup.ready)
         }
+        .duckOpticalCenter()
       } else {
         Form {
           Section {
             ForEach(folders.sources) { source in
-              Button { selectedID = source.id } label: {
+              Button { open(source.id) } label: {
                 HStack {
                   Image(systemName: "folder").foregroundStyle(.secondary)
                   VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
@@ -56,7 +39,7 @@ struct MacFolderSettings: View {
                     Text(folderSentence(folders.facts[source.id])).font(.callout).foregroundStyle(.secondary)
                   }
                   Spacer()
-                  Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                  Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                 }.frame(maxWidth: .infinity, minHeight: DuckSettingsMetrics.rowHeight, alignment: .leading)
                   .fixedSize(horizontal: false, vertical: true)
                   .contentShape(Rectangle())
@@ -64,8 +47,7 @@ struct MacFolderSettings: View {
             }
           } footer: {
             VStack(alignment: .leading, spacing: DuckSpacing.small) {
-              Button("folders_add", action: choose).buttonStyle(.bordered).controlSize(.regular)
-                .disabled(!backup.ready || folders.loadFailed)
+              Button("folders_add_button", action: choose).disabled(!backup.ready)
               Text("folders_settings_note").font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }.padding(.top, DuckSpacing.small)
           }
@@ -77,33 +59,101 @@ struct MacFolderSettings: View {
     }
     .task(id: "\(folders.indexRevision)|\(backup.queueRevision)|\(backup.pairing?.receiverID ?? "")") { await folders.refreshFacts() }
     .task {
-      if let id = folders.initialSettingsFolder { selectedID = id }
-      if folders.initialSheet == "rules" { rules = selected ?? folders.sources.first }
-      if folders.initialSheet == "stop" { stopping = selected ?? folders.sources.first }
+      // A start route (a folder's menu or the catalog) is consumed once.
+      if let id = folders.initialSettingsFolder { folders.initialSettingsFolder = nil; open(id) }
       if folders.initialSheet == "add" { choose() }
     }
-    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckFolderSettings"))) { note in selectedID = note.object as? String }
-    .sheet(item: $rules) { source in FolderRulesSheet(folders: folders, source: source) { rules = nil } }
+    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckFolderSettings"))) { note in
+      if let id = note.object as? String { folders.initialSettingsFolder = nil; open(id) }
+    }
     .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
       if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup) { self.adding = nil } }
     }
-    .background {
-      FolderStopAlert(source: $stopping, folders: folders) { source in
-        Task { if await folders.remove(source.id) { selectedID = nil } }
-      }.frame(width: 0, height: 0)
-    }
   }
-  private func actionRow(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Text(title).frame(maxWidth: .infinity, minHeight: DuckSettingsMetrics.rowHeight, alignment: .leading)
-        .contentShape(Rectangle())
-    }.buttonStyle(.plain).foregroundStyle(.primary)
+  private func open(_ id: String) {
+    guard let navigator, let source = folders.sources.first(where: { $0.id == id }) else { return }
+    navigator.open(DuckSettingsPage(title: Text(verbatim: folders.displayName(source)),
+      content: AnyView(MacFolderDetail(folders: folders, backup: backup, sourceID: id))))
   }
   private func choose() {
     if folders.isPreview { adding = URL(fileURLWithPath: "/Synthetic/\(folders.sources.first.map { folders.displayName($0) } ?? "Camera Exports")"); return }
     let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
     panel.allowsMultipleSelection = false
     panel.begin { result in if result == .OK { adding = panel.url } }
+  }
+}
+
+/// One folder: where it is, what was backed up, its rules and stopping.
+private struct MacFolderDetail: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let sourceID: String
+  @Environment(\.duckSettingsNavigator) private var navigator
+  @State private var rules: FolderSource?
+  @State private var stopping: FolderSource?
+  var body: some View {
+    Group {
+      if let selected = folders.sources.first(where: { $0.id == sourceID }) {
+        Form {
+          Section {
+            HStack(alignment: .top, spacing: DuckSpacing.small) {
+              Image(systemName: "folder").font(.largeTitle).foregroundStyle(.secondary)
+              VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+                Text(folders.displayName(selected)).font(.headline)
+                Text(folders.location(selected)).foregroundStyle(.secondary)
+                Text(folderSentence(folders.facts[selected.id])).font(.callout).foregroundStyle(.secondary)
+              }
+            }.padding(.vertical, DuckSpacing.xSmall)
+          }
+          Section {
+            LabeledContent("folders_location") {
+              Button("folder_reveal") { folders.reveal(selected) }.controlSize(.small)
+            }
+            LabeledContent("folders_file_rules") {
+              HStack(spacing: DuckSpacing.small) {
+                Text(ruleSummary(selected)).foregroundStyle(.secondary)
+                Button("settings_edit") { rules = selected }.controlSize(.small)
+              }
+            }
+          }
+          if selected.pendingControl != nil && !folders.recoveringControls.contains(selected.id) {
+            Section {
+              actionRow("mac_folder_recover_operation") {
+                Task { if await folders.recoverPendingControl(selected.id), !folders.sources.contains(where: { $0.id == selected.id }) { navigator?.back() } }
+              }
+            }
+          }
+          Section {
+            LabeledContent("settings_auto_backup") {
+              Button("folders_stop_button") { stopping = selected }.controlSize(.small)
+                .disabled(selected.pendingControl != nil)
+            }
+          }
+        }.formStyle(.grouped)
+      } else { Color.clear }
+    }
+    .task {
+      if folders.initialSheet == "rules" { rules = folders.sources.first { $0.id == sourceID } }
+      if folders.initialSheet == "stop" { stopping = folders.sources.first { $0.id == sourceID } }
+    }
+    .sheet(item: $rules) { source in FolderRulesSheet(folders: folders, source: source) { rules = nil } }
+    .background {
+      FolderStopAlert(source: $stopping, folders: folders) { source in
+        Task { if await folders.remove(source.id) { navigator?.back() } }
+      }.frame(width: 0, height: 0)
+    }
+  }
+  private func ruleSummary(_ source: FolderSource) -> String {
+    let included = source.includePatterns ?? []
+    let excluded = source.excludePatterns ?? []
+    if included.isEmpty && excluded.isEmpty { return NSLocalizedString("folders_rules_all", comment: "") }
+    return String(format: NSLocalizedString("folders_rules_count", comment: ""), included.count, excluded.count)
+  }
+  private func actionRow(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+    HStack {
+      Button(title, action: action).buttonStyle(.bordered).controlSize(.small)
+      Spacer(minLength: 0)
+    }.frame(minHeight: DuckSettingsMetrics.formContentHeight)
   }
 }
 

@@ -5,7 +5,7 @@
   "extends": "base",
   "now_ms": 1792351800000,
   "expect": [
-    "Scope line: 1,284 photos · 1,277 in the Pixel's Photos (no single sender named: two devices).",
+    "Scope line: 1,284 photos \u00b7 1,277 in the Pixel's Photos (no single sender named: two devices).",
     "Needs you: Live Photos card (2, View) above the could-not-save card (3, Try again), each with its thumbnails.",
     "Days Today, Yesterday, Fri Oct 16, Wed Oct 14, Sun Oct 11, newest first; each day names its senders.",
     "Tiles: a clock on the photo still arriving and the one being saved; an alert on the five that need you; no mark otherwise.",
@@ -30,7 +30,9 @@
   },
   "core": {
     "receiver_preview": {
-      "value": { "status": "available" }
+      "value": {
+        "status": "available"
+      }
     },
     "device_status": {
       "value": {
@@ -45,7 +47,8 @@
               "id": "catalog-peer-0",
               "name": "Lin's iPhone"
             },
-            "last_seen": 1792351740
+            "last_seen": 1792351740,
+            "device_type": "iPhone"
           },
           {
             "key": "catalog-peer-1",
@@ -53,7 +56,8 @@
               "id": "catalog-peer-1",
               "name": "Lin's MacBook Air"
             },
-            "last_seen": 1792351740
+            "last_seen": 1792351740,
+            "device_type": "Mac"
           }
         ]
       }

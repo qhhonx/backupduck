@@ -37,6 +37,7 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
     super.viewDidLoad()
     view.backgroundColor = DuckMedia.backgroundUIColor
     view.accessibilityLabel = NSLocalizedString("apple_scan_frame_note", comment: "")
+    guard BackupEnvironment.usesCamera else { report(.unavailable); return }
     errorObserver = NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError,
       object: session, queue: nil) { [weak self] _ in self?.report(.unavailable) }
     #if targetEnvironment(simulator)

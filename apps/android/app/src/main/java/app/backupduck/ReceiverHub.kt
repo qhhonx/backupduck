@@ -51,14 +51,11 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
     private val empty = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val needsYou = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val recent = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-    private val senders = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-    private val senderRows = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val images = PhotoImages(activity)
     private val mosaic = PhotoMosaic(activity)
     private var photos: List<HistoryItem> = emptyList()
     private var saved = 0; private var total = 0; private var failed = 0
     private var rendered: List<Any?>? = null
-    private var shownPeers: List<DevicePeer>? = null
 
     override val view: View = activity.scrollPage { panel ->
         with(activity) {
@@ -75,9 +72,7 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
             header.addView(lookButton(getString(R.string.look_see_all), LookButton.TEXT) { actions.records(false) })
             recent.addView(header, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_small) })
             recent.addView(mosaic, LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
-            panel.addView(senders, LinearLayout.LayoutParams(-1, -2))
-            lookSection(senders, getString(R.string.rhub_senders))
-            senders.addView(senderRows, LinearLayout.LayoutParams(-1, -2))
+
         }
     }
 
@@ -102,24 +97,27 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
 
     override fun render(state: ReceiverSnapshot, name: String?, pending: Boolean) { with(activity) {
         val enabled = ReceiverPreferences.enabled(this); val paused = ReceiverPreferences.paused(this)
-        val peers = devicePanels.peers
         val names = devicePanels.senderNames
         val hub = receiverHubState(enabled, paused, pending, state, names.isNotEmpty(), saved)
         val storage = ReceiverEnvironment.deviceStorage(this)
         val cleanup = PhotosCleanup(this).enabled
         val cleanupState = currentCleanupStatus()
         val key = listOf(hub, total, failed, names, state.published, state.total, state.failed, state.error,
-            state.temperatureDeciCelsius.takeIf { state.thermalHeld }, saved, photos.size, storage.low, cleanup, cleanupState)
-        if (key == rendered) { if (hub == ReceiverHubState.RECEIVING) this@ReceiverHub.state.show(receiving(state, names)); return@with }
+            state.temperatureDeciCelsius.takeIf { state.thermalHeld }, saved, photos.size, storage.low, cleanup, cleanupState, devicePanels.peers)
+        if (key == rendered) { if (hub == ReceiverHubState.RECEIVING) this@ReceiverHub.state.show(withLastConnection(receiving(state, names))); return@with }
         rendered = key
+        val noDevice = hub == ReceiverHubState.NO_DEVICE
         val first = hub == ReceiverHubState.WAITING && total == 0
+        val emptyState = first || noDevice
         empty.removeAllViews()
         if (first) lookEmpty(empty, R.drawable.duck_empty, getString(R.string.rhub_waiting_first),
             if (names.size == 1) getString(R.string.rhub_waiting_first_from, names[0]) else getString(R.string.rhub_waiting_note),
-            getString(R.string.pref_devices) to actions.devices)
-        this@ReceiverHub.state.view.visibility = if (first) View.GONE else View.VISIBLE
-        empty.visibility = if (first) View.VISIBLE else View.GONE
-        if (!first) this@ReceiverHub.state.show(card(hub, state, names, storage, cleanup))
+            getString(R.string.pref_devices) to actions.devices, card = false, centered = true)
+        if (noDevice) lookEmpty(empty, R.drawable.duck_empty, getString(R.string.rhub_no_device),
+            getString(R.string.rhub_no_device_note), getString(R.string.rhub_connect) to actions.connect, card = false, centered = true)
+        this@ReceiverHub.state.view.visibility = if (emptyState) View.GONE else View.VISIBLE
+        empty.visibility = if (emptyState) View.VISIBLE else View.GONE
+        if (!emptyState) this@ReceiverHub.state.show(withLastConnection(card(hub, state, names, storage, cleanup)))
         // A space hint only while calm or receiving, and only when auto cleanup could help.
         val hinted = hub in setOf(ReceiverHubState.CAUGHT_UP, ReceiverHubState.WAITING, ReceiverHubState.RECEIVING) && storage.low && !cleanup
         hint.view.visibility = if (hinted) View.VISIBLE else View.GONE
@@ -135,17 +133,17 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         }
         // Recent photos appear once something is saved, and stay hidden while receiving is off or no device is connected.
         recent.visibility = if (hub in setOf(ReceiverHubState.STOPPED, ReceiverHubState.NO_DEVICE) || photos.isEmpty()) View.GONE else View.VISIBLE
-        val calm = hub == ReceiverHubState.CAUGHT_UP || (hub == ReceiverHubState.WAITING && !first)
-        senders.visibility = if (calm && peers.isNotEmpty()) View.VISIBLE else View.GONE
-        if (peers != shownPeers) {
-            shownPeers = peers
-            senderRows.removeAllViews()
-            val group = lookGroup(senderRows)
-            deviceGroups(peers).sending.forEach { peer ->
-                lookRow(group, if (peer.computer) R.drawable.ic_computer else R.drawable.ic_receiver, peer.name, lastConnected(this, peer)) { actions.devices() }
-            }
-        }
+
     } }
+
+    /** Retain the core's latest observed connection without a second device section. */
+    private fun withLastConnection(card: LookState): LookState {
+        val peer = activity.devicePanels.peers.filter { it.enabled && it.lastSeenSec > 0 }.maxByOrNull { it.lastSeenSec }
+        val connection = peer?.let { lastConnected(activity, it)?.let { time -> "${it.name} · $time" } }
+        return LookState(card.glyph, card.tint, card.title, card.note,
+            reading = listOfNotNull(card.reading, connection).joinToString("\n").takeIf { it.isNotEmpty() },
+            progress = card.progress, action = card.action, secondary = card.secondary)
+    }
 
     private fun card(hub: ReceiverHubState, state: ReceiverSnapshot, names: List<String>, storage: DeviceStorage, cleanup: Boolean): LookState = with(activity) {
         val attention = getColor(R.color.duck_state_attention)

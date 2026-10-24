@@ -220,7 +220,7 @@ import UIKit
     center.removePendingNotificationRequests(withIdentifiers: ids)
     center.removeDeliveredNotifications(withIdentifiers: ids)
   }
-  private func request(_ notice: Notice, receiver: String, name: String, conversions: Int) -> UNNotificationRequest {
+  func request(_ notice: Notice, receiver: String, name: String, conversions: Int) -> UNNotificationRequest {
     let content = UNMutableNotificationContent()
     let prefix = "notify_" + notice.rawValue
     let title = NSLocalizedString(prefix + "_title", comment: "")
@@ -284,7 +284,12 @@ struct BackupNotificationPreferences: View {
               guard notifier.usesSystem else { return }
               openURL(url) { accepted in settingsFailure = !accepted }
             }
-          }.buttonStyle(.borderless).foregroundStyle(DuckRole.accent)
+          }
+          #if os(macOS)
+          .buttonStyle(.bordered)
+          #else
+          .buttonStyle(.borderless).foregroundStyle(DuckRole.accent)
+          #endif
             .disabled(notifier.requestingPermission)
             .accessibilityIdentifier("notifications.permission")
         }

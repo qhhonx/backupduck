@@ -139,4 +139,12 @@ class ReceivedPhotosTest {
         assertTrue(photoScope(HistoryCounts(2, 2, 0), items, 0, emptyList()).allSaved)
         assertFalse(photoScope(HistoryCounts(0, 0, 0), emptyList(), 0, emptyList()).allSaved)
     }
+    @Test fun unfinishedScopeUsesGlobalCountsAndDoesNotInventSavingOnly() {
+        val loadedPrefix = listOf(item(2), item(1))
+        assertEquals(2, photoScope(HistoryCounts(1284, 1277, 5), loadedPrefix, 0, emptyList()).pending)
+        assertEquals(0, photoScope(HistoryCounts(2, 2, 0), loadedPrefix, 0, emptyList()).pending)
+        assertEquals(0, photoScope(HistoryCounts(2, 3, 1), loadedPrefix, 0, emptyList()).pending)
+        assertEquals(1, photoScope(null, listOf(item(2, processing = "pending")), 1, emptyList()).pending)
+    }
+
 }

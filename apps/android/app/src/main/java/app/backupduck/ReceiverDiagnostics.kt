@@ -102,7 +102,7 @@ internal class DiagnosticsScreen(private val activity: MainActivity, restored: B
                 val raw = ReceiverLogPolicy.read("${activity.filesDir}/receiver")
                 (0 until raw.length()).map { DiagnosticEntry(raw.getJSONObject(it)) }
                     .sortedWith(compareByDescending<DiagnosticEntry> { it.timestamp }.thenByDescending { it.id })
-                    .take(12)
+                    .filter { it.known(activity) }.take(12)
             } }
             ensureActive()
             feedback.visibility = View.GONE

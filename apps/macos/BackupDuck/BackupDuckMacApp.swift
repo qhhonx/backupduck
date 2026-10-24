@@ -27,6 +27,8 @@ struct MacWorkspace: View {
   @State private var sidebarSelection: MacDestination? = .backup
   private var initialSettingsPage: MacSettings.Page?
   private var initialDiagnosticsPage: String?
+  private var openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)?
+  private var settingsUpdateSection: MacUpdateSection?
   private var scopeStore: BackupScopeStore
   private var albumsModel: ScopeAlbumsModel
   private var initialScopeDestination: BackupScopeDestination?
@@ -38,6 +40,7 @@ struct MacWorkspace: View {
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var transferFilter = "all"
   @State private var historyScope = ""
+  @State private var historyCount = 0
   @State private var historyColumns = 6
   @State private var historyFocus: HistoryPhoto?
   @State private var librarySelecting = false
@@ -53,7 +56,8 @@ struct MacWorkspace: View {
   @StateObject private var folders: FolderSources
   @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialTransferFilter: String = "all",
     initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
-    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil) {
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil, openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)? = nil, settingsUpdateSection: MacUpdateSection? = nil) {
+    self.openInitialSettingsDetail = openInitialSettingsDetail; self.settingsUpdateSection = settingsUpdateSection
     self.initialDiagnosticsPage = initialDiagnosticsPage
     self.model = model
     _externalViewer = State(initialValue: initialViewer)
@@ -96,10 +100,14 @@ struct MacWorkspace: View {
       canShrink: historyColumns < 9, canGrow: historyColumns > 3) : nil)
     .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
       info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
-    .tint(DuckRole.accent)
+    // The accent reaches the system as its accent color: selection, switches and
+    // the default button use it, while push buttons stay neutral as in System
+    // Settings. A tint here would color every bordered button (platform-expression A1).
+    .accentColor(DuckRole.accentFill)
     .background(DuckRole.background)
     .background(MacSheetInitialFocus())
     .navigationSplitViewStyle(.balanced)
+    .toolbarBackground(.hidden, for: .windowToolbar)
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowTransfers"))) { _ in showTransfers("all") }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowFolders"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
@@ -181,13 +189,13 @@ struct MacWorkspace: View {
           MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
         }
         if destination == .transfers {
-          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, scopeChanged: { historyScope = $0 })
+          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, scopeChanged: { historyScope = $0; historyCount = $1 }).id(transferFilter)
             .id(transferFilter + "|" + (historyFocus?.id ?? ""))
         }
         if destination == .settings {
           MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
             initialPage: initialSettingsPage, scopeStore: scopeStore, albumsModel: albumsModel,
-            initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch, initialDiagnosticsPage: initialDiagnosticsPage)
+            initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch, initialDiagnosticsPage: initialDiagnosticsPage, openInitialDetail: openInitialSettingsDetail, updateSection: settingsUpdateSection)
         }
       }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -287,6 +295,17 @@ struct MacWorkspace: View {
     }
   }
   if !hasViewer, destination == .transfers, !historyScope.isEmpty {
+    if transferFilter == "attention" {
+      ToolbarItem(placement: .primaryAction) {
+        Button { showTransfers("all") } label: {
+          Label(String(format: NSLocalizedString("library_view_pill", comment: ""),
+            NSLocalizedString("records_needs_you", comment: ""), historyCount.formatted()),
+            systemImage: "xmark.circle.fill").labelStyle(.titleAndIcon)
+        }
+          .accessibilityLabel(historyScope)
+          .help(Text("records_clear_filter"))
+      }
+    }
     MacLibraryScale(columns: $historyColumns, stops: MacLibraryDensity.grid)
   }
   }

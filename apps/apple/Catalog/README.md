@@ -8,6 +8,51 @@ they are never archived or distributed. See the design catalog section of
 
 ## How it works
 
+### Deterministic capture routes
+
+Catalog models retain the scripted `check_pairing` connection state without
+restoring real sender networking. This keeps online, offline and processing
+fixtures independent of OS network monitoring.
+
+For `settings.advanced.cache-failure`, `-cache-action clear` runs the first
+synthetic cleanup action before capture. On Mac, `-scenario settings.about
+-start-route licenses` opens the production licenses pane. The
+`connect.mac-connecting` scenario holds synthetic authentication pending for
+60 seconds so progress can be reviewed independently of connection success.
+On iPhone, `-scenario selection.review.selected -start-zoom years` or
+`-start-zoom months` opens the production calendar at that level with synthetic
+assets and no selection.
+
+Mac snapshots activate a regular application, make its window main and key,
+and focus the selected native collection or list. Capture fails if the app or
+window is inactive; an `activation.json` sidecar records the check. Attached
+sheets retain key-window ownership.
+
+
+### iPhone connect permissions
+
+`onboarding.connect-camera-denied` and `connect.camera-denied` render Camera
+denial on the production first-run page and Connect sheet. The first-run action
+area owns Open Settings; the sheet's scanner owns it. Neither fixture asks for
+camera access or starts networking. `onboarding.connect-camera-unavailable`
+keeps hardware failure distinct from permission denial.
+
+`onboarding.connect-wireless-denied`, `.connect-local-network-denied` and
+`.connect-network-unavailable` render permission-specific and uncertain-path
+recovery. Retry retains the synthetic code; Scan Again returns to the scanner.
+The catalogs disable real monitors, Bonjour and transfer sessions independently
+of their scripted core. `-measure-rows` writes `networkingStarted`,
+`backgroundSessionStarted`, `diagnosticsMonitoring` and observed synthetic core
+commands alongside native row measurements. Relaunch the denied-scan fixture
+and confirm all startup flags remain false and no receiver command appears.
+
+The iOS `BackupDuckCatalog` scheme runs `BackupDuckCatalogTests` in Release.
+These cover unpaired launch/foreground/background callbacks, saved trust behind
+Scan, first-run restoration, camera recovery, preflight denial, cancellation,
+and explicit retry before Rust TLS verification. They use only the catalog
+host. They do not prove regional system-dialog behavior or real permission
+persistence; see the connect contract in `design/flows.md`.
+
 ### Settings bottom, About and feedback
 
 `settings.bottom`, `settings.about` and `settings.feedback` use the current
@@ -326,6 +371,16 @@ must preserve search, selection and position. These fixtures do not read Photos;
 the browser shows the native no-access state. Review the actual grid separately
 on a synthetic Photos library with access granted.
 
+The Mac start routes for `settings.help-article`, `settings.scope.browser`
+and `settings.updates.ready` / `.unavailable` use the production Settings pane
+navigator, retaining the category list and toolbar Back. `settings.rename`
+opens the production compact name editor above the workspace. These fixtures
+never install or launch the production app. `-settings-back 1` invokes the
+same pane-back action after the initial route mounts (use `2` for the album
+browser through the chooser). This is synthetic action evidence, not keyboard
+or pointer-input coverage. `-updates-check yes` previews the synthetic checking
+state without a network request.
+
 `settings.about` opens About directly; its version row has no update controls
 in the Mac catalog's store configuration. `settings.about-menu` starts at another detail;
 use the application's About command, then repeat from another category or
@@ -546,7 +601,7 @@ and `.export-sheet` open the shared production diagnostics in the Mac Settings
 secondary Settings pane or as a pushed iPhone Settings page. Launch with
 `-appearance light` (or `dark`). Recent activity is read-only and limited to six
 latest events, newest first and grouped by day. Known codes use plain localized
-titles; unknown codes display “Other activity”. There are no log, entry or retention pages.
+titles; unknown codes are omitted from this short list but remain in the complete export. There are no log, entry or retention pages.
 Exports write the complete synthetic core JSON, including unknown fields;
 saving/sharing uses the system interface. The failed-export scenario fails once,
 then the ordinary export row retries with a fresh snapshot. Send Feedback uses
@@ -569,5 +624,54 @@ each Catalog run before starting another instance with the same bundle identity.
 Parallel display-headline clauses occupy separate centred lines in every language.
 The localized `onboarding_title` supplies explicit line breaks; native `Text`
 wraps an overlong clause inside its own paragraph. Review Chinese and English
-welcome in light and dark. No width-dependent clause layout or invisible break
-characters are used. Mac currently does not show this welcome headline.
+welcome in light and dark. The headline uses no width-dependent clause layout
+or invisible break characters. Product names in supporting copy retain their
+localized no-break space. Mac currently does not show this welcome headline.
+
+### Apple release-review scenarios
+
+`hub.earlier-progress` contrasts a fully counted frozen run (3,210 confirmed
+Photos publications of 12,384 members) with the unknown total in
+`hub.backing-up`. Both hosts render the same card; a scanning count is never a
+saved count. `settings.licenses` opens Source Code & Licenses,
+`settings.third-party-licenses` opens Third-Party Software / 第三方软件 as one
+grouped plain-text notice document. `settings.help-faster` checks the
+platform-specific article. Notices remain
+readable offline; the direct Mac includes Sparkle, Store/iOS omit it.
+
+Selection review retains the system browse button leading, checkmark confirmation
+trailing, full-opacity photos and one prominent backup action. Its bottom toolbar
+keeps Deselect All / 取消全选 leading. The parent grid shows the selected count
+and a secondary Show Selected action. First-photo fixtures center the title/status, use matching
+device screens/labels and reveal the approved done duck only on confirmed
+Photos publication. These are synthetic visual fixtures, not evidence of real
+receiver conversion, system authorization or physical-device motion.
+
+### Apple preference polish
+
+About starts with the approved app icon, name and tagline; the version stays
+in its preference row. Mac identity fixtures use a MacBook name independently of the iPhone fixtures. Album cover fallbacks
+show a photo symbol. Auto Backup uses switch, Includes, Notifications in that
+order on both hosts; Mac Help uses a searchable grouped Form. First-run iPhone
+scenarios support native Back without undoing registered backup work. Year and
+month headings retain the translucent capsules and day-cover captions of the
+existing calendar grid. Dense All-grid captions and the native
+compact-navigation behavior are retained.
+
+### Unobstructed acceptance captures
+
+Mac `-snapshot` runs omit the Catalog controls so production footer actions are
+fully visible. Interactive runs retain those controls. `onboarding.scope` is the
+same production scope-choice step as `onboarding.choose`, with limited photo
+access; it is not a separate first-run page. iPhone `library.access-denied` and
+`library.access-restricted` render the production permission placeholders without
+reading or changing system authorization. Activity previews and status-menu
+content fixtures do not establish system delivery or actual menu-bar placement.
+
+`-capture` hides the iPhone Catalog information control during acceptance
+shots. `-notification-probe convert` reads the Catalog's existing notification
+authorization and records it in `Documents/catalog-notification-probe.json`. It
+submits the production payload only when already authorized, never requesting
+or changing authorization. Mac `-status-menu-bar` inserts a temporary system
+menu-bar extra with production items and synthetic state; navigation and Quit
+are inert in that menu.

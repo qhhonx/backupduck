@@ -29,6 +29,7 @@ struct LibraryPlaceholder: View {
       case .permission(let access):
         ContentUnavailableView {
           Label("photos_access_title", systemImage: "photo.on.rectangle.angled")
+            .foregroundStyle(DuckRole.primaryText)
         } description: {
           Text(permissionDescription(access))
           if settingsUnavailable { Text("photos_settings_unavailable") }
@@ -61,6 +62,10 @@ struct LibraryPlaceholder: View {
         }
       }
     }
+    #if os(macOS)
+    // Settings row geometry must not become the unavailable label's icon layout.
+    .labeledContentStyle(.automatic)
+    #endif
     .duckOpticalCenter()
     .accessibilityIdentifier("library.placeholder")
   }

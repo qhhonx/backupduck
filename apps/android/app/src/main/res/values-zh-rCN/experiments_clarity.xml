@@ -3,7 +3,7 @@
     <string name="discovery_available">有新功能可了解</string>
     <string name="discovery_entry_label">%1$s，有新功能可了解</string>
     <string name="cleanup_result_checking_result">正在打开上次清理的结果页面…</string>
-    <string name="cleanup_result_manual_review_required">无法自动确认上次清理结果。请在 Google 相册中核对，回到这里点击“我已检查结果”。不会重复执行释放。</string>
+    <string name="cleanup_result_manual_review_required">无法自动确认上次清理结果。请在 Google 相册中核对，回到这里点击“我已检查结果”。不会重复执行释放。</string>
     <string name="attention_required">需要你处理</string>
     <string name="attention_entry_label">%1$s，需要你处理</string>
 </resources>

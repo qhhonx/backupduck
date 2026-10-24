@@ -122,7 +122,7 @@ internal fun Context.lookCard(parent: ViewGroup, padded: Boolean = true, params:
 /** What a state card says (I3): one glyph in a state color, a neutral title, a note and at most one tonal action. */
 internal class LookState(
     @DrawableRes val glyph: Int, val tint: Int, val title: String, val note: String? = null,
-    /** A device reading shown as a neutral pill, only when it matters (flows.md § Pixel hub states). */
+    /** A device reading shown as plain secondary text, only when it matters (flows.md § Pixel hub states). */
     val reading: String? = null,
     /** Real progress as done of total; the bar sits inside the card and never adds a row (I3 Working). */
     val progress: Pair<Int, Int>? = null,
@@ -148,7 +148,7 @@ internal class StateCard(private val context: Context) {
         isAccessibilityHeading = true; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
     private val note = context.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true)
-    private val reading = context.lookPill("", null)
+    private val reading = context.lookText("", M.style.TextAppearance_Material3_BodyMedium, secondary = true)
     private val bar = LinearProgressIndicator(context).apply {
         trackThickness = context.dp(3); trackCornerRadius = context.dp(2); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
@@ -229,6 +229,10 @@ internal fun Context.lookEmpty(parent: ViewGroup, @DrawableRes duck: Int, title:
                     it is androidx.recyclerview.widget.RecyclerView || it is NestedScrollView
                 }
                 minimumHeight = viewport?.let { maxOf(it.height, it.measuredHeight) - it.paddingTop - it.paddingBottom }?.coerceAtLeast(0) ?: 0
+                // A10: the complete block sits at the optical center, 45% of the viewport.
+                val inset = context.token(R.dimen.duck_space_large)
+                val bottom = inset + (minimumHeight * 0.1f).toInt()
+                if (paddingBottom != bottom) setPadding(paddingLeft, inset, paddingRight, bottom)
             }
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         }
@@ -330,7 +334,7 @@ internal fun Context.lookGroup(parent: LinearLayout): LinearLayout = lookCard(pa
  * Native balanced wrapping keeps enlarged labels from leaving an orphaned word.
  */
 internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title: String, supporting: String? = null,
-    trailing: View? = null, badge: String? = null, action: (() -> Unit)? = null): TextView {
+    trailing: View? = null, badge: String? = null, iconColor: Int? = null, action: (() -> Unit)? = null): TextView {
     val support = lookText(supporting.orEmpty(), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
         visibility = if (supporting.isNullOrEmpty()) View.GONE else View.VISIBLE
         breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
@@ -345,7 +349,7 @@ internal fun Context.lookRow(group: LinearLayout, @DrawableRes icon: Int?, title
     }
     icon?.let {
         row.addView(ImageView(this).apply {
-            setImageResource(it); imageTintList = ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
+            setImageResource(it); imageTintList = ColorStateList.valueOf(iconColor ?: getColor(R.color.duck_role_secondary_text))
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = token(R.dimen.duck_space_medium) })
     }

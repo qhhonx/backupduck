@@ -1,0 +1,7 @@
+{
+  "id": "settings.licenses",
+  "extends": "base-paired",
+  "page": "settings",
+  "step": "licenses",
+  "title": "settings.licenses"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "library.access-restricted",
+  "page": "library",
+  "step": "photoAccessRestricted",
+  "title": "Photo Library: restricted access",
+  "extends": "base-paired",
+  "ios_only": true,
+  "photo_access": "denied",
+  "expect": ["The production restricted-access placeholder has no ineffective permission action; system authorization is unchanged."]
+}

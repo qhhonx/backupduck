@@ -20,7 +20,6 @@ import com.google.android.material.R as M
 /** Public destinations already used by the website. */
 private const val WEBSITE = "https://backupduck.app"
 private const val FEEDBACK_GROUP = "https://t.me/+MCA62rlSwZplMGI1"
-private const val SOURCE = "https://github.com/qhhonx/backupduck"
 
 /** Reserved content is absent from production until supplied by its owner. */
 internal data class ReservedSettingsContent(
@@ -68,6 +67,14 @@ internal fun Context.settingsFooter(parent: LinearLayout, diagnostics: () -> Uni
 
 internal fun MainActivity.createAboutPage(): LookPage {
     val page = LookPage(this, getString(R.string.pref_about), "about")
+    val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+    brand.addView(android.widget.ImageView(this).apply {
+        setImageResource(R.mipmap.ic_launcher)
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }, LinearLayout.LayoutParams(dp(72), dp(72)))
+    brand.addView(lookText(getString(R.string.app_name), M.style.TextAppearance_Material3_HeadlineSmall).apply { gravity = Gravity.CENTER_HORIZONTAL })
+    brand.addView(lookText(getString(R.string.about_tagline), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply { gravity = Gravity.CENTER_HORIZONTAL })
+    page.body.addView(brand, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = token(R.dimen.duck_space_large) })
     val content = ReceiverEnvironment.reservedSettings
     val authorText = content.authorText ?: content.authorTextResource?.let { getString(it) }
     authorText?.let {
@@ -84,18 +91,20 @@ internal fun MainActivity.createAboutPage(): LookPage {
     if (authorText != null) (rows.parent as View).layoutParams = ((rows.parent as View).layoutParams as LinearLayout.LayoutParams).apply {
         topMargin = token(R.dimen.duck_space_large)
     }
-    val status = lookRow(rows, R.drawable.ic_info, getString(R.string.pref_version_value, receiverAppVersion()),
-        updateStatusLabel(AppUpdates.status.value, compact = true)) {
+    fun versionStatus(value: UpdateCheckStatus?): String = "${receiverAppVersion()} · ${updateStatusLabel(value, compact = true)}"
+    val status = lookRow(rows, R.drawable.ic_info, getString(R.string.pref_version),
+        versionStatus(AppUpdates.status.value)) {
         startActivity(Intent(this, UpdatesActivity::class.java))
     }
     val observation = lifecycleScope.launch {
-        AppUpdates.status.collect { status.setSupporting(updateStatusLabel(it, compact = true)) }
+        AppUpdates.status.collect { status.setSupporting(versionStatus(it)) }
     }
     page.body.doOnDetach { observation.cancel() }
     if (AppUpdates.status.value == null) lifecycleScope.launch { AppUpdates.check(this@createAboutPage) }
     lookRow(rows, R.drawable.ic_document, getString(R.string.about_privacy)) { openSupportLink("$WEBSITE/privacy.html") }
-    lookRow(rows, R.drawable.ic_computer, getString(R.string.about_source_licenses)) { openSupportLink(SOURCE) }
+    lookRow(rows, R.drawable.ic_computer, getString(R.string.about_source_licenses)) { createSourceLicensesPage().show() }
     lookRow(rows, R.drawable.ic_globe, getString(R.string.official_website)) { openSupportLink(WEBSITE) }
+    lookFootnote(page.body, getString(R.string.about_privacy_note))
     return page
 }
 
@@ -120,7 +129,7 @@ internal fun MainActivity.showFeedback() {
     sheet.show()
 }
 
-private fun MainActivity.openSupportLink(url: String) {
+internal fun MainActivity.openSupportLink(url: String) {
     runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
         .onFailure { showActionFailure(R.string.support_open_failed) { openSupportLink(url) } }
 }

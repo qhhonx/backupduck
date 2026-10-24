@@ -6,7 +6,7 @@
   "extends": "base-paired",
   "expect": [
     "The production About page opens directly on both platforms.",
-    "With no approved author text, the author card is absent, including its section. Version, Privacy, Open Source & Licenses, Website and the one-sentence privacy promise remain.",
+    "With no approved author text, the author card is absent, including its section. Version, Privacy, Source Code & Licenses, Website and the one-sentence privacy promise remain.",
     "Privacy opens the existing website privacy page. The license is readable in-app.",
     "iPhone and Mac App Store builds show only Version and no update UI. Direct Mac builds show update status below Version and push a detail with status, Check for Updates and Automatic Updates, without repeating Version.",
     "Version is the leading title and the release version is a trailing secondary value, using the same layout as other value rows; update status remains a subtitle on direct Mac builds."

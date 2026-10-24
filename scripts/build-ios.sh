@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+cargo fetch --locked
+python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
 platform="${1:-simulator}"
 case "$platform" in
  simulator) target=aarch64-apple-ios-sim; sdk=iphonesimulator; swift_target=arm64-apple-ios17.0-simulator;;
@@ -14,6 +16,8 @@ mkdir -p "$app"
 cp apps/ios/BackupDuck/Info.plist "$app/Info.plist"
 python3 scripts/stamp-version.py "$app/Info.plist" --ios
 cp -R apps/apple/Resources/*.lproj "$app/"
+rm -f "$app/ThirdPartyLicenses-ios.json"
+cp apps/apple/Resources/BackupDuckLicense.txt apps/apple/Resources/ThirdPartyNotices-ios.txt "$app/"
 cp apps/apple/Resources/DuckBrand.png "$app/"
 set --
 if [ "$platform" = simulator ]; then

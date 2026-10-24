@@ -1,0 +1,11 @@
+{
+  "id": "settings.appearance",
+  "page": "settings",
+  "step": "appearance",
+  "mac_only": true,
+  "title": "Settings \u00b7 Appearance",
+  "extends": "base-paired",
+  "expect": [
+    "The selected category stays visible beside its production preference form."
+  ]
+}

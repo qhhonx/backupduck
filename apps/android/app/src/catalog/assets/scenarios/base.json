@@ -16,7 +16,11 @@
   },
   "core": {
     "receiver_preview": {
-      "value": { "status": "unavailable", "path": null, "reason": "decode_unavailable" }
+      "value": {
+        "status": "unavailable",
+        "path": null,
+        "reason": "decode_unavailable"
+      }
     },
     "device_status": {
       "value": {
@@ -31,7 +35,8 @@
               "id": "catalog-iphone",
               "name": "Lin's iPhone"
             },
-            "last_seen": 1792300000
+            "last_seen": 1792300000,
+            "device_type": "iPhone"
           }
         ]
       }
@@ -153,6 +158,75 @@
             "burst_primary": null,
             "received_at_ms": 1792299700000,
             "published_at_ms": 1792299705000
+          },
+          {
+            "cursor": 795,
+            "id": "catalog-recent-5",
+            "filename": "IMG_4821.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792213300000,
+            "burst_primary": null,
+            "received_at_ms": 1792299940000,
+            "published_at_ms": 1792299945000
+          },
+          {
+            "cursor": 794,
+            "id": "catalog-recent-6",
+            "filename": "IMG_4821.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792213240000,
+            "burst_primary": null,
+            "received_at_ms": 1792299940000,
+            "published_at_ms": 1792299945000
+          },
+          {
+            "cursor": 793,
+            "id": "catalog-recent-7",
+            "filename": "IMG_4821.HEIC",
+            "kind": "photo",
+            "total_bytes": 3400000,
+            "confirmed_bytes": 3400000,
+            "receipt": "received",
+            "processing": "complete",
+            "processing_error": null,
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792213180000,
+            "burst_primary": null,
+            "received_at_ms": 1792299940000,
+            "published_at_ms": 1792299945000
           }
         ],
         "total": 1284,

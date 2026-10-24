@@ -1,0 +1,11 @@
+{
+  "id": "onboarding.space-on",
+  "extends": "onboarding.space",
+  "storage": {
+    "total_bytes": 68719476736,
+    "free_bytes": 6657199308,
+    "photos_bytes": 42949672960,
+    "smart_storage": true,
+    "cleanup_access": true
+  }
+}

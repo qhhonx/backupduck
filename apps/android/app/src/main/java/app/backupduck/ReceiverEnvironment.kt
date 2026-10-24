@@ -25,7 +25,7 @@ internal object ReceiverEnvironment {
     @Volatile var deviceStorage: (Context) -> DeviceStorage = { DeviceStorage.read(it) }
     /** Read the same system value as first run; null means the state could not be read. */
     @Volatile var smartStorage: (Context) -> Boolean? = {
-        runCatching { android.provider.Settings.Secure.getInt(it.contentResolver, "automatic_storage_manager_enabled", 0) == 1 }.getOrNull()
+        runCatching { android.provider.Settings.Secure.getInt(it.contentResolver, "automatic_storage_manager_enabled") == 1 }.getOrNull()
     }
     @Volatile var cleanupAccess: (Context) -> Boolean = { context ->
         val expected = android.content.ComponentName(context, PhotosProbeService::class.java)

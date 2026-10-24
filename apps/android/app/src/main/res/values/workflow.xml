@@ -11,7 +11,7 @@
     <string name="duck_start_port_busy">The receiving port is used by another app. Stop its receiver, then retry.</string>
     <string name="duck_start_network_failed">The Wi-Fi address is unavailable. Connect to Wi-Fi, then retry.</string>
     <string name="duck_reset_random_code">Reset to a random access code</string>
-    <string name="duck_reset_unchanged">Device pairing and backup tasks remain unchanged.</string>
+    <string name="duck_reset_unchanged">Your connected devices and backup tasks are unchanged.</string>
     <string name="duck_resetting">Resetting…</string>
     <string name="duck_revoking">Signing out browsers…</string>
 </resources>

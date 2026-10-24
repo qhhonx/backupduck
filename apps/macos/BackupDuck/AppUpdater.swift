@@ -18,7 +18,12 @@ import Sparkle
   static let shared = AppUpdater()
   @Published private(set) var canCheck = false
   @Published private(set) var automaticChecks = true
-  @Published private(set) var status: MacUpdateStatus = .notChecked
+  /// The last check's result. Checking is shown only while Sparkle's session or
+  /// a requested check is running, so a missed callback cannot leave it checking.
+  @Published private var result: MacUpdateStatus = .notChecked
+  @Published private var inSession = false
+  @Published private var requested = false
+  var status: MacUpdateStatus { inSession || requested ? .checking : result }
   private var controller: SPUStandardUpdaterController!
   private var observations: [NSKeyValueObservation] = []
   private var started = false
@@ -31,10 +36,11 @@ import Sparkle
       controller.updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] value, _ in
         Task { @MainActor in self?.canCheck = value.canCheckForUpdates }
       },
-      controller.updater.observe(\.sessionInProgress, options: [.new]) { [weak self] value, _ in
+      controller.updater.observe(\.sessionInProgress, options: [.initial, .new]) { [weak self] value, _ in
         let inProgress = value.sessionInProgress
         Task { @MainActor in
-          if inProgress { self?.status = .checking }
+          self?.inSession = inProgress
+          if !inProgress { self?.requested = false }
         }
       },
       controller.updater.observe(\.automaticallyChecksForUpdates, options: [.initial, .new]) { [weak self] value, _ in
@@ -53,13 +59,16 @@ import Sparkle
   }
   func check() {
     guard canCheck else { return }
-    status = .checking
+    requested = true
     controller.checkForUpdates(nil)
   }
-  func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) { status = .available }
-  func updaterDidNotFindUpdate(_ updater: SPUUpdater) { status = .upToDate }
+  func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) { result = .available }
+  func updaterDidNotFindUpdate(_ updater: SPUUpdater) { result = .upToDate }
   func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
-    if status == .checking { status = error == nil ? .notChecked : .failed }
+    // No update is reported as an error too; only a real failure replaces the result.
+    if let error = error as NSError?, error.domain == SUSparkleErrorDomain,
+      error.code != Int(SUError.noUpdateError.rawValue), result != .available { result = .failed }
+    requested = false
   }
   func setAutomaticChecks(_ value: Bool) { controller.updater.automaticallyChecksForUpdates = value }
   func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem,
@@ -84,7 +93,17 @@ struct UpdateSettings: View {
   var body: some View {
     MacUpdateSection(status: updater.status, canCheck: updater.canCheck,
       automaticChecks: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks),
-      check: updater.check)
+      check: updater.check, liveDetail: AnyView(MacAppUpdaterDetail()))
+  }
+}
+
+/// The update page observes the updater itself: a page opened in the Settings
+/// pane keeps its content, so values captured when it opened would go stale.
+private struct MacAppUpdaterDetail: View {
+  @ObservedObject private var updater = AppUpdater.shared
+  var body: some View {
+    MacUpdateDetail(status: updater.status, canCheck: updater.canCheck,
+      automaticChecks: Binding(get: { updater.automaticChecks }, set: updater.setAutomaticChecks), check: updater.check)
   }
 }
 
@@ -93,6 +112,10 @@ struct UpdateSettings: View {
 /// Status comes from Sparkle observations, never from the installed version alone.
 enum MacUpdateStatus {
   case notChecked, checking, upToDate, available, failed
+  func title(automatic: Bool) -> LocalizedStringKey {
+    if self == .notChecked && automatic { return "updates_background" }
+    return title
+  }
   var title: LocalizedStringKey {
     switch self {
     case .notChecked: "updates_not_checked"
@@ -110,25 +133,40 @@ struct MacUpdateSection: View {
   var canCheck = true
   var automaticChecks: Binding<Bool> = .constant(true)
   var check: () -> Void = {}
+  var liveDetail: AnyView? = nil
   var body: some View {
     Section {
-      NavigationLink {
-        Form {
-          Section {
-            Text(status.title).foregroundStyle(.primary)
-              .accessibilityIdentifier("settings.updates.status")
-            Button("updates_check_button", action: check).buttonStyle(.bordered).disabled(!canCheck)
-              .accessibilityIdentifier("settings.updates.check")
-            Toggle("updates_automatic", isOn: automaticChecks)
-              .toggleStyle(DuckPreferenceToggleStyle())
-              .accessibilityIdentifier("settings.updates.automatic")
-          }
-        }
-        .formStyle(.grouped)
-        .navigationTitle("updates_title")
+      DuckSettingsLink(title: Text("updates_title")) {
+        if let liveDetail { liveDetail }
+        else { MacUpdateDetail(status: status, canCheck: canCheck, automaticChecks: automaticChecks, check: check) }
       } label: {
-        DuckAboutVersionLabel(status: status.title)
+        DuckAboutVersionLabel(status: status.title(automatic: automaticChecks.wrappedValue))
       }.accessibilityIdentifier("about.version")
     }
+  }
+}
+
+/// Status with its action on one row, then the automatic switch.
+struct MacUpdateDetail: View {
+  var status: MacUpdateStatus
+  var canCheck: Bool
+  var automaticChecks: Binding<Bool>
+  var check: () -> Void
+  var body: some View {
+    Form {
+      Section {
+        LabeledContent {
+          Button("updates_check_button", action: check).disabled(!canCheck || status == .checking)
+            .accessibilityIdentifier("settings.updates.check")
+        } label: {
+          Text(status.title(automatic: automaticChecks.wrappedValue)).foregroundStyle(.primary).accessibilityIdentifier("settings.updates.status")
+        }
+        Toggle("updates_automatic", isOn: automaticChecks)
+          .toggleStyle(DuckPreferenceToggleStyle())
+          .accessibilityIdentifier("settings.updates.automatic")
+      }
+    }
+    .formStyle(.grouped)
+    .navigationTitle("updates_title")
   }
 }

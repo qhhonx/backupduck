@@ -69,7 +69,7 @@ extension BackupModel {
     }
   }
   func syncDeviceProfile(force: Bool = false) async {
-    guard ready, let target = pairing, !exchangingDevice,
+    guard ready, networkingStarted, let target = pairing, !exchangingDevice,
       force || Date().timeIntervalSince(lastDeviceExchange) >= 60 else { return }
     exchangingDevice = true
     lastDeviceExchange = Date()
@@ -103,8 +103,9 @@ struct DeviceNameEditor: View {
     }
   }
   var body: some View {
+    // One field: the Mac sheet is as tall as its content, at the narrow sheet width.
     DuckSheetLayout(title: "device_rename", busy: model.savingDevice, error: model.deviceError,
-      form: true, cancel: cancel) {
+      desktopWidth: DuckSheetMetrics.compactWidth, desktopFitsContent: true, form: true, cancel: cancel) {
       Section {
         TextField("device_name", text: $name)
           .accessibilityIdentifier("device.name").disabled(model.savingDevice)

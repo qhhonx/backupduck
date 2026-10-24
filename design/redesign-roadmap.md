@@ -132,8 +132,15 @@ Follow the source audit's priority order, with completed work removed:
     the device pass covers the final code.** Compatibility routes resolve to
     current pages first; superseded pages, the Mac Settings window, the catalog
     design switch, the Pixel probe tool and unreferenced strings are removed.
-    Remaining legacy: the Pixel waking/unlocking screen and the generic
-    operation-failed sheet (`page-register.md`).
+    The Pixel waking/unlocking screen and action-failure sheet now use the shared
+    transient-state and recovery components (`page-register.md`).
+
+## First after 0.5.0
+
+1. **Mac first run (known gap):** build the complete native single-window journey
+   from value and connecting through photo permission, backup scope and the first
+   saved photo. In 0.5.0 only the empty Overview explains Pixel storage and the
+   upcoming photo-access request; Connect Pixel remains primary.
 
 ## Later (after the roadmap)
 
@@ -163,6 +170,8 @@ counts as a trial.
 - The Pixel download page address (first run step 2).
 
 ## Known gaps
+
+- iPhone media-header scrim is restored, but the SwiftUI-hosted calendar still shows a dark status-bar foreground in light appearance; resolve before native acceptance.
 
 - Smart Storage's age rule (capture or backup time) is unverified on device.
 - Motion has been checked in the Simulator only; device recordings are pending.

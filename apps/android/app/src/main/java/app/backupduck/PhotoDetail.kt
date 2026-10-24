@@ -82,7 +82,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }
         fun text(value: String, style: Int, color: Int? = null) = lookText(value, style).apply { color?.let(::setTextColor) }
         fun dateText(skeleton: String) = item.capturedAtMs?.let {
-            android.icu.text.DateFormat.getInstanceForSkeleton(skeleton, resources.configuration.locales[0]).format(java.util.Date(it))
+            formatted(activity, skeleton, it)
         }
         date.addView(text(dateText("MMMd")?.plus(" ›") ?: getString(R.string.photos_taken_unknown), M.style.TextAppearance_Material3_TitleMedium, white).apply { gravity = Gravity.CENTER })
         date.addView(text(dateText("jm").orEmpty(), M.style.TextAppearance_Material3_BodySmall, white).apply { gravity = Gravity.CENTER })
@@ -312,7 +312,8 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                 item.receipt == "received" -> R.string.photos_saving
                 else -> R.string.photos_after_arrival }),
             item.publishedAtMs?.takeIf { item.processing == "complete" }?.let { shortTime(activity, it) }
-                ?: item.processingError?.let { publicationReason(activity, it) })
+                ?: item.processingError?.let { publicationReason(activity, it) },
+            iconColor = if (item.processing == "complete") getColor(R.color.duck_state_saved) else null)
         val retry = if (item.cause == PhotoCause.NOT_SAVED) lookButton(getString(R.string.photos_try_again), LookButton.TONAL) {}.also {
             panel.addView(it, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })
         } else null

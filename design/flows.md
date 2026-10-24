@@ -35,31 +35,110 @@ First run stays until it is completed. An interrupted flow (the app killed,
 Back, a restart) reopens at the step it reached, before the hub draws. A
 reinstall starts at Welcome: a pairing left in the keychain by a deleted
 installation is discarded. The app touches the network only once a receiver
-is paired or the connect step starts, so the system's network prompt appears
-there.
+has completed a connection, or an explicit connection attempt starts after a
+code is read. Merely entering the scan step must not touch the network; see the
+iPhone connect contract below.
 
-### iPhone (and Mac)
+### iPhone (Mac first run remains planned)
 
 | Step | Screen | Primary action | Notes |
 | --- | --- | --- | --- |
 | 1 | **Welcome.** Headline: "Bigger than iCloud. Simpler than a NAS. And free." Subline: "One old Pixel backs up all your photos to Google Photos, full quality, without limits." Steps: ① Install BackupDuck on a Pixel ② Connect the two devices ③ Photos back up to Google Photos · free and unlimited. Small print: "Original Pixel: unlimited Original quality. Pixel 2 to 5: unlimited Storage saver. The offer is Google's." Welcome duck | Get Started | The bold value line follows the brief |
 | 2 | **Install on the Pixel.** A QR code that opens the Pixel download page in the Pixel's camera; the address as text below | It's Installed | Skipped if a Pixel was paired before |
 | 3 | **Connect.** One sentence on why the camera is needed, then the scanner. On success: "Connected to Pixel 8 Pro" with the connecting duck | Scan the code on your Pixel | Mac shows its own code for the Pixel to scan instead |
-| 4 | **Photos.** "BackupDuck reads your photos and sends them straight to your Pixel, never through our servers." then the system prompt | Continue | Limited access: say what will and won't back up |
-| 5 | **What to back up.** Auto Backup on (switch shown on), with when it runs: "Runs whenever your iPhone and Pixel are on the same Wi‑Fi". "Back up your 12,384 earlier photos too? About 86 GB; however many there are, they all fit." No Pixel free-space figure: the Pixel frees space as it goes | Back Up Everything | Secondary: Only New Photos |
-| 6 | **First photo lands.** The first thumbnail travels to the Pixel mark, then "Your first photo is in the Pixel's Photos". One orchestrated motion; static under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
+| 4 | **Photos.** "BackupDuck reads your photos and sends them straight to your Pixel, never through our servers." then the system prompt | Continue | iPhone keeps three benefits in one aligned symbol column: direct to the Pixel, no upload to BackupDuck servers, and full quality without compression. Limited access: say what will and won't back up |
+| 5 | **Earlier photos too?** Use the earlier-photo question with the actual accessible count as the sole page heading. Keep the step marks, new-photo subtitle, recent-photo strip, background-transfer note and conditions link in the content; do not add another question heading. New-photo backup is on, explained in one line without a switch. Show an approximate size only if a supported source supplies it; do not guess. The note says: "However many there are, they can finish sending in the background. If your Pixel runs low on space, you can free up photos already backed up to Google Photos." Learn More explains storage conditions | Back Up Everything | Secondary: Only New Photos; the only decision is whether to include earlier photos |
+| 6 | **First photo lands.** The first thumbnail travels between equal, light device illustrations with photo screens; symmetric device/destination labels and centered title/status share one axis. The approved done duck appears on confirmed arrival, then "Your first photo is in the Pixel's Photos". One orchestrated motion; static under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
 | 7 | **Hub.** Progress card for earlier photos, keep-screen-on switch while a large batch runs, Live Activity on the lock screen | — | First run ends here |
 
+### Mac first run gap
+
+For 0.5.0, the empty Overview says that photos are kept on the Pixel and that
+connecting will ask for access to the Mac photo library. Connect Pixel stays the
+primary action. The complete Mac first-run flow is the first item after 0.5.0;
+this empty state does not establish wizard completion.
+
+### iPhone connect: permission and startup order
+
+The redesigned scanner answers one question: connect this iPhone to the Pixel
+whose code is being scanned. Merely entering or restoring the scanner is not
+connection intent. First run and the later Connect/Reconnect sheet use the same
+scanner and recovery states.
+
+1. **Scan:** request only Camera access. Local queue opening (`open_sender`),
+   identity and setup-state reads remain available without networking. Do not
+   start path monitors, Bonjour browsing, background URLSession, diagnostics
+   network observation, receiver probes, profile exchange or processing watches.
+   An unfinished Welcome/Install/Scan restoration keeps these workers stopped,
+   even if saved trust exists. Do not prewarm or open the photo library behind
+   the first-run scanner.
+2. **Camera denied:** keep the scanner's explanation and **Open Settings** on
+   the current page (in first run, in the fixed action area). Returning from
+   Settings rechecks camera authorization. A grant restarts only the camera;
+   continued denial does not start a connection or repeat permission requests.
+3. **Code read:** decode the code, then begin one explicit connection attempt.
+   Codes that cannot be decoded do not start networking. A future manual-address or
+   nearby-connect action must enter this same explicit connection boundary;
+   displaying its choice must not browse automatically.
+4. **Wireless path, then local connection:** start general path observation
+   first and wait for an available Wi-Fi/Ethernet path while the app is active.
+   Only then open a TCP connection to the scanned address, with cellular
+   prohibited. This is where local-network access is needed. No Bonjour browser
+   or transfer session competes with this attempt. Permission-dialog time does
+   not consume the foreground connection timeout. The preflight sends no
+   application data; Rust subsequently verifies the pinned TLS identity and
+   receiver before saving trust.
+5. **Connected:** only after authenticated pairing succeeds, start receiver
+   availability, route discovery, processing observations, diagnostics network
+   sampling and the transfer executor. Existing queue pause intent is retained.
+
+The intended system sequence is Camera at Scan; wireless-data access, where
+the region requires it, at Connect; then Local Network. The app serializes its
+operations, but iOS owns dialog timing and remembers decisions. There is no
+public combined WLAN/local-network authorization query or API that promises a
+particular regional alert sequence. Do not store a synthetic permission grant or
+claim an unavailable path proves denial. Report a specific blocked privilege
+only when Network.framework supplies that reason; otherwise say to check the
+same Wi-Fi, WLAN access and Local Network in Settings.
+
+On connection failure, preserve the scanned code and show **Open Settings**,
+**Retry**, and **Scan Again** in the current connect flow. Returning from Settings
+does not retry networking automatically. Retry reuses the code; Scan Again
+discards it and returns to the camera. Do not start workers after a failed or
+cancelled attempt, and do not replace existing trust on failure. Terminating and
+relaunching onto Scan starts only the camera/recovery state. System decisions
+are owned by iOS; the app must not force new prompts through background retries.
+
+Catalog camera-denied and network-recovery scenarios are synthetic UI evidence.
+Regional wireless/local-network dialog order and persisted system denial require
+separate physical-device acceptance; a simulator does not establish them. The
+Network.framework denial checks follow Apple's
+[local-network privacy guidance](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
+
 ### Pixel
+
+System Back returns to the preceding first-run screen. Within Connect, Back
+first returns from the Mac direction to the iPhone code; Back from the camera
+returns to the Mac explanation. From Google Photos, Back returns to Connect
+rather than replaying a transient connection confirmation. At Welcome, Back
+moves the task to the background without completing first run. Returning or
+relaunching resumes the saved step; only a final Free Space choice completes
+the guide. Recreation preserves the Connect direction and pending scanner
+result ownership.
+
+Keep-running rows read the current system access on every return. Granted
+items show Allowed; missing access explicitly shows Not allowed. Denying a
+prompt does not grant access or complete the guide. Once each missing item
+has been requested, Next lets the person continue with those restrictions.
 
 | Step | Screen | Primary action | Notes |
 | --- | --- | --- | --- |
 | 1 | **Welcome.** The same headline as the iPhone, "Bigger than iCloud. Simpler than a NAS. And free." Subline: "This old Pixel receives the photos on your iPhone and backs them up to Google Photos, full quality, without limits." The same three marks and small print | Get Started | |
-| 2 | **Keep it running.** Stay on Wi‑Fi; allow notifications and battery exemption so receiving keeps going. Plugging in is suggested as optional | Allow | Each system prompt explained first, then asked one at a time (battery uses the system's per-app dialog, not the settings list); each row shows Allowed when granted; Next once each missing item has been asked |
+| 2 | **Keep it running.** Stay on Wi‑Fi; allow notifications and battery exemption so receiving keeps going. Plugging in is suggested as optional | Allow | Each system prompt explained first, then asked one at a time (battery uses the system's per-app dialog, not the settings list); rows show Allowed or Not allowed from system access; Next once each missing item has been asked |
 | 3 | **Pairing code**, full screen: "Scan with BackupDuck on your iPhone". Secondary: Connect a Mac instead (scan the Mac's code) | — | The screen blocks screenshots, as today |
 | 4 | **Connected.** "Connected to Lin's iPhone" | Next | |
 | 5 | **Google Photos.** "Photos are saved to this Pixel's Photos. They upload once backup is on in Google Photos." | Open Google Photos | Secondary: It's already on. We cannot read Google Photos' backup state, so we never claim it is on |
-| 6 | **Free space automatically.** System Smart Storage shown as on (it removes photos Google Photos has backed up; on by default on the test Pixel XL). Recommends turning on auto cleanup (experiment): "When space runs low, BackupDuck taps Free up space in Google Photos for you. It needs accessibility access, used for this only." | Turn on auto cleanup | Secondary: Not now. Offered again when space runs low |
+| 6 | **Free up space.** Show the system Smart Storage state (On, Off, or State unavailable), read from the system. Explain that it removes device copies backed up by Google Photos. | Open system Smart Storage | Opens the system settings, with storage settings as fallback. Below the Smart Storage card, align the cloud-retention sentence and the quiet Try auto cleanup (experimental) link to its text edge. That link opens the existing cleanup page, which owns the accessibility explanation. The bottom actions are Open system Smart Storage and Not now only. Complete first run after a successful settings handoff or an explicit secondary choice. Offer auto cleanup again only when space runs low |
 | 7 | **Hub**: waiting for photos, with the empty duck | — | |
 
 ## 2. Every day
@@ -73,7 +152,7 @@ happening or needs the user.
 | --- | --- | --- |
 | All caught up | "All your photos are in the Pixel's Photos" · last backup time | Latest photos strip; the all-caught-up duck |
 | Backing up | "Backing up 128 photos · about 2.1 GB" with progress | Current photo thumbnail; keep-screen-on switch above a size threshold; Pause |
-| Earlier photos | Task card "Earlier photos 3,210 / 12,384" | Runs in the background once started; pause only |
+| Earlier photos | Saved-to-Photos count / frozen membership total once the core has finished counting; otherwise "Counting earlier photos…" | Shared Apple card; Pause / 暂停 pauses scanning and Resume / 继续 resumes it, separately from pausing sending. Paused / 已暂停 names its paused state. Mac places this action trailing in the title row like the running card; iPhone retains the action below the text. Never substitute scanned or prepared counts for saved counts |
 | Waiting for the Pixel | "Continues when the Pixel is back on Wi‑Fi" | New photos are kept in order; no action needed |
 
 - **A photo's state** says only what we know: "In the Pixel's Photos · today 10:42", or
@@ -132,7 +211,7 @@ items. It becomes a notification only when it lasts.
 | Pixel unreachable | iPhone hub | "Can't reach Pixel 8 Pro. New photos wait in order and continue when it's back." | Retries; resumes in order | What to do → checks with the likely cause first (same Wi‑Fi, Pixel on, app running) |
 | Pixel storage full | Both hubs | Pixel: "Almost full, so receiving is paused. Photos Google Photos has backed up can be removed from this Pixel, about 18 GB; they stay in Google Photos in the cloud." iPhone: "The Pixel is out of space; paused." | Resumes when space returns | Pixel: Turn on auto cleanup · Free up space in Google Photos |
 | Photo access off or limited | iPhone hub | "BackupDuck can't see your photos." / "BackupDuck can only see the photos you picked." | — | Open Settings |
-| Live Photo needs conversion | The item, and a hub line with a count | "This Live Photo can't be saved to the Pixel's Photos as is." | Kept safely on the Pixel; not converted | Convert and save (video quality drops) · Send feedback |
+| Live Photo needs conversion | Apple hub and affected items; Pixel problem group | "This Live Photo can't be saved to the Pixel's Photos as is." One short note: "Kept safely on the Pixel." | Kept safely on the Pixel; not converted | Apple: What Can I Do? / 怎么办 opens the Live Photo help article. Pixel: View opens the explanation sheet linking to Advanced settings |
 | Pixel no longer trusts this iPhone | iPhone hub | "The Pixel no longer recognizes this iPhone. Scan its code again to reconnect." | Pauses | Reconnect |
 | Not enough space on the iPhone to prepare photos | iPhone hub | "Not enough space on the iPhone to prepare photos; paused." | Resumes when space returns | View iPhone Storage |
 | Pixel too hot | Pixel hub; iPhone status line | "The Pixel is too hot; it continues once it cools down." | Resumes after cooling | — |
@@ -164,7 +243,7 @@ Google Photos has backed up, so only Google's own tools can remove them safely:
 1. **System Smart Storage** (baseline): removes backed-up photos automatically.
    Confirm on the device whether its age rule counts from capture or backup
    before describing it in copy.
-2. **Auto cleanup (experiment, recommended)**: BackupDuck taps Google Photos'
+2. **Auto cleanup (experimental, optional)**: BackupDuck taps Google Photos'
    "Free up space" through the accessibility service when space runs low.
    Google still decides what is safe to remove. It needs a clear consent screen
    and stays an experiment until it proves reliable across Google Photos
@@ -172,6 +251,14 @@ Google Photos has backed up, so only Google's own tools can remove them safely:
 
 BackupDuck's own copy is freed separately by "free up space after saving to
 Photos" (`feature-triage.md`).
+
+Pixel terminology is "Free up space" for the section, "Auto cleanup
+(experimental)" for the feature, and "Free up space" for the action. Storage
+shows Smart Storage's observed On/Off state (unknown is explicit). The auto
+cleanup detail leads with its stored On/Off state and then the current result.
+BackupDuck-copy removal has its own group and says that photos stay in the
+Pixel's Photos. Only Smart Storage and Google Photos cleanup share the cloud
+retention footnote.
 
 ### Auto cleanup journey (Pixel, Storage)
 
@@ -205,3 +292,48 @@ Diagnostics keeps only technical probes and reports.
 - Stopping never undoes what Google Photos already started; "I've checked"
   records the person's review, not a result. No amounts are invented.
 
+
+### Apple recovery and overview composition
+
+For a Live Photo that the Pixel cannot save as received, retain receipt as a
+separate fact. Apple problem cards and history rows say only "Kept safely on the
+Pixel." Their one What Can I Do? / 怎么办 action opens the existing Live Photo
+help article. The Pixel problem card uses the same short note; its existing
+explanation sheet holds the procedure and links to Advanced settings. The
+article/explanation says the Pixel's Photos cannot save these Live Photos as
+they are, and gives the path on the Pixel: BackupDuck › Settings › Advanced
+Settings › Format Conversion. Explain there that the video part loses a little
+quality. Apple does not issue a conversion request or infer cloud upload.
+
+The Apple recent-photo section has one Backup History entry below it; its heading
+has no second See All link. A card describing photos that need attention replaces the matching Needs
+You summary; an unrelated offline problem does not hide it. Mac hides the folder summary when no folders have been added.
+Connection dots use verified connection only, independent of backup outcomes;
+iPhone Settings omits that dot. Mac filtered Backup History retains cause and
+retry cards, a Needs You subtitle and a removable toolbar marker that repeats the filtered
+count and shows all records when cleared. Keep this marker short enough to
+remain visible in a narrow window; the receiver name stays in the full scope
+subtitle and accessibility label.
+
+### iPhone first-run return and calm evidence
+
+Every first-run step after Welcome has the native navigation Back action.
+Returning changes saved presentation intent only: pairing and registered backup
+work remain durable. Busy permission/registration work temporarily disables
+Back. A photo-access explanation gives one reason and three aligned, fixed-icon
+points: direct to the Pixel, never through BackupDuck servers, and full quality
+without compression (原画质，不压缩) before Continue opens the system prompt.
+
+The iPhone and Mac calm hubs show up to eight distinct recently saved items. Six to eight
+items fill two balanced rows; five retain the complete shared mosaic, and fewer
+use a strip. Each thumbnail keeps the same shared viewer route and recorded
+identity; fewer available items never produce invented photos or timestamps.
+
+### Reading third-party notices
+
+Settings → About → Source code & licenses → Third-Party Software (Apple) /
+Third-party software (Pixel), named 第三方软件 in Chinese, opens one
+offline plain-text reader. Scroll, select and copy within the document; Back
+returns to the source/license page. There are no per-component destinations.
+Apple uses the document for the current distribution, with Sparkle only in the
+direct Mac build; Android combines its release libraries and Rust crates.

@@ -38,14 +38,14 @@ extension View {
   }
 }
 
-/// I4: an action inside a card, a tinted capsule; never link text.
+/// I4/A1: a small native action inside a card; Mac push buttons stay neutral.
 struct DuckTintedButton: View {
   let title: LocalizedStringKey
   let action: () -> Void
   init(_ title: LocalizedStringKey, action: @escaping () -> Void) { self.title = title; self.action = action }
   var body: some View {
     Button(action: action) { Text(title) }
-      .buttonStyle(.bordered).controlSize(.small).tint(DuckRole.accent)
+      .duckSecondaryAction()
   }
 }
 
@@ -66,7 +66,7 @@ struct DuckPill: View {
 }
 
 /// I3: one card for every hub state and problem. A colored glyph, a neutral
-/// title, the note, an optional progress overlay, an optional trailing control
+/// title, the note, an inset reserved progress region, an optional trailing control
 /// and at most one action below. Its geometry stays stable while values change.
 struct DuckStateCard<Trailing: View, Action: View>: View {
   let symbol: String
@@ -74,13 +74,14 @@ struct DuckStateCard<Trailing: View, Action: View>: View {
   let title: Text
   var note: Text?
   var progress: Double?
+  var reservesProgress: Bool
   @ViewBuilder var trailing: () -> Trailing
   @ViewBuilder var action: () -> Action
 
-  init(symbol: String, tone: Color, title: Text, note: Text? = nil, progress: Double? = nil,
+  init(symbol: String, tone: Color, title: Text, note: Text? = nil, progress: Double? = nil, reservesProgress: Bool = false,
     @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() },
     @ViewBuilder action: @escaping () -> Action = { EmptyView() }) {
-    self.symbol = symbol; self.tone = tone; self.title = title; self.note = note; self.progress = progress
+    self.symbol = symbol; self.tone = tone; self.title = title; self.note = note; self.progress = progress; self.reservesProgress = reservesProgress
     self.trailing = trailing; self.action = action
   }
 
@@ -88,22 +89,27 @@ struct DuckStateCard<Trailing: View, Action: View>: View {
   var body: some View {
     HStack(alignment: .top, spacing: DuckSpacing.small) {
       Image(systemName: symbol).font(.title3).foregroundStyle(tone).frame(width: 28).accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 4) {
-        title.font(.headline).fixedSize(horizontal: false, vertical: true)
-        if let note { note.font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-        action().padding(.top, 6)
+      VStack(alignment: .leading, spacing: DuckSpacing.small) {
+        HStack(alignment: .center, spacing: DuckSpacing.small) {
+          VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
+            title.font(.headline).fixedSize(horizontal: false, vertical: true)
+            if let note { note.font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+          }.frame(maxWidth: .infinity, alignment: .leading)
+          trailing()
+        }
+        action()
+        // Reserve this slot for the card's lifetime; value changes never add rows.
+        if progress != nil || reservesProgress {
+          Color.clear.frame(height: 3).overlay {
+            if let progress {
+              ProgressView(value: progress).controlSize(.mini).tint(DuckRole.accent)
+                .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.progress), value: progress)
+            }
+          }
+        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      trailing()
     }
     .duckCard()
-    .overlay(alignment: .bottom) {
-      if let progress {
-        ProgressView(value: progress).tint(DuckRole.accent)
-          .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.progress), value: progress)
-          .padding(.horizontal, DuckLook.cardPadding)
-      }
-    }
     .accessibilityElement(children: .contain)
   }
 }
@@ -153,10 +159,10 @@ struct DuckEmptyState<Action: View>: View {
   var body: some View {
     ContentUnavailableView {
       if pose == .pairing {
-        Label(title, systemImage: "iphone.and.arrow.forward")
+        Label(title, systemImage: "iphone.and.arrow.forward").foregroundStyle(DuckRole.primaryText)
       } else {
         DuckIllustration(pose: pose, size: 112)
-        Text(title)
+        Text(title).foregroundStyle(DuckRole.primaryText)
       }
     } description: {
       if let note { Text(note) }
@@ -188,14 +194,39 @@ struct DuckSectionHeader: View {
 /// equal tiles, never an empty cell.
 struct DuckPhotoMosaic: View {
   let sources: [String]
+  var twoRows = false
   var frameChanged: ((String, CGRect) -> Void)? = nil
   var open: ((String, CGRect) -> Void)? = nil
   var body: some View {
     Group {
-      if sources.count >= 5 { mosaic } else { strip }
+      if twoRows && sources.count > 5 { rows }
+      else if sources.count >= 5 { mosaic } else { strip }
     }
     .clipShape(RoundedRectangle(cornerRadius: DuckLook.cardRadius, style: .continuous))
     .accessibilityElement(children: .contain).accessibilityLabel(Text("hub_recent"))
+  }
+
+  private var rows: some View {
+    let count = min(sources.count, 8)
+    let firstCount = (count + 1) / 2
+    let secondCount = count - firstCount
+    let ratio = 1 / (1 / CGFloat(firstCount) + 1 / CGFloat(secondCount))
+    return GeometryReader { geometry in
+      let firstSide = (geometry.size.width - DuckLook.photoGap * CGFloat(firstCount - 1)) / CGFloat(firstCount)
+      let secondSide = (geometry.size.width - DuckLook.photoGap * CGFloat(secondCount - 1)) / CGFloat(secondCount)
+      VStack(alignment: .leading, spacing: DuckLook.photoGap) {
+        HStack(spacing: DuckLook.photoGap) {
+          ForEach(Array(sources.prefix(firstCount)), id: \.self) { source in
+            DuckMosaicPhoto(source: source, side: firstSide, frameChanged: frameChanged, open: open)
+          }
+        }
+        HStack(spacing: DuckLook.photoGap) {
+          ForEach(Array(sources.dropFirst(firstCount).prefix(secondCount)), id: \.self) { source in
+            DuckMosaicPhoto(source: source, side: secondSide, frameChanged: frameChanged, open: open)
+          }
+        }
+      }
+    }.aspectRatio(ratio, contentMode: .fit)
   }
 
   private var strip: some View {
@@ -261,3 +292,44 @@ enum DuckViewerSurface {
   static let immersive = Color(uiColor: UIColor.systemBackground.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)))
 }
 #endif
+
+/// A scan is not a transfer job. Only completed membership and confirmed
+/// publication establish a denominator and a saved count.
+struct DuckEarlierPhotosCard: View {
+  let history: HistoricalImportStatus
+  var changing: Bool
+  var control: (String) -> Void
+  private var paused: Bool { history.state == "paused" }
+  private var progress: Double? {
+    guard history.state == "scanned", let published = history.published, history.checked > 0 else { return nil }
+    return Double(min(published, history.checked)) / Double(history.checked)
+  }
+  private var note: Text {
+    if history.state == "scanned", let published = history.published {
+      return Text(String(format: NSLocalizedString("hub_earlier_saved_progress", comment: ""), published.formatted(), history.checked.formatted()))
+    }
+    if history.state == "scanned" { return Text("hub_earlier_waiting_confirmation") }
+    return Text(paused ? "hub_earlier_paused" : "hub_earlier_counting")
+  }
+  var body: some View {
+    DuckStateCard(symbol: history.isSaved ? "checkmark.circle.fill" : "clock.arrow.circlepath",
+      tone: history.isSaved ? DuckRole.saved : DuckRole.accent,
+      title: Text(history.isSaved ? "hub_earlier_done" : "hub_earlier"), note: history.isSaved ? nil : note,
+      progress: progress, reservesProgress: true, trailing: {
+        #if os(macOS)
+        scanControl
+        #endif
+      }, action: {
+        #if os(iOS)
+        scanControl
+        #endif
+      })
+      .accessibilityIdentifier("hub.earlier_summary")
+  }
+  @ViewBuilder private var scanControl: some View {
+    if ["scanning", "paused"].contains(history.state) {
+      DuckTintedButton(paused ? "hub_earlier_resume" : "hub_pause") { control(paused ? "resume" : "pause") }
+        .disabled(changing)
+    }
+  }
+}

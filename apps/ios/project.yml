@@ -21,6 +21,7 @@ targets:
     sources:
       - path: ../apple/Shared
       - path: ../apple/Resources
+        excludes: ["ThirdPartyNotices-mac*.txt"]
       - path: BackupDuck
         excludes: [Info.plist]
       - path: ActivityShared
@@ -61,9 +62,11 @@ targets:
             *) exit 1;;
           esac
           cd "$SRCROOT/../.."
+          cargo fetch --locked
           export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
           cargo build --locked --release -p backupduck-native --no-default-features --target "$rust_target"
           cp "target/$rust_target/release/libbackupduck_native.a" "$BUILT_PRODUCTS_DIR/"
+          python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
   BackupDuckCatalog:
     # Design catalog: production pages on scenario data. Never distributed.
     type: application
@@ -71,7 +74,7 @@ targets:
     sources:
       - path: ../apple/Shared
       - path: ../apple/Resources
-        excludes: ["*.lproj/InfoPlist.strings"]
+        excludes: ["*.lproj/InfoPlist.strings", "ThirdPartyNotices-mac*.txt"]
       - path: BackupDuck
         excludes: [Info.plist, BackupDuckApp.swift]
       - path: Catalog
@@ -113,6 +116,16 @@ targets:
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: '1,2'
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_WIDGET
+  BackupDuckCatalogTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [CatalogTests]
+    dependencies:
+      - target: BackupDuckCatalog
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog.tests
+        GENERATE_INFOPLIST_FILE: YES
   BackupDuckTests:
     type: bundle.unit-test
     platform: iOS
@@ -155,3 +168,6 @@ schemes:
         BackupDuckCatalog: all
     run:
       config: Release
+    test:
+      config: Release
+      targets: [BackupDuckCatalogTests]

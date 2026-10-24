@@ -90,24 +90,27 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
         legend(null)
 
         val automatic = lookContentSection(body, getString(R.string.storage_automatic))
-        cleanupGroup = lookGroup(automatic)
-        val relayRow = lookSwitchRow(cleanupGroup, R.drawable.ic_photo, getString(R.string.storage_relay),
+        val relayGroup = lookGroup(automatic)
+        val relayRow = lookSwitchRow(relayGroup, R.drawable.ic_photo, getString(R.string.storage_relay),
             getString(R.string.storage_relay_note), false, changed = ::saveRelay)
         relay = relayRow.toggle; relaySupport = relayRow.supporting
         relay.isEnabled = false
-        smartSupport = lookRow(cleanupGroup, R.drawable.ic_storage, getString(R.string.storage_smart), getString(R.string.storage_smart_note),
+        lookFootnote(automatic, getString(R.string.storage_relay_footnote))
+        cleanupGroup = lookGroup(automatic)
+        (cleanupGroup.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_medium) }
+        smartSupport = lookRow(cleanupGroup, R.drawable.ic_storage, getString(R.string.storage_smart), smartStorageLabel(),
             trailing = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_chevron)
                 imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.duck_role_secondary_text))
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }) {
             runCatching {
-                startActivity(Intent().setComponent(ComponentName("com.android.settings", "com.android.settings.Settings\$AutomaticStorageManagerSettingsActivity")))
+                startActivity(smartStorageIntent())
             }.recoverCatching { startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }
                 .onFailure { smartSupport.setSupporting(getString(R.string.storage_smart_unavailable)) }
         }
         val cleanupRow = lookSwitchRow(cleanupGroup, R.drawable.ic_bolt, getString(R.string.storage_cleanup),
-            getString(R.string.storage_cleanup_note), PhotosCleanup(this).enabled, getString(R.string.storage_cleanup_experimental)) { on ->
+            getString(R.string.storage_cleanup_note), PhotosCleanup(this).enabled) { on ->
             cleanup.restore(false)
             journey.setEnabled(on)
         }
@@ -165,6 +168,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
     fun showCleanupConsent() = journey.enable()
 
     private fun refreshCleanup() = with(activity) {
+        smartSupport.setSupporting(smartStorageLabel())
         cleanup.restore(PhotosCleanup(this).enabled)
         cleanupSupport.setSupporting(journey.text())
         cleanupSupport.balanceLines()
@@ -277,3 +281,12 @@ private class UsageBar(context: Context) : View(context) {
         canvas.restore()
     }
 }
+
+/** The system owns the setting and its age rules; never infer it from cleanup access. */
+internal fun Context.smartStorageLabel(): String = getString(when (ReceiverEnvironment.smartStorage(this)) {
+    true -> R.string.storage_smart_on
+    false -> R.string.storage_smart_off
+    null -> R.string.storage_smart_unknown
+})
+internal fun smartStorageIntent() = Intent().setComponent(ComponentName("com.android.settings",
+    "com.android.settings.Settings\$AutomaticStorageManagerSettingsActivity"))

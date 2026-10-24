@@ -1,0 +1,10 @@
+{
+  "id": "library.access-denied",
+  "page": "library",
+  "step": "photoAccessDenied",
+  "title": "Photo Library: denied access",
+  "extends": "base-paired",
+  "ios_only": true,
+  "photo_access": "denied",
+  "expect": ["The production permission placeholder is rendered without reading or changing system authorization."]
+}

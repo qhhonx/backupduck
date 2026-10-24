@@ -1,0 +1,13 @@
+{
+  "id": "onboarding.connect-wireless-denied",
+  "extends": "onboarding.connect",
+  "page": "onboarding",
+  "step": "connect",
+  "ios_only": true,
+  "title": "onboarding connect wireless denied",
+  "expect": [
+    "Recovery stays on the connect page.",
+    "No real network, camera or system permission requests."
+  ],
+  "connection_failure": "connect_wireless_access"
+}

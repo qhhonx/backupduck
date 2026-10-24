@@ -28,7 +28,9 @@
           "state": "received",
           "confirmed_bytes": 4200000,
           "error_code": null,
-          "state_changed_at_ms": 1792299940000
+          "state_changed_at_ms": 1792299940000,
+          "processing": "complete",
+          "processing_error": null
         },
         {
           "id": 2,
@@ -46,7 +48,9 @@
           "state": "received",
           "confirmed_bytes": 4200000,
           "error_code": null,
-          "state_changed_at_ms": 1792299880000
+          "state_changed_at_ms": 1792299880000,
+          "processing": "complete",
+          "processing_error": null
         },
         {
           "id": 3,
@@ -64,7 +68,9 @@
           "state": "received",
           "confirmed_bytes": 4200000,
           "error_code": null,
-          "state_changed_at_ms": 1792299820000
+          "state_changed_at_ms": 1792299820000,
+          "processing": "complete",
+          "processing_error": null
         },
         {
           "id": 4,
@@ -82,7 +88,9 @@
           "state": "received",
           "confirmed_bytes": 4200000,
           "error_code": null,
-          "state_changed_at_ms": 1792299760000
+          "state_changed_at_ms": 1792299760000,
+          "processing": "complete",
+          "processing_error": null
         },
         {
           "id": 5,
@@ -100,7 +108,69 @@
           "state": "received",
           "confirmed_bytes": 4200000,
           "error_code": null,
-          "state_changed_at_ms": 1792299700000
+          "state_changed_at_ms": 1792299700000,
+          "processing": "complete",
+          "processing_error": null
+        },
+        {
+          "id": 6,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-6",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4006.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299580000,
+          "processing": "complete",
+          "processing_error": null
+        },
+        {
+          "id": 7,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-7",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4007.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299520000,
+          "processing": "complete",
+          "processing_error": null
+        },
+        {
+          "id": 8,
+          "asset": {
+            "kind": "photo",
+            "source_id": "synthetic-8",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4008.HEIC",
+                "size": 4200000
+              }
+            ]
+          },
+          "state": "received",
+          "confirmed_bytes": 4200000,
+          "error_code": null,
+          "state_changed_at_ms": 1792299460000,
+          "processing": "complete",
+          "processing_error": null
         }
       ]
     },

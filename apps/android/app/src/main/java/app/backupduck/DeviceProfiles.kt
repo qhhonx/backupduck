@@ -18,11 +18,11 @@ internal object DeviceProfiles {
 internal class DevicePanels(private val activity:MainActivity,private val changed:()->Unit={}) {
     private var state:JSONObject?=null
     private var work:Job?=null
-    val hasSenders:Boolean? get()=state?.optJSONArray("peers")?.let {it.length()>0}
+    val hasSenders:Boolean? get()=state?.let { peers.any { peer -> peer.enabled } }
     val name:String? get()=state?.optJSONObject("device")?.optString("name")
     /** The devices that send here, with their kind and last connection. */
     val peers:List<DevicePeer> get()=devicePeers(state?.optJSONArray("peers"))
-    val senderNames:List<String> get()=state?.optJSONArray("peers")?.let {peers -> (0 until peers.length()).mapNotNull {peers.optJSONObject(it)?.optJSONObject("profile")?.optString("name")}} ?: emptyList()
+    val senderNames:List<String> get()=peers.filter { it.enabled }.map { it.name }
     fun refresh() {
         if(work?.isActive==true)return
         work=activity.lifecycleScope.launch {
@@ -30,9 +30,9 @@ internal class DevicePanels(private val activity:MainActivity,private val change
         }
     }
     private fun render(next:JSONObject) {
-        val previousName=name;val previousSenders=hasSenders
+        val previousName=name;val previousPeers=peers
         state=next
-        if(previousName!=name||previousSenders!=hasSenders)changed()
+        if(previousName!=name||previousPeers!=peers)changed()
     }
     internal fun rename():DuckEditDialog {
         val dialog = DuckEditDialog(activity, activity.getString(R.string.duck_device_name), activity.getString(R.string.device_name), name ?: android.os.Build.MODEL, maxLength = 80)

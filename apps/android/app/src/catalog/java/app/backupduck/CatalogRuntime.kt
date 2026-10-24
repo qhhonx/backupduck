@@ -161,7 +161,7 @@ internal object CatalogRuntime {
         context.getSharedPreferences("first_run", Context.MODE_PRIVATE).edit()
             .putBoolean("done", scenario.page != "onboarding").commit()
         ReceiverProgress.mutable.value = emptyMap()
-        ReceiverEnvironment.smartStorage = { scenario.storage?.optBoolean("smart_storage", true) }
+        ReceiverEnvironment.smartStorage = { scenario.storage?.let { if (it.has("smart_storage") && it.isNull("smart_storage")) null else it.optBoolean("smart_storage", true) } }
         ReceiverEnvironment.cleanupAccess = { scenario.storage?.optBoolean("cleanup_access", true) == true }
         ReceiverEnvironment.cleanupOperations = CatalogCleanup(context, scenario.cleanup ?: JSONObject().apply {
             val saved = PhotosCleanup(context)

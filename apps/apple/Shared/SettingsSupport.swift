@@ -60,6 +60,26 @@ struct DuckRateBackupDuckRow: View {
   }
 }
 
+/// Identity uses the approved app icon, shared by both Apple About pages.
+struct DuckAboutIdentitySection: View {
+  var body: some View {
+    Section {
+      VStack(spacing: DuckSpacing.small) {
+        #if os(macOS)
+        Image(nsImage: NSApplication.shared.applicationIconImage).resizable().scaledToFit()
+          .frame(width: 64, height: 64).accessibilityHidden(true)
+        #else
+        Image("BrandAppIcon").resizable().scaledToFit().frame(width: 72, height: 72)
+          // The launch tile uses the continuous iOS icon corner proportion.
+          .clipShape(RoundedRectangle(cornerRadius: 72 * 0.225, style: .continuous)).accessibilityHidden(true)
+        #endif
+        Text("brand_name").font(.title2.weight(.semibold))
+        Text("about_tagline").font(.subheadline).foregroundStyle(.secondary)
+      }.frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.vertical, DuckSpacing.small)
+    }.listRowBackground(Color.clear)
+  }
+}
+
 struct DuckAboutAuthorSection: View {
   @Environment(\.duckReservedSettingsContent) private var content
   var body: some View {
@@ -78,7 +98,7 @@ struct DuckAboutLinksSection: View {
   var body: some View {
     Section {
       DuckSettingsWebLink("settings_privacy", destination: DuckSupport.privacy).accessibilityIdentifier("about.privacy")
-      NavigationLink { DuckLicensesPage() } label: { Text("settings_source_licenses") }
+      DuckSettingsLink(title: Text("settings_source_licenses")) { DuckLicensesPage() } label: { Text("settings_source_licenses") }
         .accessibilityIdentifier("about.licenses")
       DuckSettingsWebLink("official_website", destination: DuckSupport.website).accessibilityIdentifier("about.website")
     } footer: {
@@ -106,7 +126,7 @@ struct DuckSettingsWebLink: View {
 }
 
 /// Only destinations outside the app carry this trailing mark on both hosts.
-private struct DuckSettingsOutgoingArrow: View {
+struct DuckSettingsOutgoingArrow: View {
   var body: some View {
     Image(systemName: "arrow.up.right").font(.footnote).foregroundStyle(.secondary)
       .accessibilityHidden(true)
@@ -134,7 +154,7 @@ struct DuckLicensesPage: View {
       Section {
         DuckSettingsWebLink("settings_source_code", destination: DuckSupport.source)
         Text("settings_source_license_note").foregroundStyle(.secondary)
-        NavigationLink {
+        DuckSettingsLink(title: Text("settings_license")) {
           ScrollView {
             if let url = Bundle.main.url(forResource: "BackupDuckLicense", withExtension: "txt"),
               let license = try? String(contentsOf: url, encoding: .utf8) {
@@ -147,11 +167,11 @@ struct DuckLicensesPage: View {
         } label: { Text(verbatim: "PolyForm Noncommercial 1.0.0") }
         DuckSettingsWebLink("settings_license_online", destination: DuckSupport.license)
       }
-      #if os(macOS) && !BACKUPDUCK_APP_STORE
-      Section("settings_dependencies") {
-        DuckSettingsWebLink("Sparkle · BSD", destination: URL(string: "https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE")!)
+      Section {
+        DuckSettingsLink(title: Text("settings_third_party_licenses")) { DuckThirdPartyLicensesPage() } label: {
+          Text("settings_third_party_licenses")
+        }.accessibilityIdentifier("licenses.thirdParty")
       }
-      #endif
     }
     #if os(macOS)
     .formStyle(.grouped)
@@ -162,6 +182,85 @@ struct DuckLicensesPage: View {
     .foregroundStyle(.primary)
   }
 }
+
+/// Bundled notices remain readable without a network connection.
+struct DuckThirdPartyLicensesPage: View {
+  private var text: String? {
+    #if os(iOS)
+    let name = "ThirdPartyNotices-ios"
+    #elseif BACKUPDUCK_APP_STORE
+    let name = "ThirdPartyNotices-mac"
+    #else
+    let name = "ThirdPartyNotices-mac-sparkle"
+    #endif
+    guard let url = Bundle.main.url(forResource: name, withExtension: "txt") else { return nil }
+    return try? String(contentsOf: url, encoding: .utf8)
+  }
+  var body: some View {
+    Group {
+      if let text {
+        DuckNoticeText(text: text)
+      } else {
+        Text("settings_third_party_unavailable").padding(DuckSpacing.medium)
+      }
+    }
+    .navigationTitle("settings_third_party_licenses")
+    #if os(iOS)
+    .navigationBarTitleDisplayMode(.inline)
+    #endif
+  }
+}
+
+/// Native text layout keeps long offline notices selectable and scrollable.
+#if os(iOS)
+private struct DuckNoticeText: UIViewRepresentable {
+  let text: String
+  func makeUIView(context: Context) -> UITextView {
+    let view = UITextView()
+    view.isEditable = false
+    view.isSelectable = true
+    view.font = .preferredFont(forTextStyle: .body)
+    view.adjustsFontForContentSizeCategory = true
+    view.backgroundColor = .clear
+    view.textColor = .label
+    view.textContainerInset = UIEdgeInsets(top: DuckSpacing.medium, left: DuckSpacing.medium,
+      bottom: DuckSpacing.medium, right: DuckSpacing.medium)
+    view.accessibilityIdentifier = "licenses.text"
+    return view
+  }
+  func updateUIView(_ view: UITextView, context: Context) {
+    if view.text != text { view.text = text }
+  }
+}
+#else
+private struct DuckNoticeText: NSViewRepresentable {
+  let text: String
+  func makeNSView(context: Context) -> NSScrollView {
+    let scroll = NSScrollView()
+    scroll.hasVerticalScroller = true
+    scroll.drawsBackground = false
+    let view = NSTextView()
+    view.isEditable = false
+    view.isSelectable = true
+    view.isRichText = false
+    view.drawsBackground = false
+    view.font = .preferredFont(forTextStyle: .body)
+    view.textColor = .labelColor
+    view.textContainerInset = NSSize(width: DuckSpacing.medium, height: DuckSpacing.medium)
+    view.isVerticallyResizable = true
+    view.isHorizontallyResizable = false
+    view.autoresizingMask = [.width]
+    view.textContainer?.widthTracksTextView = true
+    view.setAccessibilityIdentifier("licenses.text")
+    scroll.documentView = view
+    return scroll
+  }
+  func updateNSView(_ scroll: NSScrollView, context: Context) {
+    guard let view = scroll.documentView as? NSTextView else { return }
+    if view.string != text { view.string = text }
+  }
+}
+#endif
 
 /// Catalogs request the same native menu that a full-row press opens in production.
 private struct DuckFeedbackPreviewKey: EnvironmentKey {

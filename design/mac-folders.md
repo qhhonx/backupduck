@@ -125,3 +125,12 @@ Each item is a fact from the core, never derived in the app (P3):
   before the unsupported line can ship.
 - Search over file and subfolder names of indexed media.
 - Per photo: the same backup marks as Photo Library (`visual-language.md` V5).
+
+### Folder preference row composition
+
+The Mac folder detail presents Location with a trailing Show in Finder button;
+File Rules shows the current include/skip rule counts (or all supported photos
+and videos) with a trailing Edit button. Auto Backup has the trailing Stop
+Backing Up This Folder action and its existing confirmation. These are ordinary
+41-point preference rows that grow for long content; no dismissive rules footer
+or leading button-only rows.

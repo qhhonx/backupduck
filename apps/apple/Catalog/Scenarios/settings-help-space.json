@@ -1,0 +1,7 @@
+{
+  "id": "settings.help-space",
+  "extends": "base-paired",
+  "page": "settings",
+  "step": "help.space",
+  "title": "settings.help-space"
+}

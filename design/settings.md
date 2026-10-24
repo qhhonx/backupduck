@@ -32,7 +32,8 @@ then About.
 
 ### About BackupDuck
 
-1. The author's words (reserved, see below).
+1. **Identity header:** the platform app icon, app name and one sentence. No
+   version in this header. The author's words remain reserved below it.
 2. **Version**, with the update status as its value where the app manages its
    own updates ("Up to date", "Update available", "Checking…"). Tapping it
    opens the update detail: status, Check for Updates and the automatic
@@ -40,7 +41,7 @@ then About.
    show the version only; the store manages updates.
 3. **Privacy**: photos travel only between your own devices; BackupDuck has no
    cloud of its own.
-4. **Open source & licenses**, **Website**. Rows that leave the app end with an
+4. **Source code & licenses**, **Website**. Rows that leave the app end with an
    outgoing arrow; rows that push end with the platform's disclosure.
 
 ### Send Feedback
@@ -67,7 +68,7 @@ so they have no rows.
 | Row | Value | Opens |
 | --- | --- | --- |
 | Auto Backup | On / Off / Pair First | Switch; Includes (media types, all by default; albums as a secondary entry) |
-| Folders (Mac) | "2 folders" | The Folders position, where folders are edited |
+| Folders (Mac) | "2 folders" | Folder preferences in the Settings detail pane; each folder opens below it |
 | Appearance | System / Light / Dark | In place |
 | Language | Current language | The system's per-app language setting |
 | Help Center | — | Help, by task |
@@ -97,6 +98,24 @@ during a large batch move to the hub.
 | | Send Feedback | "Join the user group, or email us with diagnostics" | Menu |
 | (own group) | About BackupDuck | "Version 0.4.1" | About |
 
+Pixel About starts with the adaptive launcher icon, name and a one-line tagline.
+The version appears only in its Version row. The privacy sentence appears
+below the links. Version is a row with the installed version and current update
+status and opens updates. Source
+code & licenses opens a native page with the project's source and offline
+PolyForm Noncommercial license, then one Third-party software / 第三方软件
+entry. It opens one scrollable, selectable plain-text document containing both
+the resolved Android release libraries and bundled Rust crates. Common license
+bodies appear once after their component names, versions and attribution;
+differing terms and distribution notices are preserved. Parent POM licenses are
+inherited and missing license metadata fails generation. The shared generator
+writes the checked-in document; builds and CI use `--check` to reject stale text.
+
+Storage uses the section "Free up space" and feature "Auto cleanup
+(experimental)". Smart Storage reports On, Off or State unavailable, refreshed
+on return from system settings. The cleanup detail begins with its enabled state.
+Copy removal and Google cloud-backed device removal have separate footnotes.
+
 Footer links: "Diagnostics · Advanced settings" (export and recent activity; format
 conversion, browser access, stop receiving).
 
@@ -114,8 +133,9 @@ Diagnostics.
 | When something's wrong | Can't reach the Pixel · Some photos aren't backed up · A Live Photo can't be saved · Backup stopped | An iPhone or Mac can't connect · A photo wasn't saved to Photos · Storage is full and receiving paused · Receiving stopped · Auto cleanup didn't run |
 
 Articles keep receipt, saving to Photos and Google's cloud upload apart and say
-that BackupDuck cannot see the last. "An iPhone or Mac can't connect" may show
-this Pixel's current address in a quiet line for someone helping.
+that BackupDuck cannot see the last. Pixel connection help contains ordinary
+connection checks only; runtime addresses and management details belong in
+Diagnostics.
 
 ### Diagnostics
 
@@ -142,7 +162,7 @@ not part of the product, and no other page links to Diagnostics.
 
 Resume after restart and heat protection are automatic. Freeing space after
 saving to Photos and the experimental automatic cleanup are on the Storage
-page, under "Free up space automatically", not in Settings. There is no
+page, under "Free up space", not in Settings. There is no
 Experiments page.
 
 ## Platform dialects
@@ -152,7 +172,18 @@ Experiments page.
   navigation bar. The tiles only help users find rows; they never carry state.
 - **Mac:** the Settings position shows a list column (identity header,
   category rows) and a detail pane with a grouped form, as System Settings
-  does. ⌘, opens it.
+  does. ⌘, opens it. Pages below a category (media types, albums, album
+  browsing, folder details, help articles and updates) replace only the detail
+  pane. The list column and its selected category stay visible. Back in the
+  window toolbar (⌘[) returns one level with the category still selected.
+  Diagnostics opens in this pane as an ordinary category detail, like Advanced
+  Settings; it is not a sheet and has no separate close button. Media types use
+  leading-label/trailing-switch rows. Album search lives in the native toolbar;
+  a photo-permission state is optically centered with no search field. Empty
+  Folders and Devices use the shared optically centered empty state. Rename is
+  a compact sheet whose height fits its content. Update status and Check for
+  Updates share one row, followed by the automatic-updates switch. The status
+  follows the updater session, and the version remains on About.
 - **Android:** Material 3 sections with headers, monochrome leading icons,
   headline and supporting text, switches at the end and no chevrons.
 
@@ -169,3 +200,49 @@ Experiments page.
   row of its own.
 - Whether the Devices position becomes a row here instead of a tab is part of
   D3 (closed October 18: it is a row).
+
+## Apple help, vocabulary and bundled notices
+
+Apple help articles use platform-specific bodies (including search text): Mac
+never instructs the person to use iPhone-only controls. Connection help starts
+with Local Network access, then the same Wi-Fi without a guest network, the
+running Pixel app, and VPN; Mac also explains firewall allowance.
+
+Apple uses Media Types / 媒体类型 and Albums / 相簿 for both entry and destination.
+Albums values are All Albums / 全部相簿 or N Albums / N 个相簿. Live Photos uses
+实况照片. Backup History is 备份记录 in viewer commands too. About keeps Version;
+the Mac update destination is Version & Updates / 版本与更新.
+
+The About destination is Source Code & Licenses / 源代码与许可. PolyForm
+Noncommercial is described as source-available, never open source. A child
+Third-Party Software / 第三方软件 entry opens one native scrollable, selectable
+plain-text page. Its generated document groups components by distinct license
+text, with names, versions and copyright attribution before each body. Additional
+terms and notices remain available offline. iOS, Mac Store and direct Mac each
+bundle exactly their own document; only direct Mac includes Sparkle's complete
+distributed notices. Regenerate all platforms with
+`python3 apps/apple/Scripts/generate-third-party-licenses.py` after dependency
+changes; `--check` verifies every generated file against the locked shipping
+graph. Both Xcode and command-line Apple build paths bundle these resources.
+
+### Apple preference details
+
+On iPhone and Mac, Auto Backup orders the automatic switch, Includes (Media
+Types and Albums), then Notifications. Includes explains once that the same
+scope applies when backing up earlier photos. Avoid "one-time import" in the
+automatic-backup footer; name the Backup or Overview destination instead.
+
+Both Apple About pages begin with the original platform app icon, app name and
+one sentence about backing up to the person's Pixel. iPhone uses the continuous
+launch-icon mask; Mac uses its system application icon. The version appears only
+in the Version row. Privacy remains
+below the links. The direct Mac Version row shows update status and a disclosure;
+when automatic checks are enabled but no result is recorded, say that updates
+are checked in the background. Store-managed versions remain plain facts.
+
+Help on iPhone, Mac and Pixel uses the shared groups I want to… / 我想… and
+When something's wrong / 遇到问题时. Mac uses a grouped Form; iPhone uses the system searchable
+grouped list. Both iPhone album and Help searches explicitly use the always-visible
+native navigation drawer placement, inline title and visible navigation bar.
+The iPhone Language row shows its secondary value and the outgoing
+arrow for the system-settings destination.

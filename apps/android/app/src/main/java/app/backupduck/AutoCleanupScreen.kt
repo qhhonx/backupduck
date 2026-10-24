@@ -29,8 +29,9 @@ internal class AutoCleanupScreen(private val activity: MainActivity, restored: B
         render()
     } }
     private fun render() = with(activity) {
-        state.text = journey.text()
         val facts = PhotosCleanup(this)
+        state.text = getString(if (facts.enabled) R.string.pref_storage_cleanup_on else R.string.pref_storage_cleanup_off)
+        state.append("\n" + journey.text())
         account.setSupporting(if (journey.running) getString(R.string.auto_cleanup_stop_note)
             else if (facts.account.isNotEmpty() && journey.status !in setOf(CleanupStatus.ACCOUNT, CleanupStatus.BINDING)) getString(R.string.auto_cleanup_account_confirmed) else null)
         result.text = journey.lastResult()

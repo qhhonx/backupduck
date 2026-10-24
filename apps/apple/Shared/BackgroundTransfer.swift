@@ -64,9 +64,9 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     progressPublication = Task {
       try? await Task.sleep(nanoseconds: 150_000_000)
       let jobs = progressTracker.jobs
-      BackupModel.shared.transferProgress = jobs
+      BackupEnvironment.activeModel().transferProgress = jobs
       waitingForNetwork = !jobs.isEmpty && jobs.values.allSatisfy(\.waitingForNetwork)
-      BackupModel.shared.waitingForNetwork = waitingForNetwork
+      BackupEnvironment.activeModel().waitingForNetwork = waitingForNetwork
       progressPublication = nil
     }
   }
@@ -77,10 +77,12 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     progressTracker.update(taskID: task.taskIdentifier, attempt: attempt,
       sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend,
       phase: phase(task.originalRequest) ?? "manifest",
-      baseline: BackupModel.shared.jobs.first { $0.id == attempt.jobID }?.confirmedBytes ?? 0)
+      baseline: BackupEnvironment.activeModel().jobs.first { $0.id == attempt.jobID }?.confirmedBytes ?? 0)
     publishProgress()
   }
+  private(set) var sessionStarted = false
   private lazy var session: URLSession = {
+    sessionStarted = true
     #if os(iOS)
       let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
       configuration.sessionSendsLaunchEvents = true
@@ -96,13 +98,17 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     // URLSession delegate callbacks are explicitly delivered on the main queue.
     return URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
   }()
-  func connect() { _ = TransferDiagnostics.shared; _ = session }
+  func connect() {
+    guard BackupEnvironment.usesNetwork, BackupEnvironment.activeModel().networkingStarted else { return }
+    TransferDiagnostics.shared.startMonitoring()
+    _ = session
+  }
 
   // Metadata-only diagnostics: no paths, photo names, endpoints or credentials.
   func record(_ code: String, jobID: Int64? = nil, bytes: Int64? = nil,
     context: [String: Any] = [:]) async {
     Logger(subsystem: "app.backupduck", category: "background").info("\(code, privacy: .public) job=\(jobID ?? -1) bytes=\(bytes ?? -1)")
-    guard BackupModel.shared.ready else { return }
+    guard BackupEnvironment.activeModel().ready else { return }
     var command: [String: Any] = ["op": "record_event", "receiver": false, "code": code]
     if let jobID { command["job_id"] = jobID }
     if let bytes, bytes >= 0 { command["bytes"] = bytes }
@@ -129,9 +135,9 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   /// cannot change retry timing or imply that the operating system ran a task.
   func recordSnapshot(_ code: String, reason: String? = nil,
     tasks suppliedTasks: [URLSessionTask]? = nil, execution observedExecution: String? = nil) async {
-    let model = BackupModel.shared
+    let model = BackupEnvironment.activeModel()
     // Nothing to record before pairing, and recording would start network observation.
-    guard model.ready, model.pairing != nil else { return }
+    guard BackupEnvironment.usesNetwork, model.networkingStarted, model.ready, model.pairing != nil else { return }
     if model.deviceSnapshot == nil { await model.refreshDeviceStatus() }
     await model.refreshPendingImportCount()
     var context: [String: Any] = ["execution": observedExecution ?? execution,
@@ -164,7 +170,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     await record(code, jobID: jobID, context: context)
   }
   private func recordDecision(_ reason: String, tasks: [URLSessionTask]) async {
-    let model = BackupModel.shared
+    let model = BackupEnvironment.activeModel()
     let key = "\(reason)|\(model.pendingImports)|\(model.discoveryPending)|\(tasks.count)"
     guard key != lastDecision || Date().timeIntervalSince(lastDecisionAt) >= 60 else { return }
     lastDecision = key
@@ -174,7 +180,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   #if os(iOS)
     private var handoff: UIBackgroundTaskIdentifier = .invalid
     func enteredBackground() {
-      guard handoff == .invalid else { return }
+      guard BackupEnvironment.usesNetwork, BackupEnvironment.activeModel().networkingStarted, handoff == .invalid else { return }
       handoff = UIApplication.shared.beginBackgroundTask(withName: "BackupDuck request handoff") { [weak self] in
         guard let self else { return }
         self.endHandoff()
@@ -215,6 +221,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     }.value
   }
   func cancelAll() async {
+    guard sessionStarted else { return }
     await schedule {
       for task in await self.session.allTasks { task.cancel() }
       self.waitingForNetwork = false
@@ -222,14 +229,15 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   }
   func replaceRoute(_ updated: Pairing, expected: Pairing) async {
     await schedule {
-      let model = BackupModel.shared
+      let model = BackupEnvironment.activeModel()
       guard let current = model.pairing, current.receiverID == expected.receiverID,
         current.endpoint == expected.endpoint, current.token == expected.token,
         current.certificate == expected.certificate else { return }
       do {
         // Mark cancellations before saving the new route. Late trust callbacks
         // from the old address must requeue, never permanently fail the asset.
-        for task in await self.session.allTasks {
+        let tasks = self.sessionStarted ? await self.session.allTasks : []
+        for task in tasks {
           self.relocatedTasks.insert(task.taskIdentifier)
           task.cancel()
         }
@@ -244,8 +252,8 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     }.value
   }
   private func pump() async {
-    let model = BackupModel.shared
-    guard model.ready, model.pairing != nil else { return }
+    let model = BackupEnvironment.activeModel()
+    guard BackupEnvironment.usesNetwork, model.networkingStarted, model.ready, model.pairing != nil else { return }
     do {
       let tasks = await session.allTasks
       for task in tasks { observeProgress(task) }
@@ -417,7 +425,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
         #endif
       }
 
-      await BackupModel.shared.open()
+      await BackupEnvironment.activeModel().open()
       var context = capturedContext
       context["http_status"] = code
       context["phase"] = self.phase(task.originalRequest)
@@ -426,7 +434,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
         // Survives process termination: URLSession persists the original URL and
         // descriptor. A late result from the same peer's old route is replayable.
         let routeChanged = Self.isOldRoute(receiverID: attempt.receiverID,
-          originalURL: task.originalRequest?.url, current: BackupModel.shared.pairing)
+          originalURL: task.originalRequest?.url, current: BackupEnvironment.activeModel().pairing)
         var command: [String: Any] = [
           "op": "finish_native", "attempt": attempt.object,
           "task_id": String(id), "status_code": code, "body": String(decoding: body, as: UTF8.self),
@@ -445,16 +453,16 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
         do { _ = try await Bridge.call(command) } catch let failure as Bridge.Failure
           where failure.code == "conflict"
         { /* A superseded callback is harmless. */  } catch {
-          BackupModel.shared.message = error.localizedDescription
+          BackupEnvironment.activeModel().message = error.localizedDescription
         }
       }
       await self.record(error == nil ? "request_completed" : "request_failed", jobID: attempt?.jobID, context: context)
       await self.pump()
-      await BackupModel.shared.refresh()
+      await BackupEnvironment.activeModel().refresh()
       // Keep the last progress through receipt processing; clear only this task.
       self.progressTracker.remove(taskID: id)
       self.publishProgress()
-      BackupModel.shared.scheduleBackgroundWork()
+      BackupEnvironment.activeModel().scheduleBackgroundWork()
     }
   }
   func urlSession(
@@ -467,7 +475,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     progressTracker.update(taskID: task.taskIdentifier, attempt: attempt,
       sent: totalBytesSent, expected: totalBytesExpectedToSend,
       phase: phase(task.originalRequest) ?? "manifest",
-      baseline: BackupModel.shared.jobs.first { $0.id == attempt.jobID }?.confirmedBytes ?? 0)
+      baseline: BackupEnvironment.activeModel().jobs.first { $0.id == attempt.jobID }?.confirmedBytes ?? 0)
     publishProgress()
   }
   func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
@@ -485,8 +493,8 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     schedule {
       await self.recordSnapshot("background_events_finished")
       #if os(iOS)
-      await BackupLiveActivity.shared.synchronize(BackupModel.shared)
-      await BackupNotifier.shared.evaluate(BackupModel.shared)
+      await BackupLiveActivity.shared.synchronize(BackupEnvironment.activeModel())
+      await BackupNotifier.shared.evaluate(BackupEnvironment.activeModel())
       #endif
       let completion = self.eventsCompletion
       self.eventsCompletion = nil

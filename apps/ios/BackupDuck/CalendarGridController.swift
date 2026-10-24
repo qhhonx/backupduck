@@ -1598,19 +1598,66 @@ final class CalendarNavigationBar: UINavigationBar {
 }
 
 final class CalendarNavigationController: UINavigationController {
+  override var childForStatusBarStyle: UIViewController? { topViewController }
   override init(rootViewController: UIViewController) {
     super.init(navigationBarClass: CalendarNavigationBar.self,toolbarClass: nil)
     viewControllers = [rootViewController]
   }
   required init?(coder: NSCoder) { super.init(coder: coder) }
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    MediaStatusBarRootController.install(in: view.window)
+  }
   override var preferredStatusBarStyle: UIStatusBarStyle {
     (topViewController as? CalendarGridController)?.photosBehindHeader == false ? .default : .lightContent
+  }
+}
+
+/// SwiftUI's window host does not forward status-bar ownership to an embedded
+/// media controller. Keep that host intact inside a native containment boundary
+/// that delegates to the visible media page, including native tab selection.
+private final class MediaStatusBarRootController: UIViewController {
+  private let content: UIViewController
+  init(content: UIViewController) {
+    self.content = content
+    super.init(nibName: nil, bundle: nil)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    addChild(content)
+    view.addSubview(content.view)
+    content.view.frame = view.bounds
+    content.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    content.didMove(toParent: self)
+  }
+  override var childForStatusBarStyle: UIViewController? { mediaOwner(in: content) ?? content }
+  override var childForStatusBarHidden: UIViewController? { mediaOwner(in: content) ?? content }
+  private func mediaOwner(in controller: UIViewController) -> UIViewController? {
+    // A page sheet leaves the presenting media behind the status bar. UIKit
+    // gives a full-screen presentation its own status-bar ownership separately.
+    if let tabs = controller as? UITabBarController {
+      return tabs.selectedViewController.flatMap { mediaOwner(in: $0) }
+    }
+    if let navigation = controller as? CalendarNavigationController { return navigation }
+    for child in controller.children.reversed() where child.viewIfLoaded?.window != nil {
+      if let owner = mediaOwner(in: child) { return owner }
+    }
+    return nil
+  }
+  static func install(in window: UIWindow?) {
+    guard let window, let content = window.rootViewController,
+      !(content is MediaStatusBarRootController), content.presentedViewController == nil else { return }
+    let container = MediaStatusBarRootController(content: content)
+    window.rootViewController = container
+    container.setNeedsStatusBarAppearanceUpdate()
   }
 }
 
 final class CalendarGridController: UIViewController, UICollectionViewDataSource,
   UICollectionViewDelegate, UIGestureRecognizerDelegate, UIContextMenuInteractionDelegate
 {
+  override var preferredStatusBarStyle: UIStatusBarStyle { photosBehindHeader ? .lightContent : .default }
   typealias ImageRequest = (CalendarGridAsset, CGFloat, @escaping (UIImage?, Bool) -> Void) -> (
     () -> Void
   )
@@ -1806,7 +1853,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     grid.addGestureRecognizer(long)
     grid.addInteraction(UIContextMenuInteraction(delegate: self))
     titleLabel.text = NSLocalizedString("nav_library", comment: "")
-    titleLabel.font = .systemFont(ofSize: 32, weight: .bold)
+    titleLabel.font = .preferredFont(forTextStyle: .largeTitle)
     titleLabel.textColor = DuckMedia.onMediaUIColor
     subtitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
       for: .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 22)
@@ -1822,7 +1869,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     view.addSubview(headerBackdrop)
     view.addSubview(subtitleLabel)
     titleView.frame = CGRect(
-      x: 0, y: 0, width: max(selecting ? 70 : 105, min(160, view.bounds.width - (selecting ? 280 : 238))), height: 44)
+      x: 0, y: 0, width: selecting ? min(220, view.bounds.width - 160) : max(105, min(160, view.bounds.width - 238)), height: 44)
     titleLabel.frame = CGRect(x: 0, y: 0, width: titleView.bounds.width, height: 39)
     let titleItem = UIBarButtonItem(customView: titleView)
     if #available(iOS 26.0, *) { titleItem.hidesSharedBackground = true }
@@ -1888,7 +1935,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     view.addSubview(selectionControls)
     var normal: UIButton.Configuration
     if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-      normal = .prominentGlass()
+      normal = .glass()
     } else {
       normal = .bordered()
     }
@@ -1927,7 +1974,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func updateHeader(animated: Bool) {
     guard headerSelecting != selecting else { return }
     headerSelecting = selecting
-    titleView.preferredWidth = max(selecting ? 70 : 105, min(160, view.bounds.width - (selecting ? 280 : 238)))
+    titleView.preferredWidth = selecting ? min(220, view.bounds.width - 160) : max(105, min(160, view.bounds.width - 238))
     titleView.frame.size.width = titleView.preferredWidth
     titleLabel.frame.size.width = titleView.bounds.width
     // Transparent chrome still owns its entire selection header, including the
@@ -1998,7 +2045,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     // Bounds and center stay valid while a level change scales the collection.
     grid.bounds.size = view.bounds.size
     grid.center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
-    let titleWidth = max(selecting ? 70 : 105, min(160, view.bounds.width - (selecting ? 280 : 238)))
+    let titleWidth = selecting ? min(220, view.bounds.width - 160) : max(105, min(160, view.bounds.width - 238))
     titleView.preferredWidth = titleWidth
     titleView.frame.size.width = titleWidth
     titleLabel.frame.size.width = titleWidth
@@ -2062,7 +2109,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     let subtitleHeight = subtitleLabel.font.lineHeight + 4
     return UIEdgeInsets(
       top: view.safeAreaInsets.top + (showsInterval ? subtitleHeight - 4 : 4), left: 0,
-      bottom: view.safeAreaInsets.bottom + 6, right: 0)
+      bottom: view.safeAreaInsets.bottom + (selecting ? 72 : 6), right: 0)
   }
   /// Light-on-photo chrome only when photos actually lie behind the header. A
   /// short view (a backup view with a few photos) leaves the canvas there.
@@ -2088,6 +2135,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if headerOverPhotos != hasMedia {
       headerOverPhotos = hasMedia
       navigationController?.setNeedsStatusBarAppearanceUpdate()
+      view.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
     }
     titleLabel.textColor = hasMedia ? DuckMedia.onMediaUIColor : DuckRole.primaryTextUIColor
     subtitleLabel.textColor = hasMedia ? DuckMedia.onMediaSecondaryUIColor : DuckRole.secondaryTextUIColor
@@ -2098,8 +2146,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func updateHeaderFade() {
     // Native bars retain their own materials; no extra scrolling shadow or
     // custom gradient appears when the underlying collection becomes visible.
-    headerFade.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor]
-    headerFade.locations = [0, 1]
+    headerFade.colors = [DuckMedia.scrimDurationCGColor, DuckMedia.scrimGradientCGColor, UIColor.clear.cgColor]
+    headerFade.locations = [0, 0.55, 1]
   }
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
@@ -3852,12 +3900,17 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         subtitleLabel.text = ""
       }
     }
+    titleLabel.font = selecting ? .preferredFont(forTextStyle: .title2) : .systemFont(ofSize: 32, weight: .bold)
+    titleLabel.text = selecting
+      ? String(format: NSLocalizedString("library_selection_title", comment: ""), selected.count)
+      : NSLocalizedString("nav_library", comment: "")
+    if selecting { subtitleLabel.isHidden = true }
     selectedButton.setTitle(
       selected.isEmpty ? NSLocalizedString("calendar_select_items", comment: "") : String(format: NSLocalizedString("calendar_show_selected", comment: ""), selected.count),
       for: .normal)
     selectedButton.isEnabled = !selected.isEmpty
     let backupTitle = backupFeedback.isEmpty
-      ? String(format: NSLocalizedString("selection_backup_count", comment: ""), selected.count) : backupFeedback
+      ? NSLocalizedString("calendar_backup_short", comment: "") : backupFeedback
     if backupItem.title != backupTitle { backupItem.title = backupTitle; backupItem.accessibilityLabel = backupTitle }
     let backupEnabled = canBackup && !selected.isEmpty && !backupAdded
     if backupItem.isEnabled != backupEnabled {
@@ -4219,7 +4272,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       self?.onSelection(ids)
       self?.refreshSelection()
     }
-    let nav = UINavigationController(rootViewController: controller)
+    let nav = CalendarReviewNavigationController(rootViewController: controller)
+    nav.mediaStatusBarStyle = preferredStatusBarStyle
+    nav.modalPresentationCapturesStatusBarAppearance = true
     if let sheet = nav.sheetPresentationController {
       sheet.detents = [.large()]
       sheet.prefersGrabberVisible = true
@@ -4227,6 +4282,14 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     present(nav, animated: true)
   }
 }
+
+/// The large review sheet leaves its presenting media visible above its edge.
+/// Its white content surface must not change the contrast of that exposed bar.
+private final class CalendarReviewNavigationController: UINavigationController {
+  var mediaStatusBarStyle = UIStatusBarStyle.default
+  override var preferredStatusBarStyle: UIStatusBarStyle { mediaStatusBarStyle }
+}
+
 /// Review actions keep compact default metrics while fitting accessibility text.
 @MainActor func calendarReviewActionSize(_ button: UIButton, availableWidth: CGFloat) -> CGSize {
   // Native glass configurations rescale their internal title. Use one explicit
@@ -4305,6 +4368,7 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
   private func updateSelection(_ cell: CalendarGridCell) {
     let included = selected.contains(cell.assetID)
     cell.selection(included, enabled: true)
+    cell.image.alpha = 1
     cell.accessibilityValue = NSLocalizedString(included ? "library_review_selected" : "library_review_not_selected", comment: "")
   }
   private func toggle(_ id: String) {

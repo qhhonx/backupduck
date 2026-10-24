@@ -42,7 +42,12 @@ struct IOSSettings: View {
           Button {
             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
           } label: {
-            LabeledContent { Text(languageName) } label: { DuckSettingsLabel(title: "apple_language", symbol: "globe", color: DuckGlyph.teal) }
+            HStack {
+              DuckSettingsLabel(title: "apple_language", symbol: "globe", color: DuckGlyph.teal)
+              Spacer(minLength: DuckSpacing.small)
+              Text(languageName).foregroundStyle(.secondary)
+              DuckSettingsOutgoingArrow()
+            }
           }
           .foregroundStyle(.primary)
           .accessibilityIdentifier("settings.language")
@@ -98,8 +103,7 @@ struct IOSSettings: View {
           .padding(.bottom, 6)
         Text(model.deviceSnapshot?.device.name ?? "—").font(.title2.weight(.semibold))
         // V1: state as a soft pill with one colored dot.
-        DuckPill(title: Text(values.pairedSubtitle ?? NSLocalizedString("settings_pair_first", comment: "")),
-          dot: model.pairing == nil ? Color.secondary : model.hubStatus.isProblem ? DuckRole.attention : DuckRole.saved)
+        DuckPill(title: Text(values.pairedSubtitle ?? NSLocalizedString("settings_pair_first", comment: "")))
           .padding(.top, 2)
       }
       .frame(maxWidth: .infinity)
@@ -210,6 +214,7 @@ private struct IOSAdvancedSettings: View {
 private struct IOSAboutSettings: View {
   var body: some View {
     Form {
+      DuckAboutIdentitySection()
       DuckAboutAuthorSection()
       Section { DuckAboutVersionLabel() }
       DuckAboutLinksSection()
@@ -229,6 +234,8 @@ struct IOSSettingsDetail: View {
     case "autoBackup": IOSAutoBackupSettings(model: model)
     case "advanced": IOSAdvancedSettings(model: model)
     case "about": IOSAboutSettings()
+    case "licenses": DuckLicensesPage()
+    case "thirdPartyLicenses": DuckThirdPartyLicensesPage()
     case "help": HelpCenter()
     case let topic where topic.hasPrefix("help."):
       if let found = (HelpCenter.tasks + HelpCenter.problems).first(where: { "help." + $0.id == topic }) { HelpArticle(topic: found) }

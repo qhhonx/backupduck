@@ -1,0 +1,13 @@
+{
+  "id": "settings.rename",
+  "page": "settings",
+  "step": "rename",
+  "mac_only": true,
+  "title": "Settings · rename this Mac",
+  "extends": "base-paired",
+  "expect": [
+    "The production name editor is a compact, content-height sheet.",
+    "Cancel is a neutral push button; Save is the single default action.",
+    "Cancel preserves the name; a dirty draft offers a discard confirmation."
+  ]
+}

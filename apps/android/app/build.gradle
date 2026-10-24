@@ -75,3 +75,5 @@ dependencies {
     implementation "androidx.fragment:fragment-ktx:1.8.9"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
 }
+
+apply from: 'license-inputs.gradle'

@@ -5,7 +5,7 @@
     <string name="browser_copy">Copy</string>
     <string name="browser_hold_reveal">Hold to reveal</string>
     <string name="browser_hold_reveal_description">Hold to reveal the access code. Release to hide it.</string>
-    <string name="browser_private_note">Keep the code private. It is separate from sender pairing.</string>
+    <string name="browser_private_note">Keep the code private. It is separate from device connections.</string>
     <string name="browser_copy_failed">Couldn’t copy the address. Try Copy again.</string>
     <string name="browser_disable_failed">Couldn’t turn off browser access. Try again.</string>
     <string name="browser_receiver_stopped">Receiving has stopped. Retry to start browser access.</string>

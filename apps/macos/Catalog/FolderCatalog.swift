@@ -7,7 +7,7 @@ import SwiftUI
     folders.previewRows = []
     folders.initialSheet = sheet
     folders.previewSettings = id.hasPrefix("settings.folder")
-    guard id != "folders.empty" else { return }
+    guard id != "folders.empty" && id != "settings.folders-empty" else { return }
     let chinese = Bundle.main.preferredLocalizations.first?.hasPrefix("zh") == true
     let names = chinese ? ["相机导出", "周末", "旅行照片"] : ["Camera Exports", "Weekend", "Travel Photos"]
     folders.sources = names.enumerated().map { index, name in
@@ -42,6 +42,8 @@ import SwiftUI
     }
     if id == "folders.toolbar-search" { folders.browser.searchExpanded = true }
     if id == "folders.toolbar-selection" {
+      // Review ordinary selected-photo contrast independently of offline media.
+      folders.facts["fixture-2"]?.available = true
       folders.initialFilter = .notBackedUp
       folders.browser.filter = .notBackedUp
       folders.browser.byFolder = false

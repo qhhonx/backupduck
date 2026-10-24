@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 /// The scanner and a guided flow can share recovery intent so the flow keeps
 /// its primary action in the same bottom slot as its other steps.
@@ -8,8 +9,19 @@ import UIKit
   @Published var cameraFailure: PairingCameraFailure?
   @Published var scannerID = UUID()
   @Published var working = false
+  @Published var payload: String?
+  @Published var connectionAttempt = 0
+  @Published var connectionNeedsSettings = false
+  var needsSettings: Bool { cameraFailure == .permission || connectionNeedsSettings }
   var needsRecovery: Bool { scanError != nil || cameraFailure != nil }
-  func retry() { scanError = nil; cameraFailure = nil; scannerID = UUID() }
+  func retry() {
+    scanError = nil; cameraFailure = nil; connectionNeedsSettings = false
+    if payload != nil { connectionAttempt += 1 } else { scannerID = UUID() }
+  }
+  func scanAgain() { payload = nil; retry() }
+  func cameraAuthorizationChanged(_ authorized: Bool) {
+    if cameraFailure == .permission && authorized { scanAgain() }
+  }
 }
 
 /// Shared by first run and later connect/reconnect. Camera recovery stays in
@@ -18,6 +30,7 @@ struct IOSPixelScanner: View {
   @ObservedObject var model: BackupModel
   var connected: () -> Void
   @Environment(\.openURL) private var openURL
+  @Environment(\.scenePhase) private var scenePhase
   @StateObject private var state: IOSPixelScannerState
   var showsRecoveryActions: Bool
 
@@ -45,10 +58,20 @@ struct IOSPixelScanner: View {
         }
       } else if let scanError = state.scanError {
         ContentUnavailableView {
-          Label("desktop_pair_failed", systemImage: "exclamationmark.triangle")
+          Label("connect_failed", systemImage: "exclamationmark.triangle")
         } description: {
           Text(scanError)
-        } actions: { if showsRecoveryActions { retryButton } }
+        } actions: {
+          if showsRecoveryActions {
+            if state.needsSettings {
+              Button("photos_open_settings") { openURL(URL(string: UIApplication.openSettingsURLString)!) }.duckPrimaryButton()
+              Button("retry_task") { state.retry() }.buttonStyle(.bordered)
+            } else { retryButton }
+            if state.payload != nil { Button("apple_scan_again") { state.scanAgain() } }
+          }
+        }
+      } else if state.payload != nil {
+        DuckLoadingState("connect_connecting").frame(height: 300)
       } else {
         PairingScanner(scanned: accept, failed: { state.cameraFailure = $0 })
           .id(state.scannerID).frame(height: 300)
@@ -56,26 +79,44 @@ struct IOSPixelScanner: View {
           .overlay { if state.working { ProgressView().controlSize(.large) } }
       }
     }
-  }
-  private var retryButton: some View {
-    Button("apple_scan_again") { state.retry() }.duckPrimaryButton()
-  }
-
-  private func accept(_ payload: String) {
-    guard !state.working else { return }
-    state.working = true
-    state.scanError = nil
-    Task {
-      let paired = await model.pair(payload)
-      state.working = false
-      if paired { connected() }
-      else {
-        let parseable = (try? JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))) != nil
-        state.scanError = parseable ? model.pairingError ?? NSLocalizedString("desktop_pair_failed", comment: "")
-          : NSLocalizedString("connect_code_unreadable", comment: "")
+    .task(id: state.connectionAttempt) {
+      guard let payload = state.payload, state.scanError == nil else { return }
+      await connect(payload)
+    }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active && BackupEnvironment.usesCamera {
+        state.cameraAuthorizationChanged(AVCaptureDevice.authorizationStatus(for: .video) == .authorized)
       }
     }
   }
+  private var retryButton: some View {
+    Button(state.payload == nil ? "apple_scan_again" : "retry_task") { state.retry() }.duckPrimaryButton()
+  }
+
+  private func accept(_ payload: String) {
+    guard !state.working, state.payload == nil else { return }
+    guard (try? JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))) != nil else {
+      state.scanError = NSLocalizedString("connect_code_unreadable", comment: "")
+      return
+    }
+    state.payload = payload
+    state.connectionAttempt += 1
+  }
+
+  private func connect(_ payload: String) async {
+    guard !state.working else { return }
+    state.working = true
+    state.scanError = nil
+    let paired = await model.pair(payload)
+    state.working = false
+    guard !Task.isCancelled else { return }
+    if paired { connected() }
+    else {
+      state.connectionNeedsSettings = model.pairingNeedsSettings
+      state.scanError = model.pairingError ?? NSLocalizedString("desktop_pair_failed", comment: "")
+    }
+  }
+
 }
 
 /// Connecting from the hub or Devices after first run: the same words, scanner
@@ -84,6 +125,7 @@ struct IOSConnectSheet: View {
   @ObservedObject var model: BackupModel
   /// The Pixel no longer recognizes this iPhone: say so and keep earlier backups' reassurance.
   var reconnect = false
+  var scanner: IOSPixelScannerState? = nil
   @Environment(\.dismiss) private var dismiss
   @State private var connected = false
 
@@ -103,7 +145,7 @@ struct IOSConnectSheet: View {
           } else {
             Text(reconnect ? "connect_again_title" : "onboarding_connect_title").font(.title2.bold())
             Text(reconnect ? "connect_again_body" : "onboarding_connect_body").foregroundStyle(.secondary)
-            IOSPixelScanner(model: model) { withAnimation(.smooth(duration: 0.25)) { connected = true } }
+            IOSPixelScanner(model: model, state: scanner) { withAnimation(.smooth(duration: 0.25)) { connected = true } }
           }
         }
         .padding(24)

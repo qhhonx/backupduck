@@ -117,7 +117,7 @@ private struct ProcessingEventsResult: Decodable {
   @Published var receiverReadings: ReceiverReadings?
   private var checkingReadings = false
   func refreshReceiverReadings() async {
-    guard let target = pairing, !checkingReadings else { return }
+    guard networkingStarted, let target = pairing, !checkingReadings else { return }
     checkingReadings = true
     defer { checkingReadings = false }
     do {
@@ -130,21 +130,23 @@ private struct ProcessingEventsResult: Decodable {
     } catch { receiverReadings = nil }
   }
   private var activeExport: BoundedExportWriter?
-  /// Network observation and the transfer session start only once a Pixel is
-  /// paired, so a new install first touches the network at the connect step,
-  /// where the system's network permission prompt makes sense.
+  /// Saved trust may exist while an unfinished first run restores its scanner.
+  /// Only a completed connection or an eligible restored session starts workers.
+  private(set) var networkingStarted = false
   private func observeNetwork() {
-    _ = availability
+    guard pairing != nil else { return }
+    networkingStarted = true
+    availability.start()
     BackgroundTransfer.shared.connect()
   }
-  private lazy var availability = ReceiverAvailability(changed: { [weak self] in
+  private lazy var availability = ReceiverAvailability(monitorNetwork: BackupEnvironment.usesNetwork, changed: { [weak self] in
     self?.receiverUnavailable = true
     self?.receiverConnection = .unknown
     self?.receiverReadings = nil
     self?.activeExport?.cancel()
   })
   func canPrepareForReceiver() async -> Bool {
-    guard !paused, let target = pairing else { return false }
+    guard networkingStarted, !paused, let target = pairing else { return false }
     return await checkReceiverConnection(target) && !paused
   }
   private func checkReceiverConnection(_ target: Pairing, force: Bool = false) async -> Bool {
@@ -163,7 +165,7 @@ private struct ProcessingEventsResult: Decodable {
     return available && !paused
   }
   func checkConnection() async {
-    guard let target = pairing, !checkingConnection else { return }
+    guard networkingStarted, let target = pairing, !checkingConnection else { return }
     checkingConnection = true
     defer { checkingConnection = false }
     _ = await checkReceiverConnection(target, force: true)
@@ -171,7 +173,7 @@ private struct ProcessingEventsResult: Decodable {
   }
   #if os(iOS)
     func recoverBackgroundReceiverRoute() async {
-      guard !paused, let saved = pairing, !(await canPrepareForReceiver()) else { return }
+      guard networkingStarted, !paused, let saved = pairing, !(await canPrepareForReceiver()) else { return }
       let discovery = ReceiverDiscovery(model: self)
       if await discovery.recoverInBackground(saved) {
         _ = await canPrepareForReceiver()
@@ -198,9 +200,14 @@ private struct ProcessingEventsResult: Decodable {
   private lazy var receiverDiscovery = ReceiverDiscovery(model: self)
   private var opening: Task<Void, Never>?
   @Published var pairing: Pairing? {
-    didSet { receiverReadings = nil; if pairing != nil { observeNetwork() } }
+    didSet {
+      receiverReadings = nil
+      if pairing == nil { networkingStarted = false }
+      else if BackupEnvironment.restoresSenderNetwork() { observeNetwork() }
+    }
   }
   @Published var pairingError: String?
+  @Published var pairingNeedsSettings = false
   @Published var pairingInProgress = false
   @Published var deviceSnapshot: DeviceSnapshot?
   @Published var deviceError: String?
@@ -292,7 +299,7 @@ private struct ProcessingEventsResult: Decodable {
       if storage?.settings.auto_reclaim == true { await reclaimCache() }
       refreshTask = Task {
         while !Task.isCancelled {
-          receiverDiscovery.update(pairing: pairing, active: Self.canPoll && BackupEnvironment.discoversReceivers)
+          receiverDiscovery.update(pairing: pairing, active: networkingStarted && Self.canPoll && BackupEnvironment.discoversReceivers && BackupEnvironment.usesNetwork)
           if Self.canPoll {
             Task { await self.syncDeviceProfile() }
             await refresh()
@@ -317,17 +324,22 @@ private struct ProcessingEventsResult: Decodable {
     guard !pairingInProgress else { return false }
     pairingInProgress = true
     pairingError = nil
+    pairingNeedsSettings = false
     defer { pairingInProgress = false }
     do {
       let parsed = try JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))
+      try await BackupEnvironment.prepareConnection(parsed)
+      try Task.checkCancellation()
       // Rust validates identity/certificate and establishes TLS before trust is saved.
       _ = try await Bridge.call([
         "op": "check_pairing",
         "pairing": try JSONSerialization.jsonObject(with: JSONEncoder().encode(parsed)),
       ])
+      try Task.checkCancellation()
       if let saved = pairing, saved.receiverID == parsed.receiverID, saved.endpoint != parsed.endpoint {
         // Keep saved trust when a QR code supplies a new route for the same peer.
         let restored = await relocateReceiver(to: parsed.endpoint, expected: saved)
+        if restored { observeNetwork() }
         pairingError = restored ? nil : NSLocalizedString("error_network", comment: "")
         return restored
       }
@@ -339,8 +351,10 @@ private struct ProcessingEventsResult: Decodable {
         try await discovery?.matchReceiver(parsed.receiverID)
         updateDiscoveryStatus()
       }
+      try Task.checkCancellation()
       try await Keychain.saveAsync(try JSONEncoder().encode(parsed))
       pairing = parsed
+      observeNetwork()
       receiverConnection = .ready
       receiverUnavailable = false
       historyControlRevision += 1
@@ -353,7 +367,12 @@ private struct ProcessingEventsResult: Decodable {
       await refresh()
       if !paused { startWorker() }
       return true
-    } catch { pairingError = error.localizedDescription; return false }
+    } catch {
+      pairingNeedsSettings = error is ConnectAccessFailure || (error as? Bridge.Failure)?.code == "network"
+      pairingError = (error as? Bridge.Failure)?.code == "network"
+        ? NSLocalizedString("connect_network_unavailable", comment: "") : error.localizedDescription
+      return false
+    }
   }
   @discardableResult func relocateReceiver(to endpoint: String, expected: Pairing) async -> Bool {
     guard pairing?.receiverID == expected.receiverID, pairing?.endpoint == expected.endpoint,
@@ -362,6 +381,7 @@ private struct ProcessingEventsResult: Decodable {
       let checked = try await Bridge.call(["op": "relocate_pairing",
         "pairing": try JSONSerialization.jsonObject(with: JSONEncoder().encode(expected)), "endpoint": endpoint])
       let updated = try JSONDecoder().decode(Pairing.self, from: checked)
+      try Task.checkCancellation()
       await BackgroundTransfer.shared.replaceRoute(updated, expected: expected)
       return pairing?.receiverID == updated.receiverID && pairing?.endpoint == updated.endpoint
     } catch {
@@ -390,7 +410,7 @@ private struct ProcessingEventsResult: Decodable {
       _ = try await Bridge.call(["op": "pause_sender", "paused": value])
       paused = value
       if value {
-        await BackgroundTransfer.shared.cancelAll()
+        if networkingStarted { await BackgroundTransfer.shared.cancelAll() }
       } else {
         startWorker()
         if discoverAfterResume { await discoverPhotos() }
@@ -400,7 +420,7 @@ private struct ProcessingEventsResult: Decodable {
     } catch { pauseError = error.localizedDescription; message = pauseError; return false }
   }
   private func startWorker() {
-    guard pairing != nil, ready else { return }
+    guard networkingStarted, pairing != nil, ready else { return }
     Task { await BackgroundTransfer.shared.kick() }
   }
   func updateDiscoveryStatus() {
@@ -440,7 +460,7 @@ private struct ProcessingEventsResult: Decodable {
   func scheduleBackgroundWork() {
     #if os(iOS)
       BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: AppDelegate.processingIdentifier)
-      guard ready, !paused, pairing != nil,
+      guard networkingStarted, ready, !paused, pairing != nil,
         autoBackup || discoveryPending > 0 || discovery?.state.closingToken != nil
           || historicalImport?.state == "scanning" || pendingImports > 0
           || jobs.contains(where: { ["queued", "running", "waiting"].contains($0.state) })
@@ -487,7 +507,7 @@ private struct ProcessingEventsResult: Decodable {
       var revision: UInt64 = 0
       var route: String?
       while !Task.isCancelled {
-        guard pollingAllowed(), let target = pairing else {
+        guard networkingStarted, pollingAllowed(), let target = pairing else {
           try? await Task.sleep(for: .seconds(1)); continue
         }
         let currentRoute = target.receiverID + "|" + target.endpoint

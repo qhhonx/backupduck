@@ -18,12 +18,29 @@ final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable 
   override var representsBurst: Bool { false }
   override var location: CLLocation? { nil }
   override var duration: TimeInterval { 0 }
-  override var pixelWidth: Int { 480 }
-  override var pixelHeight: Int { 480 }
+  override var pixelWidth: Int {
+    #if os(macOS)
+    return SampleImages.cgImage(for: localIdentifier, maxPixelSize: 2048)?.width ?? 480
+    #else
+    return 480
+    #endif
+  }
+  override var pixelHeight: Int {
+    #if os(macOS)
+    return SampleImages.cgImage(for: localIdentifier, maxPixelSize: 2048)?.height ?? 480
+    #else
+    return 480
+    #endif
+  }
   var previewFilename: String { job.asset.resources.first?.filename ?? "" }
   var previewMetadata: [(String, String)] { PhotoInformationLayout.fileFields(for: job) }
   var previewImage: LibraryImage? {
-    guard let cg = SampleImages.cgImage(for: localIdentifier) else { return nil }
+    #if os(macOS)
+    let edge = 2048
+    #else
+    let edge = 480
+    #endif
+    guard let cg = SampleImages.cgImage(for: localIdentifier, maxPixelSize: edge) else { return nil }
     #if os(iOS)
     return UIImage(cgImage: cg)
     #else

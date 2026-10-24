@@ -10,45 +10,55 @@ struct DevicePage: View {
   var connect: () -> Void
 
   var body: some View {
-    Form {
-      if let pairing = model.pairing {
-        Section {
-          VStack(spacing: DuckSpacing.xSmall) {
-            Image(systemName: "smartphone").font(.largeTitle).foregroundStyle(.primary)
-              .frame(width: 72, height: 72)
-              .background(DuckRole.background, in: RoundedRectangle(cornerRadius: DuckRadius.card, style: .continuous))
-              .accessibilityHidden(true)
-            Text(verbatim: model.peerDevice?.name ?? "Pixel").font(.title3.weight(.semibold))
-            DuckPill(title: reachability, dot: reachable ? DuckRole.saved : DuckRole.attention)
-          }
-          .frame(maxWidth: .infinity).padding(.vertical, DuckSpacing.xSmall)
-          .accessibilityElement(children: .combine)
+    Group {
+      if let pairing = model.pairing { paired(pairing) }
+      else {
+        // Nothing to list yet: the empty state at the optical center, as on the hub.
+        DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
+          Button("hub_connect", action: connect).duckPrimaryButton()
         }
-        Section {
-          LabeledContent("device_received", value: model.summary.count(for: "received").formatted())
-          LabeledContent("device_saved", value: model.summary.count(for: "saved").formatted())
-        } footer: {
-          Text("device_google_note")
-        }
-        Section {
-          Button("device_switch", action: connect)
-        }
-        .id(pairing.receiverID)
-      } else {
-        Section {
-          DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
-            Button("hub_connect", action: connect).duckPrimaryButton()
-          }
-        }
-        .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+        .duckOpticalCenter()
+        #if os(iOS)
+        .background(DuckRole.background)
+        #endif
       }
     }
-    .formStyle(.grouped)
     .navigationTitle("settings_devices")
     #if os(iOS)
     .navigationBarTitleDisplayMode(.inline)
     #endif
     .task { await model.refreshDeviceStatus() }
+  }
+
+  private func paired(_ pairing: Pairing) -> some View {
+    Form {
+      Section {
+        VStack(spacing: DuckSpacing.xSmall) {
+          Image(systemName: "smartphone").font(.largeTitle).foregroundStyle(.primary)
+            .frame(width: 72, height: 72)
+            .background(DuckRole.background, in: RoundedRectangle(cornerRadius: DuckRadius.card, style: .continuous))
+            .accessibilityHidden(true)
+          Text(verbatim: model.peerDevice?.name ?? "Pixel").font(.title3.weight(.semibold))
+          DuckPill(title: reachability, dot: reachable ? DuckRole.saved : DuckRole.attention)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, DuckSpacing.xSmall)
+        .accessibilityElement(children: .combine)
+      }
+      Section {
+        LabeledContent("device_received", value: model.summary.count(for: "received").formatted())
+        LabeledContent("device_saved", value: model.summary.count(for: "saved").formatted())
+      } footer: {
+        Text("device_google_note")
+      }
+      Section {
+        Button("device_switch", action: connect)
+          #if os(macOS)
+          .duckSecondaryAction()
+          #endif
+      }
+      .id(pairing.receiverID)
+    }
+    .formStyle(.grouped)
   }
 
   private var reachable: Bool { model.receiverConnection == .ready }

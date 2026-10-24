@@ -1,5 +1,5 @@
 <resources>
-    <string name="help_tasks">按任务查找</string>
+    <string name="help_tasks">我想…</string>
     <string name="help_problems">遇到问题时</string>
     <string name="help_search">搜索帮助</string>
     <string name="help_no_results">没有找到相关内容，请换个词试试。</string>

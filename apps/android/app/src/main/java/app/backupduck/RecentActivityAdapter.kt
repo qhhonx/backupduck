@@ -7,14 +7,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONObject
-import java.text.DateFormat
-import java.text.SimpleDateFormat
-import java.util.Date
 import com.google.android.material.R as M
 
 internal data class DiagnosticEntry(val raw: JSONObject) {
     val id = raw.getLong("id")
     val timestamp = raw.optLong("timestamp")
+    fun known(context: Context) = context.resources.getIdentifier("diag_event_${raw.optString("code")}", "string", context.packageName) != 0
     fun title(context: Context): String {
         val resource = context.resources.getIdentifier("diag_event_${raw.optString("code")}", "string", context.packageName)
         return context.getString(if (resource != 0) resource else R.string.diag_other)
@@ -24,13 +22,12 @@ internal data class DiagnosticEntry(val raw: JSONObject) {
 /** A bounded, read-only summary; the export retains the complete journal. */
 internal class RecentActivityAdapter(private val context: Context) : RecyclerView.Adapter<RecentActivityAdapter.Holder>() {
     private var rows = emptyList<Any>()
-    private val locale get() = context.resources.configuration.locales[0]
     init { setHasStableIds(true) }
     fun submit(entries: List<DiagnosticEntry>) {
         rows = buildList {
             var previous: String? = null
-            entries.forEach { entry ->
-                val day = if (entry.timestamp > 0) DateFormat.getDateInstance(DateFormat.MEDIUM, locale).format(Date(entry.timestamp * 1000))
+            entries.filter { it.known(context) }.forEach { entry ->
+                val day = if (entry.timestamp > 0) formatted(context, "yMMMEd", entry.timestamp * 1000)
                     else context.getString(R.string.diag_unknown_time)
                 if (day != previous) { add(day); previous = day }
                 add(entry)
@@ -64,7 +61,7 @@ internal class RecentActivityAdapter(private val context: Context) : RecyclerVie
         else {
             item as DiagnosticEntry
             (row.getChildAt(0) as TextView).text = item.title(context)
-            (row.getChildAt(1) as TextView).text = if (item.timestamp > 0) SimpleDateFormat("HH:mm", locale).format(Date(item.timestamp * 1000)) else "—"
+            (row.getChildAt(1) as TextView).text = if (item.timestamp > 0) formatted(context, "jm", item.timestamp * 1000) else "—"
         }
     }
     internal class Holder(row: LinearLayout) : RecyclerView.ViewHolder(row)

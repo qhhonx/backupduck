@@ -104,7 +104,7 @@ internal fun photoRows(items: List<HistoryItem>, attention: List<CauseGroup>, no
 }
 
 /** How the scope line reads: every photo saved, or how many of them are. */
-internal data class PhotoScope(val total: Int, val saved: Int, val sender: String?) {
+internal data class PhotoScope(val total: Int, val saved: Int, val sender: String?, val pending: Int = 0) {
     val allSaved get() = total > 0 && saved >= total
 }
 
@@ -116,5 +116,7 @@ internal data class PhotoScope(val total: Int, val saved: Int, val sender: Strin
 internal fun photoScope(counts: HistoryCounts?, items: List<HistoryItem>, fallbackTotal: Int, paired: List<String>): PhotoScope {
     val senders = items.flatMap { it.senders }.distinct()
     val sender = senders.singleOrNull()?.takeIf { paired.isEmpty() || paired == listOf(it) }
-    return PhotoScope(counts?.total ?: fallbackTotal, counts?.published ?: items.count { it.processing == "complete" }, sender)
+    return PhotoScope(counts?.total ?: fallbackTotal, counts?.published ?: items.count { it.processing == "complete" }, sender,
+        counts?.let { (it.total - it.published - it.failed).coerceAtLeast(0) }
+            ?: items.count { it.processing in setOf("pending", "running") })
 }

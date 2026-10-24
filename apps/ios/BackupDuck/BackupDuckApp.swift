@@ -3,7 +3,9 @@ import SwiftUI
 @main struct BackupDuckApp: App {
   init() {
     LaunchTrace.mark("app init")
-    PhotoLibraryModel.prewarm()
+    BackupEnvironment.restoresSenderNetwork = { IOSFirstRunProgress.allowsRestoredNetwork() }
+    BackupEnvironment.prepareConnection = { try await IOSConnectNetworkAccess().prepare($0) }
+    if IOSFirstRunProgress.allowsRestoredNetwork() { PhotoLibraryModel.prewarm() }
     if #available(iOS 26.0, *) { } else {
       // Legacy scroll-edge appearance must not turn transparent above media.
       let appearance = UITabBarAppearance()
@@ -103,7 +105,7 @@ import SwiftUI
         .onChange(of: scenePhase) { _, phase in
           if phase == .active {
             BackgroundTransfer.shared.enteredForeground()
-            Task { await library.open() }
+            if needsFirstRun == false { Task { await library.open() } }
             Task { await model.becameActive(); await firstRun.registerScope(model: model) }
             Task { await BackupLiveActivity.shared.synchronize(model) }
           }

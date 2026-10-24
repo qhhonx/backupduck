@@ -59,6 +59,15 @@ unreadable code or a failed connection says so and offers Scan again; camera
 access off offers Open Settings. "Connect an iPhone instead" returns to the
 code.
 
+Camera denial returns directly to that actionable explanation, including when
+the system no longer offers another permission prompt. Open Settings targets
+this app's information page. On every resume, the shared Connect flow checks
+camera access again: granting access in Settings clears the denial and opens
+the scanner without a restart. Returning with access still denied keeps Open
+Settings visible. Cancelling the recovered scanner returns to the Mac
+explanation without reopening the camera automatically. First run and the
+ordinary Connect page use the same recovery behavior.
+
 **Connected devices** (settings page):
 
 1. One sentence: another iPhone or Mac connects by scanning this Pixel's code.

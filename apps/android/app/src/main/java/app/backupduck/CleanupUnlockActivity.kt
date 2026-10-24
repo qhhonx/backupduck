@@ -1,13 +1,11 @@
 package app.backupduck
 
-import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.WindowManager
-import android.widget.TextView
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -53,11 +51,11 @@ internal object CleanupUnlock {
 }
 
 /** Visible only while waking; it never displays or enters credentials. */
-class CleanupUnlockActivity : Activity() {
+class CleanupUnlockActivity : BackupDuckActivity() {
     private var requested = false
     private val requestID get() = intent.getStringExtra("request")
     override fun onCreate(savedInstanceState: Bundle?) {
-        DuckLook.applyScheme(this)
+        delegate.localNightMode = getSharedPreferences("appearance", MODE_PRIVATE).getInt("mode", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
         if (!CleanupUnlock.attach(requestID, this)) { finish(); return }
         val keyguard = getSystemService(KeyguardManager::class.java)
@@ -67,12 +65,7 @@ class CleanupUnlockActivity : Activity() {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContentView(TextView(this).apply {
-            setText(R.string.cleanup_result_waking)
-            gravity = android.view.Gravity.CENTER
-            textSize = 18f
-            setPadding(32, 32, 32, 32)
-        })
+        setContentView(cleanupWakeContent(this))
     }
     override fun onPostResume() {
         super.onPostResume()
@@ -102,4 +95,35 @@ class CleanupUnlockActivity : Activity() {
         CleanupUnlock.complete(requestID, false)
         super.onDestroy()
     }
+}
+
+/** Shared transient presentation, also rendered by Catalog without touching the keyguard. */
+internal fun cleanupWakeContent(context: Context): android.view.View = object : android.widget.FrameLayout(context) {
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        getChildAt(0)?.translationY = -height * 0.05f
+    }
+}.apply {
+    setBackgroundColor(context.getColor(R.color.duck_role_background))
+    val body = android.widget.LinearLayout(context).apply {
+        orientation = android.widget.LinearLayout.VERTICAL
+        gravity = android.view.Gravity.CENTER_HORIZONTAL
+        val inset = context.token(R.dimen.duck_space_large)
+        setPadding(inset, inset, inset, inset)
+        addView(com.google.android.material.progressindicator.CircularProgressIndicator(context).apply {
+            isIndeterminate = true
+            indicatorSize = context.token(R.dimen.duck_space_large)
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, android.widget.LinearLayout.LayoutParams(-2, -2))
+        addView(context.lookText(context.getString(R.string.cleanup_waking_title),
+            com.google.android.material.R.style.TextAppearance_Material3_TitleMedium).apply {
+            gravity = android.view.Gravity.CENTER
+            isAccessibilityHeading = true
+        }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_small) })
+        addView(context.lookText(context.getString(R.string.cleanup_waking_note),
+            com.google.android.material.R.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
+            gravity = android.view.Gravity.CENTER
+        }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.token(R.dimen.duck_space_xx_small) })
+    }
+    addView(body, android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.CENTER))
 }

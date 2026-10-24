@@ -1,0 +1,48 @@
+{
+  "id": "pixel.photos-live-failed",
+  "extends": "pixel.photos-viewer",
+  "page": "transfers",
+  "surface": "metadata",
+  "title": "Live Photo could not be saved",
+  "expect": [
+    "The information panel retains receipt and names the full Live Photo term for unsupported publication in Chinese and English."
+  ],
+  "core": {
+    "receiver_history": {
+      "value": {
+        "items": [
+          {
+            "cursor": 2000,
+            "id": "metadata-live",
+            "filename": "SAMPLE_001.PNG",
+            "kind": "motion",
+            "total_bytes": 3820000,
+            "confirmed_bytes": 3820000,
+            "receipt": "received",
+            "processing": "failed",
+            "processing_error": "unsupported",
+            "originals_released": false,
+            "senders": [
+              {
+                "profile": {
+                  "name": "Lin's iPhone"
+                }
+              }
+            ],
+            "captured_at_ms": 1792295160000,
+            "burst_primary": null,
+            "received_at_ms": 1792295220000,
+            "published_at_ms": null
+          }
+        ],
+        "total": 1,
+        "next_cursor": null,
+        "counts": {
+          "total": 1,
+          "published": 1,
+          "failed": 0
+        }
+      }
+    }
+  }
+}

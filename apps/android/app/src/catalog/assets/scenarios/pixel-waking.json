@@ -1,0 +1,7 @@
+{
+  "id": "pixel.waking",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "waking",
+  "title": "waking"
+}

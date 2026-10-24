@@ -42,8 +42,8 @@
 "library_filter_video" = "Videos";
 "media_type" = "Media type";
 "backup_selected" = "Back up selected (%d)";
-"photos_access_title" = "Your photo library";
-"photos_access_description" = "Allow access to browse thumbnails and choose originals to back up.";
+"photos_access_title" = "Photo access unavailable";
+"photos_access_description" = "Allow access to browse and choose the photos and videos you want to back up.";
 "photos_allow" = "Allow photo access";
 "photos_open_settings" = "Open Settings";
 "photos_access_denied" = "Photo access is off. Open Settings and allow BackupDuck to access the photos you want to back up.";
@@ -65,7 +65,7 @@
 "error_low_space" = "Receiver free space is below its reserve. Retrying automatically after space becomes available.";
 "error_local_free_space" = "Not enough free space to prepare originals. Free up disk space to continue automatically.";
 "error_local_cache_budget" = "Staging cache budget reached. Wait for verified transfers or raise the budget in settings.";
-"pairing_unlock_wait" = "Loading saved pairing. If macOS asks for Keychain access, complete authorization in the system dialog.";
+"pairing_unlock_wait" = "Reading your connected devices. If macOS asks for Keychain access, authorize it in the system dialog.";
 
 
 "nav_backup" = "Backup";
@@ -82,7 +82,7 @@
 "device_identity" = "Device identity";
 "device_name" = "Device name";
 "device_rename" = "Rename device";
-"device_name_note" = "Choose a name that helps you recognize this device. Renaming keeps existing connections and backup records.";
+"device_name_note" = "Choose a recognizable name. Renaming does not change your connected devices or backup history.";
 "device_name_invalid" = "Use 1–40 characters without line breaks or control characters.";
 "device_load_failed" = "Device details could not be loaded.";
 "device_save_failed" = "The name could not be saved. Please try again.";
@@ -115,7 +115,7 @@
 "source_photo_unavailable" = "Photo unavailable";
 
 
-"updates_title" = "App updates";
+"updates_title" = "Version & Updates";
 "updates_automatic" = "Automatically check for updates";
 "updates_check" = "Check for Updates…";
 "updates_check_button" = "Check for Updates";
@@ -255,8 +255,8 @@
 "apple_scan_frame_note" = "Keep the entire pairing code inside the viewfinder.";
 "apple_camera_unavailable" = "The camera isn't available right now.";
 "apple_camera_unavailable_note" = "Make sure another app is not using the camera, then scan again.";
-"apple_camera_restricted" = "Camera access is off. Turn it on in Settings to scan the code.";
-"apple_camera_restricted_note" = "Allow BackupDuck to use the camera in system Settings.";
+"apple_camera_restricted" = "Camera access is off";
+"apple_camera_restricted_note" = "Allow BackupDuck to use the camera in Settings to scan the code.";
 "apple_scan_again" = "Scan Again";
 "apple_appearance" = "Appearance";
 "apple_appearance_system" = "System";
@@ -265,7 +265,7 @@
 "apple_language" = "Language";
 "apple_language_open_settings" = "Change in system Settings";
 "mac_receiver_connection_note" = "Connect Mac and Pixel to the same reachable local network. Your VPN must allow local network connections.";
-"design_cloud_boundary" = "Saved means the files are in Pixel’s gallery. Confirm cloud backup separately in Google Photos.";
+"design_cloud_boundary" = "Saved means the files are in Pixel’s gallery. Confirm cloud backup separately in Google Photos.";
 "apple_retry_failed" = "The retry request was not submitted. Keep this window open and try again.";
 "apple_selected_backup_failed" = "Could not add the backup tasks. Your selection is retained. Try again.";
 "apple_selected_receiver_needed" = "Connect a Pixel before backing up your selection. Your selection is retained.";
@@ -284,7 +284,7 @@
 "logs_export_failed" = "Could not prepare the activity log. Retry; app data and originals are unchanged.";
 "logs_empty" = "No activity recorded yet";
 "logs_loading" = "Loading the activity log…";
-"error_pairing_pause_failed" = "Could not pause the current transfers. Retry before connecting a new receiver; the existing pairing is retained.";
+"error_pairing_pause_failed" = "Couldn’t pause the current transfer. Try again before connecting a new device. Your connected devices are unchanged.";
 
 "apple_photos_limited_note" = "Only photos you allow are shown.";
 
@@ -315,7 +315,7 @@
 
 
 
-"mac_fidelity_help_connection" = "Connection and pairing";
+"mac_fidelity_help_connection" = "Connection";
 
 "mac_fidelity_help_library" = "Photo library backup";
 
@@ -426,7 +426,7 @@
 
 "mac_fidelity_help_three_facts" = "Three separate facts";
 
-"mac_fidelity_help_google" = "Google Photos cloud";
+"mac_fidelity_help_google" = "Google Photos cloud";
 
 "mac_fidelity_help_recovery_paths" = "Recovery paths";
 
@@ -543,7 +543,7 @@
 "scope_type_video" = "Videos";
 "scope_type_burst" = "Bursts";
 "scope_empty" = "No media types selected";
-"scope_album_count" = "Selected albums: %d";
+"scope_album_count" = "%d Albums";
 "scope_all_albums" = "All albums";
 "scope_all_albums_summary" = "Every album is included";
 "scope_album_unavailable" = "Album unavailable or access restricted";
@@ -561,9 +561,9 @@
 "preview_burst_previous" = "Previous burst frame";
 "preview_burst_next" = "Next burst frame";
 
-"scope_media_types" = "Media types";
+"scope_media_types" = "Media Types";
 "scope_all_types" = "All media types";
-"scope_albums_title" = "Specified albums";
+"scope_albums_title" = "Albums";
 "scope_search_albums" = "Search albums";
 "scope_summary_note" = "Applies to new photos and the next existing-photo backup.";
 "preview_hide_info" = "Close information";
@@ -653,20 +653,20 @@
 "settings_edit" = "Edit";
 "settings_open_failed" = "BackupDuck couldn't open its data";
 "settings_auto_switch" = "Back Up New Photos";
-"settings_auto_footer" = "New photos you take or save go to %@ automatically. Back up earlier photos once from Backup.";
-"settings_auto_footer_mac" = "New photos go to %@ automatically. Back up earlier photos once from Backup overview.";
+"settings_auto_footer" = "New photos are sent to %@ automatically. Choose to back up earlier photos in Backup.";
+"settings_auto_footer_mac" = "New photos are sent to %@ automatically. Choose to back up earlier photos in Overview.";
 "settings_auto_footer_unpaired" = "Connect a receiver to turn on Auto Backup.";
 "settings_includes" = "Includes";
 "settings_includes_footer" = "Backing up earlier photos uses the same choices.";
 "settings_media_types" = "Media Types";
 "onboarding_title" = "Bigger than iCloud.\nSimpler than a NAS.\nAnd free.";
-"onboarding_subtitle" = "One old Pixel backs up all your photos to Google Photos, full quality, without limits.";
+"onboarding_subtitle" = "One old Pixel backs up all your photos to Google Photos, full quality, without limits.";
 "onboarding_step_progress" = "Step %d of %d";
 "onboarding_step_install" = "Install BackupDuck on a Pixel";
 "onboarding_step_install_note" = "An old Pixel is all it takes";
 "onboarding_step_connect" = "Connect the two devices";
 "onboarding_step_connect_note" = "The Pixel shows a code; your iPhone scans it";
-"onboarding_step_backup" = "Photos back up to Google Photos";
+"onboarding_step_backup" = "Photos back up to Google Photos";
 "onboarding_step_backup_note" = "Free and unlimited";
 "onboarding_fine_print" = "Original Pixel: unlimited Original quality. Pixel 2 to 5: unlimited Storage saver. The offer is Google's.";
 "onboarding_start" = "Get Started";
@@ -679,15 +679,15 @@
 "onboarding_connected_body" = "Your photos now go straight to this Pixel.";
 "onboarding_continue" = "Continue";
 "onboarding_photos_title" = "Let BackupDuck read your photos";
-"onboarding_photos_direct" = "Photos go straight to your Pixel";
+"onboarding_photos_direct" = "Originals go directly to your Pixel";
 "onboarding_photos_private" = "Never through BackupDuck's servers";
 "onboarding_photos_quality" = "Full quality, never compressed";
-"onboarding_choose_title" = "Which photos should we back up?";
+"onboarding_choose_title" = "Earlier Photos";
 "onboarding_choose_auto" = "Back up new photos";
-"onboarding_choose_auto_note" = "Runs whenever your iPhone and Pixel are on the same Wi‑Fi.";
-"onboarding_choose_earlier" = "Back up your %@ earlier photos too?";
-"onboarding_choose_earlier_unknown" = "Back up your earlier photos too?";
-"onboarding_choose_earlier_note" = "However many there are, they all fit. They go over in the background while the Pixel makes room as it goes.";
+"onboarding_choose_auto_note" = "New photos back up automatically. You can turn this off later in Settings.";
+"onboarding_choose_earlier" = "Also back up your %@ earlier photos?";
+"onboarding_choose_earlier_unknown" = "Also back up your earlier photos?";
+"onboarding_choose_earlier_note" = "However many there are, they can finish sending in the background. If your Pixel runs low on space, you can free up photos already backed up to Google Photos.";
 "onboarding_choose_all" = "Back Up Everything";
 "onboarding_choose_new_only" = "Only New Photos";
 "onboarding_first_title" = "Your first photo is in the Pixel's Photos";
@@ -701,7 +701,7 @@
 "settings_thumbnails" = "Thumbnails";
 "settings_thumbnails_note" = "Thumbnails saved while browsing your library. They're rebuilt after clearing.";
 "settings_clear_now" = "Clear Now";
-"settings_specific_albums" = "Only Specific Albums";
+"settings_specific_albums" = "Albums";
 "hub_not_paired" = "No Pixel connected yet";
 "hub_not_paired_note" = "Once connected, new photos are saved to Photos on your Pixel automatically.";
 "hub_connect" = "Connect a Pixel";
@@ -737,15 +737,15 @@
 "hub_problem_photos_note" = "Allow access and new photos back up automatically.";
 "hub_problem_photos_action" = "Open Settings";
 "hub_problem_convert" = "%@ Live Photos can't be saved to the Pixel's Photos as is";
-"hub_problem_convert_note" = "They're kept safely on the Pixel.";
-"hub_problem_convert_action" = "Review";
+"hub_problem_convert_note" = "Kept safely on the Pixel.";
+"hub_problem_convert_action" = "What Can I Do?";
 "hub_help_title" = "When the Pixel can't be reached";
-"hub_help_wifi" = "Your iPhone and Pixel are on the same Wi‑Fi";
+"hub_help_wifi" = "Your iPhone and Pixel are on the same Wi‑Fi (not a guest network)";
 "hub_help_running" = "The Pixel is on and BackupDuck is receiving";
 "hub_help_vpn" = "If a VPN is on, turn it off and try again";
 "hub_problem_mac_full" = "Not enough space on this Mac to prepare photos; paused";
 "hub_problem_photos_action_mac" = "Open System Settings";
-"hub_help_wifi_mac" = "Your Mac and Pixel are on the same Wi‑Fi";
+"hub_help_wifi_mac" = "Your Mac and Pixel are on the same Wi‑Fi (not a guest network)";
 "hub_help_check" = "Check Again";
 
 "records_title" = "Backup History";
@@ -759,7 +759,7 @@
 "records_yesterday" = "Yesterday";
 "records_day_unknown" = "Date unknown";
 "records_cause_live" = "%@ Live Photos can't be saved to the Pixel's Photos as they are";
-"records_cause_live_note" = "They are kept safely on the Pixel and were not converted.";
+"records_cause_live_note" = "Kept safely on the Pixel.";
 "records_cause_incomplete" = "%@ photos didn't arrive complete";
 "records_cause_not_sent" = "%@ photos weren't sent";
 "records_cause_retry_note" = "The photos are still on this device and can be sent again.";
@@ -793,7 +793,7 @@
 "connect_again_title" = "Reconnect to your Pixel";
 "connect_again_body" = "Open BackupDuck on the Pixel so it shows its code, then scan it. Earlier backups are not affected.";
 "connect_code_unreadable" = "That isn't a BackupDuck code. Scan the code shown on your Pixel.";
-"records_cloud_footer" = "Check cloud backup in Google Photos.";
+"records_cloud_footer" = "Check cloud backup in Google Photos.";
 "library_view_section" = "Backup";
 "library_view_all" = "All Photos";
 "library_view_notBackedUp" = "Not Backed Up";
@@ -818,14 +818,14 @@
 "device_unreachable" = "Can't reach it right now";
 "device_received" = "Received by this Pixel";
 "device_saved" = "In its Photos";
-"device_google_note" = "BackupDuck can't see whether Google Photos has backed them up. Open Google Photos on the Pixel to check.";
+"device_google_note" = "BackupDuck can't see whether Google Photos has backed them up. Open Google Photos on the Pixel to check.";
 "device_switch" = "Connect a Different Pixel";
 "library_info_not_backed_up" = "Not backed up yet";
 "help2_search" = "Search Help";
 "help2_tasks" = "I want to…";
-"help2_problems" = "When something goes wrong";
+"help2_problems" = "When something's wrong";
 "help2_confirm_title" = "Check that my photos are saved";
-"help2_confirm_body" = "Open a photo in Photos and swipe up to see Backup: when it was sent to your Pixel and when it was saved to the Pixel's Photos.\n\nOn Backup, “All your photos are in the Pixel's Photos” means every photo has been saved there.\n\nUploading to Google Photos happens on the Pixel. BackupDuck can't see it, so open Google Photos on the Pixel to check.";
+"help2_confirm_body" = "Open a photo in Photos and swipe up to see Backup: when it was sent to your Pixel and when it was saved to the Pixel's Photos.\n\nOn Backup, “All your photos are in the Pixel's Photos” means every photo has been saved there.\n\nUploading to Google Photos happens on the Pixel. BackupDuck can't see it, so open Google Photos on the Pixel to check.";
 "help2_faster_title" = "Back up faster";
 "help2_faster_body" = "Backups are fastest with BackupDuck open and the screen on. Turn on “Keep the Screen On Until Done” on Backup during a large batch.\n\nKeep your iPhone and Pixel on the same Wi‑Fi, and the Pixel plugged in. In the background iOS slows BackupDuck down; opening it continues at full speed.";
 "help2_switch_title" = "Use a different Pixel";
@@ -833,13 +833,13 @@
 "help2_some_title" = "Back up only some photos";
 "help2_some_body" = "Go to Settings › Auto Backup. Choose which kinds of photos to include, or back up only certain albums.\n\nEarlier photos are started and paused on Backup.";
 "help2_space_title" = "Free up space on the Pixel";
-"help2_space_body" = "When the Pixel runs low on space, photos Google Photos has already backed up can be removed from it. On the Pixel, open BackupDuck › Settings › Storage, or tap Free up space in Google Photos.\n\nPhotos on your iPhone are not affected.";
+"help2_space_body" = "When your Pixel is almost full, tap “Free up space” in Google Photos on the Pixel to remove photos already backed up to the cloud.\n\nYou can also turn on system Smart Storage in BackupDuck › Settings › Storage on the Pixel to handle this automatically.\n\nPhotos on your iPhone are not affected.";
 "help2_offline_title" = "Can't reach the Pixel";
-"help2_offline_body" = "Check these, most likely first:\n• Your iPhone and Pixel are on the same Wi‑Fi.\n• The Pixel is on and BackupDuck is open on it.\n• A VPN is off.\n\nNew photos wait in order and continue by themselves when the Pixel is back.";
+"help2_offline_body" = "Check in this order:\n• Allow BackupDuck in Settings › Privacy & Security › Local Network.\n• Keep iPhone and Pixel on the same Wi‑Fi. Guest networks can block the connection.\n• Keep the Pixel on with BackupDuck running.\n• Try again with your VPN off.\n\nNew photos wait and continue automatically when the Pixel is back.";
 "help2_missing_title" = "Some photos aren't backed up";
 "help2_missing_body" = "In Photos, choose the Not Backed Up view to see which ones. The Needs You view lists photos that need you, with the reason and what to do.\n\nBackupDuck can only back up photos it may read. If you allowed only some photos, change it to All Photos in the Settings app.";
 "help2_live_title" = "A Live Photo can't be saved to Photos";
-"help2_live_body" = "Some Live Photos come in a format the Pixel's Photos can't store as is. They are kept safely on the Pixel.\n\nYou can convert them and save them to Photos; the video part loses some quality.";
+"help2_live_body" = "The Pixel’s Photos can’t save these Live Photos as they are, but they are kept safely on the Pixel.\n\nTo save them to Photos, open BackupDuck › Settings › Advanced Settings › Format Conversion on the Pixel. Converting reduces the quality of the video part a little.";
 "help2_stopped_title" = "Backup stopped";
 "help2_stopped_body" = "Backup says why: paused, can't reach the Pixel, out of space, or no access to photos. Follow what that card says.\n\nIf you swiped BackupDuck away, open it again so it can continue in the background.";
 "notify_unreachable_title" = "Can't reach %@ for a day";
@@ -878,6 +878,7 @@
 "folders_back_up_remaining" = "Back Up Remaining Photos";
 "folders_back_up_selected" = "Back Up Selected";
 "folders_stop_title" = "Stop Backing Up This Folder…";
+"folders_stop_button" = "Stop Backing Up This Folder";
 "folders_stop" = "Stop Backing Up";
 "folders_stop_question" = "Stop backing up “%@”?";
 "folders_stop_note" = "New photos in this folder will no longer be backed up. Files on your Mac and photos already in the Pixel’s Photos won’t be deleted.";
@@ -980,8 +981,8 @@
 
 "scope_selection_album" = "%@ album";
 "scope_selection_albums" = "%@ albums";
-"scope_selection_photo" = "%@ photo";
-"scope_selection_photos" = "%@ photos";
+"scope_selection_photo" = "%@ item";
+"scope_selection_photos" = "%@ items";
 
 // Selected backup: durable intent and in-place toolbar feedback.
 "selection_backup_count" = "Back Up %d Photos";
@@ -1010,7 +1011,7 @@
 "settings_author_placeholder" = "Design preview only: a short personal note from the author will appear here.";
 "settings_privacy" = "Privacy";
 "settings_privacy_promise" = "Photos travel only between your own devices and BackupDuck has no cloud of its own.";
-"settings_source_licenses" = "Open Source & Licenses";
+"settings_source_licenses" = "Source Code & Licenses";
 "settings_source_code" = "Source Code";
 "settings_source_license_note" = "BackupDuck’s source is available under the PolyForm Noncommercial license. It permits noncommercial use; commercial use requires separate permission.";
 "settings_license" = "License";
@@ -1076,8 +1077,8 @@
 "diagnostics_export_failed" = "Export failed. Tap to retry · JSON";
 "diagnostics_file_saved" = "Exported: %@";
 "records_toolbar_scope" = "%1$@ · %2$@ photos";
-"diagnostics_event_sender_started" = "Backup service started";
-"diagnostics_event_sender_ready" = "Backup queue ready";
+"diagnostics_event_sender_started" = "Backup started";
+"diagnostics_event_sender_ready" = "Ready to back up photos";
 "diagnostics_event_source_location_restored" = "Original location restored";
 "diagnostics_event_receiver_started" = "Receiving started";
 "diagnostics_event_settings_changed" = "Settings saved";
@@ -1095,7 +1096,7 @@
 "diagnostics_event_capacity" = "Receiving device storage full";
 "diagnostics_event_busy" = "Receiving device busy";
 "diagnostics_event_authentication" = "Device connection needs authentication";
-"diagnostics_event_integrity" = "Photo verification failed";
+"diagnostics_event_integrity" = "Photo did not arrive in full";
 "diagnostics_event_source_unavailable" = "Original unavailable";
 "diagnostics_event_unsupported" = "Operation unsupported";
 "diagnostics_event_invalid_input" = "Invalid input";
@@ -1111,11 +1112,11 @@
 "diagnostics_event_app_background" = "App moved to background";
 "diagnostics_event_app_foreground" = "App moved to foreground";
 "diagnostics_event_background_time_expired" = "Background execution time ended";
-"diagnostics_event_upload_submitted" = "Upload request submitted";
-"diagnostics_event_commit_submitted" = "Verification request submitted";
-"diagnostics_event_manifest_submitted" = "Photo manifest submitted";
-"diagnostics_event_request_completed" = "Transfer request completed";
-"diagnostics_event_request_failed" = "Transfer request failed";
+"diagnostics_event_upload_submitted" = "Photo transfer started";
+"diagnostics_event_commit_submitted" = "Checking that the photo arrived in full";
+"diagnostics_event_manifest_submitted" = "Photos selected for backup submitted";
+"diagnostics_event_request_completed" = "Photo transfer completed";
+"diagnostics_event_request_failed" = "Photo could not reach the Pixel";
 "diagnostics_event_request_waiting_network" = "Transfer waiting for network";
 "diagnostics_event_background_events_finished" = "Background events processed";
 "diagnostics_event_background_session_wake" = "Background transfer woke the app";
@@ -1123,10 +1124,10 @@
 "diagnostics_event_processing_schedule_rejected" = "Background scheduling declined";
 "diagnostics_event_dispatch_waiting" = "Waiting for the next request";
 "diagnostics_event_processing_expired" = "Background scan time ended";
-"diagnostics_event_history_scan_started" = "Earlier-photo scan started";
-"diagnostics_event_history_scan_paused" = "Earlier-photo scan paused";
-"diagnostics_event_history_scan_resumed" = "Earlier-photo scan resumed";
-"diagnostics_event_history_scan_finished" = "Earlier-photo scan finished";
+"diagnostics_event_history_scan_started" = "Started looking through earlier photos";
+"diagnostics_event_history_scan_paused" = "Paused looking through earlier photos";
+"diagnostics_event_history_scan_resumed" = "Resumed looking through earlier photos";
+"diagnostics_event_history_scan_finished" = "Finished looking through earlier photos";
 "diagnostics_event_receiver_address_updated" = "Receiving device address updated";
 "diagnostics_event_bundle_submitted" = "Photo transfer submitted";
 "diagnostics_event_processing_finished" = "Background preparation finished";
@@ -1165,7 +1166,7 @@
 
 "diagnostics_recent" = "Recent activity";
 
-"diagnostics_export_action" = "Export…";
+"diagnostics_export_action" = "Export";
 "diagnostics_other_activity" = "Other activity";
 "diagnostics_event_originals_reclaimed" = "Saved originals removed from this device";
 "diagnostics_event_relay_originals_reclaimed" = "Saved relay copies removed";
@@ -1174,3 +1175,70 @@
 "library_review_selected" = "Selected";
 "library_review_not_selected" = "Not selected";
 "library_review_backup_count" = "Back Up %d Photos";
+
+// Connection access recovery
+"connect_connecting" = "Connecting to your Pixel…";
+"connect_wireless_access" = "BackupDuck can’t use the wireless network. In Settings, allow BackupDuck to use “Wireless Data”, then try again.";
+"connect_local_access" = "BackupDuck can’t access the local network. Turn on “Local Network” in Settings, then try again.";
+"connect_network_unavailable" = "Can’t reach the Pixel. Make sure your iPhone and Pixel are on the same Wi‑Fi, then try again.";
+"connect_failed" = "Couldn't connect to your Pixel";
+
+"hub_earlier_saved_progress" = "Saved to the Pixel’s Photos: %@ of %@ items";
+
+"hub_earlier_counting" = "Counting earlier photos…";
+
+"hub_earlier_paused" = "Paused";
+
+"hub_earlier_pause" = "Pause";
+
+"hub_earlier_resume" = "Resume";
+
+"hub_not_paired_note_mac" = "Your photos are kept on your Pixel.\nAfter connecting, BackupDuck will ask to access your Mac’s photo library.";
+
+"records_clear_filter" = "Show All Backup History";
+
+"onboarding_choose_learn_more" = "Learn About Freeing Up Space";
+
+"onboarding_sender_photos" = "Photo Library";
+
+"settings_third_party_licenses" = "Third-Party Software";
+
+"hub_help_local_network" = "Allow BackupDuck in Settings › Privacy & Security › Local Network";
+
+"help2_offline_body_mac" = "Check in this order:\n• Allow BackupDuck in System Settings › Privacy & Security › Local Network.\n• Keep Mac and Pixel on the same Wi‑Fi. Guest networks can block the connection.\n• Keep the Pixel on with BackupDuck running.\n• If you use a firewall, check that it allows BackupDuck. Try again with your VPN off.\n\nNew photos wait and continue automatically when the Pixel is back.";
+
+"help2_faster_body_mac" = "Keep Mac and Pixel on the same Wi‑Fi, with the Pixel plugged in.\n\nKeep your Mac awake and BackupDuck running during a large backup. Overview shows progress and lets you pause sending.";
+
+"help2_switch_body_mac" = "Go to Settings › Devices › Connect a Different Pixel. Display the code on your Mac, then scan it with BackupDuck on the new Pixel.\n\nPhotos already saved on the old Pixel stay there.";
+
+"help2_some_body_mac" = "Go to Settings › Auto Backup and choose Media Types and Albums.\n\nEarlier Photos on Overview shows the progress of existing work. Manage folder backup scope in Settings › Folders.";
+
+"help2_space_body_mac" = "When your Pixel is almost full, tap “Free up space” in Google Photos on the Pixel to remove photos already backed up to the cloud.\n\nYou can also turn on system Smart Storage in BackupDuck › Settings › Storage on the Pixel to handle this automatically.\n\nPhotos on your Mac are not affected.";
+
+"help2_stopped_body_mac" = "Overview says why: paused, can’t reach the Pixel, out of space, or no photo access. Follow the action on that card.\n\nQuitting BackupDuck stops backups. Open it again to continue.";
+
+"help2_confirm_body_mac" = "Open a photo and click Info to see when it reached the Pixel and when it was saved to the Pixel’s Photos.\n\n“All your photos are in the Pixel’s Photos” on Overview means those photos have been saved there.\n\nGoogle Photos cloud backup happens on the Pixel. BackupDuck cannot see it; check Google Photos on the Pixel.";
+
+"help2_missing_body_mac" = "Open Needs You in Backup History to see causes and recovery actions.\n\nBackupDuck can only back up photos it may read. Manage photo access in System Settings › Privacy & Security › Photos. For an unavailable folder, check that its external drive is connected.";
+
+"hub_earlier_waiting_confirmation" = "Waiting for the Pixel’s Photos confirmation";
+
+"device_connection_unknown" = "Connection not checked";
+
+"hub_help_local_network_mac" = "Allow BackupDuck in System Settings › Privacy & Security › Local Network; check firewall allowance too.";
+
+"onboarding_photos_body" = "Photo access lets you back up the photos and videos you choose to your Pixel.";
+
+"folders_location" = "Location";
+
+"folders_rules_all" = "All supported photos and videos";
+
+"folders_rules_count" = "%d include rules · %d skip rules";
+
+"updates_background" = "Checks for updates in the background";
+
+"about_tagline" = "Back up photos to your own Pixel";
+
+"settings_third_party_unavailable" = "Third-party software could not be loaded. Reopen this page to try again.";
+
+"hub_problem_review_action" = "Review";

@@ -45,14 +45,10 @@ internal fun devicePeers(peers: org.json.JSONArray?): List<DevicePeer> =
             peer.optString("device_type").takeUnless { it.isBlank() || it == "null" }, peer.optLong("last_seen"), peer.optBoolean("enabled", true))
     }
 
-/** "Last connected today 10:42", or nothing when the device has not connected yet. */
+/** The recorded connection time, using the localized date/time skeleton without a weekday. */
 internal fun lastConnected(context: android.content.Context, peer: DevicePeer): String? {
     if (peer.lastSeenSec <= 0) return null
-    val time = shortTime(context, peer.lastSeenSec * 1000)
-    // "Today" heads a day group; inside a sentence it reads "last connected today".
-    val relative = listOf(R.string.photos_today, R.string.photos_yesterday).map { context.getString(it) }.any { time.startsWith(it) }
-    val sentence = if (relative && context.resources.configuration.locales[0].language == "en") time.replaceFirstChar { it.lowercase() } else time
-    return context.getString(R.string.devices_last, sentence)
+    return context.getString(R.string.devices_last, formatted(context, "MMMdjm", peer.lastSeenSec * 1000))
 }
 
 /**
@@ -90,6 +86,24 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
         }
     }
     fun stop() { work?.cancel(); work = null; secureWindow.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+
+    /** Settings returns do not deliver a permission callback. Re-read access on resume. */
+    fun resume() {
+        if (surface != "connect-mac" || macMessage != R.string.connect_camera_off || waitingForScan) return
+        if (androidx.core.content.ContextCompat.checkSelfPermission(activity, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // Clear the stale denial before opening the camera, so cancellation cannot relaunch it.
+            showMac(null)
+            waitingForScan = true
+            scan(::scanned)
+        }
+    }
+
+    /** First run owns its outer steps; this flow owns the Mac direction inside Connect. */
+    fun back(): Boolean = when (surface) {
+        "connect-mac", "connected" -> { showCode(); true }
+        "connecting" -> { showMac(null); true }
+        else -> false
+    }
 
     private fun reset() {
         stop(); content.removeAllViews()
@@ -232,6 +246,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 
     private fun heading(text: String) = content.addView(activity.lookText(text, M.style.TextAppearance_Material3_HeadlineSmall).apply {
         gravity = Gravity.CENTER_HORIZONTAL; isAccessibilityHeading = true
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
     }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_medium); bottomMargin = activity.token(R.dimen.duck_space_x_small) })
 
     private fun line(text: String, appearance: Int, center: Boolean = false): TextView =
@@ -278,6 +293,7 @@ internal class ConnectPage(activity: MainActivity, scan: ((String?) -> Unit) -> 
         state.putAll(initialState)
         flow.restore(initialState)
         saveState = { flow.snapshot() }
+        resumed = { flow.resume() }
         setOnDismissListener { flow.stop(); closed() }
     }
 }
@@ -337,7 +353,11 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
         }
     }
 
-    private fun icon(peer: DevicePeer) = if (peer.computer) R.drawable.ic_computer else R.drawable.ic_receiver
+    private fun icon(peer: DevicePeer) = when {
+        peer.computer -> R.drawable.ic_computer
+        peer.kind?.contains("ipad", ignoreCase = true) == true -> R.drawable.ic_tablet
+        else -> R.drawable.ic_receiver
+    }
 
     /** One device: what it is, when it last connected, and the one thing the user can change. */
     private fun device(peer: DevicePeer): Unit = with(activity) {

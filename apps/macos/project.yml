@@ -41,10 +41,12 @@ targetTemplates:
           export PATH="$HOME/.cargo/bin:$PATH"
           export CARGO_PROFILE_RELEASE_STRIP=none
           cd "$SRCROOT/../.."
+          cargo fetch --locked
           export MACOSX_DEPLOYMENT_TARGET=14.0
           case "$TARGET_NAME" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac
           cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
           cp target/aarch64-apple-darwin/release/libbackupduck_native.a "$BUILT_PRODUCTS_DIR/"
+          python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
 targets:
   BackupDuck:
     templates: [MacHost]
@@ -53,6 +55,7 @@ targets:
         excludes: [Info.plist, StoreInfo.plist, Store.entitlements]
       - path: ../apple/Shared
       - path: ../apple/Resources
+        excludes: ["ThirdPartyNotices-ios.txt", "ThirdPartyNotices-mac.txt"]
     dependencies:
       - framework: ../../build/dependencies/sparkle/Sparkle.framework
         embed: true
@@ -62,7 +65,12 @@ targets:
         CODE_SIGN_IDENTITY: '-'
   BackupDuckStore:
     templates: [MacHost]
-    sources: *app_sources
+    sources:
+      - path: BackupDuck
+        excludes: [Info.plist, StoreInfo.plist, Store.entitlements]
+      - path: ../apple/Shared
+      - path: ../apple/Resources
+        excludes: ["ThirdPartyNotices-ios.txt", "ThirdPartyNotices-mac-sparkle.txt"]
     settings:
       base:
         PRODUCT_NAME: BackupDuck
@@ -80,7 +88,7 @@ targets:
         excludes: [Info.plist, StoreInfo.plist, Store.entitlements, MacAppMain.swift]
       - path: ../apple/Shared
       - path: ../apple/Resources
-        excludes: ["*.lproj/InfoPlist.strings"]
+        excludes: ["*.lproj/InfoPlist.strings", "ThirdPartyNotices-ios.txt", "ThirdPartyNotices-mac-sparkle.txt"]
       - path: Catalog
         excludes: [Info.plist]
       - path: ../apple/Catalog

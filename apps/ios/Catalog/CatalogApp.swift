@@ -13,6 +13,8 @@ import UserNotifications
     BackupEnvironment.core = Self.core
     BackupEnvironment.credentials = Self.credentials
     BackupEnvironment.discoversReceivers = false
+    BackupEnvironment.usesNetwork = false
+    BackupEnvironment.usesCamera = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
     // The catalog never asks for photo access; scenarios behave as if it was granted.
@@ -38,7 +40,18 @@ private struct CatalogHome: View {
   @State private var failure: String?
   @State private var open: Scenario?
 
+  private var directLaunch: Bool { ProcessInfo.processInfo.arguments.contains("-scenario") }
+
   var body: some View {
+    Group {
+      if directLaunch, let open { ScenarioStage(scenario: open) }
+      else { home }
+    }
+    .onAppear(perform: load)
+    .task { await CatalogNotificationProbe.runIfRequested() }
+  }
+
+  private var home: some View {
     NavigationStack {
       List {
         if let failure { Text(failure).foregroundStyle(.red) }
@@ -59,8 +72,9 @@ private struct CatalogHome: View {
       }
       .navigationTitle("Design catalog")
     }
-    .onAppear(perform: load)
-    .fullScreenCover(item: $open) { scenario in ScenarioStage(scenario: scenario) }
+    .fullScreenCover(item: Binding(get: { directLaunch ? nil : open }, set: { open = $0 })) { scenario in
+      ScenarioStage(scenario: scenario)
+    }
   }
 
   private func row(_ scenario: Scenario) -> some View {
@@ -83,6 +97,33 @@ private struct CatalogHome: View {
       }
     } catch { failure = error.localizedDescription }
   }
+}
+
+/// Reads existing authorization only. An authorized Catalog can show the exact
+/// production notification payload in a system banner without changing grants.
+@MainActor private final class CatalogNotificationProbe: NSObject, UNUserNotificationCenterDelegate {
+  static let shared = CatalogNotificationProbe()
+  static func runIfRequested() async {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let index = arguments.firstIndex(of: "-notification-probe"),
+      arguments.indices.contains(index + 1),
+      let notice = BackupNotifier.Notice(rawValue: arguments[index + 1]) else { return }
+    let center = UNUserNotificationCenter.current()
+    let status = await center.notificationSettings().authorizationStatus
+    var evidence: [String: Any] = ["authorization": status.rawValue, "requestedPermission": false, "notice": notice.rawValue]
+    if status == .authorized || status == .provisional {
+      center.delegate = shared
+      let request = BackupNotifier(catalogAuthorization: status).request(notice,
+        receiver: "catalog-pixel", name: "Pixel 8 Pro", conversions: 3)
+      do { try await center.add(request); evidence["submitted"] = true }
+      catch { evidence["error"] = error.localizedDescription }
+    } else { evidence["submitted"] = false }
+    let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys])
+      .write(to: directory.appendingPathComponent("catalog-notification-probe.json"))
+  }
+  nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .list] }
 }
 
 /// One scenario in the production tab chrome. Restarting removes the run, which
@@ -116,7 +157,7 @@ private struct ScenarioStage: View {
         CatalogRowMeasurements.write()
       }
       .overlay(alignment: .bottomTrailing) {
-        if !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" && !scenario.id.hasPrefix("diagnostics.") {
+        if !ProcessInfo.processInfo.arguments.contains("-capture") && !["photoInformation", "photoViewer"].contains(scenario.step ?? "") && scenario.page != "onboarding" && !scenario.id.hasPrefix("diagnostics.") {
         // Above the tab bar, clear of navigation bar items.
         Button { info = true } label: {
           Image(systemName: "info.circle.fill").font(.title2)
@@ -157,7 +198,11 @@ private struct ScenarioStage: View {
     let notifier = BackupEnvironment.activeNotifier()
     let result: [String: Any] = ["rows": rows, "authorization": notifier.authorization.rawValue,
       "permissionRequests": notifier.permissionRequests, "settingsRequests": notifier.settingsRequests,
-      "usesSystem": notifier.usesSystem]
+      "usesSystem": notifier.usesSystem,
+      "networkingStarted": BackupEnvironment.activeModel().networkingStarted,
+      "backgroundSessionStarted": BackgroundTransfer.shared.sessionStarted,
+      "diagnosticsMonitoring": TransferDiagnostics.shared.monitoring,
+      "coreCommands": CatalogApp.core.commands]
     if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
       let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
       try? data.write(to: directory.appendingPathComponent("catalog-row-measurements.json"), options: .atomic)
@@ -171,6 +216,8 @@ private struct ScenarioRun: View {
   @StateObject private var library: PhotoLibraryModel
   @State private var tab: IOSAppTab
   @State private var scopeFixture: ScopeCatalogFixture?
+  @State private var hubNotification: BackupNotifier.Route?
+  @State private var showingLiveHelp = false
 
   init(scenario: Scenario) {
     self.scenario = scenario
@@ -188,7 +235,12 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.step == "selectionReview" {
+    if scenario.step == "photoAccessDenied" || scenario.step == "photoAccessRestricted" {
+      NavigationStack {
+        LibraryPlaceholder(kind: .permission(scenario.step == "photoAccessDenied" ? .denied : .restricted))
+          .background(DuckRole.background).navigationTitle("nav_photos")
+      }
+    } else if scenario.step == "selectionReview" {
       SelectionReviewCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "open", model: model,
         appearance: catalogViewerStyle(scenario))
         .ignoresSafeArea()
@@ -202,7 +254,7 @@ private struct ScenarioRun: View {
       LiveActivityCatalogPage(model: model, stale: scenario.id.hasSuffix(".stale"))
         .task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "connect" {
-      IOSConnectSheet(model: model, reconnect: scenario.step == "reconnect").task { await model.open() }.onDisappear { model.stop() }
+      IOSConnectSheet(model: model, reconnect: scenario.step == "reconnect", scanner: scenario.scannerState()).task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.page == "onboarding" {
       OnboardingCatalog(scenario: scenario, model: model)
         .task { await model.open() }
@@ -221,7 +273,10 @@ private struct ScenarioRun: View {
     .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
     .background(DuckRole.background.ignoresSafeArea())
     .tint(DuckRole.accent)
-    .task { await model.open() }
+    .task {
+      await model.open()
+      if ProcessInfo.processInfo.arguments.contains("-cache-action") { await model.reclaimCache() }
+    }
     .onDisappear { model.stop() }
   }
 
@@ -236,10 +291,17 @@ private struct ScenarioRun: View {
         .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
     case .backup where "\(item)" == scenario.page:
       // With a library scenario the hub opens the library's backup views (design/library.md).
-      IOSHub(model: model, records: scenario.records, showLibrary: scenario.library == nil ? nil : { view in
+      IOSHub(model: model, records: scenario.records, notification: $hubNotification, showLibrary: scenario.library == nil ? nil : { view in
         tab = .library
         Task { await library.changeBackupView(view) }
       })
+      .sheet(isPresented: $showingLiveHelp) { LivePhotoHelpSheet() }
+      .task(id: model.pairing?.receiverID) {
+        if scenario.step == "liveHelp" { showingLiveHelp = true }
+        if scenario.step == "offlineHelp", let receiver = model.pairing?.receiverID {
+          hubNotification = BackupNotifier.Route(notice: .unreachable, receiver: receiver)
+        }
+      }
     case .settings where "\(item)" == scenario.page:
       if scenario.id.hasPrefix("diagnostics.") {
         IOSDiagnosticsCatalog(model: model, page: scenario.step)
@@ -513,8 +575,10 @@ private struct OnboardingCatalog: View {
   let scenario: Scenario
   @ObservedObject var model: BackupModel
   @StateObject private var progress: IOSFirstRunProgress
+  @StateObject private var scanner: IOSPixelScannerState
   init(scenario: Scenario, model: BackupModel) {
     self.scenario = scenario; self.model = model
+    _scanner = StateObject(wrappedValue: scenario.scannerState())
     let arguments = ProcessInfo.processInfo.arguments
     let session = arguments.firstIndex(of: "-onboarding-session").flatMap { index in
       arguments.indices.contains(index + 1) ? arguments[index + 1] : nil
@@ -540,9 +604,23 @@ private struct OnboardingCatalog: View {
       if progress.record?.completed == true {
         IOSHub(model: model).modifier(IOSFirstRunNotificationInvitation(progress: progress, model: model))
       } else {
-        IOSOnboarding(model: model, progress: progress)
+        IOSOnboarding(model: model, progress: progress, scanner: scanner)
       }
     }
+  }
+}
+
+extension Scenario {
+  @MainActor func scannerState() -> IOSPixelScannerState {
+    let state = IOSPixelScannerState()
+    if let cameraFailure { state.cameraFailure = cameraFailure == "permission" ? .permission : .unavailable }
+    if let connectionFailure, let failure = ConnectAccessFailure(rawValue: connectionFailure) {
+      state.scanError = failure.localizedDescription
+      state.connectionNeedsSettings = true
+      // Retains a synthetic code for an explicit retry; never contacts a peer.
+      state.payload = #"{"version":2,"receiver_id":"catalog-pixel","endpoint":"https://127.0.0.1:1","certificate":"fixture","token":"fixture"}"#
+    }
+    return state
   }
 }
 
@@ -603,6 +681,7 @@ private final class SelectionReviewSample: UIViewController {
   let photos = (0..<48).map(SelectionReviewAsset.init)
   let calendar = CalendarGridController()
   override var navigationItem: UINavigationItem { calendar.navigationItem }
+  override var childForStatusBarStyle: UIViewController? { calendar }
   private var observation: AnyCancellable?
   private var opened = false
   init(mode: String, model: BackupModel, appearance: UIUserInterfaceStyle) {
@@ -653,9 +732,11 @@ private final class SelectionReviewSample: UIViewController {
       CalendarGridAsset(id: $0.localIdentifier, date: $0.creationDate,
         aspect: CGFloat($0.pixelWidth) / CGFloat(max(1, $0.pixelHeight)))
     })
-    calendar.selecting = true
+    let arguments = ProcessInfo.processInfo.arguments
+    let startZoom = arguments.firstIndex(of: "-start-zoom").flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+    calendar.selecting = startZoom == nil
     let ids = Set(stride(from: 1, to: 48, by: 4).map { photos[$0].localIdentifier })
-    calendar.selected = ids; library.selection = ids
+    calendar.selected = startZoom == nil ? ids : []; library.selection = calendar.selected
     refresh()
     observation = action.objectWillChange.sink { [weak self] in
       DispatchQueue.main.async { self?.refresh() }
@@ -667,7 +748,10 @@ private final class SelectionReviewSample: UIViewController {
     guard !opened else { return }; opened = true
     // Include system-owned sheet chrome in the Catalog's app-only appearance.
     view.window?.overrideUserInterfaceStyle = appearance
-    if mode != "selected" {
+    let arguments = ProcessInfo.processInfo.arguments
+    if let flag = arguments.firstIndex(of: "-start-zoom"), arguments.indices.contains(flag + 1) {
+      calendar.changeLevel(arguments[flag + 1] == "years" ? .years : .months, asset: photos.count - 1, from: nil)
+    } else if mode != "selected" {
       calendar.reviewSelection()
       calendar.selectionReview?.navigationController?.overrideUserInterfaceStyle = appearance
       if mode == "deselected", let review = calendar.selectionReview, let first = review.assets.first {

@@ -33,6 +33,8 @@ struct Scenario: Identifiable {
   /// The records list to open from the hub: all, active, attention or saved.
   let records: String?
   let notificationAuthorization: String?
+  let cameraFailure: String?
+  let connectionFailure: String?
   /// Photo access the scenario reports: full (default), limited, denied or undetermined.
   let photoAccess: PhotoAccess
   let title: String
@@ -98,6 +100,8 @@ struct Scenario: Identifiable {
     step = object["step"] as? String
     records = object["records"] as? String
     notificationAuthorization = object["notification_authorization"] as? String
+    cameraFailure = object["camera_failure"] as? String
+    connectionFailure = object["connection_failure"] as? String
     photoAccess = PhotoAccess(rawValue: object["photo_access"] as? String ?? "") ?? .full
     title = object["title"] as? String ?? id
     expect = object["expect"] as? [String] ?? []
@@ -116,7 +120,15 @@ struct Scenario: Identifiable {
     // in a scenario stays today whenever it is reviewed.
     let shift = (object["now_ms"] as? NSNumber).map { Int64(Date().timeIntervalSince1970 * 1000) - $0.int64Value } ?? 0
     library = object["library"] as? [String: Any]
-    let shiftedCore = Scenario.shifted(object["core"], by: shift)
+    var sourceCore = object["core"]
+    #if os(macOS)
+    if var answers = sourceCore as? [String: Any], var reply = answers["device_status"] as? [String: Any],
+      var value = reply["value"] as? [String: Any], var device = value["device"] as? [String: Any] {
+      device["name"] = "Lin’s MacBook Pro"
+      value["device"] = device; reply["value"] = value; answers["device_status"] = reply; sourceCore = answers
+    }
+    #endif
+    let shiftedCore = Scenario.shifted(sourceCore, by: shift)
     let mediaCore = library == nil ? SampleImages.fillingDates(shiftedCore) : shiftedCore
     core = (mediaCore as? [String: Any] ?? [:]).mapValues { entry in
       (entry as? [Any] ?? [entry]).map { item in
@@ -150,11 +162,15 @@ extension Scenario {
     }
   }
 
+  private var coreConnectionError: String? { core["check_pairing"]?.first?.error }
+
   /// Installs this scenario's answers and pairing, seeds its host files in a new
   /// folder and returns an unopened model for it. Each run gets a fresh model.
   @MainActor func makeModel(core: ScenarioCore, credentials: ScenarioCredentials) -> BackupModel {
     core.load(self)
     credentials.load(self)
+    // Synthetic connection facts must not be overwritten by a disabled OS monitor.
+    BackupEnvironment.restoresSenderNetwork = { false }
     let access = photoAccess
     BackupEnvironment.photoAccess = { access }
     #if os(macOS)
@@ -173,6 +189,9 @@ extension Scenario {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("catalog/\(id)-\(UUID().uuidString)", isDirectory: true)
     let model = BackupModel(root: root)
+    let connectionError = coreConnectionError
+    model.receiverConnection = connectionError == nil ? .ready : connectionError == "authentication" ? .authentication : .network
+    model.receiverUnavailable = connectionError != nil
     do {
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
       for (name, data) in files { try data.write(to: root.appendingPathComponent(name), options: .atomic) }

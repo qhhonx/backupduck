@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// What the backup hub says at the top (design/flows.md § Every day and § When
 /// something goes wrong). One state, said once; a problem outranks progress.
@@ -111,6 +112,35 @@ extension BackupHubStatus {
       case .conversionNeeded(let count): return String(format: text("hub_problem_convert"), count.formatted())
       case .photosNeedYou(let count): return String(format: text("hub_problem_photos_need_you"), count.formatted())
       }
+    }
+  }
+}
+
+/// Identity chrome never projects backup results.
+extension ReceiverConnection {
+  var identityTone: Color {
+    switch self {
+    case .ready: DuckRole.saved
+    case .unknown: DuckRole.secondaryText
+    case .network, .authentication, .unavailable: DuckRole.attention
+    }
+  }
+  var identityLabel: String {
+    switch self {
+    case .ready: NSLocalizedString("device_connected_now", comment: "")
+    case .unknown: NSLocalizedString("device_connection_unknown", comment: "")
+    case .network, .authentication, .unavailable: NSLocalizedString("device_unreachable", comment: "")
+    }
+  }
+}
+
+extension BackupHubStatus {
+  /// Only an attention card replaces the matching attention summary. An offline
+  /// card must not hide other photos that still need the person.
+  var showsAttentionDetails: Bool {
+    switch self {
+    case .problem(.conversionNeeded), .problem(.photosNeedYou): true
+    default: false
     }
   }
 }

@@ -1,0 +1,7 @@
+{
+  "id": "settings.third-party-licenses",
+  "extends": "base-paired",
+  "page": "settings",
+  "step": "thirdPartyLicenses",
+  "title": "settings.third-party-licenses"
+}
