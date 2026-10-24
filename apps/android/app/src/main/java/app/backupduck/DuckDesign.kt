@@ -35,7 +35,7 @@ internal fun Context.duckDiscoveryDot() = View(this).apply {
 /** Attention and discovery share geometry and placement; their meaning and role differ. */
 internal fun View.setDuckEntryMark(attention: Boolean) {
     tag = if (attention) "duck.attention" else "duck.discovery"
-    background = context.duckBackground(if (attention) R.color.duck_state_attention else R.color.duck_brand_duck_yellow, 4, false)
+    background = context.duckBackground(if (attention) R.color.duck_role_attention_glyph else R.color.duck_brand_duck_yellow, 4, false)
 }
 internal fun Context.duckPill(text: String, color: Int = R.color.duck_role_secondary_text, backgroundColor: Int = R.color.duck_role_elevated_surface) = duckText(text, 12, bold = true).apply {
     tag = "duck.pill"; gravity = Gravity.CENTER_VERTICAL
@@ -188,8 +188,8 @@ internal class DuckField(context:Context,label:String,value:String="",numeric:Bo
         box.addView(input,LinearLayout.LayoutParams(-1,-2));view.addView(box,LinearLayout.LayoutParams(-1,-2))
     }
 }
-internal fun Context.duckWarning(parent:LinearLayout,title:String,description:String?=null):View = duckMessageRow(title,description,R.drawable.ic_alert,R.color.duck_state_attention).apply {
-    background=duckBackground(R.color.duck_state_attention_container,12,false);setPadding(dp(12),dp(12),dp(12),dp(12))
+internal fun Context.duckWarning(parent:LinearLayout,title:String,description:String?=null):View = duckMessageRow(title,description,R.drawable.ic_alert,R.color.duck_role_attention_glyph).apply {
+    background=duckBackground(R.color.duck_role_grouped_surface,12,false);setPadding(dp(12),dp(12),dp(12),dp(12))
     parent.addView(this,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(16);bottomMargin=dp(16)})
 }
 internal fun Context.duckProblem(parent:LinearLayout,message:String):View=duckFailure(parent,message).apply {visibility=View.VISIBLE}

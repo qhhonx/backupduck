@@ -35,6 +35,7 @@
     <color name="duck_m3_inverse_on_surface">#2F3036</color>
     <color name="duck_m3_outline">#8F9099</color>
     <color name="duck_m3_outline_variant">#44464F</color>
+    <color name="duck_role_attention_glyph">#FF9F0A</color>
     <color name="duck_state_saved">#83D8A8</color>
     <color name="duck_state_saved_container">#314D3C</color>
     <color name="duck_state_on_saved_container">#9FF5C2</color>

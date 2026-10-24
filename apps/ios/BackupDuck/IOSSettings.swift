@@ -116,7 +116,7 @@ struct IOSSettings: View {
   /// The engine failed to open: the cause and one action, said once (I3).
   private var openFailedCard: some View {
     Section {
-      DuckStateCard(symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention, title: Text("settings_open_failed"),
+      DuckStateCard(symbol: "exclamationmark.triangle.fill", tone: DuckRole.attentionGlyph, title: Text("settings_open_failed"),
         note: model.message.flatMap { $0 == NSLocalizedString("pairing_unlock_wait", comment: "") ? nil : Text($0) }, action: {
         DuckTintedButton("retry_task") {
           guard !retrying else { return }

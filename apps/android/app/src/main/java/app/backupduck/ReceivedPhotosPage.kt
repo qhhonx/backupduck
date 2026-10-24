@@ -464,7 +464,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         }
         fun bind(group: CauseGroup) {
             currentGroup = group
-            card.show(LookState(if (group.cause == PhotoCause.LIVE_PHOTO) R.drawable.ic_motion else R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), causeTitle(activity, group), activity.getString(causeNote(group.cause)),
+            card.show(LookState(if (group.cause == PhotoCause.LIVE_PHOTO) R.drawable.ic_motion else R.drawable.ic_alert, activity.getColor(R.color.duck_role_attention_glyph), causeTitle(activity, group), activity.getString(causeNote(group.cause)),
                 action = activity.getString(if (group.cause == PhotoCause.LIVE_PHOTO) R.string.photos_view else R.string.photos_try_again) to {
                     currentGroup?.let { current -> card.actionButton?.let { cardAction(current, it) } }
                 }))
@@ -562,7 +562,7 @@ private fun photoMark(context: android.content.Context, badge: ImageView, mark: 
     if (onPhoto) { badge.imageTintList = null; badge.setImageDrawable(PhotoGlyphs.drawable(this, icon, 18)) }
     else {
         badge.setImageResource(icon)
-        badge.imageTintList = ColorStateList.valueOf(getColor(if (pending) R.color.duck_role_secondary_text else R.color.duck_state_attention))
+        badge.imageTintList = ColorStateList.valueOf(getColor(if (pending) R.color.duck_role_secondary_text else R.color.duck_role_attention_glyph))
         badge.scaleType = ImageView.ScaleType.FIT_CENTER; val pad = dp(5); badge.setPadding(pad, pad, pad, pad)
     }
 }

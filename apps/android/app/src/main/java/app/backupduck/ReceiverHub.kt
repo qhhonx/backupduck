@@ -121,7 +121,7 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         // A space hint only while calm or receiving, and only when auto cleanup could help.
         val hinted = hub in setOf(ReceiverHubState.CAUGHT_UP, ReceiverHubState.WAITING, ReceiverHubState.RECEIVING) && storage.low && !cleanup
         hint.view.visibility = if (hinted) View.VISIBLE else View.GONE
-        if (hinted) hint.show(LookState(R.drawable.ic_storage, getColor(R.color.duck_state_attention),
+        if (hinted) hint.show(LookState(R.drawable.ic_storage, getColor(R.color.duck_role_attention_glyph),
             getString(R.string.rhub_space_low, Formatter.formatShortFileSize(this, storage.freeBytes)), getString(R.string.rhub_space_low_note),
             action = getString(R.string.rhub_auto_cleanup) to actions.openCleanup))
         needsYou.visibility = if (cleanupState.needsAttention) View.VISIBLE else View.GONE
@@ -146,7 +146,7 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
     }
 
     private fun card(hub: ReceiverHubState, state: ReceiverSnapshot, names: List<String>, storage: DeviceStorage, cleanup: Boolean): LookState = with(activity) {
-        val attention = getColor(R.color.duck_state_attention)
+        val attention = getColor(R.color.duck_role_attention_glyph)
         val quiet = getColor(R.color.duck_role_secondary_text)
         val accent = getColor(R.color.duck_role_accent)
         val count = { value: Int -> String.format(java.util.Locale.getDefault(), "%,d", value) }

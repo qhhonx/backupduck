@@ -158,7 +158,7 @@ The Lock Screen and Dynamic Island show a progress ring with one SF Symbol
 inside at about half the ring's diameter, one weight for every state: arrow
 up while sending, clock while saving, pause, filled triangle when the person
 is needed, check when done. Active states use the accent, needs-you uses the
-attention role, paused uses the secondary label color. Text beside the ring
+`attentionGlyph` role, paused uses the secondary label color. Text beside the ring
 states the count and the device.
 
 ## Decisions

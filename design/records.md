@@ -55,6 +55,8 @@ What BackupDuck takes:
    - arrow: sending or waiting to send
    - clock: received by the Pixel, being saved to Photos
    - exclamation: needs you (the same items as the cards)
+   - all media marks over photos are white with a soft shadow (V5); attention
+     icons in cause cards and photo facts use `attentionGlyph`
 3. No filters, sort menu or status guide. The header line states the scope:
    "1,284 photos backed up to Pixel 8 Pro".
 

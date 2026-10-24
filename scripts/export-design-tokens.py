@@ -56,6 +56,7 @@ def tonal(source, tone_set):
 
 ACCENT = tonal(PRIMARIES[TOKENS['accent']['seed']], 'accent')
 ACCENT_FILL = tonal(PRIMARIES[TOKENS['accent']['seed']], 'accentFill')
+ATTENTION_GLYPH = TOKENS['attentionGlyph']['values']
 STATES = {name: {part: tonal(spec['source'], part) for part in ('foreground', 'container', 'onContainer')}
           for name, spec in TOKENS['state'].items() if isinstance(spec, dict)}
 ILLUSTRATION = {}
@@ -103,6 +104,7 @@ def check_contrast():
         mode = 'dark' if appearance.startswith('dark') else 'light'
         minimum = 7 if appearance.endswith('IncreasedContrast') else 4.5
         for surface in web_surfaces[mode]:
+            need(f'attentionGlyph {appearance}', ATTENTION_GLYPH[appearance], surface, 3)
             need(f'accent {appearance}', ACCENT[appearance], surface, minimum)
             for name, parts in STATES.items():
                 need(f'{name} {appearance}', parts['foreground'][appearance], surface, 4.5)
@@ -115,6 +117,10 @@ def check_contrast():
             for role in ('primaryText', 'secondaryText'):
                 need(f'web {role} {mode}', NEUTRAL[role]['web'][mode], surface, 4.5)
     for index, mode in enumerate(('light', 'dark')):
+        for appearance in (mode, mode + 'IncreasedContrast'):
+            for role in ('background', 'groupedSurface'):
+                surface = SCHEME[NEUTRAL[role]['android']][index]
+                need(f'android attentionGlyph on {role} {appearance}', ATTENTION_GLYPH[appearance], surface, 3)
         for foreground, background in (('onPrimary', 'primary'), ('onSurface', 'surface'),
                                        ('onSurfaceVariant', 'surfaceContainerHigh'), ('primary', 'surfaceContainer'),
                                        ('onPrimaryContainer', 'primaryContainer'), ('onError', 'error')):
@@ -288,7 +294,9 @@ def apple():
               f'  /// {TOKENS["accent"]["meaning"]}. Used as the tint.',
               f'  static let accent = {apple_adaptive(ACCENT)}',
               f'  /// {TOKENS["accent"]["fill"]}.',
-              f'  static let accentFill = {apple_adaptive(ACCENT_FILL)}', '']
+              f'  static let accentFill = {apple_adaptive(ACCENT_FILL)}',
+              f'  /// {TOKENS["attentionGlyph"]["meaning"]}',
+              f'  static let attentionGlyph = {apple_adaptive(ATTENTION_GLYPH)}', '']
     lines.append('  #if os(macOS)')
     for name, spec in NEUTRAL.items():
         lines += [f'  /// {spec["meaning"]}.', f'  static let {name} = {apple_neutral(name, "macos")}']
@@ -303,14 +311,16 @@ def apple():
     # Native callers share dynamic colors without bridging SwiftUI per tile/frame.
     for platform, native in [('macos', 'NSColor'), ('ios', 'UIColor')]:
         lines.append('  #if os(macOS)' if platform == 'macos' else '  #else')
-        for name in ['accent', 'accentFill'] + list(NEUTRAL) + [part for name in STATES for part in (name, name + 'Container')]:
+        for name in ['accent', 'accentFill', 'attentionGlyph'] + list(NEUTRAL) + [part for name in STATES for part in (name, name + 'Container')]:
             if name in NEUTRAL and not (name == 'elevatedSurface' and platform == 'ios'):
                 value = f'{native}.{NEUTRAL[name][platform]}'
             elif name == 'elevatedSurface' and platform == 'ios':
                 value = ('UIColor { traits in UIColor.systemBackground.resolvedColor(with: '
                          'traits.modifyingTraits { $0.userInterfaceLevel = .elevated }) }')
             else:
-                values = ACCENT if name == 'accent' else ACCENT_FILL if name == 'accentFill' else STATES[name[:-9] if name.endswith('Container') else name]['container' if name.endswith('Container') else 'foreground']
+                values = (ATTENTION_GLYPH if name == 'attentionGlyph' else
+                          ACCENT if name == 'accent' else ACCENT_FILL if name == 'accentFill' else
+                          STATES[name[:-9] if name.endswith('Container') else name]['container' if name.endswith('Container') else 'foreground'])
                 arguments = ', '.join(f'{appearance}: {swift_hex(values[appearance])}' for appearance in APPEARANCES)
                 value = f'DuckPalette.adaptive{native}({arguments})'
             lines.append(f'  static let {name}{native} = {value}')
@@ -416,6 +426,7 @@ def android(outputs):
         outputs[f'{ANDROID_RES}/{directory}/duck_colors.xml'] = xml(
             ['<!-- Legacy 0.3.0 palette; pages move to duck_role_* and duck_state_* colors. -->'] + legacy)
         scheme = [f'<color name="duck_m3_{snake(role)}">{values[index]}</color>' for role, values in SCHEME.items()]
+        scheme.append(f'<color name="duck_role_attention_glyph">{ATTENTION_GLYPH[theme]}</color>')
         for name, parts in STATES.items():
             scheme += [f'<color name="duck_state_{snake(name)}">{parts["foreground"][theme]}</color>',
                        f'<color name="duck_state_{snake(name)}_container">{parts["container"][theme]}</color>',

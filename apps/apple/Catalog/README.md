@@ -462,7 +462,7 @@ the shared A8 panel, including title-toggle closing after top chrome fades.
 The fixed system toolbar contains exactly two circular system buttons: Share
 leading and Info trailing. Info fills while its panel is open. State is a quiet
 mark on Info, retained while open: no mark once in the Pixel's Photos, an accent
-dot when not backed up or received but not published, and an attention dot on
+dot when not backed up or received but not published, and an `attentionGlyph` dot on
 failure. Only real partial core acknowledgement draws a thin progress ring
 around the glyph. Waiting has an accent dot, never estimated progress.
 System symbol appear/disappear and replace effects own mark/glyph changes;
@@ -520,7 +520,7 @@ window-scoped inspector value, retained while browsing. The information layout
 orders capture date/name, recorded backup facts with Back Up or Retry and
 conditional history navigation, then file details; it has no close button.
 The Info mark is absent after confirmed publication, accent for unbacked/waiting
-states, attention for failure, and a ring only for partial confirmed core bytes.
+states, `attentionGlyph` for failure, and a ring only for partial confirmed core bytes.
 The backing-up fixture supplies 1,920,000 of 4,800,000 confirmed bytes (40%).
 System symbol replacement/disappearance effects become cross-fades with Reduce
 Motion. Left/Right page, Escape/Back return to the current item, and a single
@@ -675,3 +675,13 @@ submits the production payload only when already authorized, never requesting
 or changing authorization. Mac `-status-menu-bar` inserts a temporary system
 menu-bar extra with production items and synthetic state; navigation and Quit
 are inert in that menu.
+
+### Attention glyph appearance
+
+`settings.devices-offline` opens the shared Devices page with the offline hub
+fixture. Its reachability pill and the offline hub identity dot use
+`attentionGlyph`; their labels remain neutral. Review in light and dark alongside
+`hub.offline`, `hub.conversion` and `records.toolbar-all`. Cause-card glyphs,
+photo-fact warnings and placeholder warnings use this role. Media marks over
+photos, including needs-you tile triangles, are white with soft shadows in every
+appearance (V5).

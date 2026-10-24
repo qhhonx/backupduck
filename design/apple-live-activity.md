@@ -17,7 +17,8 @@ The ring occupies the shared 48-point spacing unit, with 16-point content
 padding and 12-point gaps. Headline and subheadline use semantic styles and wrap.
 State changes retain the same slots. Unknown/stale progress shows a state glyph
 without a percentage. Saving, attention and stale states offer Open. State
-color belongs to a small glyph; titles and body text remain neutral (V1/V5).
+color belongs to a small glyph; attention and stale marks use `attentionGlyph`,
+while titles and body text remain neutral (V1/V5).
 
 Dynamic Island uses the same facts in system regions: expanded uses the
 horizontal composition; compact uses a ring and remaining count; minimal uses

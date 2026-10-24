@@ -39,7 +39,7 @@ struct DevicePage: View {
             .background(DuckRole.background, in: RoundedRectangle(cornerRadius: DuckRadius.card, style: .continuous))
             .accessibilityHidden(true)
           Text(verbatim: model.peerDevice?.name ?? "Pixel").font(.title3.weight(.semibold))
-          DuckPill(title: reachability, dot: reachable ? DuckRole.saved : DuckRole.attention)
+          DuckPill(title: reachability, dot: reachable ? DuckRole.saved : DuckRole.attentionGlyph)
         }
         .frame(maxWidth: .infinity).padding(.vertical, DuckSpacing.xSmall)
         .accessibilityElement(children: .combine)

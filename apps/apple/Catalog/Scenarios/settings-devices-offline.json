@@ -1,0 +1,10 @@
+{
+  "id": "settings.devices-offline",
+  "page": "settings",
+  "step": "devices",
+  "extends": "hub.offline",
+  "title": "Devices: Pixel not reachable",
+  "expect": [
+    "The device-status pill uses the attention glyph role; its label remains neutral."
+  ]
+}

@@ -256,7 +256,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     /** What went wrong, in the shared state card: one glyph, a neutral sentence (V1, I3 Problem). */
     private fun problem(text: String) {
         val card = StateCard(activity)
-        card.show(LookState(R.drawable.ic_alert, activity.getColor(R.color.duck_state_attention), text))
+        card.show(LookState(R.drawable.ic_alert, activity.getColor(R.color.duck_role_attention_glyph), text))
         card.view.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         content.addView(card.view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_large) })
     }

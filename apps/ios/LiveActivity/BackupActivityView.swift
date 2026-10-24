@@ -59,7 +59,7 @@ struct BackupActivityRing: View {
   var compact = false
   private var strokeWidth: CGFloat { compact ? DuckSpacing.xxSmall / 2 : DuckSpacing.xxSmall }
   private var stateColor: Color {
-    if stale || state.actionFailed || state.phase == .attention || state.phase == .waiting { return DuckRole.attention }
+    if stale || state.actionFailed || state.phase == .attention || state.phase == .waiting { return DuckRole.attentionGlyph }
     return state.phase == .paused ? DuckRole.secondaryText : DuckRole.accent
   }
   var body: some View {

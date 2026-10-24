@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -10,6 +11,31 @@ import design_color  # noqa: E402
 spec = importlib.util.spec_from_file_location('check_design_literals', SCRIPTS / 'check-design-literals.py')
 literals = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(literals)
+
+export_spec = importlib.util.spec_from_file_location('export_design_tokens', SCRIPTS / 'export-design-tokens.py')
+exporter = importlib.util.module_from_spec(export_spec)
+export_spec.loader.exec_module(exporter)
+
+
+class AttentionGlyphContrastTests(unittest.TestCase):
+    def test_current_roles_meet_their_contrast_floors(self):
+        self.assertEqual(exporter.check_contrast(), [])
+
+    def test_invisible_glyph_is_rejected_in_every_appearance(self):
+        for appearance in exporter.APPEARANCES:
+            mode = 'dark' if appearance.startswith('dark') else 'light'
+            surface = exporter.NEUTRAL['groupedSurface']['web'][mode]
+            with self.subTest(appearance=appearance), patch.dict(exporter.ATTENTION_GLYPH, {appearance: surface}):
+                failures = exporter.check_contrast()
+                self.assertTrue(any(f'attentionGlyph {appearance}:' in failure for failure in failures))
+
+    def test_android_page_and_card_are_checked_independently(self):
+        for index, mode in enumerate(('light', 'dark')):
+            for role in ('background', 'groupedSurface'):
+                surface = exporter.SCHEME[exporter.NEUTRAL[role]['android']][index]
+                with self.subTest(mode=mode, role=role), patch.dict(exporter.ATTENTION_GLYPH, {mode: surface}):
+                    failures = exporter.check_contrast()
+                    self.assertTrue(any(f'android attentionGlyph on {role} {mode}:' in failure for failure in failures))
 
 
 def matches(language, line):

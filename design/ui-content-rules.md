@@ -83,8 +83,8 @@ and upgrades, and never enables the feature or grants consent. Key this state by
 the feature introduction, not the app version. Avoid marking already visible
 routine actions or showing repeated reminders for disabled features.
 
-A required action is not a discovery: it uses the attention mark (the attention
-role, same size and place as the discovery dot) on the row that leads to it and
+A required action is not a discovery: it uses the attention mark (the
+`attentionGlyph` role, same size and place as the discovery dot) on the row that leads to it and
 on its navigation tab, and appears on the hub's Needs you, until resolved. On the
 Pixel, auto cleanup states that need the person (account changed, access off,
 result to check, failed) mark the Storage row and the Settings tab this way.

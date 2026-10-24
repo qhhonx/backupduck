@@ -36,6 +36,8 @@ enum DuckRole {
   static let accent = DuckPalette.adaptive(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
   /// Fill behind white labels on prominent buttons: one deep tone in both appearances, because the dark accent tone is tuned for text on dark surfaces.
   static let accentFill = DuckPalette.adaptive(light: 0x0A63E2, dark: 0x0A63E2, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0x004CB4)
+  /// Icons, dots and other non-text marks that signal attention; text keeps `attention`.
+  static let attentionGlyph = DuckPalette.adaptive(light: 0xD96A00, dark: 0xFF9F0A, lightIncreasedContrast: 0xB85A00, darkIncreasedContrast: 0xFFB340)
 
   #if os(macOS)
   /// Page background beneath grouped content.
@@ -93,6 +95,7 @@ enum DuckRole {
   #if os(macOS)
   static let accentNSColor = DuckPalette.adaptiveNSColor(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
   static let accentFillNSColor = DuckPalette.adaptiveNSColor(light: 0x0A63E2, dark: 0x0A63E2, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0x004CB4)
+  static let attentionGlyphNSColor = DuckPalette.adaptiveNSColor(light: 0xD96A00, dark: 0xFF9F0A, lightIncreasedContrast: 0xB85A00, darkIncreasedContrast: 0xFFB340)
   static let backgroundNSColor = NSColor.windowBackgroundColor
   static let groupedSurfaceNSColor = NSColor.controlBackgroundColor
   static let elevatedSurfaceNSColor = NSColor.windowBackgroundColor
@@ -112,6 +115,7 @@ enum DuckRole {
   #else
   static let accentUIColor = DuckPalette.adaptiveUIColor(light: 0x0A63E2, dark: 0x86A9FF, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0xC5D4FF)
   static let accentFillUIColor = DuckPalette.adaptiveUIColor(light: 0x0A63E2, dark: 0x0A63E2, lightIncreasedContrast: 0x004CB4, darkIncreasedContrast: 0x004CB4)
+  static let attentionGlyphUIColor = DuckPalette.adaptiveUIColor(light: 0xD96A00, dark: 0xFF9F0A, lightIncreasedContrast: 0xB85A00, darkIncreasedContrast: 0xFFB340)
   static let backgroundUIColor = UIColor.systemGroupedBackground
   static let groupedSurfaceUIColor = UIColor.secondarySystemGroupedBackground
   static let elevatedSurfaceUIColor = UIColor { traits in UIColor.systemBackground.resolvedColor(with: traits.modifyingTraits { $0.userInterfaceLevel = .elevated }) }

@@ -300,7 +300,7 @@ struct BackupHistoryView: View {
   /// the action moves below the text so the words keep the full width.
   private func causeCard(_ cause: HistoryCause, _ photos: [HistoryPhoto]) -> some View {
     HStack(alignment: .top, spacing: 12) {
-      Image(systemName: cause.symbol).foregroundStyle(DuckRole.attention).font(.title3)
+      Image(systemName: cause.symbol).foregroundStyle(DuckRole.attentionGlyph).font(.title3)
         .frame(width: 28)
       VStack(alignment: .leading, spacing: 4) {
         Text(String(format: NSLocalizedString(cause.title, comment: ""),
@@ -510,7 +510,7 @@ struct PhotoBackupFacts: View {
         switch state {
         case .done: Image(systemName: symbol ?? "checkmark.circle.fill").foregroundStyle(symbol == "clock" ? DuckRole.accent : DuckRole.saved)
         case .active: Image(systemName: "clock").foregroundStyle(DuckRole.accent)
-        case .problem: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(DuckRole.attention)
+        case .problem: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(DuckRole.attentionGlyph)
         case .unknown: Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
         }
       }.font(.body)

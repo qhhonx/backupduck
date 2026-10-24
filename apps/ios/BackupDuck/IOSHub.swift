@@ -166,22 +166,22 @@ struct IOSHub: View {
       problem("exclamationmark.octagon.fill", DuckRole.failure, Text("hub_problem_rejected"), note: "hub_problem_rejected_note",
         action: "hub_problem_rejected_action") { pairing = true }
     case .receiverUnreachable:
-      problem("wifi.exclamationmark", DuckRole.attention,
+      problem("wifi.exclamationmark", DuckRole.attentionGlyph,
         Text(verbatim: String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)), note: "hub_problem_offline_note",
         action: "hub_problem_offline_action") { offlineHelp = true }
     case .receiverFull:
-      problem("externaldrive.badge.exclamationmark", DuckRole.attention, Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note")
+      problem("externaldrive.badge.exclamationmark", DuckRole.attentionGlyph, Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note")
     case .phoneFull:
-      problem("iphone.gen3.badge.exclamationmark", DuckRole.attention, Text("hub_problem_phone_full"), note: "hub_problem_phone_full_note")
+      problem("iphone.gen3.badge.exclamationmark", DuckRole.attentionGlyph, Text("hub_problem_phone_full"), note: "hub_problem_phone_full_note")
     case .photoAccessDenied:
-      problem("photo.badge.exclamationmark", DuckRole.attention, Text("hub_problem_photos"), note: "hub_problem_photos_note",
+      problem("photo.badge.exclamationmark", DuckRole.attentionGlyph, Text("hub_problem_photos"), note: "hub_problem_photos_note",
         action: "hub_problem_photos_action") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
     case .conversionNeeded(let count):
-      problem("livephoto", DuckRole.attention,
+      problem("livephoto", DuckRole.attentionGlyph,
         Text(verbatim: String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())), note: "hub_problem_convert_note",
         action: "hub_problem_convert_action") { livePhotoHelp = true }
     case .photosNeedYou(let count):
-      problem("exclamationmark.triangle.fill", DuckRole.attention,
+      problem("exclamationmark.triangle.fill", DuckRole.attentionGlyph,
         Text(verbatim: String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
         note: "hub_problem_photos_need_you_note", action: "hub_problem_review_action") { open(.needsYou, fallback: "attention") }
     }
@@ -239,7 +239,7 @@ struct IOSHub: View {
       let attention = model.summary.count(for: "attention")
       if attention > 0 && !model.hubStatus.showsAttentionDetails {
         summaryRow(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
-          symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention) { open(.needsYou, fallback: "attention") }
+          symbol: "exclamationmark.triangle.fill", tone: DuckRole.attentionGlyph) { open(.needsYou, fallback: "attention") }
         Divider().padding(.leading, DuckSpacing.medium)
       }
       summaryRow(Text("records_title"), value: model.summary.total.formatted(), symbol: nil, tone: nil) { open(.recent, fallback: "all") }

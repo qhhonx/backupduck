@@ -108,9 +108,9 @@ The page answers one question: are these the photos I mean to back up?
   light-on-photo text over the light canvas; it now follows whether photos lie
   behind it, for the title and the status bar.
 - Tile marks (step 5) built on iPhone behind the design switch: no mark once
-  the Pixel has the photo, a blue arrow while it is on its way, an amber
-  exclamation when it needs the user; the legacy check and ellipsis badges are
-  gone in the proposed design.
+  the Pixel has the photo, an arrow while it is on its way, an
+  exclamation when it needs the user, all white with a soft shadow over photos
+  (V5); the legacy check and ellipsis badges are gone in the proposed design.
 - Gap: the visible-window lookup (`source_states`) reports receipt, not whether
   a received photo is already in the Pixel's Photos, so tiles have no "saving"
   mark yet. Adding the processing observation to that lookup is a small core

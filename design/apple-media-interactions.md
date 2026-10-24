@@ -51,7 +51,7 @@ library composes it: back, a date-and-time title capsule that opens the
 information panel, and More at the top; Share and Info at the bottom, as the
 system's read-only viewers place them. The photo's backup state rides on Info
 and is quiet when normal: no mark once the photo is in the Pixel's Photos, a
-small accent dot while it is not there yet, the attention colour when it failed,
+small accent dot while it is not there yet, the `attentionGlyph` colour when it failed,
 and a progress ring only with real progress. Back Up and Retry live in the
 panel's backup card and in More. Marks change with the system's symbol effects. The information panel has no close button; it closes by dragging down,
 by Info or by the title. The filmstrip shows only while browsing. The viewer is read-only: do not copy

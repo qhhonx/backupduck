@@ -27,11 +27,11 @@ struct DuckLoadingState: View {
 /// Shared visual primitives; business state stays in the model.
 enum DuckTone {
   case action, saved, attention, failure, neutral
-  var color: Color {
+  var glyphColor: Color {
     switch self {
     case .action: return DuckRole.accent
     case .saved: return DuckRole.saved
-    case .attention: return DuckRole.attention
+    case .attention: return DuckRole.attentionGlyph
     case .failure: return DuckRole.failure
     case .neutral: return DuckRole.secondaryText
     }
@@ -82,7 +82,7 @@ struct DuckNotice: View {
   var symbol: String = "info.circle"
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: DuckSpacing.xSmall) {
-      Image(systemName: symbol).font(.body).foregroundStyle(tone.color).accessibilityHidden(true)
+      Image(systemName: symbol).font(.body).foregroundStyle(tone.glyphColor).accessibilityHidden(true)
       VStack(alignment: .leading, spacing: DuckSpacing.xxSmall) {
         Text(title).font(.body).foregroundStyle(.primary)
         if let message { Text(message).font(.callout).foregroundStyle(.secondary) }

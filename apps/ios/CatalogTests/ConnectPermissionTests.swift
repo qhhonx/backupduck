@@ -9,6 +9,29 @@ import Photos
 @MainActor final class ConnectPermissionTests: XCTestCase {
   private let payload = #"{"version":2,"receiver_id":"catalog-pixel","endpoint":"https://127.0.0.1:1","certificate":"fixture","token":"fixture"}"#
 
+  func testAttentionGlyphContrastsWithResolvedNativeSurfaces() {
+    func luminance(_ color: UIColor, traits: UITraitCollection) -> CGFloat {
+      var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+      XCTAssertTrue(color.resolvedColor(with: traits).getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+      XCTAssertEqual(alpha, 1)
+      func linear(_ value: CGFloat) -> CGFloat {
+        value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+      }
+      return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    }
+    for style in [UIUserInterfaceStyle.light, .dark] {
+      for contrast in [UIAccessibilityContrast.normal, .high] {
+        let traits = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: style), UITraitCollection(accessibilityContrast: contrast)])
+        let glyph = luminance(DuckRole.attentionGlyphUIColor, traits: traits)
+        for surface in [DuckRole.backgroundUIColor, DuckRole.groupedSurfaceUIColor, UIColor.systemBackground] {
+          let background = luminance(surface, traits: traits)
+          let ratio = (max(glyph, background) + 0.05) / (min(glyph, background) + 0.05)
+          XCTAssertGreaterThanOrEqual(ratio, 3, "Appearance \(style), contrast \(contrast)")
+        }
+      }
+    }
+  }
+
   private func withModel(_ scenarioID: String = "onboarding.connect-camera-denied",
     body: (BackupModel, ScenarioCore) async throws -> Void) async throws {
     let core = ScenarioCore()

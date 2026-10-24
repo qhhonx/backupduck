@@ -26,7 +26,8 @@ the duck and the step marks, never as a tinted canvas.
 | `accent` | Interactive or in progress | Tint derived from wing blue | Primary of the scheme seeded by wing blue |
 | `accentFill` | Fill behind white labels on prominent buttons | One deep wing-blue tone in both appearances (the dark `accent` tone is for text on dark surfaces) | Not used; Material pairs primary with on-primary |
 | `saved` | In the Pixel's Photos | Green, always with a check glyph | Same |
-| `attention` | Needs the user | Amber, always with a glyph | Same |
+| `attention` | Attention text, where already needed | Existing text-contrast amber | Same |
+| `attentionGlyph` | Icons, dots and other non-text marks that signal attention; text keeps `attention` | Orange with light, dark and increased-contrast variants; at least 3:1 against page and card surfaces | Same light/dark pair |
 | `failure` | Failed and blocked | Red, only for failures | Same |
 
 - Titles and body text are never colored. State color lives in one small glyph

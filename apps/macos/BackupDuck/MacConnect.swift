@@ -59,7 +59,7 @@ struct MacConnectSheet: View {
       .overlay {
         if let error = exchange.error {
           VStack(spacing: 8) {
-            Image(systemName: "wifi.exclamationmark").font(.title).foregroundStyle(DuckRole.attention)
+            Image(systemName: "wifi.exclamationmark").font(.title).foregroundStyle(DuckRole.attentionGlyph)
             Text(LocalizedStringKey(error)).font(.callout).multilineTextAlignment(.center).foregroundStyle(.primary)
           }.padding(16)
         }

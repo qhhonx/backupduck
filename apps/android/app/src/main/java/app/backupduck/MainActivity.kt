@@ -208,7 +208,7 @@ class MainActivity : BackupDuckActivity() {
         if (!::navigation.isInitialized) return
         if (attention || unseen) navigation.getOrCreateBadge(4).apply {
             clearNumber()
-            backgroundColor = getColor(if (attention) R.color.duck_state_attention else R.color.duck_brand_duck_yellow)
+            backgroundColor = getColor(if (attention) R.color.duck_role_attention_glyph else R.color.duck_brand_duck_yellow)
             setContentDescriptionNumberless(getString(if (attention) R.string.attention_required else R.string.discovery_available))
             isVisible = true
         } else navigation.removeBadge(4)

@@ -726,7 +726,7 @@ struct MacViewerInfoButton: View {
         .overlay(alignment: .topTrailing) {
           Image(systemName: "circle.fill")
             .resizable().frame(width: 6, height: 6)
-            .foregroundStyle(navigation.viewerState == "photo_viewer_failed" || navigation.viewerState == "records_load_failed" ? DuckRole.attention : DuckRole.accent)
+            .foregroundStyle(navigation.viewerState == "photo_viewer_failed" || navigation.viewerState == "records_load_failed" ? DuckRole.attentionGlyph : DuckRole.accent)
             .offset(x: 4, y: -3)
             .symbolEffect(.disappear, options: .nonRepeating, isActive: !marked && !reduceMotion)
             .opacity(reduceMotion ? (marked ? 1 : 0) : 1)

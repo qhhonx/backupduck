@@ -122,7 +122,7 @@ extension ReceiverConnection {
     switch self {
     case .ready: DuckRole.saved
     case .unknown: DuckRole.secondaryText
-    case .network, .authentication, .unavailable: DuckRole.attention
+    case .network, .authentication, .unavailable: DuckRole.attentionGlyph
     }
   }
   var identityLabel: String {

@@ -1209,7 +1209,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
 
   func setState(_ state: String, progress: Double?) {
     let showMark = state != "photo_viewer_saved" && progress == nil
-    dot.tintColor = UIColor(state == "photo_viewer_failed" || state == "records_load_failed" ? DuckRole.attention : DuckRole.accent)
+    dot.tintColor = state == "photo_viewer_failed" || state == "records_load_failed" ? DuckRole.attentionGlyphUIColor : DuckRole.accentUIColor
     if showMark != marked {
       marked = showMark
       if UIAccessibility.isReduceMotionEnabled {

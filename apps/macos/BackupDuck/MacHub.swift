@@ -107,24 +107,24 @@ struct MacHub: View {
         action: "hub_problem_rejected_action", perform: pair)
     case .receiverUnreachable:
       card(Text(verbatim: String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)),
-        note: "hub_problem_offline_note", symbol: "wifi.exclamationmark", tone: DuckRole.attention,
+        note: "hub_problem_offline_note", symbol: "wifi.exclamationmark", tone: DuckRole.attentionGlyph,
         action: "hub_problem_offline_action") { offlineHelp = true }
     case .receiverFull:
-      card(Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note", symbol: "externaldrive.badge.exclamationmark", tone: DuckRole.attention)
+      card(Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note", symbol: "externaldrive.badge.exclamationmark", tone: DuckRole.attentionGlyph)
     case .phoneFull:
-      card(Text("hub_problem_mac_full"), note: "hub_problem_phone_full_note", symbol: "internaldrive", tone: DuckRole.attention)
+      card(Text("hub_problem_mac_full"), note: "hub_problem_phone_full_note", symbol: "internaldrive", tone: DuckRole.attentionGlyph)
     case .photoAccessDenied:
-      card(Text("hub_problem_photos"), note: "hub_problem_photos_note", symbol: "photo.badge.exclamationmark", tone: DuckRole.attention,
+      card(Text("hub_problem_photos"), note: "hub_problem_photos_note", symbol: "photo.badge.exclamationmark", tone: DuckRole.attentionGlyph,
         action: "hub_problem_photos_action_mac") {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") { NSWorkspace.shared.open(url) }
       }
     case .conversionNeeded(let count):
       card(Text(verbatim: String(format: NSLocalizedString("hub_problem_convert", comment: ""), count.formatted())),
-        note: "hub_problem_convert_note", symbol: "livephoto", tone: DuckRole.attention,
+        note: "hub_problem_convert_note", symbol: "livephoto", tone: DuckRole.attentionGlyph,
         action: "hub_problem_convert_action") { livePhotoHelp = true }
     case .photosNeedYou(let count):
       card(Text(verbatim: String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
-        note: "hub_problem_photos_need_you_note", symbol: "exclamationmark.triangle.fill", tone: DuckRole.attention,
+        note: "hub_problem_photos_need_you_note", symbol: "exclamationmark.triangle.fill", tone: DuckRole.attentionGlyph,
         action: "hub_problem_review_action") { showTransfers("attention") }
     }
   }
@@ -196,7 +196,7 @@ struct MacHub: View {
   private func row(_ title: Text, value: String?, symbol: String?, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       HStack(spacing: DuckSpacing.xSmall) {
-        if let symbol { Image(systemName: symbol).foregroundStyle(DuckRole.attention).accessibilityHidden(true) }
+        if let symbol { Image(systemName: symbol).foregroundStyle(DuckRole.attentionGlyph).accessibilityHidden(true) }
         title.foregroundStyle(.primary)
         Spacer()
         if let value { Text(verbatim: value).foregroundStyle(.secondary) }
