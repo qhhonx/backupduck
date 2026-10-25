@@ -1,0 +1,4 @@
+// Local simulator validation only. Release and Store never include this file.
+#include "../apple/Signing.xcconfig"
+SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*] = $(inherited) BACKUPDUCK_TEST_SCAN
+SWIFT_OPTIMIZATION_LEVEL = -O

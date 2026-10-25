@@ -142,7 +142,8 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
                     CodePhase.GETTING_READY -> Unit
                     CodePhase.CODE -> if (payload != shown && payload != null) {
                         shown = payload
-                        secureWindow.addFlags(WindowManager.LayoutParams.FLAG_SECURE) // The code lets a device send to this Pixel.
+                        // Validation-only capture exception; production codes remain protected.
+                        if (!BuildConfig.VALIDATION_BUILD) secureWindow.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                         boxShape.setColor(Color.WHITE) // design-exception: the code sits on white in every theme so cameras can read it.
                         code.setImageBitmap(qr(payload)); code.visibility = View.VISIBLE; spinner.visibility = View.GONE
                         status.setText(R.string.connect_code_auto)

@@ -267,6 +267,7 @@
 		B2541E61CA97AADB0BC21233 /* HelpCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenter.swift; sourceTree = "<group>"; };
 		B32002786C08DCB89E6A7C5E /* GridZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoomTests.swift; sourceTree = "<group>"; };
 		B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ThirdPartyNotices-ios.txt"; sourceTree = "<group>"; };
+		B5EACEBDE2FB314FAC4461B9 /* ScanValidation.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ScanValidation.xcconfig; sourceTree = "<group>"; };
 		B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransfer.swift; sourceTree = "<group>"; };
 		BC599E760BD43DB668596349 /* GridZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridZoom.swift; sourceTree = "<group>"; };
 		BF2952CF6A3A582257A66A4A /* BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistory.swift; sourceTree = "<group>"; };
@@ -365,6 +366,7 @@
 				2F41044B0F36D1918ED7F1CC /* Catalog */,
 				DCC6BE1769D03BE7D0F19B9F /* Catalog */,
 				31EC1A52A7BFD8A07A803F52 /* CatalogTests */,
+				8AC02E7B5DA1F07E186C4FB7 /* ios */,
 				F51DFEB7E8BB86488FC6AF3B /* LiveActivity */,
 				8B1BA4F931D5BD124606C855 /* Resources */,
 				E1F0E283D93E21E408019AB0 /* Shared */,
@@ -390,6 +392,15 @@
 				D3B404EDA483F08F0EBC0EA9 /* TransferDiagnosticsTests.swift */,
 			);
 			path = Tests;
+			sourceTree = "<group>";
+		};
+		8AC02E7B5DA1F07E186C4FB7 /* ios */ = {
+			isa = PBXGroup;
+			children = (
+				B5EACEBDE2FB314FAC4461B9 /* ScanValidation.xcconfig */,
+			);
+			name = ios;
+			path = .;
 			sourceTree = "<group>";
 		};
 		8B1BA4F931D5BD124606C855 /* Resources */ = {
@@ -1121,6 +1132,53 @@
 			};
 			name = Debug;
 		};
+		603CB9A9FF305CCABEC48CD7 /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Catalog/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/libbackupduck_native.a",
+					"-framework",
+					Security,
+					"-framework",
+					SystemConfiguration,
+					"-lsqlite3",
+					"-lz",
+					"-liconv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.catalog;
+				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = ../../crates/native/include/backupduck.h;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ScanValidation;
+		};
+		640B7CDE97BD6167752FC656 /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BackupDuck.app/BackupDuck";
+			};
+			name = ScanValidation;
+		};
 		770F7755423170F5546337E0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1227,6 +1285,112 @@
 			};
 			name = Release;
 		};
+		91B0B3CB895CDA890DAC4BDE /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.catalog.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BackupDuckCatalog.app/BackupDuckCatalog";
+			};
+			name = ScanValidation;
+		};
+		C0C324BFF629A853A0D0CDB1 /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B5EACEBDE2FB314FAC4461B9 /* ScanValidation.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = ScanValidation;
+		};
+		C502772B22302783D5FBBD6A /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = ScanValidation/Simulator.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ScanValidation/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/libbackupduck_native.a",
+					"-framework",
+					Security,
+					"-framework",
+					SystemConfiguration,
+					"-lsqlite3",
+					"-lz",
+					"-liconv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.validation;
+				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = ../../crates/native/include/backupduck.h;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ScanValidation;
+		};
 		D68231358B0901CAEE85871F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1244,6 +1408,23 @@
 			};
 			name = Release;
 		};
+		D8E7F28FA0D9C45766C76446 /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BackupDuck;
+			};
+			name = ScanValidation;
+		};
 		EF82C91E658C07C43506FE04 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1260,6 +1441,27 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BackupDuckCatalog.app/BackupDuckCatalog";
 			};
 			name = Debug;
+		};
+		F552A41334FED0878333836B /* ScanValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ARCHS = arm64;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ScanValidation/LiveActivityInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.backupduck.validation.LiveActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) BACKUPDUCK_WIDGET";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ScanValidation;
 		};
 		FBE43B025637AC68446F7CCB /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1351,6 +1553,7 @@
 			buildConfigurations = (
 				3F4C44377E8C387E76E61E32 /* Debug */,
 				25505A2A0B8E5CCF4C585BAE /* Release */,
+				603CB9A9FF305CCABEC48CD7 /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1360,6 +1563,7 @@
 			buildConfigurations = (
 				FE20340BF2285100A574E781 /* Debug */,
 				839C73611FD10815EDAD271F /* Release */,
+				C0C324BFF629A853A0D0CDB1 /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1369,6 +1573,7 @@
 			buildConfigurations = (
 				770F7755423170F5546337E0 /* Debug */,
 				1F4D0B7B8C616454A2EB46D6 /* Release */,
+				C502772B22302783D5FBBD6A /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1378,6 +1583,7 @@
 			buildConfigurations = (
 				EF82C91E658C07C43506FE04 /* Debug */,
 				D68231358B0901CAEE85871F /* Release */,
+				91B0B3CB895CDA890DAC4BDE /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1387,6 +1593,7 @@
 			buildConfigurations = (
 				08FBC9581CAA968905A97695 /* Debug */,
 				FBE43B025637AC68446F7CCB /* Release */,
+				640B7CDE97BD6167752FC656 /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1396,6 +1603,7 @@
 			buildConfigurations = (
 				3FBA722E59B686D69C79F14F /* Debug */,
 				77B46A6D9C514E740D7FA6DB /* Release */,
+				D8E7F28FA0D9C45766C76446 /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1405,6 +1613,7 @@
 			buildConfigurations = (
 				09B3C6D39344272617B8130B /* Debug */,
 				250A1DBBAE85AE9EAC949FC9 /* Release */,
+				F552A41334FED0878333836B /* ScanValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

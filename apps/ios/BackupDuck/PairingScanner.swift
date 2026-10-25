@@ -37,6 +37,18 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
     super.viewDidLoad()
     view.backgroundColor = DuckMedia.backgroundUIColor
     view.accessibilityLabel = NSLocalizedString("apple_scan_frame_note", comment: "")
+    #if BACKUPDUCK_TEST_SCAN && targetEnvironment(simulator)
+    // Test-only decoded camera result; all connection handling remains unchanged.
+    let arguments = ProcessInfo.processInfo.arguments
+    if let index = arguments.firstIndex(of: "-BackupDuckTestScan"), index + 1 < arguments.count {
+      let value = arguments[index + 1]
+      let payload = value.hasPrefix("/") ? (try? String(contentsOfFile: value, encoding: .utf8)) : value
+      if let payload {
+        DispatchQueue.main.async { [weak self] in self?.deliver(payload) }
+        return
+      }
+    }
+    #endif
     guard BackupEnvironment.usesCamera else { report(.unavailable); return }
     errorObserver = NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError,
       object: session, queue: nil) { [weak self] _ in self?.report(.unavailable) }
@@ -124,6 +136,10 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
     guard visible, !finished,
       let payload = (metadataObjects.first as? AVMetadataMachineReadableCodeObject)?.stringValue
     else { return }
+    deliver(payload)
+  }
+  private func deliver(_ payload: String) {
+    guard visible, !finished else { return }
     finished = true
     worker.async { self.session.stopRunning() }
     scanned(payload)

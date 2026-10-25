@@ -3,10 +3,18 @@ def releaseInfo = new groovy.json.JsonSlurper().parse(file("../../../release.jso
 android {
     namespace 'app.backupduck'
     buildFeatures { buildConfig true }
+    // Test-only scan transport is never compiled into production or catalog.
+    sourceSets {
+        if (project.hasProperty('validationApp')) {
+            debug { java.srcDir 'src/validation/java'; manifest.srcFile 'src/validation/AndroidManifest.xml' }
+            release { java.srcDir 'src/validation/java'; manifest.srcFile 'src/validation/AndroidManifest.xml' }
+        }
+    }
     compileSdk 36
     ndkVersion "27.1.12297006"
     defaultConfig {
         applicationId 'app.backupduck'
+        buildConfigField 'boolean', 'VALIDATION_BUILD', project.hasProperty('validationApp') ? 'true' : 'false'
         minSdk 29
         targetSdk 34
         testInstrumentationRunner "app.backupduck.ReceiverInstrumentation"
@@ -52,6 +60,7 @@ android {
         // so motion and old-device performance can be judged. Never distributed.
         catalog {
             initWith release
+            buildConfigField 'boolean', 'VALIDATION_BUILD', 'false'
             applicationIdSuffix '.catalog'
             versionNameSuffix '-catalog'
             signingConfig signingConfigs.debug

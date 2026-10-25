@@ -3,6 +3,10 @@ options:
   minimumXcodeGenVersion: 2.40.0
   deploymentTarget:
     iOS: '17.0'
+configs:
+  Debug: debug
+  Release: release
+  ScanValidation: release
 settings:
   base:
     SWIFT_VERSION: '5.0'
@@ -14,6 +18,7 @@ settings:
 configFiles:
   Debug: ../apple/Signing.xcconfig
   Release: ../apple/Signing.xcconfig
+  ScanValidation: ScanValidation.xcconfig
 targets:
   BackupDuck:
     type: application
@@ -48,6 +53,12 @@ targets:
           - -lsqlite3
           - -lz
           - -liconv
+      configs:
+        ScanValidation:
+          PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.validation
+          INFOPLIST_FILE: ScanValidation/Info.plist
+          CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: ScanValidation/Simulator.entitlements
+          ARCHS: arm64
     preBuildScripts: &native_engine
       - name: Build shared Rust engine
         basedOnDependencyAnalysis: false
@@ -116,6 +127,11 @@ targets:
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: '1,2'
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_WIDGET
+      configs:
+        ScanValidation:
+          PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.validation.LiveActivity
+          INFOPLIST_FILE: ScanValidation/LiveActivityInfo.plist
+          ARCHS: arm64
   BackupDuckCatalogTests:
     type: bundle.unit-test
     platform: iOS
