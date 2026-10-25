@@ -1939,7 +1939,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     } else {
       normal = .bordered()
     }
-    selectedButton.configuration = normal
     normal.baseBackgroundColor = DuckRole.elevatedSurfaceUIColor
     normal.cornerStyle = .capsule
     normal.baseForegroundColor = DuckRole.primaryTextUIColor
@@ -1949,6 +1948,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
         for: .systemFont(ofSize: 17, weight: .semibold), maximumPointSize: 22)
       return result
     }
+    // Show Selected shares the styled secondary configuration; assigning the bare
+    // glass default left its title in the pale default colour.
+    selectedButton.configuration = normal
     libraryButton.configuration = normal
     browsingControls.isHidden = true
     selectionControls.isHidden = true
