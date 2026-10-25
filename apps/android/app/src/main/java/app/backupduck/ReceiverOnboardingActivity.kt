@@ -51,8 +51,15 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     private var watcher: Job? = null
     private var senderName: String? = null
     private var connectScan: ((String?) -> Unit)? = null
+    private val cameraPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchScanner() else finishScan(null)
+    }
+    private fun finishScan(contents: String?) {
+        val owner = connectScan; connectScan = null; owner?.invoke(contents)
+    }
     private val scanner = registerForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
-        connectScan?.let { connectScan = null; it(result.contents) }
+        finishScan(if (result.originalIntent?.getBooleanExtra(ReceiverScanActivity.CAMERA_UNAVAILABLE, false) == true)
+            ReceiverScanActivity.CAMERA_UNAVAILABLE else result.contents)
     }
     /** The same connect flow as the hub and the device page (design/pixel-connect.md), under the second step mark. */
     private val connect by lazy {
@@ -135,12 +142,18 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
     private fun scanCode(done: (String?) -> Unit) {
         ReceiverEnvironment.scanOverride?.let { it(done); return }
         connectScan = done
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            launchScanner()
+        } else cameraPermission.launch(Manifest.permission.CAMERA)
+    }
+    private fun launchScanner() {
+        if (connectScan == null) return
         runCatching {
             scanner.launch(com.journeyapps.barcodescanner.ScanOptions().setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
                 .setPrompt(getString(R.string.connect_mac_title)).setBeepEnabled(false).setBarcodeImageEnabled(false)
                 .addExtra(com.google.zxing.client.android.Intents.Scan.SHOW_MISSING_CAMERA_PERMISSION_DIALOG, false)
                 .setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))
-        }.onFailure { connectScan = null; done(null) }
+        }.onFailure { finishScan(null) }
     }
 
     private fun show(next: Step) {
@@ -251,13 +264,20 @@ class ReceiverOnboardingActivity : BackupDuckActivity() {
                 }.apply { setPadding(0, paddingTop, 0, paddingBottom) },
                     LinearLayout.LayoutParams(-2, -2))
                 content.addView(details, LinearLayout.LayoutParams(-1, -2))
-                action(R.string.onb_space_open_smart) {
+                val openSmartStorage = {
                     runCatching { startActivity(smartStorageIntent()) }
                         .recoverCatching { startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }
                         .onSuccess { complete(); finish() }
                         .onFailure { lead(getString(R.string.storage_smart_unavailable)) }
+                    Unit
                 }
-                secondary(R.string.onb_later) { complete(); finish() }
+                if (ReceiverEnvironment.smartStorage(this) == true) {
+                    action(R.string.onb_next) { complete(); finish() }
+                    secondary(R.string.onb_space_open_smart, openSmartStorage)
+                } else {
+                    action(R.string.onb_space_open_smart, openSmartStorage)
+                    secondary(R.string.onb_later) { complete(); finish() }
+                }
             }
         }
     }

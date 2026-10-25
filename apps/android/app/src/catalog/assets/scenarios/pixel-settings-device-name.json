@@ -1,0 +1,28 @@
+{
+  "id": "pixel.settings-device-name",
+  "extends": "pixel.settings",
+  "page": "settings",
+  "surface": "",
+  "title": "Settings device-name suffix wrapping",
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-pixel",
+          "name": "Sunny Badger \u00b7 C802"
+        },
+        "peers": [
+          {
+            "profile": {
+              "id": "catalog-phone",
+              "name": "Sunny Badger \u00b7 C802"
+            },
+            "device_type": "iPhone",
+            "last_seen": 1792627200,
+            "enabled": true
+          }
+        ]
+      }
+    }
+  }
+}

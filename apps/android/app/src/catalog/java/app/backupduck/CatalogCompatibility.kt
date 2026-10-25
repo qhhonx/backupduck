@@ -18,6 +18,8 @@ import java.io.File
 
 /** Opt-in synthetic compatibility fixtures, confined to the Catalog identity. */
 internal object CatalogCompatibility : Application.ActivityLifecycleCallbacks {
+    /** Only an explicit fixture text scale overrides the device's own setting. */
+    private var textScale: Float? = null
     private var savedRoot: Int? = null
     private var lastCommand = ""
     private var active = false
@@ -62,6 +64,15 @@ internal object CatalogCompatibility : Application.ActivityLifecycleCallbacks {
             .put("language", AppCompatDelegate.getApplicationLocales().toLanguageTags()).toString())
         else fixture(context).delete()
         file(context, "command").delete()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityPreCreated(activity: Activity, state: Bundle?) {
+        if (activity is CatalogActivity) textScale = activity.intent.takeIf { it.hasExtra("fontScale") }?.getFloatExtra("fontScale", 1f)?.coerceIn(1f, 2f)
+        val scale = textScale ?: return
+        val configuration = android.content.res.Configuration(activity.resources.configuration)
+        configuration.fontScale = scale
+        activity.resources.updateConfiguration(configuration, activity.resources.displayMetrics)
     }
 
     override fun onActivityCreated(activity: Activity, state: Bundle?) {

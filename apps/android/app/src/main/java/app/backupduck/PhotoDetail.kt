@@ -105,6 +105,17 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             }
                 .onFailure { message(R.string.photos_open_failed) }
         }
+        if (item.kind == "video") {
+            val play = icon(R.drawable.ic_play, R.string.viewer_open_photos, ::openPhotos).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL; setColor(getColor(R.color.duck_media_scrim_duration))
+                }
+                val inset = token(R.dimen.duck_space_medium)
+                setPadding(inset, inset, inset, inset)
+            }
+            // design-exception: the approved video-play touch target is 64 dp.
+            root.addView(play, CoordinatorLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER })
+        }
         val pill = lookButton(getString(R.string.viewer_save_failed), LookButton.TONAL) {}.apply {
             setText(R.string.viewer_save_failed); visibility = if (item.cause == PhotoCause.NOT_SAVED) View.VISIBLE else View.GONE
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -339,7 +350,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             }
             val number = java.text.NumberFormat.getNumberInstance(resources.configuration.locales[0]).apply { maximumFractionDigits = 1 }
             val fileLine = listOfNotNull(
-                if (info.width != null && info.height != null) "${number.format(info.width.toLong() * info.height / 1_000_000.0)} MP" else null,
+                if (item.kind != "video" && info.width != null && info.height != null) "${number.format(info.width.toLong() * info.height / 1_000_000.0)} MP" else null,
                 if (info.width != null && info.height != null) "${info.width} × ${info.height}" else null,
                 info.bytes?.let { FormatterSize(activity, it) }, info.format,
                 info.durationMs?.let { photoDuration(it) },

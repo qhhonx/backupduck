@@ -66,6 +66,7 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
     private var connectedName: String? = null
     private var connectedMac = false
     private var macMessage: Int? = null
+    private var recoverCameraPermission = false
     var waitingForScan = false
         private set
     /** Which direction is showing, so a recreated screen can reopen it. */
@@ -74,10 +75,11 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 
     fun snapshot() = android.os.Bundle().apply {
         putString("surface", surface); putString("name", connectedName); putBoolean("mac", connectedMac)
-        macMessage?.let { putInt("message", it) }; putBoolean("scan", waitingForScan)
+        macMessage?.let { putInt("message", it) }; putBoolean("scan", waitingForScan); putBoolean("cameraPermissionRecovery", recoverCameraPermission)
     }
     fun restore(state: android.os.Bundle) {
         waitingForScan = state.getBoolean("scan")
+        recoverCameraPermission = state.getBoolean("cameraPermissionRecovery")
         when (state.getString("surface")) {
             "connected" -> showConnected(state.getString("name"), state.getBoolean("mac"))
             "connect-mac" -> showMac(state.getInt("message").takeIf { it != 0 })
@@ -89,9 +91,10 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 
     /** Settings returns do not deliver a permission callback. Re-read access on resume. */
     fun resume() {
-        if (surface != "connect-mac" || macMessage != R.string.connect_camera_off || waitingForScan) return
+        if (surface != "connect-mac" || macMessage != R.string.connect_camera_off || !recoverCameraPermission || waitingForScan) return
         if (androidx.core.content.ContextCompat.checkSelfPermission(activity, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             // Clear the stale denial before opening the camera, so cancellation cannot relaunch it.
+            recoverCameraPermission = false
             showMac(null)
             waitingForScan = true
             scan(::scanned)
@@ -201,9 +204,15 @@ internal class ConnectFlow(private val activity: AppCompatActivity, private val 
 
     fun scanned(contents: String?): Unit = with(activity) {
         waitingForScan = false
+        if (contents == ReceiverScanActivity.CAMERA_UNAVAILABLE) {
+            recoverCameraPermission = false
+            showMac(R.string.connect_camera_off)
+            return@with
+        }
         when (macScan(contents)) {
             MacScan.CANCELLED -> {
                 val denied = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                recoverCameraPermission = denied
                 showMac(if (denied && ReceiverEnvironment.scanOverride == null) R.string.connect_camera_off else null)
             }
             MacScan.UNREADABLE -> showMac(R.string.connect_mac_unreadable)
@@ -343,13 +352,13 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
         if (groups.sending.isNotEmpty()) {
             lookSection(body, getString(R.string.devices_sending))
             val group = lookGroup(body)
-            groups.sending.forEach { peer -> lookRow(group, icon(peer), peer.name, lastConnected(this, peer)) { device(peer) } }
+            groups.sending.forEach { peer -> lookRow(group, icon(peer), deviceDisplayName(peer.name), lastConnected(this, peer)) { device(peer) } }
         }
         if (groups.stopped.isNotEmpty()) {
             lookSection(body, getString(R.string.devices_stopped))
             val group = lookGroup(body)
             groups.stopped.forEach { peer ->
-                lookRow(group, icon(peer), peer.name, listOfNotNull(getString(R.string.devices_stopped_row), lastConnected(this, peer)).joinToString(" · ")) { device(peer) }
+                lookRow(group, icon(peer), deviceDisplayName(peer.name), listOfNotNull(getString(R.string.devices_stopped_row), lastConnected(this, peer)).joinToString(" · ")) { device(peer) }
             }
         }
     }
@@ -365,7 +374,7 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
         val sheet = LookSheet(this)
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(token(R.dimen.duck_space_large), 0, token(R.dimen.duck_space_large), token(R.dimen.duck_space_x_small)) }
         sheet.body.addView(body)
-        body.addView(lookText(peer.name, M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true })
+        body.addView(lookText(deviceDisplayName(peer.name), M.style.TextAppearance_Material3_TitleLarge).apply { isAccessibilityHeading = true })
         listOfNotNull(peer.kind, lastConnected(this, peer)).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
             body.addView(lookText(it, M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = token(R.dimen.duck_space_xx_small) })
         }

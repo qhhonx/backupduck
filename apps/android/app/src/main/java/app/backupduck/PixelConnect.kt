@@ -44,3 +44,6 @@ internal fun macScan(contents: String?): MacScan = when {
     contents.length > 32_768 || !contents.contains("\"backupduck_desktop_pairing\"") -> MacScan.UNREADABLE
     else -> MacScan.CODE
 }
+
+/** Display only: keep a generated device-name suffix on the same line. */
+internal fun deviceDisplayName(name: String): String = name.replace(" · ", "\u00a0·\u00a0")

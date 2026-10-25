@@ -47,10 +47,15 @@ class MainActivity : BackupDuckActivity() {
 
     /** Only the current Connect flow that launched the camera owns its result. */
     private var connectScan: ((String?) -> Unit)? = null
+    private val cameraPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchScanner() else finishScan(null)
+    }
+    private fun finishScan(contents: String?) {
+        val owner = connectScan; connectScan = null; owner?.invoke(contents)
+    }
     private val scanner = registerForActivityResult(ScanContract()) { result ->
-        val owner = connectScan
-        connectScan = null
-        owner?.invoke(result.contents) // An unowned result from the retired scanner is discarded.
+        finishScan(if (result.originalIntent?.getBooleanExtra(ReceiverScanActivity.CAMERA_UNAVAILABLE, false) == true)
+            ReceiverScanActivity.CAMERA_UNAVAILABLE else result.contents)
     }
     private var diagnosticsScreen: DiagnosticsScreen? = null
     private var exportingDiagnostics: DiagnosticsScreen? = null
@@ -373,11 +378,17 @@ class MainActivity : BackupDuckActivity() {
     private var devicesPage:DevicesPage?=null
     private fun createDevicesPage() = DevicesPage(this, { openConnect() }) { devicePanels.refresh() }.also { devicesPage = it }
     private fun openDevices() { createDevicesPage().show() }
-    private fun scanCode(done:(String?)->Unit) {
-        ReceiverEnvironment.scanOverride?.let {it(done);return}
-        connectScan=done
+    private fun scanCode(done: (String?) -> Unit) {
+        ReceiverEnvironment.scanOverride?.let { it(done); return }
+        connectScan = done
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            launchScanner()
+        } else cameraPermission.launch(Manifest.permission.CAMERA)
+    }
+    private fun launchScanner() {
+        if (connectScan == null) return
         runCatching {scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(getString(R.string.connect_mac_title)).setBeepEnabled(false).setBarcodeImageEnabled(false).addExtra(com.google.zxing.client.android.Intents.Scan.SHOW_MISSING_CAMERA_PERMISSION_DIALOG, false).setCaptureActivity(ReceiverScanActivity::class.java).setOrientationLocked(true))}
-            .onFailure {connectScan=null;done(null)}
+            .onFailure {finishScan(null)}
     }
     private fun pauseReceiving() {
         lifecycleScope.launch {
@@ -454,11 +465,11 @@ class MainActivity : BackupDuckActivity() {
         }
         settingsFooter(panel, {showDiagnostics()}, {openAdvanced()})
         fun refresh() {
-            deviceName.text=devicePanels.name ?: Build.MODEL
+            deviceName.text=deviceDisplayName(devicePanels.name ?: Build.MODEL)
             val senders=devicePanels.senderNames
             val state=getString(when { !ReceiverPreferences.enabled(this) -> R.string.pref_status_off; ReceiverPreferences.paused(this) -> R.string.pref_status_paused; else -> R.string.pref_status_receiving })
             status.text=if(senders.isEmpty()) state else state+" · "+resources.getQuantityString(R.plurals.pref_status_devices,senders.size,senders.size)
-            devices.setSupporting(if(senders.isEmpty()) getString(R.string.pref_devices_none) else getString(R.string.pref_devices_value,senders.size,senders.joinToString(getString(R.string.photos_list_separator))))
+            devices.setSupporting(if(senders.isEmpty()) getString(R.string.pref_devices_none) else getString(R.string.pref_devices_value,senders.size,senders.map(::deviceDisplayName).joinToString(getString(R.string.photos_list_separator))))
             val free=getString(R.string.pref_storage_free,android.text.format.Formatter.formatShortFileSize(this,ReceiverEnvironment.deviceStorage(this).freeBytes))
             storage.setSupporting(free+" · "+getString(if(PhotosCleanup(this).enabled) R.string.pref_storage_cleanup_on else R.string.pref_storage_cleanup_off))
             appearance.setSupporting(appearanceLabel())
