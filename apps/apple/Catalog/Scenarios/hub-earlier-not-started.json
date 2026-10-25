@@ -1,0 +1,11 @@
+{
+  "id": "hub.earlierNotStarted",
+  "extends": "hub.caught-up",
+  "page": "backup",
+  "title": "New photos saved; earlier photos not started",
+  "core": {
+    "history_status": {
+      "value": null
+    }
+  }
+}

@@ -173,7 +173,9 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     grid.loadViewIfNeeded()
     grid.canBackup = !backupAction.busy
     grid.grid.isUserInteractionEnabled = !backupAction.busy
-    if backupAction.added && library.selection.isEmpty { grid.selecting = false }
+    if backupAction.added && library.selection.isEmpty {
+      grid.completeSelectedBackup()
+    }
     grid.setBackupFeedback(title: backupAction.title, added: backupAction.added)
     let review = grid.selectionReview
     review?.setSelection(library.selection, notify: false)

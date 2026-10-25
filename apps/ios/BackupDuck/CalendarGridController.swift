@@ -1961,6 +1961,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     backupFeedback = title; backupAdded = added
     headerSelecting = nil
   }
+  func completeSelectedBackup(completion: (() -> Void)? = nil) {
+    selecting = false
+    guard let review = selectionReview else { completion?(); return }
+    selectionReview = nil
+    (review.navigationController ?? review).dismiss(animated: true, completion: completion)
+  }
   @objc func backUpSelected() {
     guard canBackup, !selected.isEmpty else { return }
     onBackup()

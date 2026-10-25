@@ -706,7 +706,7 @@
 "hub_not_paired_note" = "Once connected, new photos are saved to Photos on your Pixel automatically.";
 "hub_connect" = "Connect a Pixel";
 "hub_opening" = "Opening your backup…";
-"hub_caught_up_saving" = "All photos reached your Pixel";
+"hub_caught_up_saving" = "Photos reached your Pixel";
 "hub_saving_note" = "%@ are still being saved to its Photos.";
 "hub_caught_up" = "All your photos are in the Pixel's Photos";
 "hub_last_backup" = "Last backup %@";
@@ -1171,10 +1171,10 @@
 "diagnostics_event_originals_reclaimed" = "Saved originals removed from this device";
 "diagnostics_event_relay_originals_reclaimed" = "Saved relay copies removed";
 
-"library_review_selection_title" = "%d Photos Selected";
+"library_review_selection_title" = "%d Items Selected";
 "library_review_selected" = "Selected";
 "library_review_not_selected" = "Not selected";
-"library_review_backup_count" = "Back Up %d Photos";
+"library_review_backup_count" = "Back Up %d Items";
 
 // Connection access recovery
 "connect_connecting" = "Connecting to your Pixel…";
@@ -1242,3 +1242,9 @@
 "settings_third_party_unavailable" = "Third-party software could not be loaded. Reopen this page to try again.";
 
 "hub_problem_review_action" = "Review";
+
+"hub_caught_up_new" = "New photos are saved to your Pixel's Photos";
+"hub_earlier_not_started" = "Earlier photos aren't backed up yet";
+"hub_earlier_not_started_note" = "They follow your Auto Backup choices and finish in the background.";
+"hub_earlier_start" = "Back Up";
+"onboarding_notify_question" = "Turn on backup notifications?";

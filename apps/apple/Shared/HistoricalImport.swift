@@ -11,6 +11,7 @@ struct HistoricalImportStatus: Decodable, Equatable {
   var snapshot_id: String? = nil
   var published: Int? = nil
   /// The core confirms publication for every frozen member, not just receipt.
+  var hasStarted: Bool { state != "idle" }
   var isSaved: Bool { state == "scanned" && pending == 0 && published == checked }
 }
 

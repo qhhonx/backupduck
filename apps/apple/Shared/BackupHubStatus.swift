@@ -31,6 +31,7 @@ enum BackupHubStatus: Equatable {
     var summary: SenderSummary
     var phoneSpaceShort: Bool
     var photoAccess: PhotoAccess
+    var photoLibraryInScope: Bool
     var jobs: [BackupJob]
   }
 
@@ -45,7 +46,7 @@ enum BackupHubStatus: Equatable {
       || input.summary.waiting_reason == "network" { return .problem(.receiverUnreachable) }
     if ["capacity", "low_space"].contains(input.summary.waiting_reason ?? "") { return .problem(.receiverFull) }
     if input.phoneSpaceShort { return .problem(.phoneFull) }
-    if input.photoAccess == .denied { return .problem(.photoAccessDenied) }
+    if input.photoLibraryInScope && input.photoAccess == .denied { return .problem(.photoAccessDenied) }
     let conversions = input.summary.conversion_required
       ?? input.jobs.filter { $0.processingError == "conversion_required" }.count
     if conversions > 0 { return .problem(.conversionNeeded(conversions)) }
@@ -73,27 +74,47 @@ extension BackupHubStatus {
 }
 
 extension BackupModel {
+  @MainActor var earlierPhotosStarted: Bool { historicalImport?.hasStarted == true }
+  @MainActor var photoLibraryInScope: Bool {
+    autoBackup || (earlierPhotosStarted && historicalImport?.isSaved != true)
+      || pendingImports > 0 || jobs.contains {
+        ($0.receiverID == nil || $0.receiverID == pairing?.receiverID)
+          && $0.asset.metadata?["source_type"] != "folder"
+          && ["queued", "running", "waiting", "paused"].contains($0.state)
+      }
+  }
+  @MainActor var showsEarlierPhotosNotStarted: Bool {
+    let access = BackupEnvironment.photoAccess()
+    return pairing != nil && ready && receiverConnection == .ready && !earlierPhotosStarted
+      && (access == .full || access == .limited)
+  }
+  @MainActor var earlierPhotosCardStatus: HistoricalImportStatus {
+    historicalImport ?? HistoricalImportStatus(run: 0, state: "idle", checked: 0, pending: 0)
+  }
   @MainActor var hubStatus: BackupHubStatus {
     BackupHubStatus.derive(.init(
       paired: pairing != nil, ready: ready, paused: paused, connection: receiverConnection,
       receiverUnavailable: receiverUnavailable, summary: summary,
       phoneSpaceShort: storage?.reason == "local_free_space",
-      photoAccess: BackupEnvironment.photoAccess(),
+      photoAccess: BackupEnvironment.photoAccess(), photoLibraryInScope: photoLibraryInScope,
       jobs: jobs.filter { $0.receiverID == nil || $0.receiverID == pairing?.receiverID }))
   }
 }
 
 extension BackupHubStatus {
+  static func caughtUpTitle(saving: Int, earlierPhotosStarted: Bool) -> String {
+    saving > 0 ? "hub_caught_up_saving" : earlierPhotosStarted ? "hub_caught_up" : "hub_caught_up_new"
+  }
   /// The hub's one-line answer, for surfaces that show only a line (the Mac
   /// menu bar, notifications). Same words as the hub card (P3).
-  func sentence(receiver: String) -> String {
+  func sentence(receiver: String, earlierPhotosStarted: Bool = true) -> String {
     func text(_ key: String) -> String { NSLocalizedString(key, comment: "") }
     switch self {
     case .notPaired: return text("hub_not_paired")
     case .opening: return text("hub_opening")
     case .empty: return text("hub_empty")
     case .paused: return text("hub_paused")
-    case .caughtUp(_, let saving): return text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up")
+    case .caughtUp(_, let saving): return text(Self.caughtUpTitle(saving: saving, earlierPhotosStarted: earlierPhotosStarted))
     case .backingUp(let remaining, let bytes):
       return bytes > 0
         ? String(format: text("hub_backing_up"), remaining.formatted(), ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file))
@@ -142,5 +163,18 @@ extension BackupHubStatus {
     case .problem(.conversionNeeded), .problem(.photosNeedYou): true
     default: false
     }
+  }
+}
+
+/// Presentation-only progress includes originals that have not materialized yet.
+struct HubBatchProgress {
+  private(set) var batchPeak = 0
+  mutating func observe(_ status: BackupHubStatus) {
+    if case .backingUp(let remaining, _) = status { batchPeak = max(batchPeak, remaining) }
+    else { batchPeak = 0 }
+  }
+  func fraction(remaining: Int, partial: Double) -> Double {
+    guard batchPeak > 0 else { return 0 }
+    return min(1, max(0, (Double(batchPeak - remaining) + partial) / Double(batchPeak)))
   }
 }

@@ -43,7 +43,7 @@ follows the same structure. Words follow `copy-glossary.zh.md`.
 | 4 | **Photos.** "备份鸭需要读取你的照片，直接送到你的 Pixel，不经过我们的服务器。" then the system prompt | 继续 | Limited access: say what will and won't back up |
 | 5 | **What to back up.** Auto Backup on (switch shown on), with when it runs: "iPhone 和 Pixel 连着同一个 Wi‑Fi 时自动备份". "也备份以前的 12,384 张照片吗？约 86 GB，再多也能全部备份完。" No Pixel free-space figure: the Pixel frees space as it goes | 全部备份 | Secondary: 只备份以后的新照片 |
 | 6 | **First photo lands.** The first thumbnail travels to the Pixel mark, then "第一张照片已经存进 Pixel 相册". One orchestrated motion; static under Reduce Motion | 好 | Then one sentence on notifications ("只在需要你处理时提醒你") and the system prompt |
-| 7 | **Hub.** Progress card for earlier photos, keep-screen-on switch while a large batch runs, Live Activity on the lock screen | — | First run ends here |
+| 7 | **Hub.** Progress card for earlier photos, keep-screen-on switch while a large batch runs, Live Activity on the lock screen | — | First run ends here. "只备份新照片" skips the first-photo step and ends first run on the hub; until an earlier-photo run starts, the hub says "新照片都已存进 Pixel 相册" (never all photos) and offers "以前的照片还没开始备份" with one "开始备份" action, using the Auto Backup scope. |
 
 ### Pixel
 

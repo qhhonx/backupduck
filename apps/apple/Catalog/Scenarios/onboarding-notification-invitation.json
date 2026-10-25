@@ -1,0 +1,8 @@
+{
+  "id": "onboarding.notification-invitation",
+  "extends": "hub.caught-up",
+  "page": "onboarding",
+  "step": "notificationInvitation",
+  "ios_only": true,
+  "title": "Deferred backup notification invitation"
+}

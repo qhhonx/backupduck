@@ -483,7 +483,7 @@ struct IOSOnboarding: View {
       }
     }
     working = false
-    go(.first)
+    if earlier { go(.first) } else { leave() }
   }
 
 }
@@ -528,22 +528,35 @@ struct IOSFirstRunNotificationInvitation: ViewModifier {
   @ObservedObject var progress: IOSFirstRunProgress
   @ObservedObject var model: BackupModel
   @State private var presented = false
+  @State private var invitationHeight: CGFloat = 300
+  @Environment(\.dynamicTypeSize) private var textSize
   func body(content: Content) -> some View {
     content
       .onChange(of: progress.shouldInvite(ready: model.ready, receiver: model.pairing?.receiverID, published: model.summary.published), initial: true) { _, invite in
         if invite { progress.handleNotification(); presented = true }
       }
       .sheet(isPresented: $presented, onDismiss: { progress.handleNotification() }) {
-        DuckSheetLayout(title: "onboarding_notify_title", closeOnly: true, cancel: { progress.handleNotification(); presented = false }) {
-          VStack(spacing: 24) {
-            Text("onboarding_first_notify")
-            Button("onboarding_notify") {
-              progress.handleNotification(); presented = false
-              Task { await requestFirstRunNotifications() }
-            }.buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill)
-            Button("onboarding_later") { progress.handleNotification(); presented = false }
+        VStack(spacing: DuckSpacing.large) {
+          VStack(spacing: DuckSpacing.xSmall) {
+            Text("onboarding_notify_question").font(.title3.weight(.semibold))
+            Text("notifications_note").foregroundStyle(.secondary)
           }
-        } actions: { EmptyView() }
+          Button {
+            progress.handleNotification(); presented = false
+            Task { await requestFirstRunNotifications() }
+          } label: { Text("onboarding_notify").frame(maxWidth: .infinity) }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill)
+          Button("onboarding_later") { progress.handleNotification(); presented = false }.buttonStyle(.borderless)
+        }
+        .multilineTextAlignment(.center)
+        .dynamicTypeSize(textSize)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(DuckSpacing.large).frame(maxWidth: .infinity)
+        .duckSheetMeasure("invitation")
+        .onPreferenceChange(DuckSheetHeightPreference.self) { heights in
+          if let height = heights["invitation"] { invitationHeight = height }
+        }
+        .presentationDetents([.height(invitationHeight)])
       }
   }
 }

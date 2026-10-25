@@ -104,6 +104,31 @@ import Photos
     }
   }
 
+  func testSuccessfulSelectionRegistrationClosesReviewAndKeepsBriefFeedback() async throws {
+    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let grid = CalendarGridController()
+    grid.assets = (0..<2).map { CalendarGridAsset(id: "selected-\($0)", date: .now, aspect: 1) }
+    grid.selected = Set(grid.assets.map(\.id))
+    let window = UIWindow(windowScene: scene)
+    window.frame = scene.coordinateSpace.bounds
+    window.rootViewController = CalendarNavigationController(rootViewController: grid)
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+    try await Task.sleep(for: .milliseconds(250))
+    grid.selecting = true; grid.refreshSelection()
+    grid.reviewSelection()
+    try await Task.sleep(for: .milliseconds(350))
+    XCTAssertNotNil(grid.presentedViewController)
+    grid.setBackupFeedback(title: "Added to Backup", added: true)
+    let dismissed = expectation(description: "Review sheet dismissed")
+    grid.completeSelectedBackup { dismissed.fulfill() }
+    await fulfillment(of: [dismissed], timeout: 3)
+    XCTAssertFalse(grid.selecting)
+    XCTAssertNil(grid.selectionReview)
+    XCTAssertNil(grid.presentedViewController)
+    XCTAssertTrue(grid.backupAdded)
+  }
+
   func testMediaStatusBarFollowsVisibleTabAndScrim() async throws {
     let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
     let grid = CalendarGridController()

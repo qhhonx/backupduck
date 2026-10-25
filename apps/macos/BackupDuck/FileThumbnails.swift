@@ -76,15 +76,20 @@ struct MacFileThumbnail: View {
   let revision: String
   var video = false
   var size: CGFloat = 56
+  var cornerRadius: CGFloat = 8
+  var fillsFrame = false
   @AppStorage("macListThumbnails") private var enabled = true
   @State private var image: NSImage?
   @State private var token = UUID()
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 8).fill(.quaternary)
-      if enabled, let image { Image(nsImage: image).resizable().scaledToFit() }
+      RoundedRectangle(cornerRadius: cornerRadius).fill(.quaternary)
+      if enabled, let image {
+        if fillsFrame { Image(nsImage: image).resizable().scaledToFill() }
+        else { Image(nsImage: image).resizable().scaledToFit() }
+      }
       else { Image(systemName: video ? "video" : "photo").foregroundStyle(.secondary) }
-    }.frame(width: size, height: size).clipped().clipShape(RoundedRectangle(cornerRadius: 8))
+    }.frame(width: size, height: size).clipped().clipShape(RoundedRectangle(cornerRadius: cornerRadius))
       .task(id: "\(enabled)|\(source.id)|\(relative)|\(revision)|\(size)") {
         FileThumbnailPipeline.shared.cancel(token)
         image = nil; token = UUID()
@@ -101,6 +106,8 @@ struct MacFileThumbnail: View {
 struct MacTransferThumbnail: View {
   let job: BackupJob
   var size: CGFloat = 56
+  var cornerRadius: CGFloat = 8
+  var fillsFrame = false
   @ObservedObject private var folders = FolderSources.shared
   @AppStorage("macListThumbnails") private var enabled = true
   @State private var entry: FolderEntry?
@@ -108,11 +115,11 @@ struct MacTransferThumbnail: View {
     Group {
       if let entry, let source = folders.sources.first(where: { $0.id == job.asset.metadata?["source_ref"] }) {
         MacFileThumbnail(source: source, relative: entry.relative, revision: entry.revision,
-          video: job.asset.kind == "video", size: size)
+          video: job.asset.kind == "video", size: size, cornerRadius: cornerRadius, fillsFrame: fillsFrame)
       } else {
         Image(systemName: job.asset.kind == "video" ? "video" : "photo")
           .foregroundStyle(.secondary).frame(width: size, height: size)
-          .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+          .background(.quaternary, in: RoundedRectangle(cornerRadius: cornerRadius))
       }
     }.task(id: "\(enabled)|\(job.id)|\(folders.indexRevision)|\(folders.sources.map { $0.id }.joined(separator: "|"))") {
       entry = nil

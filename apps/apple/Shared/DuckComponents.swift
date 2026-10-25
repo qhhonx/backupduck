@@ -338,13 +338,13 @@ struct DuckSelectionBackupControl: View {
 }
 
 #if os(iOS)
-private struct DuckSheetHeightPreference: PreferenceKey {
+struct DuckSheetHeightPreference: PreferenceKey {
   static let defaultValue: [String: CGFloat] = [:]
   static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
     value.merge(nextValue(), uniquingKeysWith: { _, new in new })
   }
 }
-private extension View {
+extension View {
   func duckSheetMeasure(_ section: String) -> some View {
     background(GeometryReader { proxy in Color.clear.preference(key: DuckSheetHeightPreference.self, value: [section: proxy.size.height]) })
   }

@@ -1,0 +1,8 @@
+{
+  "id": "sheets.close-only-backup",
+  "extends": "hub.caught-up",
+  "page": "library",
+  "step": "contextSheetInventory",
+  "ios_only": true,
+  "title": "Unchanged close-only sheet: backup"
+}

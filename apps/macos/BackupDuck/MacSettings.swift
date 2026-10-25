@@ -130,7 +130,7 @@ struct MacSettings: View {
         .background(DuckGlyph.blue, in: Circle())
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 2) {
-        Text(model.deviceSnapshot?.device.name ?? "—").font(.headline)
+        Text(deviceDisplayName(model.deviceSnapshot?.device.name ?? "—")).font(.headline)
         if let subtitle = values.pairedSubtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
       }
       Spacer(minLength: 0)

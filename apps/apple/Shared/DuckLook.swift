@@ -195,6 +195,7 @@ struct DuckSectionHeader: View {
 struct DuckPhotoMosaic: View {
   let sources: [String]
   var twoRows = false
+  var thumbnail: ((String, CGFloat) -> AnyView)? = nil
   var frameChanged: ((String, CGRect) -> Void)? = nil
   var open: ((String, CGRect) -> Void)? = nil
   var body: some View {
@@ -217,12 +218,12 @@ struct DuckPhotoMosaic: View {
       VStack(alignment: .leading, spacing: DuckLook.photoGap) {
         HStack(spacing: DuckLook.photoGap) {
           ForEach(Array(sources.prefix(firstCount)), id: \.self) { source in
-            DuckMosaicPhoto(source: source, side: firstSide, frameChanged: frameChanged, open: open)
+            DuckMosaicPhoto(source: source, side: firstSide, frameChanged: frameChanged, open: open, image: thumbnail)
           }
         }
         HStack(spacing: DuckLook.photoGap) {
           ForEach(Array(sources.dropFirst(firstCount).prefix(secondCount)), id: \.self) { source in
-            DuckMosaicPhoto(source: source, side: secondSide, frameChanged: frameChanged, open: open)
+            DuckMosaicPhoto(source: source, side: secondSide, frameChanged: frameChanged, open: open, image: thumbnail)
           }
         }
       }
@@ -234,7 +235,7 @@ struct DuckPhotoMosaic: View {
       let count = CGFloat(max(min(sources.count, 4), 1))
       let side = (geometry.size.width - DuckLook.photoGap * (count - 1)) / count
       HStack(spacing: DuckLook.photoGap) {
-        ForEach(sources.prefix(4), id: \.self) { source in DuckMosaicPhoto(source: source, side: side, frameChanged: frameChanged, open: open) }
+        ForEach(sources.prefix(4), id: \.self) { source in DuckMosaicPhoto(source: source, side: side, frameChanged: frameChanged, open: open, image: thumbnail) }
       }
     }
     .aspectRatio(CGFloat(max(min(sources.count, 4), 1)), contentMode: .fit)
@@ -247,7 +248,7 @@ struct DuckPhotoMosaic: View {
       let small = (geometry.size.width - gap * 3) / 4
       let large = small * 2 + gap
       HStack(spacing: gap) {
-        DuckMosaicPhoto(source: sources[0], side: large, frameChanged: frameChanged, open: open)
+        DuckMosaicPhoto(source: sources[0], side: large, frameChanged: frameChanged, open: open, image: thumbnail)
         VStack(spacing: gap) {
           HStack(spacing: gap) { tile(1, small); tile(2, small) }
           HStack(spacing: gap) { tile(3, small); tile(4, small) }
@@ -258,7 +259,7 @@ struct DuckPhotoMosaic: View {
   }
 
   private func tile(_ index: Int, _ side: CGFloat) -> some View {
-    DuckMosaicPhoto(source: sources[index], side: side, frameChanged: frameChanged, open: open)
+    DuckMosaicPhoto(source: sources[index], side: side, frameChanged: frameChanged, open: open, image: thumbnail)
   }
 }
 
@@ -268,6 +269,7 @@ private struct DuckMosaicPhoto: View {
   let side: CGFloat
   let frameChanged: ((String, CGRect) -> Void)?
   let open: ((String, CGRect) -> Void)?
+  let image: ((String, CGFloat) -> AnyView)?
   @State private var frame = CGRect.zero
   var body: some View {
     Group {
@@ -282,7 +284,10 @@ private struct DuckMosaicPhoto: View {
         .onChange(of: proxy.frame(in: .global)) { _, value in update(value) }
     })
   }
-  private var thumbnail: some View { AssetThumbnail(sourceID: source, size: side, cornerRadius: 0) }
+  @ViewBuilder private var thumbnail: some View {
+    if let image { image(source, side) }
+    else { AssetThumbnail(sourceID: source, size: side, cornerRadius: 0) }
+  }
   private func update(_ value: CGRect) { frame = value; frameChanged?(source, value) }
 }
 
@@ -299,12 +304,14 @@ struct DuckEarlierPhotosCard: View {
   let history: HistoricalImportStatus
   var changing: Bool
   var control: (String) -> Void
+  private var notStarted: Bool { !history.hasStarted }
   private var paused: Bool { history.state == "paused" }
   private var progress: Double? {
     guard history.state == "scanned", let published = history.published, history.checked > 0 else { return nil }
     return Double(min(published, history.checked)) / Double(history.checked)
   }
   private var note: Text {
+    if notStarted { return Text("hub_earlier_not_started_note") }
     if history.state == "scanned", let published = history.published {
       return Text(String(format: NSLocalizedString("hub_earlier_saved_progress", comment: ""), published.formatted(), history.checked.formatted()))
     }
@@ -314,7 +321,7 @@ struct DuckEarlierPhotosCard: View {
   var body: some View {
     DuckStateCard(symbol: history.isSaved ? "checkmark.circle.fill" : "clock.arrow.circlepath",
       tone: history.isSaved ? DuckRole.saved : DuckRole.accent,
-      title: Text(history.isSaved ? "hub_earlier_done" : "hub_earlier"), note: history.isSaved ? nil : note,
+      title: Text(notStarted ? "hub_earlier_not_started" : history.isSaved ? "hub_earlier_done" : "hub_earlier"), note: history.isSaved ? nil : note,
       progress: progress, reservesProgress: true, trailing: {
         #if os(macOS)
         scanControl
@@ -327,7 +334,9 @@ struct DuckEarlierPhotosCard: View {
       .accessibilityIdentifier("hub.earlier_summary")
   }
   @ViewBuilder private var scanControl: some View {
-    if ["scanning", "paused"].contains(history.state) {
+    if notStarted {
+      DuckTintedButton("hub_earlier_start") { control("start") }.disabled(changing)
+    } else if ["scanning", "paused"].contains(history.state) {
       DuckTintedButton(paused ? "hub_earlier_resume" : "hub_pause") { control(paused ? "resume" : "pause") }
         .disabled(changing)
     }

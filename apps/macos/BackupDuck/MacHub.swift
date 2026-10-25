@@ -25,11 +25,11 @@ struct MacHub: View {
       VStack(alignment: .leading, spacing: DuckSpacing.medium) {
         if model.pairing != nil { devicePill }
         status
-        if connected, let history = model.historicalImport, history.state != "idle" { earlier(history) }
+        if connected, model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted { earlier(model.earlierPhotosCardStatus) }
         if connected, !recentSources.isEmpty {
           VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
             DuckSectionHeader(title: "hub_recent")
-            DuckPhotoMosaic(sources: recentSources, twoRows: true, open: { source, frame in
+            DuckPhotoMosaic(sources: recentSources, twoRows: true, thumbnail: recentThumbnail, open: { source, frame in
               guard let photo = recentPhotos.first(where: { $0.source == source }) else { return }
               photoRouter.macPresent = presentPhoto
               photoRouter.open(photo, collection: recentPhotos, frame: frame)
@@ -80,7 +80,7 @@ struct MacHub: View {
       })
     case .caughtUp(let last, let saving):
       DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
-        title: Text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up"),
+        title: Text(LocalizedStringKey(BackupHubStatus.caughtUpTitle(saving: saving, earlierPhotosStarted: model.earlierPhotosStarted))),
         note: saving > 0
           ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
           : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })
@@ -91,12 +91,7 @@ struct MacHub: View {
     }
   }
 
-  private var progress: Double {
-    let active = model.jobs.filter { ["queued", "running", "waiting", "received"].contains($0.state) }
-    let total = active.reduce(UInt64(0)) { $0 + $1.totalBytes }
-    let confirmed = active.reduce(UInt64(0)) { $0 + min($1.confirmedBytes, $1.totalBytes) }
-    return total == 0 ? 0 : Double(confirmed) / Double(total)
-  }
+  private var progress: Double { model.hubProgress }
 
   // MARK: - Problems (cause, what happens by itself, at most one action)
 
@@ -169,6 +164,12 @@ struct MacHub: View {
       .sorted { ($0.stateChangedAt ?? 0) > ($1.stateChangedAt ?? 0) }
       .filter { seen.insert($0.asset.source_id).inserted }
       .prefix(8).map(HistoryPhoto.init(job:))
+  }
+  private func recentThumbnail(_ source: String, _ side: CGFloat) -> AnyView {
+    if let job = model.jobs.first(where: { $0.asset.source_id == source && $0.asset.metadata?["source_type"] == "folder" }) {
+      return AnyView(MacTransferThumbnail(job: job, size: side, cornerRadius: 0, fillsFrame: true))
+    }
+    return AnyView(AssetThumbnail(sourceID: source, size: side, cornerRadius: 0))
   }
   private var recentSources: [String] { recentPhotos.map(\.source)
   }

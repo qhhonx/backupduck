@@ -245,6 +245,9 @@ private struct ScenarioRun: View {
         appearance: catalogViewerStyle(scenario))
         .ignoresSafeArea()
         .task { await model.open() }.onDisappear { model.stop() }
+    } else if scenario.step == "contextSheetInventory" {
+      ContextSheetInventoryCatalog(model: model, history: scenario.id.hasSuffix("history"))
+        .onDisappear { model.stop() }
     } else if scenario.step == "selectedBackup" {
       SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
     } else if ["photoInformation", "photoViewer"].contains(scenario.step ?? "") {
@@ -591,6 +594,7 @@ private struct OnboardingCatalog: View {
         $0 = IOSFirstRunProgress.Record()
         $0.step = scenario.step ?? "welcome"
         $0.receiver = "catalog-pixel"
+        if $0.step == "notificationInvitation" { $0.completed = true }
         if $0.step == "first" {
           let slow = scenario.id.contains("slow") || scenario.id.hasSuffix("none")
           $0.firstPhotoStarted = Date().addingTimeInterval(slow ? -21 : 0)
@@ -774,6 +778,7 @@ private final class SelectionReviewSample: UIViewController {
     calendar.canBackup = !action.busy
     calendar.selected = library.selection
     calendar.setBackupFeedback(title: action.title, added: action.added)
+    if action.added && library.selection.isEmpty { calendar.completeSelectedBackup() }
     calendar.refreshSelection()
     guard let review = calendar.selectionReview else { return }
     review.setSelection(library.selection, notify: false)
@@ -791,6 +796,36 @@ private final class SelectionReviewSample: UIViewController {
       let alert = UIAlertController(title: NSLocalizedString("selection_backup_failed_title", comment: ""), message: error, preferredStyle: .alert)
       alert.addAction(UIAlertAction(title: NSLocalizedString("settings_done", comment: ""), style: .default) { [weak self] _ in self?.action.error = nil })
       review.present(alert, animated: true)
+    }
+  }
+}
+
+/// Inventory of the unchanged close-only production sheets on synthetic assets.
+private struct ContextSheetInventoryCatalog: UIViewControllerRepresentable {
+  let model: BackupModel
+  let history: Bool
+  func makeUIViewController(context: Context) -> UIViewController { Host(model: model, history: history) }
+  func updateUIViewController(_ controller: UIViewController, context: Context) {}
+  private final class Host: UIViewController {
+    let model: BackupModel
+    let history: Bool
+    var opened = false
+    init(model: BackupModel, history: Bool) { self.model = model; self.history = history; super.init(nibName: nil, bundle: nil) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() { super.viewDidLoad(); view.backgroundColor = .systemBackground }
+    override func viewDidAppear(_ animated: Bool) {
+      super.viewDidAppear(animated)
+      guard !opened else { return }; opened = true
+      Task { @MainActor in
+        await model.open()
+        for _ in 0..<20 where model.jobs.isEmpty {
+          await model.refresh(includeStorage: false)
+          try? await Task.sleep(for: .milliseconds(50))
+        }
+        guard let job = model.jobs.first else { return }
+        LibraryPhotoActions.perform(history ? "library_context_history" : "library_context_backup",
+          asset: InformationSampleAsset(job: job), library: PhotoLibraryModel(), model: model, presenter: self)
+      }
     }
   }
 }

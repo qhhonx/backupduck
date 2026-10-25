@@ -121,7 +121,7 @@ struct DuckCacheCleanupFooter: View {
     guard model.ready else { return nil }
     guard model.pairing != nil else { return NSLocalizedString("settings_no_receiver", comment: "") }
     return String(format: NSLocalizedString("settings_backs_up_to", comment: ""),
-      model.peerDevice?.name ?? NSLocalizedString("receiver_paired", comment: ""))
+      deviceDisplayName(model.peerDevice?.name ?? NSLocalizedString("receiver_paired", comment: "")))
   }
 
   /// The paired receiver's name for footers.
@@ -203,4 +203,9 @@ private struct DuckPreferenceRowLayout: ViewModifier {
         bottom: 0, trailing: DuckSpacing.medium))
     #endif
   }
+}
+
+/// Keep a generated device-name suffix together without changing stored identity.
+func deviceDisplayName(_ name: String) -> String {
+  name.replacingOccurrences(of: " · ", with: "\u{00A0}·\u{00A0}")
 }

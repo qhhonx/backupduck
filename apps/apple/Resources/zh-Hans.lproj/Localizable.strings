@@ -1171,10 +1171,10 @@
 "diagnostics_event_originals_reclaimed" = "已保存的本机原片已清理";
 "diagnostics_event_relay_originals_reclaimed" = "已保存的中转副本已清理";
 
-"library_review_selection_title" = "已选 %d 张";
+"library_review_selection_title" = "已选 %ld 项";
 "library_review_selected" = "已选择";
 "library_review_not_selected" = "未选择";
-"library_review_backup_count" = "备份 %d 张";
+"library_review_backup_count" = "备份 %ld 项";
 
 // Connection access recovery
 "connect_connecting" = "正在连接 Pixel…";
@@ -1242,3 +1242,9 @@
 "settings_third_party_unavailable" = "无法载入第三方软件。重新打开此页面以重试。";
 
 "hub_problem_review_action" = "查看";
+
+"hub_caught_up_new" = "新照片都已存进 Pixel 相册";
+"hub_earlier_not_started" = "以前的照片还没开始备份";
+"hub_earlier_not_started_note" = "会按自动备份的范围，在后台慢慢传完。";
+"hub_earlier_start" = "开始备份";
+"onboarding_notify_question" = "要打开备份通知吗？";

@@ -92,13 +92,13 @@ private struct ProcessingEventsResult: Decodable {
 
 @MainActor final class BackupModel: ObservableObject {
   static let shared = BackupModel()
-  @Published var historicalImport: HistoricalImportStatus?
+  @Published var historicalImport: HistoricalImportStatus? { didSet { updateHubBatch() } }
   @Published var historyError: String?
   @Published var changingHistory = false
   var scanningHistory = false
   var historyControlRevision = 0
   var historicalCursor: HistoricalScanCursor?
-  @Published var autoBackup = false
+  @Published var autoBackup = false { didSet { updateHubBatch() } }
   @Published var changingAutoBackup = false
   @Published var autoBackupError: String?
   @Published var changingPause = false
@@ -111,8 +111,8 @@ private struct ProcessingEventsResult: Decodable {
   @Published var savingConcurrency = false
   @Published var concurrencyError: String?
   @Published var transferProgress: [Int64: TransferProgress] = [:]
-  @Published var receiverUnavailable = false
-  @Published var receiverConnection = ReceiverConnection.unknown
+  @Published var receiverUnavailable = false { didSet { updateHubBatch() } }
+  @Published var receiverConnection = ReceiverConnection.unknown { didSet { updateHubBatch() } }
   @Published var checkingConnection = false
   @Published var receiverReadings: ReceiverReadings?
   private var checkingReadings = false
@@ -182,25 +182,38 @@ private struct ProcessingEventsResult: Decodable {
   #endif
   @Published var importingSourceID: String?
   @Published var exportProgress: Double?
-  @Published var storage: StorageSnapshot?
+  @Published var storage: StorageSnapshot? { didSet { updateHubBatch() } }
   @Published var storageError: String?
   @Published var storageSettingsError: String?
   @Published var cacheReclaimError: String?
   @Published var savingStorage = false
   @Published var reclaimingCache = false
-  @Published var pendingImports = 0
+  @Published var pendingImports = 0 { didSet { updateHubBatch() } }
   @Published var preparationReason: String?
   private var lastStorageRefresh = Date.distantPast
   @Published var hasMoreJobs = false
   private var jobsLimit = 200
   @Published var queueRevision: Int64 = -1
-  @Published var summary = SenderSummary()
+  @Published var summary = SenderSummary() { didSet { updateHubBatch() } }
+  private var hubBatch = HubBatchProgress()
+  var batchPeak: Int { hubBatch.batchPeak }
+  var hubProgress: Double {
+    guard case .backingUp(let remaining, _) = hubStatus else { return 0 }
+    let partial = jobs.filter {
+      $0.state == "running" && ($0.receiverID == nil || $0.receiverID == pairing?.receiverID)
+    }.reduce(0.0) { sum, job in
+      sum + (job.totalBytes == 0 ? 0 : Double(min(job.confirmedBytes, job.totalBytes)) / Double(job.totalBytes))
+    }
+    return hubBatch.fraction(remaining: remaining, partial: partial)
+  }
+  private func updateHubBatch() { hubBatch.observe(hubStatus) }
   private var refreshing = false
   private var discovery: PhotoLibraryChanges?
   private lazy var receiverDiscovery = ReceiverDiscovery(model: self)
   private var opening: Task<Void, Never>?
   @Published var pairing: Pairing? {
     didSet {
+      updateHubBatch()
       receiverReadings = nil
       if pairing == nil { networkingStarted = false }
       else if BackupEnvironment.restoresSenderNetwork() { observeNetwork() }
@@ -214,11 +227,11 @@ private struct ProcessingEventsResult: Decodable {
   @Published var savingDevice = false
   var exchangingDevice = false
   var lastDeviceExchange = Date.distantPast
-  @Published var jobs: [BackupJob] = []
+  @Published var jobs: [BackupJob] = [] { didSet { updateHubBatch() } }
   @Published var message: String?
-  @Published var paused = true
+  @Published var paused = true { didSet { updateHubBatch() } }
   @Published var importing = false
-  @Published var ready = false
+  @Published var ready = false { didSet { updateHubBatch() } }
   private var opened = false
   private var queueOpened = false
   private var refreshTask: Task<Void, Never>?

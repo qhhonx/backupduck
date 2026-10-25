@@ -1,0 +1,28 @@
+{
+  "id": "onboarding.device-name",
+  "extends": "onboarding.first-photo-landed",
+  "page": "onboarding",
+  "step": "first",
+  "ios_only": true,
+  "title": "First photo device-name suffix wrapping",
+  "core": {
+    "device_status": {
+      "value": {
+        "device": {
+          "id": "catalog-iphone",
+          "name": "Sunny Badger \u00b7 C802"
+        },
+        "peers": [
+          {
+            "key": "catalog-pixel",
+            "profile": {
+              "id": "catalog-pixel",
+              "name": "Sunny Badger \u00b7 C802"
+            },
+            "last_seen": 0
+          }
+        ]
+      }
+    }
+  }
+}

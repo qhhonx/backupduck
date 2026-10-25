@@ -58,7 +58,7 @@ struct IOSHub: View {
             }
           }
           if connected {
-            if let history = model.historicalImport, history.state != "idle" { earlierSummary(history) }
+            if model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted { earlierSummary(model.earlierPhotosCardStatus) }
             summaryRows
           }
         }
@@ -117,7 +117,7 @@ struct IOSHub: View {
       }
     case .caughtUp(let last, let saving):
       DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
-        title: Text(saving > 0 ? "hub_caught_up_saving" : "hub_caught_up"),
+        title: Text(LocalizedStringKey(BackupHubStatus.caughtUpTitle(saving: saving, earlierPhotosStarted: model.earlierPhotosStarted))),
         note: saving > 0
           ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
           : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })
@@ -150,13 +150,7 @@ struct IOSHub: View {
     }
   }
 
-  /// Bytes already confirmed among the jobs the hub knows about.
-  private var progress: Double {
-    let active = model.jobs.filter { ["queued", "running", "waiting", "received"].contains($0.state) }
-    let total = active.reduce(UInt64(0)) { $0 + $1.totalBytes }
-    let confirmed = active.reduce(UInt64(0)) { $0 + min($1.confirmedBytes, $1.totalBytes) }
-    return total == 0 ? 0 : Double(confirmed) / Double(total)
-  }
+  private var progress: Double { model.hubProgress }
 
   // MARK: - Problems (cause, what happens by itself, at most one action)
 

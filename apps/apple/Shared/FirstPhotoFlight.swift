@@ -57,12 +57,12 @@ struct FirstPhotoFlight: View {
       }
       HStack(alignment: .top, spacing: DuckSpacing.medium) {
         VStack(spacing: DuckSpacing.xxSmall) {
-          Text(senderName)
+          Text(deviceDisplayName(senderName))
           Text("onboarding_sender_photos")
         }.frame(width: 120)
         Spacer(minLength: 0)
         VStack(spacing: DuckSpacing.xxSmall) {
-          Text(receiverName)
+          Text(deviceDisplayName(receiverName))
           Text("onboarding_pixel_photos")
         }.frame(width: 120)
       }
