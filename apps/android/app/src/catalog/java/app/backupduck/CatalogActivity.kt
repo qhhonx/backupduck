@@ -87,7 +87,7 @@ class CatalogActivity : BackupDuckActivity() {
                 row.optString("processing_error").takeUnless { it.isBlank() || it == "null" },
                 row.optBoolean("originals_released"),
                 senderNames = row.optJSONArray("senders")?.let { peers ->
-                    (0 until peers.length()).mapNotNull { peers.optJSONObject(it)?.optJSONObject("profile")?.optString("name")?.takeIf(String::isNotBlank) }.joinToString(" · ")
+                    (0 until peers.length()).mapNotNull { peers.optJSONObject(it)?.optJSONObject("profile")?.optString("name")?.takeIf(String::isNotBlank) }.joinToString(SENDER_SEPARATOR)
                 }.orEmpty(),
                 capturedAtMs = CatalogMedia.captureTime(row.optString("id")) ?: row.optLong("captured_at_ms").takeIf { it > 0 },
                 receivedAtMs = row.optLong("received_at_ms").takeIf { it > 0 },

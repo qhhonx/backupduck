@@ -54,7 +54,7 @@ internal class HistoryModel(private val readPage:(JSONObject)->JSONObject = { Na
         val items = (0 until rows.length()).map { i ->
             val row = rows.getJSONObject(i)
             val peers = row.optJSONArray("senders")
-            val names = if (peers == null) "" else (0 until peers.length()).joinToString(" · ") { peers.getJSONObject(it).getJSONObject("profile").getString("name") }
+            val names = if (peers == null) "" else (0 until peers.length()).joinToString(SENDER_SEPARATOR) { peers.getJSONObject(it).getJSONObject("profile").getString("name") }
             HistoryItem(row.getLong("cursor"), row.getString("id"), row.getString("filename"), row.getString("kind"),
                 row.getLong("total_bytes"), row.getLong("confirmed_bytes"), row.getString("receipt"),
                 row.getString("processing"), row.optString("processing_error").takeIf { !row.isNull("processing_error") },

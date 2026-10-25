@@ -28,7 +28,9 @@ internal val HistoryItem.cause: PhotoCause? get() = when {
 /** The last time anything happened to the photo, when the core recorded it. */
 internal val HistoryItem.latestChangeMs: Long? get() = stateChangedAtMs ?: listOfNotNull(publishedAtMs, receivedAtMs).maxOrNull()
 
-internal val HistoryItem.senders: List<String> get() = senderNames.split(" · ").map { it.trim() }.filter { it.isNotEmpty() }
+// Device names themselves contain " · " (name · code), so senders are kept one per line.
+internal const val SENDER_SEPARATOR = "\n"
+internal val HistoryItem.senders: List<String> get() = senderNames.split(SENDER_SEPARATOR).map { it.trim() }.filter { it.isNotEmpty() }
 
 /** Applies live progress the core has not paged yet, as the item rows do. */
 internal fun HistoryItem.withLive(live: ReceiverByteProgress?): HistoryItem {

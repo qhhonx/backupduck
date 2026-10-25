@@ -147,4 +147,8 @@ class ReceivedPhotosTest {
         assertEquals(1, photoScope(null, listOf(item(2, processing = "pending")), 1, emptyList()).pending)
     }
 
+    @Test fun deviceNamesWithTheCodeSeparatorStayOneSender() {
+        assertEquals(listOf("琥珀柳树 · F27F"), item(1, sender = "琥珀柳树 · F27F").senders)
+        assertEquals(listOf("琥珀柳树 · F27F", "Sunny Mac · C1"), item(2, sender = "琥珀柳树 · F27F${SENDER_SEPARATOR}Sunny Mac · C1").senders)
+    }
 }
