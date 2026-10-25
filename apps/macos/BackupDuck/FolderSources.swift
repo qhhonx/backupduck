@@ -342,6 +342,7 @@ struct FolderSummary: Decodable, Equatable {
       if pending.action == "remove" {
         if selectedSourceID == id { selectedSourceID = nil }
         dirty.remove(id); fullChecks.remove(id); watches[id] = nil
+        facts[id] = nil
         summaries[id] = nil; phases[id] = nil; retryTurn[id] = nil; controlRevision[id] = nil
         access.removeValue(forKey: id)?.stopAccessingSecurityScopedResource()
         actionMessages[id] = nil

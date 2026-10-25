@@ -139,10 +139,10 @@ struct FolderSourcesPage: View {
         !browser.sections.contains(where: \.hasMore) else { return scope }
       return String(format: NSLocalizedString("folders_scope_count", comment: ""), scope, browser.sections.reduce(UInt64(0)) { $0 + UInt64($1.photos.count) })
     }
-    guard folders.loaded || folders.isPreview, folders.facts.count == folders.sources.count else {
+    guard folders.loaded || folders.isPreview, folders.sources.allSatisfy({ folders.facts[$0.id] != nil }) else {
       return NSLocalizedString("folders_counting", comment: "")
     }
-    let count = folders.facts.values.reduce(UInt64(0)) { result, facts in
+    let count = folders.sources.compactMap { folders.facts[$0.id] }.reduce(UInt64(0)) { result, facts in
       result + (browser.filter == .notBackedUp ? facts.not_backed_up : browser.filter == .needsYou ? facts.needs_you : facts.supported)
     }
     if browser.filter != .all {
