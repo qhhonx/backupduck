@@ -54,6 +54,9 @@ internal object GalleryPreview {
             }
         } else {
             runCatching {
+                context.contentResolver.loadThumbnail(copy.uri,target,signal)
+            }.getOrElse {
+                signal.throwIfCanceled()
                 MediaMetadataRetriever().use {r ->
                     signal.throwIfCanceled();r.setDataSource(context,copy.uri)
                     val width=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: target.width
@@ -61,7 +64,7 @@ internal object GalleryPreview {
                     val fraction=min(1.0,max(target.width.toDouble()/width,target.height.toDouble()/height))
                     checkNotNull(r.getScaledFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,(width*fraction).toInt().coerceAtLeast(1),(height*fraction).toInt().coerceAtLeast(1)))
                 }
-            }.getOrElse {signal.throwIfCanceled();context.contentResolver.loadThumbnail(copy.uri,target,signal)}
+            }
         }
         signal.throwIfCanceled();return result
     }

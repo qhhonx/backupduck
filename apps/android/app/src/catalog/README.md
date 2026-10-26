@@ -2,7 +2,7 @@
 
 All shared body, supporting and footnote text uses balanced native line breaking
 with hyphenation disabled, including centered empty states and compatibility text
-helpers. Launch with `--ez auditText true` to export visible TextView line layouts
+helpers. Storage footnotes fill the full content width before wrapping. Launch with `--ez auditText true` to export visible TextView line layouts
 to the catalog's external-files `text-layout.json` after layout or scrolling.
 Use these line endings with full-resolution screenshots to review CJK orphans;
 layout evidence alone does not establish visual acceptance.

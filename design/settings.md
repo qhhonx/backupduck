@@ -115,6 +115,8 @@ Storage uses the section "Free up space" and feature "Auto cleanup
 (experimental)". Smart Storage reports On, Off or State unavailable, refreshed
 on return from system settings. The cleanup detail begins with its enabled state.
 Copy removal and Google cloud-backed device removal have separate footnotes.
+Storage footnotes fill the full available content width before wrapping, while
+retaining the shared group-content insets and growing with localized text.
 
 Footer links: "Diagnostics · Advanced settings" (export and recent activity; format
 conversion, browser access, stop receiving).

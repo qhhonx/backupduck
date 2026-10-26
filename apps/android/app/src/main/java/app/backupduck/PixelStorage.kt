@@ -95,7 +95,7 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             getString(R.string.storage_relay_note), false, changed = ::saveRelay)
         relay = relayRow.toggle; relaySupport = relayRow.supporting
         relay.isEnabled = false
-        lookFootnote(automatic, getString(R.string.storage_relay_footnote))
+        lookFootnote(automatic, getString(R.string.storage_relay_footnote), balanced = false)
         cleanupGroup = lookGroup(automatic)
         (cleanupGroup.parent as View).let { (it.layoutParams as LinearLayout.LayoutParams).topMargin = token(R.dimen.duck_space_medium) }
         smartSupport = lookRow(cleanupGroup, R.drawable.ic_storage, getString(R.string.storage_smart), smartStorageLabel(),
@@ -126,18 +126,18 @@ internal class StorageScreen(private val activity: MainActivity, private val roo
             topMargin = token(LookSectionMetrics.footnoteGap)
             marginStart = token(LookSectionMetrics.inset); marginEnd = token(LookSectionMetrics.inset)
         })
-        cleanupFootnote = lookFootnote(automatic, getString(R.string.storage_cleanup_footnote))
+        cleanupFootnote = lookFootnote(automatic, getString(R.string.storage_cleanup_footnote), balanced = false)
 
         copySection = lookContentSection(body, getString(R.string.storage_copies_on_pixel))
         copyRows = lookGroup(copySection)
-        reclaimableNote = lookFootnote(copySection, "").apply { visibility = View.GONE }
+        reclaimableNote = lookFootnote(copySection, "", balanced = false).apply { visibility = View.GONE }
         renderCopies(null)
 
         val nowSection = lookContentSection(body, getString(R.string.storage_now))
         val now = lookCard(nowSection)
         now.addView(lookText(getString(R.string.storage_free_up_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
-            breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
-        })
+            breakStrategy = android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
+        }, LinearLayout.LayoutParams(-1, -2))
         now.addView(lookButton(getString(R.string.rhub_free_up), LookButton.TONAL, action = openPhotos).apply {
             breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
         }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = token(R.dimen.duck_space_small) })

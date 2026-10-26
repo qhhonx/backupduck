@@ -198,6 +198,10 @@ internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompa
                         currentCoroutineContext().ensureActive()
                         signal.throwIfCanceled()
                         val image = runCatching {
+                            // Video frames decode slowly from large originals; photos stay sharp from the copy.
+                            if (item.kind == "video" && item.processing == "complete" && width <= 2 * 320 && height <= 2 * 320) {
+                                ReceiptThumbnails.read(activity, item.id)?.let { return@runCatching it }
+                            }
                             val published = if (item.processing == "complete") runCatching {
                                 ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
                                 GalleryPreview.resolve(activity, item, null, signal)?.let {

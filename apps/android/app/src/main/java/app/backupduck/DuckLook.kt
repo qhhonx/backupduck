@@ -91,9 +91,9 @@ internal fun Context.lookContentSection(parent: LinearLayout, title: String): Li
 }
 
 /** Footnotes align with group content and grow with localized/accessibility text. */
-internal fun Context.lookFootnote(parent: LinearLayout, text: String): TextView =
+internal fun Context.lookFootnote(parent: LinearLayout, text: String, balanced: Boolean = true): TextView =
     lookText(text, M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {
-        breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
+        breakStrategy = if (balanced) android.text.Layout.BREAK_STRATEGY_BALANCED else android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
     }.also {
         parent.addView(it, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = token(LookSectionMetrics.footnoteGap)

@@ -134,7 +134,12 @@ English below; the zh-Hans strings (`records_*` keys in
   320-pixel WebP picture per photo (about 10 KB) so removed photos stay
   browsable. Photos seen before this existed get one when first shown while
   their copy is present. The picture is never evidence of any copy. Photos
-  removed before they had one show the type icon.
+  removed before they had one show the type icon. Completed video tiles up to
+  640 pixels in both dimensions use that picture first, without opening the
+  published copy; photos and larger viewer requests decode the copy so they
+  stay sharp. Video
+  decoding tries the system media thumbnail before extracting a frame from the
+  full file; cancellation remains owned by the requesting view.
 - **Scope line.** "1,284 photos · 1,277 in the Pixel's Photos"; it names the
   sending device only when one device sent everything shown.
 - **Ordering.** The core pages a fixed read snapshot by latest recorded state
