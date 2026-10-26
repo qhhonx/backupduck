@@ -366,3 +366,64 @@ extension FocusedValues {
     set { self[MacHistoryZoomKey.self] = newValue }
   }
 }
+
+/// The same two-section filter menu for every media source.
+struct MacGridFilterMenu: View {
+  var shows: [(id: String, title: String, symbol: String)]
+  var selected: String
+  var choose: (String) -> Void
+  @Binding var type: LibraryFilter
+  var identifier: String
+  private var active: Bool { selected != "all" || type != .all }
+  var body: some View {
+    Menu {
+      // An inline picker's label is its section title; wrapping it in a
+      // Section as well drew a second divider under each title.
+      Picker("grid_filter_show", selection: Binding(get: { selected }, set: choose)) {
+        ForEach(shows, id: \.id) { item in Label(LocalizedStringKey(item.title), systemImage: item.symbol).tag(item.id) }
+      }.pickerStyle(.inline)
+      Picker("grid_filter_type", selection: $type) {
+        ForEach(LibraryFilter.allCases) { filter in
+          Label(LocalizedStringKey(filter == .all ? "grid_filter_all_types" : filter == .burst ? "grid_filter_bursts" : filter.title), systemImage: filter.symbol).tag(filter)
+        }
+      }.pickerStyle(.inline)
+    } label: {
+      Label("library_filter", systemImage: "line.3.horizontal.decrease")
+        .foregroundStyle(active ? AnyShapeStyle(DuckRole.accent) : AnyShapeStyle(.primary))
+    }.menuIndicator(.hidden).help("library_filter").accessibilityIdentifier(identifier)
+  }
+  static var backupViews: [(id: String, title: String, symbol: String)] {
+    LibraryBackupView.allCases.map { ($0.rawValue, $0.title, $0.symbol) }
+  }
+}
+
+/// An explicit system toolbar item keeps search collapsed on first presentation.
+/// Escape dismisses only an empty query, so existing input is never discarded.
+struct MacGridSearch: View {
+  @Binding var text: String
+  @Binding var presented: Bool
+  @FocusState private var focused: Bool
+  var body: some View {
+    Group {
+      if presented {
+        TextField("folders_search", text: $text).textFieldStyle(.roundedBorder)
+          .frame(minWidth: 120, idealWidth: 180, maxWidth: 220).focused($focused)
+          .onAppear { focused = true }
+          .onExitCommand { if text.isEmpty { presented = false } }
+          .accessibilityIdentifier("grid.search_field")
+      } else {
+        Button { presented = true } label: { Label("folders_search", systemImage: "magnifyingglass") }
+          .labelStyle(.iconOnly).help("folders_search").accessibilityIdentifier("grid.search")
+      }
+    }
+    .onChange(of: presented) { _, value in focused = value }
+  }
+}
+struct MacGridSearchAction { var open: () -> Void }
+private struct MacGridSearchKey: FocusedValueKey { typealias Value = MacGridSearchAction }
+extension FocusedValues {
+  var gridSearch: MacGridSearchAction? {
+    get { self[MacGridSearchKey.self] }
+    set { self[MacGridSearchKey.self] = newValue }
+  }
+}

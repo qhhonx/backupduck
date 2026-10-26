@@ -1271,3 +1271,10 @@
 "library_deleted_title" = "已从这台 iPhone 删除";
 
 "library_deleted_saved_note" = "Pixel 上的备份还在。";
+
+"grid_filter_show" = "显示";
+"grid_filter_type" = "类型";
+"grid_filter_all_types" = "所有类型";
+"grid_filter_all" = "全部";
+
+"grid_filter_bursts" = "连拍";

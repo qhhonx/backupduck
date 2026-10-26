@@ -41,7 +41,10 @@ struct MacWorkspace: View {
   @State private var transferFilter = "all"
   @State private var historyScope = ""
   @State private var historyCount = 0
-  @State private var historyColumns = 6
+  @State private var historyColumns = MacLibraryDensity.standard
+  @State private var historyType: LibraryFilter = .all
+  @State private var historySearch = ""
+  @State private var historySearchExpanded = false
   @State private var historyFocus: HistoryPhoto?
   @State private var librarySelecting = false
   @State private var previewAsset: PHAsset?
@@ -98,6 +101,7 @@ struct MacWorkspace: View {
       smaller: { historyColumns = min(9, MacLibraryDensity.step(historyColumns, by: 1)) },
       larger: { historyColumns = MacLibraryDensity.step(historyColumns, by: -1) },
       canShrink: historyColumns < 9, canGrow: historyColumns > 3) : nil)
+    .focusedSceneValue(\.gridSearch, destination == .transfers && !hasViewer ? MacGridSearchAction(open: { historySearchExpanded = true }) : nil)
     .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
       info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
     // The accent reaches the system as its accent color: selection, switches and
@@ -188,9 +192,11 @@ struct MacWorkspace: View {
         if destination == .backup {
           MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
         }
-        if destination == .transfers {
-          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, scopeChanged: { historyScope = $0; historyCount = $1 }).id(transferFilter)
-            .id(transferFilter + "|" + (historyFocus?.id ?? ""))
+        Group {
+          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, resize: { historyColumns = $0 }, mediaFilter: historyType, search: historySearch, clearFilters: { transferFilter = "all"; historyType = .all; historySearch = "" },
+              active: destination == .transfers, scopeChanged: { historyScope = $0; historyCount = $1 })
+            .opacity(destination == .transfers ? 1 : 0).allowsHitTesting(destination == .transfers)
+            .accessibilityHidden(destination != .transfers)
         }
         if destination == .settings {
           MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
@@ -211,6 +217,9 @@ struct MacWorkspace: View {
           } else if let recorded {
             MacRecordedPhotoPreview(photo: recorded, model: model, navigation: libraryNavigation, close: { self.externalViewer = nil })
           }
+        case let .history(photo, collection, media, returnTo):
+          MacHistoryPreview(photo: photo, collection: collection, library: library, navigation: libraryNavigation,
+            media: media, close: { id in returnTo(id); self.externalViewer = nil })
         case let .folder(photo, context, sources, returnTo):
           FolderViewer(photo: photo, context: context, folders: sources, navigation: libraryNavigation, close: { current in
             returnTo?(current); self.externalViewer = nil
@@ -259,34 +268,14 @@ struct MacWorkspace: View {
     }
     MacBrowsingToolbarGap()
     ToolbarItemGroup(placement: .primaryAction) {
-      if libraryNavigation.level == .all && library.placeholder == nil && library.loaded > 0 {
+      if libraryNavigation.level == .all && !MacLibraryDensity.isDense(density) && library.placeholder == nil && library.loaded > 0 {
       Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
         .toggleStyle(.button).help("calendar_original_aspect")
         .accessibilityIdentifier("library.original_aspect")
       }
-      // One flat menu, as in Photos: everything, then each media type, with
-      // a check on the current one. No nested submenu, no menu chevron.
-      Menu {
-        Picker("library_view_section", selection: Binding(get: { library.backupView }, set: { value in
-          Task { await library.changeBackupView(value) }
-        })) {
-          ForEach(LibraryBackupView.allCases) { view in
-            Label(LocalizedStringKey(view.title), systemImage: view.symbol).tag(view)
-          }
-        }.pickerStyle(.inline)
-        Divider()
-        // An inline picker keeps each item's icon next to the check mark.
-        Picker("media_type", selection: Binding(get: { library.filter }, set: { value in
-          Task { await library.changeFilter(value) }
-        })) {
-          ForEach(LibraryFilter.allCases) { filter in
-            Label(LocalizedStringKey(filter.title), systemImage: filter.symbol).tag(filter)
-            if filter == .all { Divider() }
-          }
-        }.pickerStyle(.inline).labelsHidden()
-      } label: { Label("library_filter", systemImage: library.filter == .all && library.backupView == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill") }
-        .menuIndicator(.hidden)
-        .help(Text(LocalizedStringKey(library.filter.title))).accessibilityIdentifier("library.filter")
+      MacGridFilterMenu(shows: MacGridFilterMenu.backupViews, selected: library.backupView.rawValue,
+        choose: { raw in if let view = LibraryBackupView(rawValue: raw) { Task { await library.changeBackupView(view) } } },
+        type: Binding(get: { library.filter }, set: { value in Task { await library.changeFilter(value) } }), identifier: "library.filter")
     }
     if !library.selection.isEmpty || backupAction.added || backupAction.busy {
       MacBrowsingToolbarGap()
@@ -296,19 +285,15 @@ struct MacWorkspace: View {
       }
     }
   }
-  if !hasViewer, destination == .transfers, !historyScope.isEmpty {
-    if transferFilter == "attention" {
-      ToolbarItem(placement: .primaryAction) {
-        Button { showTransfers("all") } label: {
-          Label(String(format: NSLocalizedString("library_view_pill", comment: ""),
-            NSLocalizedString("records_needs_you", comment: ""), historyCount.formatted()),
-            systemImage: "xmark.circle.fill").labelStyle(.titleAndIcon)
-        }
-          .accessibilityLabel(historyScope)
-          .help(Text("records_clear_filter"))
-      }
-    }
+  if !hasViewer, destination == .transfers, historyCount > 0 || transferFilter != "all" || historyType != .all || !historySearch.isEmpty {
     MacLibraryScale(columns: $historyColumns, stops: MacLibraryDensity.grid)
+    MacBrowsingToolbarGap()
+    ToolbarItemGroup(placement: .primaryAction) {
+      MacGridFilterMenu(shows: [("all", "grid_filter_all", "photo.on.rectangle"),
+        ("attention", "records_needs_you", "exclamationmark.circle")], selected: transferFilter,
+        choose: { transferFilter = $0 }, type: $historyType, identifier: "history.filter")
+      MacGridSearch(text: $historySearch, presented: $historySearchExpanded)
+    }
   }
   }
   private var libraryPeriodPicker: some View {

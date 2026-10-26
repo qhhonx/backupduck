@@ -300,6 +300,7 @@ struct BackupScopeEditor: View {
   private var albumList: some View {
     let chosen = store.rule.usesSpecifiedAlbums ? store.rule.albums : []
     let visible = model.albums.filter { (!$0.system || chosen.contains($0.id)) && matches($0.name) }
+    #if os(iOS)
     return List {
       Section {
         albumSelection
@@ -340,6 +341,34 @@ struct BackupScopeEditor: View {
     }
     .scopeChoiceList()
     .overlay { if model.loading { ProgressView("library_loading") } }
+    #else
+    return ScrollView {
+      VStack(alignment: .leading, spacing: DuckSpacing.large) {
+        albumSelection
+        if visible.isEmpty && !model.loading { ContentUnavailableView.search(text: search) }
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 132, maximum: 200), spacing: DuckSpacing.medium)], alignment: .leading, spacing: DuckSpacing.large) {
+          ForEach(visible) { album in
+            MacScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) })
+              .contextMenu {
+                Button("scope_album_view") { view(album) }
+                Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+              }
+              .accessibilityAction(named: Text("scope_album_view")) { view(album) }
+          }
+        }
+        if !model.loading && !missing.isEmpty {
+          Text("scope_album_unavailable").font(.headline)
+          ForEach(missing.sorted().filter { matches(store.rule.albumNames[$0] ?? "") }, id: \.self) { id in
+            ScopeChoiceRow(title: store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable", comment: ""),
+              subtitle: NSLocalizedString("scope_album_unavailable", comment: ""), showsCover: true, selected: true) {
+                var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
+              }
+          }
+        }
+      }.padding(DuckSpacing.large)
+    }.overlay { if model.loading { ProgressView("library_loading") } }
+    #endif
+
   }
 
   private var missing: Set<String> {
@@ -471,3 +500,34 @@ struct ReadOnlyMediaThumbnail: View {
 func albumItemCount(_ count: Int) -> String {
   String(format: NSLocalizedString(count == 1 ? "scope_album_item" : "scope_album_items",comment: ""),count.formatted())
 }
+
+#if os(macOS)
+/// Album choices use covers as the complete keyboard- and pointer-operable target.
+private struct MacScopeAlbumCard: View {
+  let album: ScopeAlbum
+  let selected: Bool
+  var action: () -> Void
+  var body: some View {
+    Button(action: action) {
+      VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+        GeometryReader { proxy in
+          ReadOnlyMediaThumbnail(asset: album.cover, width: proxy.size.width, height: proxy.size.width)
+            .overlay(alignment: .bottomTrailing) {
+              if selected {
+                Image(systemName: "checkmark.circle.fill").symbolRenderingMode(.palette)
+                  .foregroundStyle(Color.white, DuckRole.accent).font(.title3) // design-exception: selection check over a photo
+                  .padding(DuckSpacing.xSmall)
+              }
+            }
+        }.aspectRatio(1, contentMode: .fit)
+        Text(verbatim: album.name).font(.body).lineLimit(2)
+        Text(verbatim: albumItemCount(album.count)).font(.callout).foregroundStyle(.secondary)
+      }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+    }.buttonStyle(.plain)
+      .accessibilityLabel(Text(verbatim: album.name + ", " + albumItemCount(album.count)))
+      .accessibilityValue(Text(LocalizedStringKey(selected ? "scope_album_deselect" : "scope_album_choose")))
+      .accessibilityAddTraits(selected ? .isSelected : [])
+      .accessibilityIdentifier("backup.scope.album." + album.id)
+  }
+}
+#endif

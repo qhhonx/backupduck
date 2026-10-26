@@ -72,6 +72,8 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   var configured = false
   @Published var byFolder = true { didSet { contextChanged() } }
   @Published var filter: LibraryBackupView = .all { didSet { contextChanged() } }
+  @Published var type: LibraryFilter = .all { didSet { contextChanged() } }
+  var gridScrolls: [String: MacGridScrollState] = [:]
   @Published var searchExpanded = false
   @Published var search = "" { didSet { contextChanged() } }
   @Published var selection = Set<String>()
@@ -81,7 +83,7 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   @Published var error: String?
   var offsets: [String: CGPoint] = [:]
   private var selections: [String: Set<String>] = [:]
-  private var activeKey = "true|all|"
+  private var activeKey = "true|all||all"
   private func contextChanged() {
     guard key != activeKey else { return }
     selections[activeKey] = selection
@@ -89,7 +91,7 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   }
   private var loadingSections = Set<String>()
   private var generation = 0
-  var key: String { "\(byFolder)|\(filter.rawValue)|\(search)" }
+  var key: String { "\(byFolder)|\(filter.rawValue)|\(search)|\(type.rawValue)" }
   var selected: [FolderPhoto] { sections.flatMap(\.photos).filter { selection.contains($0.id) && $0.canBackUp } }
   /// Submitted photos leave selection in every saved browse context. Photos
   /// selected after the press remain selected if the person changes the view.
@@ -112,7 +114,6 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
           let page = try await folders.browse(id == "all" ? nil : id, offset: rows.count, search: search, filter: filter)
           guard current == generation, !Task.isCancelled else { return }
           rows += page.rows; more = page.has_more
-          if grouped { rows = Array(rows.prefix(6)); more = false }
         }
         next.append(Section(id: id, photos: rows, hasMore: more))
       }
@@ -174,13 +175,14 @@ struct MacFolderCommands: Commands {
   @FocusedValue(\.folderCommands) private var actions
   @FocusedValue(\.photoViewerCommands) private var viewer
   @FocusedValue(\.historyZoom) private var historyZoom
+  @FocusedValue(\.gridSearch) private var gridSearch
   var body: some Commands {
     CommandGroup(after: .newItem) {
       Button("folders_back_up_selected") { actions?.backUp() }.disabled(actions?.canBackUp != true)
       Button("folders_add") { actions?.add() }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(actions == nil)
     }
     CommandGroup(after: .textEditing) {
-      Button("folders_search") { actions?.search() }.keyboardShortcut("f", modifiers: .command).disabled(actions == nil)
+      Button("folders_search") { gridSearch?.open() }.keyboardShortcut("f", modifiers: .command).disabled(gridSearch == nil)
     }
     CommandGroup(after: .pasteboard) {
       Button("library_context_share") { viewer?.share() }.disabled(viewer == nil)

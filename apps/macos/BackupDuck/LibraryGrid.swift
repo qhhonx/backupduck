@@ -3,8 +3,8 @@ import AVFoundation
 import Photos
 import SwiftUI
 
-struct MacLibraryGrid: NSViewRepresentable {
-  @ObservedObject var library: PhotoLibraryModel
+struct MacMediaGrid: NSViewRepresentable {
+  var source: any MacGridSource
   @ObservedObject var navigation: MacLibraryNavigation
   @ObservedObject var networkPolicy = PreviewNetworkPolicy.shared
   var preparationRevision: String = ""
@@ -17,12 +17,12 @@ struct MacLibraryGrid: NSViewRepresentable {
   /// library grid may start it. An album grid reads the tables but would cancel
   /// the library's pass and make it start over when the album closes.
   var prefillsTables = true
-  var preview: (PHAsset) -> Void = { _ in }
+  var preview: (String) -> Void = { _ in }
   var enterSelection: () -> Void = {}
   var resize: (Int) -> Void = { _ in }
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeNSView(context: Context) -> NSScrollView {
-    let layout = LibraryTimelineLayout(library: library, mode: .all, target: 135)
+    let layout = LibraryTimelineLayout(mode: .all, target: 135)
     // The first layout must already use the chosen column count; a second pass
     // would change the content height under a restored offset.
     layout.requestedColumns = columns
@@ -42,16 +42,16 @@ struct MacLibraryGrid: NSViewRepresentable {
     collection.denseHit = { [weak coordinator = context.coordinator] point in coordinator?.denseIndex(at: point) }
     collection.drill = { [weak coordinator = context.coordinator] index in coordinator?.drillDown(from: index) }
     collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
-    collection.register(TimelineDateHeader.self, forSupplementaryViewOfKind: LibraryTimelineLayout.headerKind, withIdentifier: .init("timeline"))
-    collection.dataSource = context.coordinator
+    collection.register(MacGridSectionHeader.self, forSupplementaryViewOfKind: LibraryTimelineLayout.headerKind, withIdentifier: .init("timeline"))
+    context.coordinator.installDataSource(collection)
     collection.delegate = context.coordinator
     collection.toggleSelection = { [weak coordinator = context.coordinator] path in
       coordinator?.toggleSelection(at: path)
     }
     collection.enterSelection = { [weak coordinator = context.coordinator] path in coordinator?.beginSelection(at: path) }
     collection.preview = { [weak coordinator = context.coordinator] path in
-      guard let coordinator, let asset = coordinator.asset(at: path.item) else { return }
-      coordinator.parent.preview(asset)
+      guard let coordinator, let id = coordinator.identifier(at: path.item) else { return }
+      coordinator.parent.preview(id)
     }
     let press = NSPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPress(_:)))
     press.minimumPressDuration = 0.4
@@ -65,10 +65,10 @@ struct MacLibraryGrid: NSViewRepresentable {
     scroll.documentView = collection
     scroll.contentView.postsBoundsChangedNotifications = true
     context.coordinator.collection = collection
-    library.previewPoster = { [weak collection] id in
+    source.previewPoster = { [weak collection] id in
       collection?.visibleItems().compactMap { $0 as? PhotoCell }.first { $0.assetID == id }?.displayedImage
     }
-    library.previewFrame = { [weak collection] id in
+    source.previewFrame = { [weak collection] id in
       guard let cell = collection?.visibleItems().compactMap({ $0 as? PhotoCell }).first(where: { $0.assetID == id }) else { return nil }
       return cell.view.convert(cell.view.bounds, to: nil)
     }
@@ -123,98 +123,16 @@ struct MacLibraryGrid: NSViewRepresentable {
       }
     }
     for path in collection.indexPathsForVisibleItems() {
-      (collection.item(at: path) as? PhotoCell)?.setSelectionVisible(true)
+      (collection.item(at: path) as? PhotoCell)?.setSelectionVisible(selecting)
     }
     if !c.magnifying { c.syncDensity(columns: columns, layout: layout) }
-    var reloaded = false
-    if c.generation != library.generation {
-      reloaded = true
-      c.stopLayoutAnimation(); c.removeZoomStage(); c.magnifying = false
-      let sameFilter = (c.filter == nil || c.filter == library.filter)
-        && (c.scrollResetGeneration == nil || c.scrollResetGeneration == library.scrollResetGeneration)
-      if sameFilter, c.generation >= 0 { c.rememberScroll() }
-      let offset = sameFilter ? library.scrollOffset : .zero
-      let anchor = sameFilter ? library.scrollAnchorID : nil
-      let inset = library.scrollAnchorInset
-      c.restoring = true
-      if !sameFilter { c.pinnedToNewest = true }
-      c.filter = library.filter
-      c.scrollResetGeneration = library.scrollResetGeneration
-      c.generation = library.generation
-      c.count = library.loaded
-      c.applyingSelection = true
-      c.appliedSelection = nil
-      collection.reloadData()
-      (scroll as? LibraryScrollView)?.restoreScroll = { [weak c] scroll in
-        guard let c, let collection = c.collection,
-          let layout = collection.collectionViewLayout else { return }
-        collection.layoutSubtreeIfNeeded()
-        var target = offset
-        c.ensureDocumentHeight()
-        let maximum = max(0, c.settledContentHeight - scroll.contentView.bounds.height)
-        if c.pinnedToNewest {
-          // Rest at the newest edge, at the bottom.
-          target.y = maximum
-        } else if let index = c.displayIndex(of: anchor) {
-          if let frame = layout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame {
-            target.y = frame.minY + inset
-          }
-        }
-        target.y = min(maximum, max(0, target.y))
-        scroll.contentView.scroll(to: target)
-        scroll.reflectScrolledClipView(scroll.contentView)
-        c.restoring = false
-        c.applyingSelection = false
-        c.applyPendingFocus()
-        c.scrolled()
-      }
-      scroll.needsLayout = true
-      scroll.layoutSubtreeIfNeeded()
-    } else if c.count < library.loaded {
-      // Older pages are presented above the oldest loaded row: keep the item at
-      // the top of the viewport where it is.
-      let clip = scroll.contentView
-      let atNewestEdge = clip.bounds.maxY >= c.settledContentHeight - 2
-      let top = c.visibleRange()?.first
-      let topModel = top.map { c.count - 1 - $0 }
-      let topY = top.map { layout.frame(at: $0).minY - clip.bounds.minY }
-      c.count = library.loaded
-      c.zoomStage?.count = c.count
-      c.appliedSelection = nil
-      collection.reloadData()
-      collection.needsLayout = true; collection.layoutSubtreeIfNeeded()
-      c.pinnedToNewest = atNewestEdge
-      c.ensureDocumentHeight()
-      if atNewestEdge {
-        // Resting at the newest edge stays there as older rows appear above.
-        clip.scroll(to: CGPoint(x: 0, y: max(0, c.settledContentHeight - clip.bounds.height)))
-        scroll.reflectScrolledClipView(clip)
-      } else if let topModel, let topY,
-        let frame = layout.layoutAttributesForItem(at: IndexPath(item: c.count - 1 - topModel, section: 0))?.frame {
-        clip.scroll(to: CGPoint(x: 0, y: max(0, frame.minY - topY)))
-        scroll.reflectScrolledClipView(clip)
-      }
-    }
-    // Paging older rows in while scrolling republished the library, which
-    // re-evaluated the whole window and relaid the toolbar (about 40 ms) every
-    // few hundred photos. The Mac reads the remaining rows in one background
-    // pass shortly after the newest page is on screen.
-    if library.hasMoreRows, c.bulkGeneration != library.generation {
-      c.bulkGeneration = library.generation
-      let library = library, generation = library.generation
-      Task { @MainActor in
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-        for _ in 0..<40 where library.hasMoreRows && library.generation == generation {
-          await library.loadAllRows()
-          if library.hasMoreRows { try? await Task.sleep(nanoseconds: 250_000_000) }
-        }
-      }
-    }
+    c.applyItems(scroll: scroll, layout: layout)
+    source.loadAllIfNeeded()
     if c.networkAllowed != networkPolicy.allowed {
       c.networkAllowed = networkPolicy.allowed; c.refreshVisibleImages()
     }
-    if c.contentGeneration != library.contentGeneration {
-      c.contentGeneration = library.contentGeneration
+    if c.contentGeneration != source.contentRevision {
+      c.contentGeneration = source.contentRevision
       c.refreshVisibleImages()
       c.scrolled()
     }
@@ -242,14 +160,14 @@ struct MacLibraryGrid: NSViewRepresentable {
     if c.originalAspect != navigation.originalAspect {
       c.originalAspect = navigation.originalAspect; c.refreshVisibleImages()
     }
-    if c.appliedSelection != library.selection {
+    if c.appliedSelection != source.selection {
       c.applyingSelection = true
       collection.selectionIndexPaths = c.selectedPaths()
-      c.appliedSelection = library.selection
+      c.appliedSelection = source.selection
       c.applyingSelection = false
     }
     c.updateFooter()
-    if prefillsTables { MacThumbnailTables.prefill(library.fetch) }
+    if prefillsTables { source.prefill() }
   }
   static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
     coordinator.stopLayoutAnimation()
@@ -258,11 +176,11 @@ struct MacLibraryGrid: NSViewRepresentable {
     coordinator.refresh.cancel()
     if let observer = coordinator.observer { NotificationCenter.default.removeObserver(observer) }
     if let observer = coordinator.frameObserver { NotificationCenter.default.removeObserver(observer) }
-    coordinator.parent.library.previewPoster = nil
-    coordinator.parent.library.previewFrame = nil
+    coordinator.parent.source.previewPoster = nil
+    coordinator.parent.source.previewFrame = nil
     coordinator.parent.navigation.cellFrame = nil
   }
-  @MainActor final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate
+  @MainActor final class Coordinator: NSObject, NSCollectionViewDelegate
   {
     var networkAllowed = false
     var originalAspect = false
@@ -318,7 +236,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       let dense = layout.isDense
       canvas.isHidden = !dense
       guard dense else { canvas.reset(); return }
-      canvas.pipeline = parent.library.thumbnails
+      canvas.pipeline = parent.source.thumbnails
       canvas.assetAt = { [weak self] index in self?.asset(at: index) }
       canvas.factAt = { [weak self] index in self?.fact(at: index) }
       canvas.count = count
@@ -391,7 +309,7 @@ struct MacLibraryGrid: NSViewRepresentable {
     private var anchorFraction: CGFloat = 0
     private var anchorY: CGFloat = 0
     private var keepsTop = false
-    var parent: MacLibraryGrid
+    var parent: MacMediaGrid
     weak var collection: NSCollectionView?
     var observer: NSObjectProtocol?
     var frameObserver: NSObjectProtocol?
@@ -401,14 +319,73 @@ struct MacLibraryGrid: NSViewRepresentable {
     var appliedSelection: Set<String>?
     var count = 0
     var generation = -1
-    var filter: LibraryFilter?
-    var scrollResetGeneration: Int?
+    var contextID: String?
+    var ids: [String] = []
+    var positions: [String: Int] = [:]
+    var dataSource: NSCollectionViewDiffableDataSource<Int, String>?
     var preparationRevision = ""
-    var contentGeneration = -1
+    var contentGeneration = ""
     var statusRevision: Int64 = -2
     var receiverID: String?
     var visibleIdentifiers: [IndexPath: String] = [:]
-    init(_ parent: MacLibraryGrid) { self.parent = parent }
+    init(_ parent: MacMediaGrid) { self.parent = parent }
+    func installDataSource(_ collection: NSCollectionView) {
+      let data = NSCollectionViewDiffableDataSource<Int, String>(collectionView: collection) { [weak self] view, path, id in
+        let cell = view.makeItem(withIdentifier: .init("photo"), for: path) as! PhotoCell
+        self?.configure(cell, id: id)
+        return cell
+      }
+      data.supplementaryViewProvider = { [weak self] view, kind, path in
+        self?.makeHeader(view, kind: kind, at: path)
+      }
+      dataSource = data
+    }
+    func applyItems(scroll: NSScrollView, layout: LibraryTimelineLayout) {
+      let next = parent.source.identifiers
+      let changedContext = contextID != parent.source.contextID
+      guard ids != next || changedContext else {
+        let heights = parent.source.headerHeights(width: width())
+        if layout.groups != parent.source.groups || layout.headerHeights != heights {
+          layout.groups = parent.source.groups; layout.headerHeights = heights
+          layout.revision += 1; layout.invalidateLayout()
+          collection?.layoutSubtreeIfNeeded()
+        }
+        refreshVisibleHeaders(); refreshVisibleImages(); return
+      }
+      if !changedContext { rememberScroll() }
+      stopLayoutAnimation(); removeZoomStage(); magnifying = false
+      let first = contextID == nil
+      let retained = parent.source.scroll
+      let offset = retained.offset, anchor = retained.anchor, inset = retained.inset
+      if changedContext { pinnedToNewest = parent.source.startsAtEnd && anchor == nil }
+      contextID = parent.source.contextID
+      // Membership changes a person can follow animate; paging in thousands of
+      // older rows, or a whole new fetch, is applied at once as before.
+      let previous = Set(ids)
+      let changes = abs(next.count - previous.count) + next.lazy.filter { !previous.contains($0) }.count
+      ids = next; positions = Dictionary(uniqueKeysWithValues: next.enumerated().map { ($0.element, $0.offset) })
+      count = next.count; generation += 1; appliedSelection = nil
+      layout.revision += 1
+      layout.groups = parent.source.groups
+      layout.headerHeights = parent.source.headerHeights(width: width())
+      restoring = true; applyingSelection = true
+      var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
+      snapshot.appendSections([0]); snapshot.appendItems(next, toSection: 0)
+      let expected = generation
+      let animates = !first && !changedContext && !reducedMotion && changes <= 64
+      dataSource?.apply(snapshot, animatingDifferences: animates) { [weak self, weak scroll] in
+        guard let self, self.generation == expected, let scroll, let collection = self.collection else { return }
+        collection.needsLayout = true; collection.layoutSubtreeIfNeeded(); self.ensureDocumentHeight()
+        let maximum = max(0, self.settledContentHeight - scroll.contentView.bounds.height)
+        var target = offset
+        if self.pinnedToNewest { target.y = maximum }
+        else if let index = self.displayIndex(of: anchor) { target.y = layout.frame(at: index).minY + inset }
+        target.y = min(maximum, max(0, target.y))
+        scroll.contentView.scroll(to: target); scroll.reflectScrolledClipView(scroll.contentView)
+        self.restoring = false; self.applyingSelection = false
+        self.applyPendingFocus(); self.scrolled()
+      }
+    }
     var zoomStage: MacGridZoomStage?
     private var anchorFractionX: CGFloat = 0.5
     // Shared zoom rules (apps/apple/Shared/GridZoom.swift). The host owns tiles
@@ -472,6 +449,9 @@ struct MacLibraryGrid: NSViewRepresentable {
       return max(1,floor((width()-inset*2-CGFloat(columns-1)*gap)/CGFloat(columns)))+gap
     }
     private func contentHeight(_ columns: Int,leading: Int? = nil) -> CGFloat {
+      if !parent.source.groups.isEmpty {
+        return MacGridGeometry.make(count: count, groups: parent.source.groups, columns: columns, width: width(), headerHeights: parent.source.headerHeights(width: width())).height + Self.footerHeight
+      }
       let lead = leading ?? self.leading
       let pitch = naturalPitch(columns), slots = count+lead, rows = (slots+columns-1)/columns
       let side = pitch-gap(columns)
@@ -504,18 +484,10 @@ struct MacLibraryGrid: NSViewRepresentable {
     // Items are presented oldest first (newest at the bottom, as in Photos). The
     // library model indexes newest first, so every display index is mirrored
     // against the number of items the collection currently holds.
-    func asset(at item: Int) -> PHAsset? { parent.library.asset(at: count - 1 - item) }
-    /// Capture date from the prefill's facts when known, so scrolling an
-    /// overview does not fetch a PhotoKit batch for two dates.
-    func date(at item: Int) -> Date? {
-      if let fact = fact(at: item) { return fact.date }
-      return asset(at: item)?.creationDate
-    }
-    func fact(at item: Int) -> MacThumbnailTables.Fact? {
-      let library = parent.library
-      return library.rawIndex(at: count - 1 - item).flatMap { MacThumbnailTables.fact(library.fetch, at: $0) }
-    }
-    func identifier(at item: Int) -> String? { parent.library.identifier(at: count - 1 - item) }
+    func asset(at item: Int) -> PHAsset? { identifier(at: item).flatMap { parent.source.asset($0) } }
+    func date(at item: Int) -> Date? { identifier(at: item).flatMap { parent.source.date($0) } }
+    func fact(at item: Int) -> MacThumbnailTables.Fact? { identifier(at: item).flatMap { parent.source.fact($0) } }
+    func identifier(at item: Int) -> String? { ids.indices.contains(item) ? ids[item] : nil }
     /// A visible cell as a flight endpoint, in window coordinates.
     func flightCell(_ match: (PhotoCell) -> Bool) -> MacCoverFlightSource? {
       guard let collection, let scroll = collection.enclosingScrollView,
@@ -542,10 +514,10 @@ struct MacLibraryGrid: NSViewRepresentable {
         < hypot($1.view.frame.midX - center.x, $1.view.frame.midY - center.y) }.flatMap { $0.presentationID ?? $0.assetID }
     }
     func displayIndex(of identifier: String?) -> Int? {
-      parent.library.index(of: identifier).flatMap { $0 < count ? count - 1 - $0 : nil }
+      identifier.flatMap { positions[$0] }
     }
     func selectedPaths() -> Set<IndexPath> {
-      Set(parent.library.selection.compactMap { displayIndex(of: $0) }.map { IndexPath(item: $0, section: 0) })
+      Set(parent.source.selection.compactMap { displayIndex(of: $0) }.map { IndexPath(item: $0, section: 0) })
     }
     /// Totals under the last row, shown at the newest edge as Photos does. No
     /// sync state is invented: only counts the library fetch actually reports.
@@ -553,14 +525,8 @@ struct MacLibraryGrid: NSViewRepresentable {
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
       layout.footerHeight = Self.footerHeight
       if footer.superview !== collection { collection.addSubview(footer) }
-      let key = "\(parent.library.generation)|\(count)"
-      if key != footerKey {
-        footerKey = key
-        if let fetch = parent.library.fetch {
-          footer.stringValue = String(format: NSLocalizedString("library_footer_counts", comment: ""),
-            fetch.countOfAssets(with: .image).formatted(), fetch.countOfAssets(with: .video).formatted())
-        } else { footer.stringValue = "" }
-      }
+      let key = "\(parent.source.contentRevision)|\(count)"
+      if key != footerKey { footerKey = key; footer.stringValue = parent.source.footer }
       let height = layout.collectionViewContentSize.height
       footer.frame = CGRect(x: 0,y: max(0,height-Self.footerHeight+14),width: collection.bounds.width,height: 20)
       footer.isHidden = count == 0
@@ -589,7 +555,7 @@ struct MacLibraryGrid: NSViewRepresentable {
     }
     private func rebuildStops(_ layout: LibraryTimelineLayout) {
       MacLibraryDensity.overview = MacLibraryDensity.overview(forWidth: width())
-      let usable = MacLibraryDensity.columns.filter { naturalPitch($0) >= 8 }
+      let usable = parent.source.zoomStops.filter { naturalPitch($0) >= 8 }
       columnStops = usable.isEmpty ? [MacLibraryDensity.standard] : usable
       stops = GridZoom.Stops(pitches: columnStops.map(naturalPitch))
     }
@@ -600,6 +566,13 @@ struct MacLibraryGrid: NSViewRepresentable {
     }
     /// The anchor's point in a column count's content coordinates at natural pitch.
     private func anchorContentPoint(columns: Int,leading: Int? = nil) -> CGPoint {
+      if !parent.source.groups.isEmpty {
+        let frames = MacGridGeometry.make(count: count, groups: parent.source.groups, columns: columns, width: width(), headerHeights: parent.source.headerHeights(width: width())).items
+        if let anchor, frames.indices.contains(anchor) {
+          let frame = frames[anchor]
+          return CGPoint(x: frame.minX + anchorFractionX * frame.width, y: frame.minY + anchorFraction * frame.height)
+        }
+      }
       let pitch = naturalPitch(columns), a = (anchor ?? 0)+(leading ?? self.leading)
       let gap = gap(columns), inset = inset(columns)
       return CGPoint(x: inset+CGFloat(a%columns)*pitch+anchorFractionX*(pitch-gap),
@@ -615,21 +588,19 @@ struct MacLibraryGrid: NSViewRepresentable {
       stage.referenceSide = { [weak self] columns in (self?.naturalPitch(columns) ?? 3)-(self?.gap(columns) ?? 2) }
       stage.denseAsset = { [weak self] index in self?.asset(at: index) }
       stage.denseFact = { [weak self] index in self?.fact(at: index) }
-      stage.thumbnails = parent.library.thumbnails
-      stage.makeTile = { [weak self] index, side in
-        guard let self, let asset = self.asset(at: index) else { return NSView() }
-        let tile = MacZoomMediaTile()
-        tile.frame.size = CGSize(width: side,height: side)
-        let scale = collection.window?.backingScaleFactor ?? 2
-        tile.configure(asset, side: side, pixels: side*scale, pipeline: self.parent.library.thumbnails,
-          originalAspect: self.parent.navigation.originalAspect,
-          selected: self.parent.library.selection.contains(self.identifier(at: index) ?? ""), scale: scale)
-        if tile.displayedImage == nil,
-          let visible = collection.visibleItems().compactMap({ $0 as? PhotoCell }).first(where: { $0.assetID == asset.localIdentifier }),
-          let image = visible.displayedImage { tile.show(image) }
-        return tile
+      stage.thumbnails = parent.source.thumbnails
+      if !parent.source.groups.isEmpty {
+        let count = count, groups = parent.source.groups, width = width()
+        let heights = parent.source.headerHeights(width: width)
+        stage.groupedIntroduction = { [source = parent.source] index in source.introduction(at: index) }
+        stage.groupedGeometry = { columns in MacGridGeometry.make(count: count, groups: groups, columns: columns, width: width, headerHeights: heights) }
       }
-      stage.releaseTile = { ($0 as? MacZoomMediaTile)?.cancel() }
+      stage.makeTile = { [weak self] index, side in
+        guard let self, let id = self.identifier(at: index) else { return NSView() }
+        return self.parent.source.zoomTile(id, side: side, scale: collection.window?.backingScaleFactor ?? 2,
+          originalAspect: self.parent.navigation.originalAspect)
+      }
+      stage.releaseTile = { ($0 as? MacZoomMediaTile)?.cancel(); ($0 as? MacSourceZoomTile)?.cancel() }
       return stage
     }
     private func beginStage() {
@@ -677,7 +648,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       scroll.contentView.scroll(to: CGPoint(x: 0,y: min(limit,max(0,offset)))); scroll.reflectScrolledClipView(scroll.contentView)
       if let layout = collection.collectionViewLayout as? LibraryTimelineLayout {
         for path in collection.indexPathsForVisibleSupplementaryElements(ofKind: LibraryTimelineLayout.headerKind) {
-          (collection.supplementaryView(forElementKind: LibraryTimelineLayout.headerKind, at: path) as? TimelineDateHeader)?.setTitle(layout.title(at: path.item))
+          (collection.supplementaryView(forElementKind: LibraryTimelineLayout.headerKind, at: path) as? MacGridSectionHeader)?.configure(title: layout.title(at: path.item), introduction: parent.source.introduction(at: path.item))
         }
       }
     }
@@ -692,7 +663,7 @@ struct MacLibraryGrid: NSViewRepresentable {
       finishStage(columns: columns,size: itemSize(forColumns: columns),cancelled: false)
     }
     private func finishStage(columns: Int,size: CGFloat,cancelled: Bool) {
-      if MacLibraryDensity.isDense(columns) { Task { await parent.library.loadAllRows() } }
+      if MacLibraryDensity.isDense(columns) { Task { await parent.source.loadAll() } }
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout,
         let scroll = collection.enclosingScrollView else { return }
       animationTarget = (.all,size)
@@ -827,6 +798,8 @@ struct MacLibraryGrid: NSViewRepresentable {
         // The document settles its height after this pass; draw the mosaic for
         // the final scroll position rather than the one at handoff.
         self.updateDense()
+        if let layout = self.collection?.collectionViewLayout as? LibraryTimelineLayout,
+          layout.columns != self.parent.columns { self.syncDensity(columns: self.parent.columns, layout: layout) }
       }
       stopLayoutAnimation(); scrolled()
       scheduleBenchmark()
@@ -898,43 +871,19 @@ struct MacLibraryGrid: NSViewRepresentable {
       default: break
       }
     }
-    func collectionView(_ collectionView: NSCollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> NSView {
-      let header = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: .init("timeline"), for: indexPath) as! TimelineDateHeader
-      header.setTitle((collectionView.collectionViewLayout as? LibraryTimelineLayout)?.title(at: indexPath.item) ?? "")
+    func makeHeader(_ collectionView: NSCollectionView, kind: String, at indexPath: IndexPath) -> NSView & NSCollectionViewElement {
+      let header = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: .init("timeline"), for: indexPath) as! MacGridSectionHeader
+      header.configure(title: (collectionView.collectionViewLayout as? LibraryTimelineLayout)?.title(at: indexPath.item) ?? "", introduction: parent.source.introduction(at: indexPath.item))
       return header
     }
-    func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int)
-      -> Int
-    { count }
-    func collectionView(
-      _ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath
-    ) -> NSCollectionViewItem {
-      let item =
-        collectionView.makeItem(withIdentifier: .init("photo"), for: indexPath) as! PhotoCell
-      if let asset = asset(at: indexPath.item) {
-        item.setSelectionVisible(parent.selecting)
-        item.configure(
-          asset, pipeline: parent.library.thumbnails,
-          pixels: cellSide * (collectionView.window?.backingScaleFactor ?? 2),
-          originalAspect: parent.navigation.originalAspect,
-          identifier: identifier(at: indexPath.item))
-        visibleIdentifiers[indexPath] = asset.localIdentifier
-      }
-      return item
+    func configure(_ cell: PhotoCell, id: String) {
+      parent.source.configure(cell, id: id, pixels: cellSide * (collection?.window?.backingScaleFactor ?? 2),
+        originalAspect: parent.navigation.originalAspect)
+      cell.setSelectionVisible(parent.selecting)
     }
-    func collectionView(
-      _ collectionView: NSCollectionView, willDisplay item: NSCollectionViewItem,
-      forRepresentedObjectAt indexPath: IndexPath
-    ) {
-      if let cell = item as? PhotoCell, let asset = asset(at: indexPath.item) {
-        cell.setSelectionVisible(parent.selecting)
-        cell.configure(
-          asset, pipeline: parent.library.thumbnails,
-          pixels: cellSide * (collectionView.window?.backingScaleFactor ?? 2),
-          originalAspect: parent.navigation.originalAspect,
-          identifier: identifier(at: indexPath.item))
-        visibleIdentifiers[indexPath] = asset.localIdentifier
-      }
+    func collectionView(_ collectionView: NSCollectionView, willDisplay item: NSCollectionViewItem,
+      forRepresentedObjectAt indexPath: IndexPath) {
+      if let cell = item as? PhotoCell, let id = dataSource?.itemIdentifier(for: indexPath) { configure(cell, id: id) }
       scrolled()
     }
     func collectionView(
@@ -954,9 +903,9 @@ struct MacLibraryGrid: NSViewRepresentable {
     private func changeSelection(_ paths: Set<IndexPath>, selected: Bool) {
       guard !applyingSelection, parent.selecting else { return }
       let ids = paths.compactMap { identifier(at: $0.item) }
-      if selected { parent.library.selection.formUnion(ids) }
-      else { parent.library.selection.subtract(ids) }
-      appliedSelection = parent.library.selection
+      if selected { parent.source.selection.formUnion(ids) }
+      else { parent.source.selection.subtract(ids) }
+      appliedSelection = parent.source.selection
     }
     @objc func longPress(_ recognizer: NSPressGestureRecognizer) {
       guard recognizer.state == .began, !parent.selecting, let collection,
@@ -965,35 +914,34 @@ struct MacLibraryGrid: NSViewRepresentable {
     }
     func beginSelection(at path: IndexPath) {
       guard let collection, let id = identifier(at: path.item) else { return }
-      parent.library.selection.insert(id)
+      parent.source.selection.insert(id)
       applyingSelection = true
       collection.isSelectable = true
       collection.selectionIndexPaths = selectedPaths()
-      appliedSelection = parent.library.selection
+      appliedSelection = parent.source.selection
       applyingSelection = false
       parent.enterSelection()
     }
     func toggleSelection(at path: IndexPath) {
       guard parent.selecting, let collection, let id = identifier(at: path.item) else { return }
-      if parent.library.selection.contains(id) { parent.library.selection.remove(id) }
-      else { parent.library.selection.insert(id) }
+      if parent.source.selection.contains(id) { parent.source.selection.remove(id) }
+      else { parent.source.selection.insert(id) }
       applyingSelection = true
       collection.selectionIndexPaths = selectedPaths()
-      appliedSelection = parent.library.selection
+      appliedSelection = parent.source.selection
       applyingSelection = false
+    }
+    func refreshVisibleHeaders() {
+      guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
+      for path in collection.indexPathsForVisibleSupplementaryElements(ofKind: LibraryTimelineLayout.headerKind) {
+        (collection.supplementaryView(forElementKind: LibraryTimelineLayout.headerKind, at: path) as? MacGridSectionHeader)?
+          .configure(title: layout.title(at: path.item), introduction: parent.source.introduction(at: path.item))
+      }
     }
     func refreshVisibleImages() {
       guard let collection else { return }
       for path in collection.indexPathsForVisibleItems() {
-        if let item = collection.item(at: path) as? PhotoCell,
-          let asset = asset(at: path.item)
-        {
-          item.configure(
-            asset, pipeline: parent.library.thumbnails,
-            pixels: cellSide * (collection.window?.backingScaleFactor ?? 2),
-            originalAspect: parent.navigation.originalAspect,
-            identifier: identifier(at: path.item))
-        }
+        if let item = collection.item(at: path) as? PhotoCell, let id = dataSource?.itemIdentifier(for: path) { configure(item, id: id) }
       }
     }
     func scrolled() {
@@ -1007,34 +955,21 @@ struct MacLibraryGrid: NSViewRepresentable {
         let userDriven = NSApp.currentEvent.map { types.contains($0.type) } ?? false
         if userDriven { pinnedToNewest = atBottom }
       }
-      if generation == parent.library.generation { rememberScroll() }
+      rememberScroll()
       refresh.schedule { [weak self] in
         guard let self, !Task.isCancelled, let collection = self.collection else { return }
         let parent = self.parent
         guard parent.active, parent.navigation.level == .all else { return }
         self.rememberScroll()
-        let generation = parent.library.generation
-        let receiverID = parent.receiverID
-        let revision = parent.queueRevision
-        let preparation = parent.preparationRevision
         let paths = collection.indexPathsForVisibleItems().sorted()
         guard let span = self.visibleRange() else { return }
         let first = span.first, last = span.last
-        let identities = Dictionary(uniqueKeysWithValues: paths.compactMap { path in
-          self.asset(at: path.item).map { (path, $0.localIdentifier) }
-        })
-        if first <= 48 { parent.library.loadMore() }
-        // An overview shows thousands of photos: faulting each PhotoKit asset to
-        // preheat it or to look up its backup state (no badges are drawn there)
-        // was most of the main thread while it scrolled. Its tiles come from
-        // the decoded tables; only the date range below is read.
+        parent.source.loadMore(visible: Array(self.ids[first...last]))
         let dense = self.layoutDense
         if !dense {
           let range = max(0, first - 24)..<min(self.count, last + 49)
-          parent.library.thumbnails.preheat(
-            range.compactMap { self.asset(at: $0) }, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
+          parent.source.preheat(range.compactMap { self.identifier(at: $0) }, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
         }
-        let visible = dense ? [] : (first...last).prefix(400).compactMap { self.asset(at: $0) }
         // The range spans the first and last photo on screen; an overview shows
         // thousands, so the ends are read directly rather than from a prefix.
         if let date = self.date(at: first) {
@@ -1045,35 +980,23 @@ struct MacLibraryGrid: NSViewRepresentable {
           if parent.navigation.visibleDate != title { parent.navigation.visibleDate = title }
         }
         guard !dense else { return }
-        let groups = await parent.library.visibleGroups(visible)
-        guard !Task.isCancelled, generation == self.parent.library.generation else { return }
-        guard let states = await librarySourceStates(groups, receiver: receiverID,
-          cache: parent.library.tileStates, revision: "\(generation)|\(revision)|\(preparation)") else { return }
-        guard !Task.isCancelled, generation == self.parent.library.generation,
-          receiverID == self.parent.receiverID, revision == self.parent.queueRevision,
-          preparation == self.parent.preparationRevision else { return }
-        for path in paths {
-          if let item = collection.item(at: path) as? PhotoCell {
-            guard item.assetID == identities[path] else { continue }
-            let group = groups[item.assetID ?? ""]
-            let burst = self.asset(at: path.item)?.burstIdentifier != nil
-            item.setGroup(count: burst ? group?.count : nil, state: group?.state(states))
-          }
-        }
+        let cells = paths.compactMap { collection.item(at: $0) as? PhotoCell }
+        await parent.source.refreshMarks(cells, receiver: parent.receiverID,
+          revision: "\(parent.queueRevision)|\(parent.preparationRevision)")
       }
     }
     func rememberScroll() {
-      guard !restoring, parent.library.authorized, filter == parent.library.filter,
-        scrollResetGeneration == parent.library.scrollResetGeneration, let collection,
+      guard !restoring, contextID == parent.source.contextID, let collection,
         let scroll = collection.enclosingScrollView,
         let first = visibleRange()?.first, let id = identifier(at: first),
         let frame = collection.collectionViewLayout?.layoutAttributesForItem(at: IndexPath(item: first, section: 0))?.frame,
-        frame.intersects(collection.visibleRect)
-      else { return }
-      parent.library.scrollOffset = scroll.contentView.bounds.origin
-      parent.library.scrollAnchorID = id
-      parent.library.scrollAnchorInset = scroll.contentView.bounds.origin.y - frame.minY
+        frame.intersects(collection.visibleRect) else { return }
+      parent.source.scroll.offset = scroll.contentView.bounds.origin
+      parent.source.scroll.anchor = id
+      parent.source.scroll.inset = scroll.contentView.bounds.origin.y - frame.minY
+      parent.source.saveScroll()
     }
+
   }
 }
 
@@ -1416,12 +1339,25 @@ private final class MacMarqueeView: NSView {
       self.cloud.isHidden = image != nil || !inCloud
     }
   }
+  func setPresentationID(_ id: String) { presentationID = id }
+  func configureUnavailable(id: String, label: String, video: Bool) {
+    if assetID != id {
+      cancel(); assetID = id; presentationID = id; imageKey = "unavailable|" + id
+      displayedImage = nil; photoLayer.contents = nil; fitted = false
+      media.symbol = video ? "video.fill" : "photo"; media.isHidden = false
+      cloud.isHidden = true; duration.isHidden = true; burstCount.isHidden = true
+      view.layer?.backgroundColor = DuckRole.mediaPlaceholderNSColor.cgColor
+    }
+    view.setAccessibilityLabel(label); view.needsLayout = true
+  }
   /// Folder browsing reuses the library cell, V5 marks, selection and cancellation.
   func configureFolder(_ photo: FolderPhoto, source: FolderSource, pixels: CGFloat, synthetic: NSImage? = nil) {
     let key = "folder|\(photo.id)|\(photo.revision)|\(pixels)"
     if imageKey != key {
+      let sameFile = presentationID == photo.id && imageKey.hasPrefix("folder|\(photo.id)|\(photo.revision)|")
       cancel(); imageKey = key; assetID = photo.source_id; presentationID = photo.id
-      fitted = false; displayedImage = nil; photoLayer.contents = nil
+      fitted = false
+      if !sameFile { displayedImage = nil; photoLayer.contents = nil }
       media.symbol = photo.media_type.hasPrefix("video/") ? "video.fill" : nil
       media.isHidden = media.symbol == nil; cloud.isHidden = true
       duration.isHidden = true; burstCount.isHidden = true
@@ -1437,7 +1373,7 @@ private final class MacMarqueeView: NSView {
       }
     }
     setSelectionVisible(true)
-    setState(photo.backup == "sending" ? "running" : photo.backup == "saving" ? "saving" : photo.backup == "needs_you" ? "failed" : nil)
+    setState(photo.backup == "sending" ? "sending" : photo.backup == "saving" ? "saving" : photo.backup == "needs_you" ? "needs_you" : nil)
     let statusKey = photo.backup == "saved" ? "folders_photo_saved" : photo.backup == "saving" ? "folders_photo_saving" : photo.backup == "sending" ? "folders_photo_sending" : photo.backup == "needs_you" ? "folders_photo_needs_you" : "folders_photo_not_backed_up"
     statusTip = NSLocalizedString(statusKey, comment: ""); view.setAccessibilityValue(statusTip); updateTips()
     view.alphaValue = 1
@@ -2491,7 +2427,7 @@ struct MacCalendarGrid: NSViewRepresentable {
 /// view there re-rasterized its SF Symbol and text badges on each frame, which
 /// held the main thread for most of a zoom step. Here the content is laid out
 /// once at the reference size and scaled by the GPU through `sublayerTransform`.
-@MainActor private final class MacZoomMediaTile: NSView {
+@MainActor final class MacZoomMediaTile: NSView {
   private(set) var displayedImage: NSImage?
   private let content = CALayer()
   private let photo = CALayer()
@@ -2607,6 +2543,8 @@ struct MacCalendarGrid: NSViewRepresentable {
   var makeTile: ((Int,CGFloat) -> NSView)?
   var releaseTile: ((NSView) -> Void)?
   var referenceSide: (Int) -> CGFloat = { _ in 1 }
+  var groupedGeometry: ((Int) -> LibraryTimelineGeometry)?
+  var groupedIntroduction: ((Int) -> AnyView?)?
   var denseAsset: ((Int) -> PHAsset?)?
   var denseFact: ((Int) -> MacThumbnailTables.Fact?)?
   var thumbnails: ThumbnailPipeline?
@@ -2617,6 +2555,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     var leading = 0
     var canvas: MacDenseCanvas?
     var tiles: [String: (Int,NSView)] = [:]
+    var headers: [Int: MacGridSectionHeader] = [:]
     var weight: CGFloat = 0
     override var isFlipped: Bool { true }
     init(columns: Int) { self.columns = columns; super.init(frame: .zero); wantsLayer = true }
@@ -2686,7 +2625,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   private func loaded(_ face: Face) -> CGFloat {
     if let canvas = face.canvas { return canvas.loadedFraction }
     guard !face.tiles.isEmpty else { return 1 }
-    let ready = face.tiles.values.reduce(0) { $0 + (($1.1 as? MacZoomMediaTile)?.displayedImage != nil ? 1 : 0) }
+    let ready = face.tiles.values.reduce(0) { $0 + (($1.1 as? MacZoomMediaTile)?.displayedImage != nil || ($1.1 as? MacSourceZoomTile)?.cell.displayedImage != nil ? 1 : 0) }
     return CGFloat(ready) / CGFloat(face.tiles.count)
   }
   func advanceBlend(to now: CFTimeInterval) {
@@ -2749,6 +2688,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     return (value * scale).rounded() / scale
   }
   private func populate(_ face: Face) {
+    if let geometry = groupedGeometry?(face.columns) { populateGrouped(face, geometry: geometry); return }
     let gap = faceGap(face.columns), columns = face.columns
     let side = max(1,pitch-gap)
     let origin = lattice(columns: columns,side: side)
@@ -2795,6 +2735,42 @@ struct MacCalendarGrid: NSViewRepresentable {
     for key in Array(face.tiles.keys) where !keep.contains(key) {
       if let old = face.tiles.removeValue(forKey: key) { releaseTile?(old.1); old.1.removeFromSuperview() }
     }
+  }
+  private func populateGrouped(_ face: Face, geometry: LibraryTimelineGeometry) {
+    guard geometry.items.indices.contains(anchor) else { return }
+    let reference = max(1, referenceSide(face.columns))
+    let ratio = pitch / (reference + 2)
+    let anchorFrame = geometry.items[anchor]
+    let offset = CGPoint(x: focus.x - (anchorFrame.minX + fraction.x * anchorFrame.width) * ratio,
+      y: focus.y - (anchorFrame.minY + fraction.y * anchorFrame.height) * ratio)
+    func frame(_ rect: CGRect) -> CGRect {
+      CGRect(x: snap(offset.x + rect.minX * ratio), y: snap(offset.y + rect.minY * ratio),
+        width: max(1, snap(rect.width * ratio)), height: max(1, snap(rect.height * ratio)))
+    }
+    let visible = CGRect(x: -offset.x / ratio, y: -offset.y / ratio, width: bounds.width / ratio, height: bounds.height / ratio)
+    var keep = Set<String>()
+    for index in geometry.visibleItems(in: visible.insetBy(dx: 0, dy: -reference)) {
+      let key = String(index); keep.insert(key)
+      let tile: NSView
+      if let existing = face.tiles[key] { tile = existing.1 }
+      else { tile = makeTile?(index, reference) ?? NSView(); face.addSubview(tile); face.tiles[key] = (index, tile) }
+      tile.frame = frame(geometry.items[index]); tile.needsLayout = true
+    }
+    for key in Array(face.tiles.keys) where !keep.contains(key) {
+      if let old = face.tiles.removeValue(forKey: key) { releaseTile?(old.1); old.1.removeFromSuperview() }
+    }
+    var headers = Set<Int>()
+    for (index, header) in geometry.headers.enumerated() {
+      var rect = frame(header.frame)
+      let next = index + 1 < geometry.headers.count ? frame(geometry.headers[index + 1].frame).minY : CGFloat.greatestFiniteMagnitude
+      rect.origin.y = min(max(rect.minY, 0), next - rect.height)
+      guard rect.intersects(bounds) else { continue }
+      headers.insert(header.firstItem)
+      let view = face.headers[header.firstItem] ?? MacGridSectionHeader(frame: .zero)
+      if view.superview == nil { face.addSubview(view); face.headers[header.firstItem] = view }
+      view.configure(title: header.title, introduction: groupedIntroduction?(header.firstItem)); view.frame = CGRect(x: 28, y: rect.minY, width: max(0, bounds.width - 56), height: rect.height)
+    }
+    for key in Array(face.headers.keys) where !headers.contains(key) { face.headers.removeValue(forKey: key)?.removeFromSuperview() }
   }
   func tile(at index: Int) -> NSView? {
     faces[shown]?.tiles.values.first { $0.0 == index }?.1

@@ -1,0 +1,9 @@
+{
+  "id": "records.running-grid",
+  "extends": "base-paired",
+  "page": "backup",
+  "records": "all",
+  "mac_only": true,
+  "title": "History · running grid for 60 seconds",
+  "expect": ["Three tiles advance through sending, saving and saved once per second for 60 seconds.", "An insertion at second 20 and a removal and move at second 40 animate without reloading unchanged cells."]
+}

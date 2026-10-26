@@ -2,6 +2,7 @@ import AppKit
 import ScreenCaptureKit
 import SwiftUI
 import Photos
+import AVFoundation
 import UserNotifications
 
 /// Mac design catalog: the production workspace window driven by scenario data
@@ -19,6 +20,7 @@ import UserNotifications
     BackupEnvironment.usesNetwork = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
+    BackupEnvironment.sampleAsset = { InformationSampleAsset(job: $0) }
   }
 
   var body: some Scene {
@@ -67,6 +69,7 @@ import UserNotifications
       }
       library.installSyntheticAssets(CatalogAssetCollection(assets))
     }
+    if scenario.id == "records.running-grid" { MacHistoryMotionFixture.install(core: MacCatalogApp.core, tick: 0) }
     let made = model
     BackupEnvironment.activeModel = { made }
     folders = FolderSources(backup: model)
@@ -75,6 +78,17 @@ import UserNotifications
     FolderSources.catalog = folders
     if scenario.id.hasPrefix("folders.") || scenario.id.hasPrefix("settings.folder") || scenario.id.hasSuffix("folder-media") {
       FolderCatalog.install(scenario.id, folders: folders, sheet: MacCatalogLaunch.value("-sheet"))
+    }
+    if scenario.id == "records.running-grid" {
+      Task { @MainActor [weak model] in
+        try? await Task.sleep(for: .seconds(5))
+        for tick in 1...60 {
+          guard !Task.isCancelled, let model else { return }
+          MacHistoryMotionFixture.install(core: MacCatalogApp.core, tick: tick)
+          await model.refresh()
+          try? await Task.sleep(for: .seconds(1))
+        }
+      }
     }
   }
   static func route(_ scenario: Scenario) -> BackupNotifier.Route? {
@@ -111,6 +125,24 @@ private enum MacCatalogLaunch {
       }
     }
     if MacCatalogLaunch.value("-snapshot-mode") != "manual" { Self.capture() }
+    if #available(macOS 15.0, *), let path = MacCatalogLaunch.value("-record") {
+      Task { @MainActor in
+        do {
+          for _ in 0..<20 {
+            if NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) { break }
+            try await Task.sleep(for: .milliseconds(100))
+          }
+          if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) {
+            let configuration = NSWorkspace.OpenConfiguration(); configuration.createsNewApplicationInstance = false
+            _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+          }
+          try await Task.sleep(for: .seconds(3))
+          try await MacCatalogRecording.record(path: path,
+            seconds: Double(MacCatalogLaunch.value("-record-seconds") ?? "") ?? 68)
+          if ProcessInfo.processInfo.arguments.contains("-record-exit") { NSApp.terminate(nil) }
+        } catch { fputs("Catalog recording failed: \(error)\n", stderr) }
+      }
+    }
   }
   @discardableResult private static func sizeWindow() -> Bool {
     guard let width = MacCatalogLaunch.value("-window-width").flatMap(Double.init),
@@ -381,22 +413,17 @@ private struct FolderViewerCatalogOpening: NSViewRepresentable {
       for _ in 0..<30 {
         try? await Task.sleep(for: .milliseconds(50))
         guard let root = view?.window?.contentView else { continue }
-        @MainActor func grid(in view: NSView) -> MacFolderGrid.Coordinator? {
+        @MainActor func grid(in view: NSView) -> MacMediaGrid.Coordinator? {
           if let collection = view as? NSCollectionView,
-            let coordinator = collection.delegate as? MacFolderGrid.Coordinator,
-            !coordinator.sections.isEmpty { return coordinator }
+            let coordinator = collection.delegate as? MacMediaGrid.Coordinator,
+            coordinator.parent.source is MacFolderGridSource, !coordinator.ids.isEmpty { return coordinator }
           return view.subviews.lazy.compactMap { grid(in: $0) }.first
         }
-        if let coordinator = grid(in: root), coordinator.photo(IndexPath(item: 0, section: 0)) != nil {
-          // Let AppKit finish installing the browsing search field first.
+        if let coordinator = grid(in: root) {
           try? await Task.sleep(for: .milliseconds(500))
-          var target = IndexPath(item: 0, section: 0)
-          if let source {
-            guard let section = coordinator.sections.firstIndex(where: { $0.photos.contains(where: { $0.source_id == source }) }),
-              let item = coordinator.sections[section].photos.firstIndex(where: { $0.source_id == source }) else { return }
-            target = IndexPath(item: item, section: section)
-          }
-          coordinator.open(target); return
+          guard let adapter = coordinator.parent.source as? MacFolderGridSource,
+            let id = source.flatMap({ token in adapter.identifiers.first { adapter.photos[$0]?.source_id == token } }) ?? adapter.identifiers.first else { return }
+          coordinator.parent.preview(id); return
         }
       }
     }
@@ -637,5 +664,91 @@ enum MacWindowSnapshot {
   private struct SnapshotError: LocalizedError {
     let errorDescription: String?
     init(_ message: String) { errorDescription = message }
+  }
+}
+
+
+/// Repeatable state observations for the production history grid, never a queue.
+@MainActor private enum MacHistoryMotionFixture {
+  static func install(core: ScenarioCore, tick: Int) {
+    var jobs: [[String: Any]] = (0..<96).map { index in
+      let phase = (tick + index) % 4
+      let changing = index < 3
+      return ["id": 20_000 + index,
+        "asset": ["source_id": "grid-motion-\(index)", "revision": "1", "kind": index % 6 == 0 ? "video" : "photo",
+          "resources": [["filename": "CATALOG_\(index).JPG", "size": 4_800_000]],
+          "metadata": ["source_type": "library", "created_at_ms": "1792495800000"]],
+        "receiver_id": "catalog-pixel", "state": changing && phase < 2 ? "running" : "received",
+        "confirmed_bytes": changing && phase < 2 ? (phase + 1) * 1_000_000 : 4_800_000,
+        "processing": changing && phase == 2 ? "pending" : "complete",
+        "state_changed_at_ms": 1_792_495_800_000 - index * 1000,
+        "sort_value": 1_792_495_800_000 - index * 1000]
+    }
+    // One insertion, removal and move exercise diffing independently of marks.
+    if tick >= 20 && tick < 40 {
+      var inserted = jobs[0]; inserted["id"] = 30_000
+      var asset = inserted["asset"] as! [String: Any]; asset["source_id"] = "grid-motion-inserted"; inserted["asset"] = asset
+      jobs.insert(inserted, at: 4)
+    }
+    if tick >= 40 { let moved = jobs.remove(at: 8); jobs.insert(moved, at: 4) }
+    let summary: [String: Any] = ["total": jobs.count, "received": jobs.count - 3, "published": jobs.count - 3,
+      "publication_failed": 0, "waiting": 0, "failed": 0, "queued": 0, "running": 3, "paused": 0,
+      "confirmed_bytes": 0, "active": 3, "attention": 0]
+    core.setValue(jobs, for: "jobs")
+    core.setValue(summary, for: "sender_summary")
+    let items: [[String: Any]] = jobs.map { ["id": "job-\($0["id"]!)", "cursor": $0["id"]!,
+      "sort_value": $0["sort_value"]!, "job": $0] }
+    core.setValue(["items": items, "summary": summary], for: "backup_tasks")
+    core.setValue(["items": [], "summary": summary], for: "backup_tasks", when: ["state": "attention"])
+    if let log = MacCatalogLaunch.value("-motion-log"),
+      let data = try? JSONSerialization.data(withJSONObject: ["tick": tick, "uptime": ProcessInfo.processInfo.systemUptime,
+        "changing": ["job-20000", "job-20001", "job-20002"], "count": jobs.count], options: [.sortedKeys]) {
+      let url = URL(fileURLWithPath: log)
+      if !FileManager.default.fileExists(atPath: log) { FileManager.default.createFile(atPath: log, contents: nil) }
+      if let handle = try? FileHandle(forWritingTo: url) { try? handle.seekToEnd(); try? handle.write(contentsOf: data + Data([10])); try? handle.close() }
+    }
+  }
+}
+
+/// Captures only this Catalog window. The stream requests every 60 Hz frame;
+/// media timestamps are retained for cadence and pixel-change verification.
+@available(macOS 15.0, *)
+@MainActor private final class MacCatalogRecording: NSObject, SCRecordingOutputDelegate {
+  private var completion: CheckedContinuation<Void, Error>?
+  private static var active: MacCatalogRecording?
+  static func record(path: String, seconds: Double) async throws {
+    let recorder = MacCatalogRecording(); active = recorder
+    defer { active = nil }
+    guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { return }
+    let content = try await SCShareableContent.currentProcess
+    guard let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else { return }
+    let filter = SCContentFilter(desktopIndependentWindow: target)
+    let config = SCStreamConfiguration()
+    config.width = Int(filter.contentRect.width * CGFloat(filter.pointPixelScale))
+    config.height = Int(filter.contentRect.height * CGFloat(filter.pointPixelScale))
+    config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+    config.showsCursor = false; config.ignoreShadowsSingleWindow = true
+    let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+    let outputConfig = SCRecordingOutputConfiguration()
+    outputConfig.outputURL = URL(fileURLWithPath: path)
+    outputConfig.videoCodecType = .h264; outputConfig.outputFileType = .mp4
+    let output = SCRecordingOutput(configuration: outputConfig, delegate: recorder)
+    try stream.addRecordingOutput(output)
+    try await stream.startCapture()
+    try await Task.sleep(for: .seconds(seconds))
+    try await withCheckedThrowingContinuation { continuation in
+      recorder.completion = continuation
+      Task { do { try await stream.stopCapture() } catch { recorder.finish(error) } }
+    }
+  }
+  nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
+    Task { @MainActor in self.finish(nil) }
+  }
+  nonisolated func recordingOutput(_ recordingOutput: SCRecordingOutput, didFailWithError error: Error) {
+    Task { @MainActor in self.finish(error) }
+  }
+  private func finish(_ error: Error?) {
+    if let error { completion?.resume(throwing: error) } else { completion?.resume() }
+    completion = nil
   }
 }

@@ -32,10 +32,10 @@ no file list, no path tree and no settings.
 - **Section more menu:** Back Up Remaining Photos (when any are not backed up),
   Show in Finder, Folder Settings…, Stop Backing Up This Folder…
 - Selecting photos with click and ⌘/⇧-click shows one primary action on the
-  toolbar's trailing edge, "Back Up Selected", when the selection contains
+  toolbar's trailing edge, "Back Up N Items", when the selection contains
   photos that are not backed up. Backing up a selection saves the intent at
   once and needs no second confirmation.
-- Double-click opens the photo viewer window with its info inspector (A8).
+- Double-click opens the shared in-window media viewer with previous/next over the current collection and its information inspector (A8).
 
 ## Toolbar (A2)
 
@@ -53,19 +53,17 @@ Trailing groups keep this order, with native shared capsule backgrounds:
    narrow window widths or while search is expanded. Each view retains its own
    scroll position and selection (I6).
 3. One action capsule: **Filter**, **Add Folder**, then **More** when a single
-   folder applies. Filter offers All, Not Backed Up, Needs You and Recently
-   Backed Up. An active filter has a filled, tinted symbol; choosing All clears
-   it. There is no separate clear button. More offers Show in Finder and Folder
+   folder applies. Filter has two sections: Show (All Photos, Not Backed Up, Needs You, Recently Backed Up) and Type (All Types, Photos, Live Photos, Videos, Bursts). An active non-default choice tints its symbol. There are no other dividers. More offers Show in Finder and Folder
    Settings… for the applicable folder.
-4. **Back Up Selected**, the single prominent text action, appears only while
-   the selection contains eligible photos that are not backed up.
+4. **Back Up N Items**, the single prominent text action, appears only while
+   the selection contains eligible photos that are not backed up. Successful registration clears the submitted selection, shows Added to Backup for two seconds, then removes the action. Failure preserves the selection.
 5. **Search**, a separate magnifier circle at the trailing edge. Clicking it or
    pressing ⌘F expands and focuses a native search field. Escape collapses an
    empty search. Search finds file and subfolder names within added folders.
 
 The viewer replaces the browsing toolbar. Returning restores the search query,
 its expanded state, the active view, filter, selection and scroll position.
-View, filter, Add Folder, Back Up Selected and Search also have menu-bar
+View, filter, Add Folder, Back Up and Search also have menu-bar
 equivalents.
 
 ## Adding a folder
@@ -144,3 +142,15 @@ The Settings stop-folder control attaches the native confirmation immediately
 from its button action, using the stored folder name/path without resolving a
 bookmark. Folder removal starts only after confirmation. Both folder and photo
 library viewers reuse the same edge-revealed previous/next controls.
+
+## Shared grid updates
+
+The native collection engine is shared with Photo Library and Backup History
+(`library.md` §8). Source adapters supply stable file identities, sections,
+images and marks. Membership inserts, removals and moves use diffable updates;
+state changes configure visible cells in place without reloading the grid.
+Each view/filter retains its scroll position, date anchor and selection.
+Folder summaries retain drive availability, unsupported-file explanations and
+management actions above the shared date headers. An unavailable file keeps the
+existing viewer placeholder and recovery action. Empty filtered results use
+No Photos Match with Show All Photos, which clears Show, Type and search.

@@ -44,6 +44,7 @@ enum BackupEnvironment {
   nonisolated(unsafe) static var usesPhotoLibrary = true
   /// Stand-in pictures for photo identifiers where the photo library is not
   /// used: the catalog draws synthetic images so reviews show photos (P1).
+  nonisolated(unsafe) static var sampleAsset: ((BackupJob) -> PHAsset?)? = nil
   nonisolated(unsafe) static var sampleThumbnail: ((String) -> Image?)? = nil
   /// Asks for photo access (the system prompt when undecided); true for full or limited access.
   nonisolated(unsafe) static var requestPhotoAccess: @MainActor () async -> Bool = {

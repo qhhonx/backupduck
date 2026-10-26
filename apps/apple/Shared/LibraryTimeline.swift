@@ -14,7 +14,7 @@ struct LibraryTimelineGeometry {
   var height: CGFloat = 0
   init(dates: [Date?], mode: LibraryViewMode, width: CGFloat, target: CGFloat,
     inset: CGFloat, gap: CGFloat, headerHeight: CGFloat, calendar: Calendar = .current, columns requestedColumns: Int? = nil,
-    leadingSlots: Int = 0) {
+    leadingSlots: Int = 0, sectionTitles: [Int: String]? = nil, sectionHeaderHeights: [Int: CGFloat] = [:]) {
     let columns = requestedColumns ?? max(mode == .months ? 7 : 3, Int((width - inset * 2 + gap) / (target + gap)))
     let side = max(1, floor((width - inset * 2 - CGFloat(columns - 1) * gap) / CGFloat(columns)))
     // Empty slots before the first photo keep a focal photo in its column across
@@ -22,6 +22,12 @@ struct LibraryTimelineGeometry {
     var y: CGFloat = 4, column = mode == .all ? leadingSlots % max(1, columns) : 0, previous: Date?, hasGroup = false
     for (i, date) in dates.enumerated() {
       let group = date.flatMap { mode == .months ? calendar.dateInterval(of: .month, for: $0)?.start : calendar.startOfDay(for: $0) }
+      if let title = sectionTitles?[i] {
+        if column > 0 { y += side + gap; column = 0 }
+        let height = sectionHeaderHeights[i] ?? headerHeight
+        headers.append(Header(firstItem: i, title: title, frame: CGRect(x: inset, y: y, width: max(0, width - inset * 2), height: height)))
+        y += height
+      }
       if mode != .all, !hasGroup || group != previous {
         if column > 0 { y += side + gap; column = 0 }
         let title = group.map { mode == .months ? $0.formatted(.dateTime.year().month(.wide)) : $0.formatted(date: .long, time: .omitted) }
@@ -238,7 +244,9 @@ import UIKit
 import AppKit
 @MainActor final class LibraryTimelineLayout: NSCollectionViewLayout {
   static let headerKind = "library.timeline.header"
-  let library: PhotoLibraryModel
+  var revision = 0
+  var groups: [Int: String] = [:]
+  var headerHeights: [Int: CGFloat] = [:]
   var mode: LibraryViewMode
   var columns: Int
   var target: CGFloat
@@ -256,8 +264,8 @@ import AppKit
   private var headerIDs: [Int] = []
   private(set) var progress: CGFloat = 0
   private(set) var density: CGFloat = 3
-  init(library: PhotoLibraryModel, mode: LibraryViewMode, target: CGFloat) {
-    self.library = library; self.mode = mode; self.target = target; columns = mode == .months ? 7 : 3
+  init(mode: LibraryViewMode, target: CGFloat) {
+    self.mode = mode; self.target = target; columns = mode == .months ? 7 : 3
     density = CGFloat(columns); super.init()
   }
   /// Photos keeps its column count when the window resizes; set by the host.
@@ -278,7 +286,7 @@ import AppKit
   override func prepare() {
     super.prepare(); guard let view = collectionView else { return }
     let count = view.numberOfSections > 0 ? view.numberOfItems(inSection: 0) : 0
-    let next = "\(view.enclosingScrollView?.contentSize.width ?? view.bounds.width)|\(count)|\(library.generation)"
+    let next = "\(view.enclosingScrollView?.contentSize.width ?? view.bounds.width)|\(count)|\(revision)"
     if key != next {
       // Items are presented oldest first, so the newest edge is at the bottom.
       // All Photos has no date headers: only the count shapes its geometry.
@@ -294,12 +302,12 @@ import AppKit
     if let geometry = cached[key] { return geometry }
     if mode != .all, !datesLoaded {
       let count = dates.count
-      dates = (0..<count).map { library.asset(at: count - 1 - $0)?.creationDate }; datesLoaded = true
+      dates = Array(repeating: nil, count: count); datesLoaded = true
     }
     let dense = mode == .all && columns >= denseThreshold
     let geometry = LibraryTimelineGeometry(dates: dates, mode: mode, width: collectionView?.enclosingScrollView?.contentSize.width ?? 1,
       target: 135, inset: dense ? 0 : 2, gap: dense ? 0 : 2, headerHeight: 44, columns: columns,
-      leadingSlots: mode == .all ? leadingSlots : 0)
+      leadingSlots: mode == .all && groups.isEmpty ? leadingSlots : 0, sectionTitles: groups.isEmpty ? nil : groups, sectionHeaderHeights: headerHeights)
     cached[key] = geometry; return geometry
   }
   func beginMorph(mode: LibraryViewMode, columns: Int) {
@@ -360,28 +368,40 @@ import AppKit
     let b = toHeaders[id]?.frame ?? CGRect(x: 28, y: to?.items.indices.contains(id) == true ? to!.items[id].minY : a.minY, width: a.width, height: 0)
     let result = NSCollectionViewLayoutAttributes(forSupplementaryViewOfKind: Self.headerKind, with: IndexPath(item: id, section: 0))
     result.frame = LibraryMotion.interpolate(a,b,progress)
+    if !groups.isEmpty, let view = collectionView {
+      let top = view.visibleRect.minY + (view.enclosingScrollView?.contentInsets.top ?? 0)
+      let next = headerIDs.first(where: { $0 > id }).flatMap { fromHeaders[$0]?.frame.minY } ?? .greatestFiniteMagnitude
+      result.frame.origin.y = min(max(result.frame.minY, top), next - result.frame.height)
+      result.zIndex = 20
+    }
     result.frame.origin.x = 28; result.frame.size.width = max(0,(collectionView?.enclosingScrollView?.contentSize.width ?? 0)-56)
     result.alpha = fromHeaders[id] == nil ? progress : toHeaders[id] == nil ? 1-progress
       : fromHeaders[id]?.title == toHeaders[id]?.title ? 1 : abs(1-2*progress)
     return result
   }
   override func layoutAttributesForSupplementaryView(ofKind kind: String, at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
-    kind == Self.headerKind ? header(at: indexPath.item) : nil
+    // AppKit also probes section-only paths while diffing supplementary views.
+    // Those are not one of this layout's item-addressed date headers.
+    guard kind == Self.headerKind, indexPath.count == 2 else { return nil }
+    return header(at: indexPath.item)
   }
   override func layoutAttributesForElements(in rect: CGRect) -> [NSCollectionViewLayoutAttributes] {
     if isDense { return [] }
     let items = LibraryMotion.visibleRange(count: from.items.count, in: rect) { frame(at: $0) }
     let headers = LibraryMotion.visibleRange(count: headerIDs.count, in: rect) { header(at: headerIDs[$0])?.frame ?? .zero }
-    return items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers.compactMap { header(at: headerIDs[$0]) }
+    var result = items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers.compactMap { header(at: headerIDs[$0]) }
+    if !groups.isEmpty, let pinned = headerIDs.last(where: { (fromHeaders[$0]?.frame.minY ?? .infinity) <= rect.minY }),
+      let value = header(at: pinned), !result.contains(where: { $0.representedElementKind == Self.headerKind && $0.indexPath == value.indexPath }) { result.append(value) }
+    return result
   }
   func title(at id: Int) -> String { (progress < 0.5 ? fromHeaders[id]?.title ?? toHeaders[id]?.title : toHeaders[id]?.title ?? fromHeaders[id]?.title) ?? "" }
-  override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool { newBounds.width != collectionView?.bounds.width }
+  override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool { !groups.isEmpty || newBounds.width != collectionView?.bounds.width }
 }
-@MainActor final class TimelineDateHeader: NSView {
+@MainActor final class TimelineDateHeader: NSView, NSCollectionViewElement {
   private let label = NSTextField(labelWithString: "")
-  override init(frame: NSRect) { super.init(frame: frame); label.font = .systemFont(ofSize: 16, weight: .semibold); label.textColor = DuckRole.primaryTextNSColor; addSubview(label) }
+  override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true; layer?.backgroundColor = DuckRole.backgroundNSColor.cgColor; label.font = .systemFont(ofSize: 16, weight: .semibold); label.textColor = DuckRole.primaryTextNSColor; addSubview(label) }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  override func layout() { super.layout(); label.frame = bounds }
+  override func layout() { super.layout(); layer?.backgroundColor = DuckRole.backgroundNSColor.cgColor; label.frame = bounds }
   func setTitle(_ title: String) { label.stringValue = title }
 }
 #endif

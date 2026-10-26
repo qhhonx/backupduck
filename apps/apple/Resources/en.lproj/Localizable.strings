@@ -1267,3 +1267,10 @@
 "library_deleted_title" = "Deleted from this iPhone";
 
 "library_deleted_saved_note" = "The backup on your Pixel is still there.";
+
+"grid_filter_show" = "Show";
+"grid_filter_type" = "Type";
+"grid_filter_all_types" = "All Types";
+"grid_filter_all" = "All";
+
+"grid_filter_bursts" = "Bursts";

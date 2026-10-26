@@ -19,11 +19,12 @@ struct MacPhotoPreview: View {
   @State private var shareFailure = false
   @Environment(\.macViewerHistory) private var openHistory
   private var recorded: HistoryPhoto?
+  private var collectionPaging: MacCollectionPaging?
   private let collectionCount: Int?
   private let close: (PHAsset) -> Void
-  init(asset: PHAsset, library: PhotoLibraryModel, navigation: MacLibraryNavigation, reviewAssets: [PHAsset]? = nil, recorded: HistoryPhoto? = nil,
+  init(asset: PHAsset, library: PhotoLibraryModel, navigation: MacLibraryNavigation, reviewAssets: [PHAsset]? = nil, recorded: HistoryPhoto? = nil, collectionPaging: MacCollectionPaging? = nil,
     close: @escaping (PHAsset) -> Void) {
-    self.library = library; self.navigation = navigation; self.close = close; self.recorded = recorded; self.collectionCount = reviewAssets?.count
+    self.library = library; self.navigation = navigation; self.close = close; self.recorded = recorded; self.collectionPaging = collectionPaging; self.collectionCount = reviewAssets?.count
     _session = StateObject(wrappedValue: MediaPreviewSession(asset: asset, library: library,
       poster: library.previewPoster?(asset.localIdentifier), reviewAssets: reviewAssets))
   }
@@ -34,14 +35,14 @@ struct MacPhotoPreview: View {
           // The media stays inside the visible area: under the toolbar or the
           // sidebar it would be covered, and the opening flight lands on it.
           .background(MacAreaProbe { area in navigation.viewerArea = area })
-          .padding(DuckSpacing.large)
+
         VStack(spacing: 0) {
           Spacer(minLength: 0)
           BurstPreviewControls(preview: session.current, select: session.activate)
         }
       }
-      .modifier(MacViewerNavigationControls(previousEnabled: session.adjacent(to: session.current.asset, direction: 1) != nil && !session.paging && !session.zoomed,
-        nextEnabled: session.adjacent(to: session.current.asset, direction: -1) != nil && !session.paging && !session.zoomed,
+      .modifier(MacViewerNavigationControls(previousEnabled: (collectionPaging?.hasPrevious ?? (session.adjacent(to: session.current.asset, direction: 1) != nil)) && !session.paging && !session.zoomed,
+        nextEnabled: (collectionPaging?.hasNext ?? (session.adjacent(to: session.current.asset, direction: -1) != nil)) && !session.paging && !session.zoomed,
         previous: { move(1) }, next: { move(-1) }))
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(DuckRole.background).tint(DuckRole.accent)
@@ -141,7 +142,7 @@ struct MacPhotoPreview: View {
     if collectionCount == nil, let fetch = library.fetch {
       let raw = fetch.index(of: asset); index = raw == NSNotFound ? nil : total - raw
     } else { index = session.index(of: asset).map { total - $0 } }
-    navigation.viewerSubtitle = MacViewerTitle.subtitle(asset.creationDate, index: index, total: total)
+    navigation.viewerSubtitle = MacViewerTitle.subtitle(asset.creationDate, index: collectionPaging.map { $0.index + 1 } ?? index, total: collectionPaging?.count ?? total)
     navigation.viewerHasLive = session.current.livePhoto != nil
   }
   private func setInformation(_ value: Bool) {
@@ -157,7 +158,9 @@ struct MacPhotoPreview: View {
   /// Keys and arrow buttons change the photo at once, as Photos does; only a
   /// swipe slides the strip.
   private func move(_ direction: Int, animated: Bool = false) {
-    guard !session.paging, !session.zoomed, let asset = session.adjacent(to: session.current.asset, direction: direction) else { return }
+    guard !session.paging, !session.zoomed else { return }
+    if let collectionPaging { collectionPaging.move(-direction); return }
+    guard let asset = session.adjacent(to: session.current.asset, direction: direction) else { return }
     pageAnimated = animated
     session.activate(asset)
   }
@@ -589,6 +592,7 @@ struct MacRecordedPhotoPreview: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var navigation: MacLibraryNavigation
   var close: () -> Void
+  var collectionPaging: MacCollectionPaging? = nil
   @StateObject private var facts = MacViewerFacts()
   @StateObject private var router = BackupPhotoRouter()
   @Environment(\.macViewerPresentation) private var present
@@ -606,7 +610,10 @@ struct MacRecordedPhotoPreview: View {
         AssetThumbnail(sourceID: photo.source, size: side, cornerRadius: 0)
           .frame(width: proxy.size.width, height: proxy.size.height)
       }
-    }.padding(DuckSpacing.large).background(DuckRole.background)
+    }.background(DuckRole.background)
+      .modifier(MacViewerNavigationControls(previousEnabled: collectionPaging?.hasPrevious ?? false,
+        nextEnabled: collectionPaging?.hasNext ?? false,
+        previous: { collectionPaging?.move(-1) }, next: { collectionPaging?.move(1) }))
       .inspector(isPresented: $navigation.viewerInfo) {
         ScrollView {
           facts.information(takenAt: photo.takenAt, filename: photo.job?.asset.resources.first?.filename ?? "",
@@ -620,7 +627,7 @@ struct MacRecordedPhotoPreview: View {
       .background(MacMediaKeyHandler { event in if event.keyCode == 53 { close(); return true }; return false })
       .task(id: model.queueRevision) {
         navigation.viewerTitle = MacViewerTitle.date(photo.takenAt)
-        navigation.viewerSubtitle = MacViewerTitle.subtitle(photo.takenAt, index: 1, total: 1)
+        navigation.viewerSubtitle = MacViewerTitle.subtitle(photo.takenAt, index: (collectionPaging?.index ?? 0) + 1, total: collectionPaging?.count ?? 1)
         navigation.viewerShare = nil; navigation.viewerBack = close
         await facts.load(source: photo.source, revision: nil, model: model, recorded: photo.job)
         updateMark()
@@ -644,7 +651,16 @@ struct MacRecordedPhotoPreview: View {
 }
 
 /// The same window-scoped presentation is inherited by history and file grids.
+struct MacCollectionPaging {
+  var index: Int
+  var count: Int
+  var move: (Int) -> Void
+  var hasPrevious: Bool { index > 0 }
+  var hasNext: Bool { index + 1 < count }
+}
+
 enum MacViewerRequest {
+  case history(HistoryPhoto, [HistoryPhoto], MacHistoryGridState, (String) -> Void)
   case photo(PHAsset?, [PHAsset], HistoryPhoto?)
   case folder(FolderPhoto, [FolderPhoto], FolderSources, ((FolderPhoto) -> Void)?)
 }

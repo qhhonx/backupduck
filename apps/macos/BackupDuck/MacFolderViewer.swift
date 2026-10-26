@@ -15,6 +15,8 @@ struct FolderViewer: View {
   @ObservedObject var folders: FolderSources
   @ObservedObject var navigation: MacLibraryNavigation
   var close: (FolderPhoto) -> Void
+  var collectionPaging: MacCollectionPaging? = nil
+  var recorded: BackupJob? = nil
   @ObservedObject private var model = BackupEnvironment.activeModel()
   @StateObject private var facts = MacViewerFacts()
   @State private var history = false
@@ -33,10 +35,9 @@ struct FolderViewer: View {
       } else { ProgressView("library_loading") }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding(DuckSpacing.large)
     .background(DuckRole.background)
-    .modifier(MacViewerNavigationControls(previousEnabled: index > 0 && !zoomed,
-      nextEnabled: index + 1 < context.count && !zoomed,
+    .modifier(MacViewerNavigationControls(previousEnabled: (collectionPaging?.hasPrevious ?? (index > 0)) && !zoomed,
+      nextEnabled: (collectionPaging?.hasNext ?? (index + 1 < context.count)) && !zoomed,
       previous: { move(-1) }, next: { move(1) }))
     .inspector(isPresented: $navigation.viewerInfo) {
       ScrollView {
@@ -63,7 +64,7 @@ struct FolderViewer: View {
       return false
     })
     .task(id: "\(photo.id)|\(model.queueRevision)|\(folders.revision)") {
-      await facts.load(source: photo.source_id, revision: photo.revision, model: model, fallback: photo.backup)
+      await facts.load(source: photo.source_id, revision: photo.revision, model: model, recorded: recorded, fallback: photo.backup)
       describe()
     }
     .onChange(of: facts.stateKey) { _, _ in describe() }
@@ -95,7 +96,7 @@ struct FolderViewer: View {
   }
   private func describe() {
     navigation.viewerTitle = MacViewerTitle.date(photo.date)
-    navigation.viewerSubtitle = MacViewerTitle.subtitle(photo.date, index: index + 1, total: context.count)
+    navigation.viewerSubtitle = MacViewerTitle.subtitle(photo.date, index: (collectionPaging?.index ?? index) + 1, total: collectionPaging?.count ?? context.count)
     navigation.viewerState = facts.stateKey; navigation.viewerProgress = facts.progress
   }
   private func requestBackup() {
@@ -108,11 +109,13 @@ struct FolderViewer: View {
       } else { facts.error = await folders.backUp([photo]) ? nil : folders.error }
       guard photo.id == source else { return }
       await refresh(); facts.working = false
-      await facts.load(source: photo.source_id, revision: photo.revision, model: model, fallback: photo.backup); describe()
+      await facts.load(source: photo.source_id, revision: photo.revision, model: model, recorded: recorded, fallback: photo.backup); describe()
     }
   }
   private var index: Int { context.firstIndex { $0.id == photo.id } ?? 0 }
   private func move(_ step: Int) {
+    guard !zoomed else { return }
+    if let collectionPaging { collectionPaging.move(step); return }
     let next = index + step
     guard context.indices.contains(next) else { return }
     guard !zoomed else { return }; photo = context[next]

@@ -1481,16 +1481,12 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     stripFade.frame = footer.bounds
     clearSelection.frame = CGRect(x: b.midX-action.width/2,y: 60,width: action.width,height: action.height)
     strip.contentInset = UIEdgeInsets(top: 0,left: strip.bounds.width/2,bottom: 0,right: strip.bounds.width/2)
-    // The filmstrip has its own region, outside the photo. Retain the browsing
-    // viewport during immersion; information alone changes its geometry/crop.
+    // Bars and filmstrip float over the full-screen browsing frame. Information
+    // alone docks the media above its panel; immersion never changes the fit.
     let navigationBottom = (view.window?.safeAreaInsets.top ?? 0) + header.bounds.height
     if chrome, infoHeight == 0, navigationBottom > 0 { expandedNavigationHeight = navigationBottom }
     let infoFraction = min(1, max(0, infoHeight / max(1, informationOpenHeight)))
-    // The fitted browsing frame is symmetric about the screen centre, as in
-    // the system viewer; chrome visibility never changes the photo's anchor.
-    let stageTop = (b.height-footer.frame.minY) * (1-infoFraction)
-    let stageBottom = footer.frame.minY * (1-infoFraction) + (b.height-infoHeight) * infoFraction
-    stage.frame = CGRect(x: 0,y: stageTop,width: b.width,height: max(1,stageBottom-stageTop))
+    stage.frame = CGRect(x: 0, y: 0, width: b.width, height: max(1, b.height - infoHeight))
     stage.clipsToBounds = true
     unavailableHost?.view.frame = stage.bounds
     suppress = true; pager.frame = CGRect(x: -20,y: 0,width: pageStride,height: stage.bounds.height)

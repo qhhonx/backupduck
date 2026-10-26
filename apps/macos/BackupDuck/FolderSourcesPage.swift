@@ -14,6 +14,8 @@ struct FolderSourcesPage: View {
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var adding: URL?
   @State private var stopping: FolderSource?
+  @StateObject private var navigation = MacLibraryNavigation()
+  @State private var columns = MacLibraryDensity.standard
   @State private var toolbarWidth: CGFloat = 1180
   var body: some View {
     Group {
@@ -41,10 +43,10 @@ struct FolderSourcesPage: View {
             }.font(.callout).padding(DuckSpacing.small)
           }
           if browser.loading { ProgressView("folders_counting").frame(maxWidth: .infinity, maxHeight: .infinity) }
-          else if browser.sections.allSatisfy({ $0.photos.isEmpty }) && (!browser.search.isEmpty || browser.filter != .all) {
-            ContentUnavailableView.search(text: browser.search)
+          else if browser.sections.allSatisfy({ $0.photos.isEmpty }) && (!browser.search.isEmpty || browser.filter != .all || browser.type != .all) {
+            MacGridFilterEmpty { browser.filter = .all; browser.type = .all; browser.search = "" }
           } else {
-            MacFolderGrid(folders: folders, browser: browser, settings: settings, stop: { stopping = $0 })
+            MacFolderGrid(folders: folders, browser: browser, navigation: navigation, columns: columns, resize: { columns = $0 }, settings: settings, stop: { stopping = $0 })
               .allowsHitTesting(!backupAction.busy)
           }
         }
@@ -55,6 +57,8 @@ struct FolderSourcesPage: View {
     .background(MacToolbarWidth(width: $toolbarWidth))
     .toolbar {
       if !viewerOpen && !hidesBrowsing {
+        MacLibraryScale(columns: $columns, stops: MacLibraryDensity.grid)
+        MacBrowsingToolbarGap()
         ToolbarItem(id: "folders.view", placement: .primaryAction) {
           if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth {
             viewPicker.pickerStyle(.menu).fixedSize()
@@ -74,21 +78,24 @@ struct FolderSourcesPage: View {
               .menuIndicator(.hidden).help("folder_more")
           }
         }
-        if !browser.selected.isEmpty {
+        if !browser.selected.isEmpty || backupAction.added || backupAction.busy {
           MacBrowsingToolbarGap()
           ToolbarItem(id: "folders.backupSelected", placement: .primaryAction) {
             Button(action: backUpSelected) {
               Text(backupAction.title.isEmpty
-                ? NSLocalizedString("folders_back_up_selected", comment: "")
+                ? String(format: NSLocalizedString("selection_backup_count", comment: ""), browser.selected.count)
                 : backupAction.title)
             }.buttonStyle(.borderedProminent).disabled(backupAction.busy || backupAction.added)
               .accessibilityIdentifier("folders.backup_selected")
           }
         }
+        ToolbarItem(placement: .primaryAction) { MacGridSearch(text: $browser.search, presented: $browser.searchExpanded) }
       }
     }
-    // The system toolbar search animates its own expansion and collapse.
-    .modifier(FolderToolbarSearch(enabled: !viewerOpen && !hidesBrowsing, text: $browser.search, presented: $browser.searchExpanded))
+    .focusedSceneValue(\.gridSearch, !viewerOpen && !hidesBrowsing ? MacGridSearchAction(open: beginSearch) : nil)
+    .focusedSceneValue(\.historyZoom, !viewerOpen && !hidesBrowsing ? MacHistoryZoomActions(
+      smaller: { columns = min(9, MacLibraryDensity.step(columns, by: 1)) },
+      larger: { columns = MacLibraryDensity.step(columns, by: -1) }, canShrink: columns < 9, canGrow: columns > 3) : nil)
     .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
     .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
@@ -182,14 +189,9 @@ struct FolderSourcesPage: View {
 struct FolderFilterMenu: View {
   @ObservedObject var browser: FolderBrowser
   var body: some View {
-    Menu {
-      Picker("library_view_section", selection: $browser.filter) {
-        ForEach(LibraryBackupView.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
-      }.pickerStyle(.inline)
-    } label: {
-      Label("library_filter", systemImage: browser.filter == .all ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
-        .foregroundStyle(browser.filter == .all ? AnyShapeStyle(.primary) : AnyShapeStyle(DuckRole.accent))
-    }.menuIndicator(.hidden).help("library_filter").accessibilityIdentifier("folders.filter")
+    MacGridFilterMenu(shows: MacGridFilterMenu.backupViews, selected: browser.filter.rawValue,
+      choose: { if let view = LibraryBackupView(rawValue: $0) { browser.filter = view } },
+      type: $browser.type, identifier: "folders.filter")
   }
 }
 
@@ -366,17 +368,6 @@ struct AddFolderSheet: View {
       }
     } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     _ = try? await Bridge.call(["op": "folder", "command": ["action": "preview_cancel"]])
-  }
-}
-
-private struct FolderToolbarSearch: ViewModifier {
-  var enabled: Bool
-  @Binding var text: String
-  @Binding var presented: Bool
-  func body(content: Content) -> some View {
-    if enabled {
-      content.searchable(text: $text, isPresented: $presented, placement: .toolbar, prompt: Text("folders_search"))
-    } else { content }
   }
 }
 

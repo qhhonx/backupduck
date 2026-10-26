@@ -75,8 +75,11 @@ spatial animation. Native bottom-bar minimization remains system-owned. Period c
 the native icon’s presentation frame and take only the remaining actual bar
 width, separated by the shared small-spacing token. Outgoing native labels must
 be invisible before period labels appear; expansion applies the same rule in
-reverse. Keep the capsule transform stable through reversal, without a final
-position jump. Navigation actions retain native
+reverse. UIKit keeps outgoing labels opaque in its hierarchy until the whole
+morph ends, so the entrance starts when the compact icon's presentation reaches
+its destination frame (within 2 pt): the capsule rises 14 pt into place while
+its glass fades in (0.3 s, no bounce; Reduce Motion: 0.2 s fade). Keep the
+capsule transform stable through reversal, without a final position jump. Navigation actions retain native
 sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.

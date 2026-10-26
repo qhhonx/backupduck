@@ -57,10 +57,10 @@ What BackupDuck takes:
    - exclamation: needs you (the same items as the cards)
    - all media marks over photos are white with a soft shadow (V5); attention
      icons in cause cards and photo facts use `attentionGlyph`
-3. No filters, sort menu or status guide. The header line states the scope:
+3. On iPhone this step retains the existing timeline. On Mac the shared native grid (`library.md` §8) has Zoom, Filter and collapsed Search. Filter has Show (All, Needs You) and Type (All Types, Photos, Live Photos, Videos, Bursts), with no separate Needs You capsule. There is no sort menu or status guide. The header line states the scope:
    "1,284 photos backed up to Pixel 8 Pro".
 
-**Photo detail** (a sheet on iPhone and Pixel, a popover-sized sheet on Mac):
+**Photo detail** (the shared viewer on Apple platforms, a bottom panel on Pixel):
 
 1. The photo, large.
 2. When it was taken.
@@ -197,3 +197,16 @@ to the foreground refreshes it. Recent Activity shows up to six recognized
 events, or its existing empty text after an empty or unrecognized snapshot;
 unknown event codes remain available in diagnostic exports. Cursor identity is
 independent of observation timestamps and event deduplication.
+
+## Mac engine and continuity
+
+Mac Backup History remains a cross-source page backed by the existing paged
+`backup_tasks` query. Needs You groups precede latest-change day groups; an item
+appears once. Stable task identities drive animated membership differences.
+Marks and progress observations reconfigure the visible native cell in place,
+without a grid or section reload. Refreshes retain loaded page depth and the
+visible date anchor. Photo-library thumbnails use the existing media pipeline;
+folder thumbnails and originals use the file pipeline and security-scoped access.
+Previous/next retains the current mixed-source collection and the shared backup
+information inspector, including recorded information for unavailable originals.
+The iPhone history grid migration is a later step; its list remains unchanged.

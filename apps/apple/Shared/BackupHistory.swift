@@ -122,6 +122,9 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
   private struct Page: Decodable { let items: [BackupTaskItem]; let summary: SenderSummary }
 
   func reload(receiver: String?, state: String = "all") async {
+    #if os(macOS)
+    let sameContext = self.receiver == receiver && self.state == state
+    #endif
     self.receiver = receiver
     self.state = state
     generation += 1
@@ -129,13 +132,32 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
     guard let receiver else { photos = []; attention = []; total = 0; return }
     loading = true; failed = false
     do {
-      let first = try await page(receiver: receiver, state: state, after: nil)
+      var first = try await page(receiver: receiver, state: state, after: nil)
+      #if os(macOS)
+      // A background state observation refreshes the loaded window, rather than
+      // discarding older pages underneath the person's scroll anchor.
+      let depth = sameContext ? photos.count : 0
+      var items = first.items
+      var pageCount = first.items.count
+      while items.count < depth, pageCount == Self.pageSize, let last = items.last {
+        let next = try await page(receiver: receiver, state: state, after: (last.cursor, last.sort_value ?? 0))
+        guard current == generation, !Task.isCancelled else { return }
+        let known = Set(items.map(\.id))
+        let fresh = next.items.filter { !known.contains($0.id) }
+        items += fresh; pageCount = fresh.isEmpty ? 0 : next.items.count
+      }
+      first = Page(items: items, summary: first.summary)
+      #endif
       let problems = state == "attention" ? first : try await page(receiver: receiver, state: "attention", after: nil)
       guard current == generation else { return }
       photos = first.items.compactMap(HistoryPhoto.init)
       attention = problems.items.compactMap(HistoryPhoto.init)
       total = first.summary.count(for: state)
+      #if os(macOS)
+      hasMore = pageCount == Self.pageSize
+      #else
       hasMore = first.items.count == Self.pageSize
+      #endif
     } catch { if current == generation { failed = true } }
     if current == generation { loading = false }
   }
@@ -179,6 +201,15 @@ struct BackupHistoryView: View {
   var filter = "all"
   var initialFocus: HistoryPhoto? = nil
   var columns: Int? = nil
+  var resize: (Int) -> Void = { _ in }
+  var mediaFilter: LibraryFilter = .all
+  var search = ""
+  var clearFilters: () -> Void = {}
+  /// The Mac keeps the page mounted for its scroll anchor; it observes only while shown.
+  var active = true
+  #if os(macOS)
+  @StateObject private var gridState = MacHistoryGridState()
+  #endif
   var scopeChanged: (String, Int) -> Void = { _, _ in }
   @StateObject private var history = BackupHistoryModel()
   @StateObject private var photoRouter = BackupPhotoRouter()
@@ -197,6 +228,14 @@ struct BackupHistoryView: View {
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
 
   var body: some View {
+    #if os(macOS)
+    MacHistoryGrid(history: history, state: gridState, filter: filter, type: mediaFilter, search: search,
+      columns: columns ?? MacLibraryDensity.standard, initialFocus: initialFocus, clearFilters: clearFilters,
+      resize: resize, retry: { Task { await reload() } })
+      .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(filter)|\(active)") {
+        if active { await reload() }
+      }
+    #else
     ScrollViewReader { position in
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
@@ -267,6 +306,7 @@ struct BackupHistoryView: View {
     .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
     .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
     }
+    #endif
   }
 
   private func reload() async {

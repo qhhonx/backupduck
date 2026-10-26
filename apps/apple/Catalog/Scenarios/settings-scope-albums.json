@@ -5,10 +5,10 @@
   "title": "Backup scope · albums",
   "extends": "base-paired",
   "expect": [
-    "Native searchable virtualized list contains 500 albums; 3 albums · about 4,210 photos is independent of search.",
-    "Mac opens the list in Settings detail, without a sheet or Save.",
-    "Album rows lead with 44-point rounded cover thumbnails on iPhone and Mac; a missing cover is a neutral tile.",
-    "Scroll the virtualized list and toggle a row: cover identity stays stable, off-screen requests cancel, and search, summary and checkmarks remain."
+    "Native searchable virtualized choices contain 500 albums; 3 albums · about 4,210 photos is independent of search.",
+    "Mac opens an adaptive square-cover card grid in Settings detail, with album names, item counts and included checkmarks. All Albums and search remain above.",
+    "iPhone retains its full-width album rows and existing cover sizing; Mac uses square cover cards. A missing cover keeps its neutral thumbnail slot.",
+    "Scroll the virtualized choices and toggle an album: cover identity stays stable, off-screen requests cancel, and search, summary and checkmarks remain."
   ],
   "actions": [
     {

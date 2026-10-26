@@ -284,7 +284,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
     if await model.backupSelectedAssets(pending.ids, rebackupReceived: !pending.repeats.isEmpty,
       repeatSources: pending.repeats) {
       library.selection.subtract(pending.tokens)
-      added = true
+      showAdded()
     } else {
       error = model.message ?? NSLocalizedString("apple_selected_backup_failed", comment: "")
     }
@@ -294,8 +294,21 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
     guard !busy else { return }
     busy = true; added = false; error = nil
     defer { busy = false }
-    if await submit() { added = true }
+    if await submit() { showAdded() }
     else { error = failure() ?? NSLocalizedString("apple_selected_backup_failed", comment: "") }
+  }
+  #if os(macOS)
+  private var feedbackTask: Task<Void, Never>?
+  #endif
+  private func showAdded() {
+    added = true
+    #if os(macOS)
+    feedbackTask?.cancel()
+    feedbackTask = Task { @MainActor [weak self] in
+      do { try await Task.sleep(for: .seconds(2)) } catch { return }
+      self?.added = false
+    }
+    #endif
   }
   private struct SelectionFailure: LocalizedError {
     var errorDescription: String?
