@@ -150,6 +150,25 @@ fn preparations_are_exhaustive_paged_and_handoff_keeps_identity_without_changing
         1
     );
     assert_eq!(feed("attention")["items"].as_array().unwrap().len(), 2);
+    let attention = feed("attention");
+    let summary = call(json!({"op":"backup_summary","receiver_id":"target"}));
+    let library = call(json!({"op":"library_source_states","receiver_id":"target"}));
+    assert_eq!(summary["attention"], 2);
+    assert_eq!(attention["items"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        library
+            .as_object()
+            .unwrap()
+            .values()
+            .filter(|s| s["tile_state"] == "needs_you")
+            .count(),
+        2
+    );
+    assert_eq!(
+        library["two"]["tile_state"], "sending",
+        "Transient preparation is active, not attention"
+    );
+
     db.execute(
         "UPDATE processing_observations SET state='complete' WHERE job_id=?1",
         [id],

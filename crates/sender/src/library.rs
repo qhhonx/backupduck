@@ -155,6 +155,197 @@ mod tests {
     }
 
     #[test]
+    fn metadata_revision_reuses_receipt_but_content_and_repeat_still_queue() {
+        let root = Temp::new();
+        let mut sender = Sender::open(&root.0).unwrap();
+        let original = enqueue(&mut sender, "pixel", "photo", "1");
+        sender
+            .conn
+            .execute(
+                "UPDATE jobs SET state='received' WHERE id=?1",
+                [original.id],
+            )
+            .unwrap();
+        let status = AssetStatus {
+            asset_id: original.asset.id().unwrap(),
+            receipt: ReceiptState::Received,
+            processing: ProcessingState::Complete,
+            processing_error: None,
+            resources: vec![],
+        };
+        sender.observe_processing(original.id, &status, 1).unwrap();
+        let mut asset = original.asset.clone();
+        asset.revision = "2".into();
+        asset.resources[0].filename = "renamed.jpg".into();
+        let same = sender
+            .enqueue("pixel", asset.clone(), original.sources.clone())
+            .unwrap();
+        assert_eq!(same.state, JobState::Received);
+        assert_eq!(same.processing, Some(ProcessingState::Complete));
+        assert_eq!(
+            sender
+                .source_states("pixel", &[("photo".into(), "2".into())])
+                .unwrap()["photo"],
+            "received"
+        );
+        assert_eq!(
+            sender.library_source_states("pixel").unwrap()["photo"].tile_state,
+            LibraryTileState::Saved
+        );
+        assert!(sender.claim("pixel", 10).unwrap().is_none());
+        // The photo is counted once: the revision record reuses the receipt.
+        assert_eq!(sender.summary("pixel").unwrap()["total"], 1);
+        assert_eq!(
+            sender.publication_time(same.id).unwrap(),
+            sender.publication_time(original.id).unwrap()
+        );
+        asset.revision = "3".into();
+        asset.resources[0].sha256 = digest(b"different");
+        let changed = sender
+            .enqueue(
+                "pixel",
+                asset.clone(),
+                BTreeMap::from([(asset.resources[0].sha256.clone(), "new-export".into())]),
+            )
+            .unwrap();
+        assert_eq!(changed.state, JobState::Queued);
+        let mut repeat = original.asset.clone();
+        repeat.revision = "4".into();
+        repeat
+            .metadata
+            .insert("backupduck_rebackup_id".into(), "explicit".into());
+        assert_eq!(
+            sender
+                .enqueue("pixel", repeat, original.sources.clone())
+                .unwrap()
+                .state,
+            JobState::Queued
+        );
+        assert_eq!(
+            sender
+                .enqueue("other", same.asset, original.sources)
+                .unwrap()
+                .state,
+            JobState::Queued
+        );
+    }
+
+    #[test]
+    fn metadata_revision_requires_the_complete_role_size_hash_set() {
+        let root = Temp::new();
+        let mut sender = Sender::open(&root.0).unwrap();
+        let original = enqueue(&mut sender, "pixel", "photo", "1");
+        sender
+            .conn
+            .execute(
+                "UPDATE jobs SET state='received' WHERE id=?1",
+                [original.id],
+            )
+            .unwrap();
+        let mut changed = original.asset.clone();
+        changed.revision = "size-change".into();
+        changed.resources[0].size += 1;
+        assert_eq!(
+            sender
+                .enqueue("pixel", changed, original.sources.clone())
+                .unwrap()
+                .state,
+            JobState::Queued
+        );
+        let mut changed = original.asset.clone();
+        changed.revision = "role-change".into();
+        changed.kind = AssetKind::Video;
+        changed.resources[0].role = ResourceRole::Video;
+        assert_eq!(
+            sender
+                .enqueue("pixel", changed, original.sources.clone())
+                .unwrap()
+                .state,
+            JobState::Queued
+        );
+        let mut motion = original.asset.clone();
+        motion.revision = "additional-resource".into();
+        motion.kind = AssetKind::Motion;
+        let tail = Resource {
+            role: ResourceRole::PairedVideo,
+            filename: "paired.mov".into(),
+            media_type: "video/quicktime".into(),
+            size: 15,
+            sha256: digest(b"paired"),
+        };
+        let mut sources = original.sources.clone();
+        sources.insert(tail.sha256.clone(), "paired-export".into());
+        motion.resources.push(tail);
+        let full = sender
+            .enqueue("pixel", motion.clone(), sources.clone())
+            .unwrap();
+        assert_eq!(full.state, JobState::Queued);
+        sender
+            .conn
+            .execute("UPDATE jobs SET state='received' WHERE id=?1", [full.id])
+            .unwrap();
+        motion.revision = "same-complete-set".into();
+        assert_eq!(
+            sender
+                .enqueue("pixel", motion.clone(), sources.clone())
+                .unwrap()
+                .state,
+            JobState::Received
+        );
+        motion.revision = "changed-paired-video".into();
+        sources.remove(&motion.resources[1].sha256);
+        motion.resources[1].sha256 = digest(b"edited-paired");
+        sources.insert(
+            motion.resources[1].sha256.clone(),
+            "new-paired-export".into(),
+        );
+        assert_eq!(
+            sender.enqueue("pixel", motion, sources).unwrap().state,
+            JobState::Queued
+        );
+    }
+
+    #[test]
+    fn revision_receives_future_processing_from_original_only() {
+        let root = Temp::new();
+        let mut sender = Sender::open(&root.0).unwrap();
+        let original = enqueue(&mut sender, "pixel", "photo", "1");
+        sender
+            .conn
+            .execute(
+                "UPDATE jobs SET state='received' WHERE id=?1",
+                [original.id],
+            )
+            .unwrap();
+        let same = enqueue(&mut sender, "pixel", "photo", "2");
+        assert_eq!(
+            sender.processing_due("pixel", 0, 20).unwrap(),
+            vec![(original.id, original.asset.id().unwrap())]
+        );
+        sender
+            .observe_processing(
+                original.id,
+                &AssetStatus {
+                    asset_id: original.asset.id().unwrap(),
+                    receipt: ReceiptState::Received,
+                    processing: ProcessingState::Complete,
+                    processing_error: None,
+                    resources: vec![],
+                },
+                1,
+            )
+            .unwrap();
+        assert_eq!(
+            sender.job(same.id).unwrap().processing,
+            Some(ProcessingState::Complete)
+        );
+        assert_eq!(
+            sender.publication_time(same.id).unwrap(),
+            sender.publication_time(original.id).unwrap()
+        );
+    }
+
+    #[test]
     fn receipt_publication_failure_and_unknown_remain_distinct() {
         let root = Temp::new();
         let mut sender = Sender::open(&root.0).unwrap();
@@ -227,7 +418,16 @@ mod tests {
             .library_source_states("pixel")
             .unwrap()
             .contains_key("unknown-photo"));
-        let edited = enqueue(&mut sender, "pixel", "photo", "2");
+        let mut edit = job.asset.clone();
+        edit.revision = "2".into();
+        edit.resources[0].sha256 = digest(b"actual-edit");
+        let edited = sender
+            .enqueue(
+                "pixel",
+                edit.clone(),
+                BTreeMap::from([(edit.resources[0].sha256.clone(), "edited-export".into())]),
+            )
+            .unwrap();
         let snapshot = sender.library_source_states("pixel").unwrap();
         assert_eq!(snapshot["photo"].job_id, Some(edited.id));
         assert_eq!(snapshot["photo"].revision.as_deref(), Some("2"));

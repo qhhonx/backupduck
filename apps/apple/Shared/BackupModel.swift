@@ -1188,7 +1188,7 @@ struct SenderSummary: Decodable {
   func count(for state: String) -> Int {
     switch state {
     case "active": return active ?? (queued + running + waiting + paused + max(0, received - published - publication_failed))
-    case "attention": return attention ?? (failed + publication_failed)
+    case "attention": return attention ?? (failed + publication_failed + (preparation_failed ?? 0))
     case "saved": return published
     case "received": return received
     case "waiting": return waiting

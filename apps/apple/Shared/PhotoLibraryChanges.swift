@@ -167,9 +167,50 @@ import CryptoKit
     // their original membership when the user changes settings.
     let scope = BackupScopeStore.shared.rule
     if ids.isEmpty || scope.types.isEmpty { return [] }
-    if !scope.restrictAlbums && scope.types == Set(BackupMediaKind.allCases) { return ids }
-    return await Task.detached(priority: .utility) { scope.selectedIDs(from: ids) }.value
+    let limited = PHPhotoLibrary.authorizationStatus(for: .readWrite) == .limited
+    return await Task.detached(priority: .utility) {
+      let readable = Self.readableIdentifiers(ids, limited: limited)
+      if !scope.restrictAlbums && scope.types == Set(BackupMediaKind.allCases) { return readable }
+      return scope.selectedIDs(from: readable)
+    }.value
   }
+  /// Full access retains missing identifiers so genuine original failures stay
+  /// actionable. Limited access may only discover assets returned by PhotoKit.
+  nonisolated static func readableIdentifiers(_ ids: Set<String>, limited: Bool,
+    fetch: (Set<String>) -> Set<String> = { ids in
+      guard BackupEnvironment.usesPhotoLibrary else { return [] }
+      let assets = PHAsset.fetchAssets(withLocalIdentifiers: Array(ids), options: photoLibraryFetchOptions())
+      return Set(assets.objects(at: IndexSet(integersIn: 0..<assets.count)).map(\.localIdentifier))
+    }) -> Set<String> {
+    limited ? ids.intersection(fetch(ids)) : ids
+  }
+
+  private struct AttentionPage: Decodable { let items: [BackupTaskItem] }
+  /// Dismiss only unreadable, failed preparations. This does not assert a
+  /// receipt, modify transfer jobs or discard failures under full access.
+  private func dismissLimitedPreparations(receiver: String) async throws {
+    var after: (Int64, Int64)?
+    while true {
+      var query: [String: Any] = ["op": "backup_tasks", "receiver_id": receiver,
+        "state": "attention", "source_filter": "library", "sort": "activity", "descending": true]
+      if let after { query["after"] = after.0; query["after_value"] = after.1 }
+      let data = try await Bridge.call(query)
+      let page = try JSONDecoder().decode(AttentionPage.self, from: data)
+      let pending = page.items.compactMap(\.preparation).filter { $0.error_code == "source_unavailable" }
+      let ids = Set(pending.map(\.source))
+      let readable = await Task.detached(priority: .utility) { Self.readableIdentifiers(ids, limited: true) }.value
+      for item in pending where !readable.contains(item.source) {
+        _ = try await Bridge.call(["op": "source_result", "receiver_id": receiver,
+          "source": item.request_id ?? item.source, "complete": true])
+      }
+      guard page.items.count == 200, let last = page.items.last else { break }
+      after = (last.cursor, last.sort_value ?? 0)
+    }
+    let ids = Set(state.pending.map(\.id))
+    let readable = await Task.detached(priority: .utility) { Self.readableIdentifiers(ids, limited: true) }.value
+    var next = state; next.pending.removeAll { !readable.contains($0.id) }; try persist(next)
+  }
+
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor in
       let model = BackupEnvironment.activeModel()
@@ -178,6 +219,12 @@ import CryptoKit
     }
   }
   func discoverAndQueue(using model: BackupModel) async {
+    if BackupEnvironment.usesPhotoLibrary, !scanning,
+      PHPhotoLibrary.authorizationStatus(for: .readWrite) == .limited,
+      let receiver = state.receiverID, model.pairing?.receiverID == receiver {
+      do { try await dismissLimitedPreparations(receiver: receiver); await model.refreshPendingImportCount() }
+      catch { model.message = error.localizedDescription }
+    }
     guard BackupEnvironment.usesPhotoLibrary, (state.enabled || state.closingToken != nil || !state.pending.isEmpty),
       !scanning, !model.paused,
       model.pairing?.receiverID == state.receiverID

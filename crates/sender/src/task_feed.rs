@@ -76,6 +76,8 @@ impl Sender {
           FROM jobs j LEFT JOIN processing_observations o ON o.job_id=j.id
             LEFT JOIN job_preparations l ON l.rowid=(SELECT MIN(rowid) FROM job_preparations WHERE job_id=j.id AND receiver=j.receiver_id)
           WHERE j.receiver_id=?1 AND (?2 IS NULL OR COALESCE(json_extract(j.manifest,'$.metadata.source_ref'),'library')=?2)
+            -- A metadata-only revision reuses the original receipt; History shows that receipt once.
+            AND j.id NOT IN (SELECT job_id FROM received_revisions)
           UNION ALL
           SELECT p.feed_cursor,'preparation:'||p.source,NULL,p.source,COALESCE(r.source_ref,p.source),COALESCE(r.revision,''),p.error_code,
             CASE WHEN p.error_code IS NULL OR p.error_code IN ('local_cache_budget','local_free_space','network') THEN 'active' ELSE 'attention' END,

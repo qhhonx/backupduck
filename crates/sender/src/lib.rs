@@ -136,6 +136,8 @@ impl Sender {
             CREATE INDEX IF NOT EXISTS jobs_due ON jobs(receiver_id,state,next_attempt_at,id);
             CREATE TABLE IF NOT EXISTS native_checkpoints(job_id INTEGER PRIMARY KEY,status TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS processing_observations(job_id INTEGER PRIMARY KEY,state TEXT,error TEXT,checked_at INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS received_revisions(job_id INTEGER PRIMARY KEY,receipt_job_id INTEGER NOT NULL);
+            CREATE INDEX IF NOT EXISTS received_sources_by_identity ON jobs(receiver_id,json_extract(manifest,'$.source_id')) WHERE state='received';
             CREATE TABLE IF NOT EXISTS receiver_features(receiver_id TEXT PRIMARY KEY,bundle_upload INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value INTEGER NOT NULL);
             INSERT OR IGNORE INTO settings VALUES('paused',0);
@@ -203,6 +205,62 @@ impl Sender {
             })
         {
             return Err(Error::Invalid("sender input".into()));
+        }
+        // A metadata-only revision is a new source record, but never a new
+        // transfer. Compare the complete resource multiset, independent of
+        // filenames, resource order and other PhotoKit metadata.
+        let exists: bool = self
+            .conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM jobs WHERE receiver_id=?1 AND asset_id=?2)",
+                params![receiver, id],
+                |r| r.get(0),
+            )
+            .map_err(db)?;
+        if !exists && !asset.metadata.contains_key("backupduck_rebackup_id") {
+            let mut query = self.conn.prepare(
+                "SELECT id,manifest FROM jobs WHERE receiver_id=?1 AND state='received' AND json_extract(manifest,'$.source_id')=?2 ORDER BY id DESC"
+            ).map_err(db)?;
+            let candidates = query
+                .query_map(params![receiver, asset.source_id], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+                })
+                .map_err(db)?;
+            let resource_set = |a: &Asset| {
+                let mut resources: Vec<_> = a
+                    .resources
+                    .iter()
+                    .map(|r| {
+                        (
+                            serde_json::to_string(&r.role).unwrap(),
+                            r.size,
+                            r.sha256.clone(),
+                        )
+                    })
+                    .collect();
+                resources.sort();
+                resources
+            };
+            let wanted = resource_set(&asset);
+            for candidate in candidates {
+                let (previous, manifest) = candidate.map_err(db)?;
+                let received: Asset = serde_json::from_str(&manifest)?;
+                if received.revision == asset.revision || resource_set(&received) != wanted {
+                    continue;
+                }
+                self.conn.execute(
+                    "INSERT INTO jobs(receiver_id,asset_id,manifest,sources,state,confirmed_bytes) VALUES(?1,?2,?3,?4,'received',?5)",
+                    params![receiver, id, serde_json::to_string(&asset)?, serde_json::to_string(&sources)?, asset.resources.iter().map(|r| r.size).sum::<u64>() as i64]
+                ).map_err(db)?;
+                let job_id = self.conn.last_insert_rowid();
+                self.conn.execute("INSERT INTO received_revisions SELECT ?1,COALESCE((SELECT receipt_job_id FROM received_revisions WHERE job_id=?2),?2)", params![job_id,previous]).map_err(db)?;
+                // Preserve the observed publication date, including an unknown
+                // legacy date. A revision observation is not a new publication.
+                self.conn.execute("INSERT INTO publication_times SELECT ?1,observed_ms FROM publication_times WHERE job_id=?2", params![job_id,previous]).map_err(db)?;
+                self.conn.execute("INSERT INTO publication_legacy SELECT ?1 WHERE NOT EXISTS(SELECT 1 FROM publication_times WHERE job_id=?1)", [job_id]).map_err(db)?;
+                self.conn.execute("INSERT INTO processing_observations SELECT ?1,state,error,checked_at FROM processing_observations WHERE job_id=?2", params![job_id,previous]).map_err(db)?;
+                return self.job(job_id);
+            }
         }
         self.conn
             .execute(
@@ -476,7 +534,7 @@ impl Sender {
         receiver: &str,
         source: Option<&str>,
     ) -> Result<serde_json::Value> {
-        let mut stmt = self.conn.prepare("SELECT state,COUNT(*),SUM(confirmed_bytes) FROM jobs WHERE receiver_id=?1 AND (?2 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?2) GROUP BY state").map_err(db)?;
+        let mut stmt = self.conn.prepare("SELECT state,COUNT(*),SUM(confirmed_bytes) FROM jobs WHERE receiver_id=?1 AND id NOT IN (SELECT job_id FROM received_revisions) AND (?2 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?2) GROUP BY state").map_err(db)?;
         let rows = stmt
             .query_map(params![receiver, source], |r| {
                 Ok((
@@ -498,7 +556,7 @@ impl Sender {
         result["total"] = count.into();
         result["confirmed_bytes"] = bytes.into();
         let (published, publication_failed, conversion_required): (i64, i64, i64) = self.conn.query_row(
-            "SELECT COALESCE(SUM(CASE WHEN p.state='complete' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' AND p.error='conversion_required' THEN 1 ELSE 0 END),0) FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.state='received' AND (?2 IS NULL OR COALESCE(json_extract(j.manifest,'$.metadata.source_ref'),'library')=?2)",
+            "SELECT COALESCE(SUM(CASE WHEN p.state='complete' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' THEN 1 ELSE 0 END),0), COALESCE(SUM(CASE WHEN p.state='failed' AND p.error='conversion_required' THEN 1 ELSE 0 END),0) FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.id NOT IN (SELECT job_id FROM received_revisions) AND j.state='received' AND (?2 IS NULL OR COALESCE(json_extract(j.manifest,'$.metadata.source_ref'),'library')=?2)",
             params![receiver, source], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         ).map_err(db)?;
         result["published"] = published.into();
@@ -718,7 +776,7 @@ impl Sender {
         now: i64,
         limit: u32,
     ) -> Result<Vec<(i64, String)>> {
-        let mut stmt = self.conn.prepare("SELECT j.id,j.asset_id FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.state='received' AND (p.state IS NULL OR p.state!='complete') AND (p.checked_at IS NULL OR p.checked_at<=?2) ORDER BY COALESCE(p.checked_at,0),j.id DESC LIMIT ?3").map_err(db)?;
+        let mut stmt = self.conn.prepare("SELECT j.id,j.asset_id FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.id NOT IN (SELECT job_id FROM received_revisions) AND j.state='received' AND (p.state IS NULL OR p.state!='complete') AND (p.checked_at IS NULL OR p.checked_at<=?2) ORDER BY COALESCE(p.checked_at,0),j.id DESC LIMIT ?3").map_err(db)?;
         let result = stmt
             .query_map(params![receiver, now, limit.clamp(1, 20)], |r| {
                 Ok((r.get(0)?, r.get(1)?))
@@ -729,7 +787,7 @@ impl Sender {
         Ok(result)
     }
     pub fn processing_event_jobs(&self, receiver: &str) -> Result<Vec<(i64, String)>> {
-        let mut query=self.conn.prepare("SELECT j.id,j.asset_id FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.state IN ('running','received') AND (p.state IS NULL OR p.state!='complete') ORDER BY j.id DESC LIMIT 128").map_err(db)?;
+        let mut query=self.conn.prepare("SELECT j.id,j.asset_id FROM jobs j LEFT JOIN processing_observations p ON p.job_id=j.id WHERE j.receiver_id=?1 AND j.id NOT IN (SELECT job_id FROM received_revisions) AND j.state IN ('running','received') AND (p.state IS NULL OR p.state!='complete') ORDER BY j.id DESC LIMIT 128").map_err(db)?;
         let items = query
             .query_map([receiver], |row| Ok((row.get(0)?, row.get(1)?)))
             .map_err(db)?
@@ -763,6 +821,10 @@ impl Sender {
         });
         self.conn.execute("INSERT OR REPLACE INTO processing_observations(job_id,state,error,checked_at) VALUES(?1,?2,?3,?4)",
             params![id, processing_name(&status.processing), status.processing_error, next]).map_err(db)?;
+        // Revision records follow the original receipt's processing facts;
+        // only that receipt is polled on the receiver.
+        self.conn.execute("INSERT OR REPLACE INTO processing_observations SELECT r.job_id,p.state,p.error,p.checked_at FROM received_revisions r JOIN processing_observations p ON p.job_id=r.receipt_job_id WHERE r.receipt_job_id=?1", [id]).map_err(db)?;
+        self.conn.execute("INSERT OR IGNORE INTO publication_times SELECT r.job_id,t.observed_ms FROM received_revisions r JOIN publication_times t ON t.job_id=r.receipt_job_id WHERE r.receipt_job_id=?1", [id]).map_err(db)?;
         if job.processing.as_ref() != Some(&status.processing)
             || job.processing_error != status.processing_error
         {
