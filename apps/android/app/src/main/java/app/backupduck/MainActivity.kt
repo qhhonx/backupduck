@@ -132,6 +132,7 @@ class MainActivity : BackupDuckActivity() {
             intent.removeExtra("destination"); intent.removeExtra("surface"); intent.removeExtra(ReceiverNotificationRoute.EXTRA)
         }
         if (restoreStorage && supportFragmentManager.fragments.isEmpty()) openStorage()
+        restoreCleanupAccess()
         onBackPressedDispatcher.addCallback(this, rootBack)
         supportFragmentManager.addOnBackStackChangedListener { updateRootBack() }
         updateRootBack()
@@ -218,7 +219,19 @@ class MainActivity : BackupDuckActivity() {
             isVisible = true
         } else navigation.removeBadge(4)
     }
+    private fun restoreCleanupAccess() {
+        val route = PhotosCleanup(this).accessRecovery.route ?: return
+        supportFragmentManager.executePendingTransactions()
+        val current = supportFragmentManager.primaryNavigationFragment as? PageFragment
+        if (current?.arguments?.getString("route") == route) return
+        if (route == "storage") openStorage() else openAutoCleanup()
+    }
     private fun handleDestination(next:Intent) {
+        if (next.getBooleanExtra("cleanup-access-return", false)) {
+            next.removeExtra("cleanup-access-return")
+            restoreCleanupAccess()
+            return
+        }
         val notificationRoute = ReceiverNotificationRoute.parse(next.getStringExtra(ReceiverNotificationRoute.EXTRA))
         next.removeExtra(ReceiverNotificationRoute.EXTRA)
         if (notificationRoute != null) {

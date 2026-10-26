@@ -33,4 +33,5 @@
     <string name="auto_cleanup_result_unknown">已完成 · %1$s，释放量未知</string>
     <string name="auto_cleanup_how_title">如何释放空间</string>
     <string name="auto_cleanup_how">空间不够时，备份鸭通过无障碍权限在 Google 相册中点按“释放空间”。由它决定哪些照片可从 Pixel 移除，照片仍留在云端。备份鸭看不到哪些照片已备份。</string>
+    <string name="cleanup_access_return_note">打开后会自动回到备份鸭。</string>
 </resources>

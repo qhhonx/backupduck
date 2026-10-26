@@ -6,7 +6,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** Receiver-local consent and crash fence. Never stores account text or page dumps. */
-internal class PhotosCleanup(private val context: Context) {
+internal class PhotosCleanup(private val context: Context) : CleanupAccessStore {
     private val prefs = context.getSharedPreferences("photos_cleanup", Context.MODE_PRIVATE)
     var enabled: Boolean
         get() = prefs.getBoolean("enabled", false)
@@ -17,7 +17,26 @@ internal class PhotosCleanup(private val context: Context) {
     /** Durable setup intent; enabling follows a successful bounded account check only. */
     var journey: String
         get() = prefs.getString("journey", "").orEmpty()
-        set(value) { check(prefs.edit().putString("journey", value).commit()) }
+        set(value) {
+            val edit = prefs.edit().putString("journey", value)
+            if (value != "access") edit.remove("access_route").remove("access_wait_started_at")
+            check(edit.commit())
+        }
+    override var accessStep: CleanupAccessStep?
+        get() = if (journey != "access") null else CleanupAccessStep(
+            prefs.getString("access_route", "storage").orEmpty(),
+            if (prefs.contains("access_wait_started_at")) prefs.getLong("access_wait_started_at", 0) else null)
+        set(value) {
+            val edit = prefs.edit()
+            if (value == null) edit.putString("journey", "").remove("access_route").remove("access_wait_started_at")
+            else {
+                edit.putString("journey", "access").putString("access_route", value.route)
+                if (value.waitingSince == null) edit.remove("access_wait_started_at")
+                else edit.putLong("access_wait_started_at", value.waitingSince)
+            }
+            check(edit.commit())
+        }
+    val accessRecovery get() = CleanupAccessRecovery(this)
     var enableAfterBinding: Boolean
         get() = prefs.getBoolean("enable_after_binding", false)
         set(value) { check(prefs.edit().putBoolean("enable_after_binding", value).commit()) }

@@ -44,6 +44,13 @@ class PhotosProbeService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         mutableState.value = PhotosProbeState(connected = true)
+        cleanup.accessRecovery.serviceConnected(System.currentTimeMillis())?.let {
+            runCatching {
+                startActivity(Intent(this, MainActivity::class.java)
+                    .putExtra("cleanup-access-return", true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            }
+        }
     }
     // Events are deliberately unused. A bounded sampling loop only runs after the user's request.
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit

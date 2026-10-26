@@ -268,8 +268,13 @@ Everything an ordinary person needs for auto cleanup lives on the Storage page;
 Diagnostics keeps only technical probes and reports.
 
 - **Turning it on** is one journey from the Storage switch: the consent sheet,
-  then the system Accessibility setting, then, on return, BackupDuck confirms
-  which Google Photos account it will act in by opening Google Photos for a few
+  then the system Accessibility setting. The access step explains that BackupDuck
+  comes back once access is turned on. For ten minutes after opening Settings,
+  the accessibility service connection brings the saved cleanup journey back to
+  the front automatically. The current step survives process death; returning
+  manually also re-checks access. Without access, the switch stays off and the
+  person can retry. After access is confirmed, BackupDuck confirms which Google
+  Photos account it will act in by opening Google Photos for a few
   seconds ("Checking your Google Photos account…"). Only then is the switch on.
   The account is shown as confirmed, never by its address (BackupDuck keeps
   only a fingerprint). Leaving any step leaves the switch off and says why.

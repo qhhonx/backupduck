@@ -52,9 +52,12 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
             page.state.remove("cleanup-opened-photos")
             page.state.putBoolean("cleanup-reviewed-return", true)
         }
-        if (facts.journey == "access") {
-            if (ReceiverEnvironment.cleanupAccess(activity)) startBinding()
-            else { facts.journey = ""; facts.enableAfterBinding = false; facts.report("access_required") }
+        // Both automatic and manual returns re-check accessibility access before
+        // advancing. The durable access step is consumed before binding starts.
+        when (facts.accessRecovery.resumed(ReceiverEnvironment.cleanupAccess(activity))) {
+            CleanupAccessNext.BIND -> startBinding()
+            CleanupAccessNext.ACCESS_REQUIRED -> { facts.enableAfterBinding = false; facts.report("access_required") }
+            CleanupAccessNext.NONE -> Unit
         }
         refresh()
     }
@@ -92,7 +95,9 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
             closeSheet()
             page.state.remove("cleanup-consent")
             activity.getSharedPreferences("photos_probe", 0).edit().putBoolean("cleanup_disclosure_v2", true).apply()
-            facts.enableAfterBinding = true; facts.journey = "access"; facts.report("access_required")
+            facts.enableAfterBinding = true
+            facts.accessRecovery.waiting(page.route, System.currentTimeMillis())
+            facts.report("access_required")
             refresh()
             runCatching { operations.access(activity, ::resumed) }.onFailure {
                 facts.journey = ""; facts.enableAfterBinding = false; facts.report("access_required"); refresh()
@@ -159,6 +164,9 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
             progress.body.addView(activity.lookText(activity.getString(if (kind == "access") R.string.auto_cleanup_waiting_access else R.string.auto_cleanup_binding), M.style.TextAppearance_Material3_TitleLarge))
             progress.body.addView(LinearProgressIndicator(activity).apply { isIndeterminate = true }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = inset })
             progress.body.addView(activity.lookText(activity.getString(if (kind == "access") R.string.auto_cleanup_access_return else R.string.auto_cleanup_binding_note), M.style.TextAppearance_Material3_BodyMedium, secondary = true), LinearLayout.LayoutParams(-1,-2).apply { topMargin = inset })
+            if (kind == "access") progress.body.addView(activity.lookText(activity.getString(R.string.cleanup_access_return_note),
+                M.style.TextAppearance_Material3_BodyMedium, secondary = true),
+                LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_small) })
             progress.body.addView(activity.lookButton(activity.getString(R.string.auto_cleanup_stop), LookButton.TEXT) { stop() })
             progress.setOnDismissListener {
                 if (!finishingSheet) {
@@ -176,7 +184,8 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
     }
     fun close() {
         observation.cancel()
-        if (!activity.isChangingConfigurations && facts.journey.isNotEmpty()) {
+        val restoringAccess = facts.journey == "access" && !activity.isFinishing && page.fragment?.isRemoving != true
+        if (!activity.isChangingConfigurations && !restoringAccess && facts.journey.isNotEmpty()) {
             facts.journey = ""; facts.enableAfterBinding = false; operations.stop(); facts.report("interrupted")
         }
         closeSheet()
