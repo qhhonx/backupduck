@@ -240,14 +240,13 @@ enum GridZoom {
   }
 }
 
-/// Shared native dock geometry. The native icon supplies its current visible
-/// frame; the period capsule occupies only the remaining width, never a minimum
-/// width that could intersect the icon during a three-tab morph.
+/// Shared native dock geometry. The period capsule is centred on the screen
+/// between the compact native icon and its mirror position, 48 pt tall. It only
+/// appears once the icon has reached this destination frame.
 enum LibraryDockGeometry {
-  static func capsule(bar: CGRect, icon: CGRect, gap: CGFloat, inset: CGFloat) -> CGRect {
-    let leading = max(bar.minX + inset, icon.maxX + gap)
-    let trailing = max(leading, bar.maxX - inset)
-    return CGRect(x: leading, y: icon.midY - icon.height / 2,
-      width: trailing - leading, height: icon.height)
+  static func capsule(width: CGFloat, icon: CGRect, gap: CGFloat = 12) -> CGRect {
+    let reserve = min(icon.maxX, width - icon.minX) + gap
+    let side = max(0, width - 2 * reserve)
+    return CGRect(x: (width - side) / 2, y: icon.midY - 24, width: side, height: 48)
   }
 }

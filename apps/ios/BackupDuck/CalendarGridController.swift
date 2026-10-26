@@ -1060,10 +1060,6 @@ final class CalendarNativeBarObserver: NSObject {
       owner.nativeBarMorphed(minimized: next)
     }
     if owner.periodShown { owner.layoutNativePeriod(tabs) }
-    if !next {
-      owner.periodSurface.alpha = 0
-      owner.dock.alpha = 0
-    }
   }
 }
 
@@ -4008,7 +4004,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var nativeBarRecentlyCompact: Bool {
     nativeBarCompact || CACurrentMediaTime() - nativeBarExpandedAt < 0.35
   }
-  var nativePeriodAnimator: UIViewPropertyAnimator?
   var periodShown = false, periodEntry = 0
   var nativePeriodIcon: CGRect?
   func nativeBarMorphed(minimized: Bool) {
@@ -4023,57 +4018,67 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard #available(iOS 26.0, *), usesNativeMinimization, let tabs = tabBarController else { return }
     setNativePeriod(nativeBarCompact && active && !selecting && !tabs.isTabBarHidden)
   }
-  /// Native labels gate the handoff; the destination icon frame owns placement
-  /// while the system finishes its own motion. Entry can start on the first
-  /// label-free display sample without waiting for the icon to settle.
+  /// Entry waits for the compact icon to reach its destination (the observer's
+  /// trigger), then materializes the glass and rises 14 pt on a 300 ms spring
+  /// without bounce. Exit removes the surface at once, before the expanding
+  /// platter can pass underneath it. A visual-effect change ignores animation
+  /// delays, so entry never begins from a stale presentation value.
   func setNativePeriod(_ visible: Bool, animated: Bool = true) {
     guard #available(iOS 26.0, *), let tabs = tabBarController ?? tabOwner else { return }
     guard visible != periodShown else {
       if visible { layoutNativePeriod(tabs) }
       return
     }
-    periodShown = visible; periodEntry += 1
-    nativePeriodAnimator?.stopAnimation(true); nativePeriodAnimator = nil
-    periodSurface.layer.removeAllAnimations(); dock.layer.removeAllAnimations()
+    periodShown = visible
+    periodEntry += 1
+    periodSurface.layer.removeAllAnimations()
+    dock.layer.removeAllAnimations()
     periodSurface.isUserInteractionEnabled = visible
     periodSurface.accessibilityElementsHidden = !visible
-    attachPeriodSurface(tabs)
-    let reduced = UIAccessibility.isReduceMotionEnabled
-    UIView.performWithoutAnimation {
-      periodSurface.transform = .identity
-      layoutNativePeriod(tabs)
-      periodSurface.isHidden = !visible
-      periodSurface.alpha = 0; dock.alpha = visible ? 1 : 0
-      periodSurface.effect = nil
-      if visible && animated && !reduced { periodSurface.transform = CGAffineTransform(translationX: 0, y: 14) }
+    guard visible else {
+      UIView.performWithoutAnimation {
+        periodSurface.effect = nil
+        dock.alpha = 0
+        periodSurface.isHidden = true
+        periodSurface.transform = .identity
+      }
+      return
     }
-    guard visible else { return }
-    let changes = { [weak self] in
-      guard let self else { return }
-      self.periodSurface.alpha = 1
+    let material: UIVisualEffect =
+      UIAccessibility.isReduceTransparencyEnabled
+      ? UIBlurEffect(style: .systemChromeMaterial) : UIGlassEffect(style: .regular)
+    let still = UIAccessibility.isReduceMotionEnabled
+    attachPeriodSurface(tabs)
+    UIView.performWithoutAnimation {
+      periodSurface.isHidden = false
+      periodSurface.alpha = 1
+      periodSurface.effect = nil
+      dock.alpha = 0
+      periodSurface.transform = still || !animated ? .identity : CGAffineTransform(translationX: 0, y: 14)
+      layoutNativePeriod(tabs)
+    }
+    let changes = {
+      self.periodSurface.effect = material
+      self.dock.alpha = 1
       self.periodSurface.transform = .identity
-      self.periodSurface.effect = UIAccessibility.isReduceTransparencyEnabled
-        ? UIBlurEffect(style: .systemChromeMaterial) : UIGlassEffect(style: .regular)
     }
     guard animated else { changes(); return }
-    let animator = reduced ? UIViewPropertyAnimator(duration: 0.2, curve: .linear)
-      : UIViewPropertyAnimator(duration: 0.3, dampingRatio: 1)
-    animator.addAnimations(changes)
-    nativePeriodAnimator = animator
-    animator.startAnimation()
+    UIView.animate(
+      springDuration: still ? 0.2 : 0.3, bounce: 0, initialSpringVelocity: 0, delay: 0,
+      options: [.allowUserInteraction], animations: changes)
   }
+  /// The surface centers between the compact native button and its mirror
+  /// position, using the same public laid-out geometry as the observer.
   func layoutNativePeriod(_ tabs: UITabBarController) {
-    guard let icon = nativePeriodIcon else { return }
-    let bar = tabs.tabBar.convert(tabs.tabBar.bounds, to: tabs.view)
-    let frame = LibraryDockGeometry.capsule(bar: bar, icon: icon,
-      gap: DuckSpacing.small, inset: DuckSpacing.medium)
-    UIView.performWithoutAnimation {
-      // Updating frame with an in-flight transform changes its bounds. Bounds
-      // and centre retain the destination frame throughout the entrance.
-      periodSurface.bounds = CGRect(origin: .zero, size: frame.size)
-      periodSurface.center = CGPoint(x: frame.midX, y: frame.midY)
-      dock.frame = periodSurface.bounds.insetBy(dx: DuckSpacing.xxSmall, dy: DuckSpacing.xxSmall)
-    }
+    let bar = tabs.tabBar
+    let frame = bar.convert(bar.bounds, to: tabs.view)
+    let icon = nativePeriodIcon ?? CGRect(x: 28, y: frame.minY + 7, width: 48, height: 48)
+    let capsule = LibraryDockGeometry.capsule(width: tabs.view.bounds.width, icon: icon)
+    // Bounds and centre keep the destination frame under the entrance transform.
+    periodSurface.bounds = CGRect(origin: .zero, size: capsule.size)
+    periodSurface.center = CGPoint(x: capsule.midX, y: capsule.midY)
+    dock.bounds = periodSurface.bounds.insetBy(dx: 4, dy: 4)
+    dock.center = CGPoint(x: periodSurface.bounds.midX, y: periodSurface.bounds.midY)
   }
   /// Host the period surface in the tab controller's view, outside the tab
   /// bar's own container: inside it, the native press effect blanks the glass

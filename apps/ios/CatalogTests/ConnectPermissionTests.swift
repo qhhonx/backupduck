@@ -54,17 +54,14 @@ import Photos
     XCTAssertEqual(state, .backingUp(remaining: 8, bytes: 0))
   }
 
-  func testDockNeverIntersectsNativeIconAcrossActualBarWidthsAndReversal() {
+  func testDockIsCentredBesideTheSettledNativeIcon() {
     for width in [CGFloat(320), 375, 430, 768] {
-      let bar = CGRect(x: 0, y: 700, width: width, height: 62)
-      for frame in 0...120 {
-        let fraction = CGFloat(frame <= 60 ? frame : 120 - frame) / 60
-        let icon = CGRect(x: 16 + (width / 3 - 48) * (1 - fraction), y: 707, width: 48, height: 48)
-        let capsule = LibraryDockGeometry.capsule(bar: bar, icon: icon, gap: DuckSpacing.small, inset: DuckSpacing.medium)
-        XCTAssertGreaterThanOrEqual(capsule.minX - icon.maxX, DuckSpacing.small - 0.0001)
-        XCTAssertLessThanOrEqual(capsule.maxX, bar.maxX - DuckSpacing.medium)
-        XCTAssertFalse(icon.intersects(capsule))
-      }
+      let icon = CGRect(x: 28, y: 707, width: 48, height: 48)
+      let capsule = LibraryDockGeometry.capsule(width: width, icon: icon)
+      XCTAssertEqual(capsule.minX - icon.maxX, 12, accuracy: 0.0001)
+      XCTAssertEqual(width - capsule.maxX, icon.maxX + 12, accuracy: 0.0001)
+      XCTAssertEqual(capsule.midY, icon.midY, accuracy: 0.0001)
+      XCTAssertFalse(icon.intersects(capsule))
     }
   }
 
