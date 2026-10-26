@@ -71,11 +71,12 @@ struct MacHistoryGrid: View {
   var clearFilters: () -> Void
   var resize: (Int) -> Void
   var retry: () -> Void
+  var active = true
   @State private var focused: String?
   var body: some View {
     let source = MacHistoryGridSource(history: history, state: state, filter: filter, type: type, search: search)
     MacMediaGrid(source: source, navigation: state.navigation, queueRevision: Int64(state.imageRevision),
-      receiverID: nil, columns: columns, prefillsTables: false, preview: { id in
+      receiverID: nil, columns: columns, active: active, prefillsTables: false, preview: { id in
         guard let photo = source.photos[id] else { return }
         let context = source.identifiers.compactMap { source.photos[$0] }
         present?(.history(photo, context, state, { state.navigation.focus($0) }))

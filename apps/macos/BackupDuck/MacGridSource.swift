@@ -15,6 +15,7 @@ import SwiftUI
   var identifiers: [String] { get }
   var contextID: String { get }
   var contentRevision: String { get }
+  var membershipReady: Bool { get }
   var groups: [Int: String] { get }
   func introduction(at index: Int) -> AnyView?
   func headerHeights(width: CGFloat) -> [Int: CGFloat]
@@ -41,6 +42,7 @@ import SwiftUI
 }
 
 extension MacGridSource {
+  var membershipReady: Bool { true }
   var groups: [Int: String] { [:] }
   func introduction(at index: Int) -> AnyView? { nil }
   func headerHeights(width: CGFloat) -> [Int: CGFloat] { [:] }
@@ -86,6 +88,7 @@ struct MacLibraryGrid: View {
   var receiverID: String?
   var columns: Int
   var selecting = true
+  var readOnly = false
   var active = true
   var prefillsTables = true
   var preview: (PHAsset) -> Void = { _ in }
@@ -96,7 +99,7 @@ struct MacLibraryGrid: View {
     let source = storage.source(for: library)
     MacMediaGrid(source: source, navigation: navigation, preparationRevision: preparationRevision,
       queueRevision: queueRevision, receiverID: receiverID, columns: columns,
-      selecting: selecting, active: active, prefillsTables: prefillsTables,
+      selecting: selecting, readOnly: readOnly, active: active, prefillsTables: prefillsTables,
       preview: { id in if let asset = source.asset(id) { preview(asset) } },
       enterSelection: enterSelection, resize: resize)
   }
@@ -212,21 +215,41 @@ struct MacLibraryGrid: View {
 /// sits above it without changing tile padding or date typography.
 @MainActor final class MacGridSectionHeader: NSView, NSCollectionViewElement {
   private let date = TimelineDateHeader(frame: .zero)
-  private var summary: NSHostingView<AnyView>?
+  private(set) var summary: NSHostingView<AnyView>?
+  private var introduction: AnyView?
+  private var summaryWidth: CGFloat = -1
+  static let dateHeight: CGFloat = 44
+  /// Date text and folder summaries share the library header's 28 pt inset.
+  static let inset: CGFloat = 28
+  static func contentWidth(for gridWidth: CGFloat) -> CGFloat { max(1, gridWidth - inset * 2) }
+  static func fittingHeight(introduction: AnyView, width: CGFloat) -> CGFloat {
+    let host = NSHostingView(rootView: constrained(introduction, width: width))
+    return ceil(host.fittingSize.height) + dateHeight
+  }
+  private static func constrained(_ content: AnyView, width: CGFloat) -> AnyView {
+    AnyView(content.frame(width: max(1, width)).fixedSize(horizontal: false, vertical: true))
+  }
   override var isFlipped: Bool { true }
   override init(frame: NSRect) { super.init(frame: frame); addSubview(date) }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   func configure(title: String, introduction: AnyView?) {
     date.setTitle(title)
+    self.introduction = introduction
+    summaryWidth = bounds.width
     if let introduction {
-      if let summary { summary.rootView = introduction }
-      else { let host = NSHostingView(rootView: introduction); summary = host; addSubview(host) }
+      let content = Self.constrained(introduction, width: bounds.width)
+      if let summary { summary.rootView = content }
+      else { let host = NSHostingView(rootView: content); summary = host; addSubview(host) }
     } else { summary?.removeFromSuperview(); summary = nil }
     needsLayout = true
   }
   override func layout() {
     super.layout()
-    let height = min(44, bounds.height)
+    let height = min(Self.dateHeight, bounds.height)
+    if summaryWidth != bounds.width, let introduction {
+      summaryWidth = bounds.width
+      summary?.rootView = Self.constrained(introduction, width: bounds.width)
+    }
     summary?.frame = CGRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - height))
     // The date belongs to the photos below it: it sits near them, with the
     // header's remaining space separating it from the previous section.

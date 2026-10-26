@@ -12,6 +12,7 @@ struct MacMediaGrid: NSViewRepresentable {
   var receiverID: String?
   var columns: Int
   var selecting = true
+  var readOnly = false
   var active = true
   /// The overview table prefill is app-wide and keyed by one fetch: only the
   /// library grid may start it. An album grid reads the tables but would cancel
@@ -32,8 +33,8 @@ struct MacMediaGrid: NSViewRepresentable {
     collection.collectionViewLayout = layout
     collection.autoresizingMask = [.width]
     collection.backgroundColors = [.clear]
-    collection.isSelectable = true
-    collection.allowsMultipleSelection = true
+    collection.isSelectable = !readOnly
+    collection.allowsMultipleSelection = !readOnly
     let canvas = MacDenseCanvas(frame: .zero)
     canvas.autoresizingMask = [.width, .height]
     canvas.isHidden = true
@@ -107,7 +108,7 @@ struct MacMediaGrid: NSViewRepresentable {
     guard let collection = c.collection,
       let layout = collection.collectionViewLayout as? LibraryTimelineLayout
     else { return }
-    collection.isSelectable = true
+    collection.isSelectable = !readOnly
     // Level layers stay mounted and cross-fade in AppKit: a SwiftUI opacity swap
     // cut between levels and showed a blank page on first use.
     scroll.setAccessibilityHidden(navigation.level != .all)
@@ -320,9 +321,30 @@ struct MacMediaGrid: NSViewRepresentable {
     var count = 0
     var generation = -1
     var contextID: String?
+    private var measuredHeaderWidth: CGFloat = 0
     var ids: [String] = []
     var positions: [String: Int] = [:]
     var dataSource: NSCollectionViewDiffableDataSource<Int, String>?
+    private var membershipCover: NSImageView?
+    private func coverMembership(in scroll: NSScrollView) {
+      membershipCover?.removeFromSuperview(); membershipCover = nil
+      guard !reducedMotion, let bitmap = scroll.bitmapImageRepForCachingDisplay(in: scroll.bounds) else { return }
+      scroll.cacheDisplay(in: scroll.bounds, to: bitmap)
+      let image = NSImage(size: scroll.bounds.size); image.addRepresentation(bitmap)
+      let cover = NSImageView(frame: scroll.bounds); cover.image = image
+      cover.imageScaling = .scaleAxesIndependently
+      cover.autoresizingMask = [.width, .height]
+      scroll.addSubview(cover); membershipCover = cover
+    }
+    private func revealMembership() {
+      guard let cover = membershipCover else { return }
+      membershipCover = nil
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = reducedMotion ? 0 : 0.2
+        context.timingFunction = CAMediaTimingFunction(name: .linear)
+        cover.animator().alphaValue = 0
+      } completionHandler: { cover.removeFromSuperview() }
+    }
     var preparationRevision = ""
     var contentGeneration = ""
     var statusRevision: Int64 = -2
@@ -341,6 +363,10 @@ struct MacMediaGrid: NSViewRepresentable {
       dataSource = data
     }
     func applyItems(scroll: NSScrollView, layout: LibraryTimelineLayout) {
+      // An asynchronous source must publish a complete membership before the
+      // context changes; never adopt old rows under the new filter identity.
+      guard parent.source.membershipReady, width() > 120 else { return }
+      measuredHeaderWidth = width()
       let next = parent.source.identifiers
       let changedContext = contextID != parent.source.contextID
       guard ids != next || changedContext else {
@@ -352,6 +378,7 @@ struct MacMediaGrid: NSViewRepresentable {
         }
         refreshVisibleHeaders(); refreshVisibleImages(); return
       }
+      if changedContext && contextID != nil { coverMembership(in: scroll) }
       if !changedContext { rememberScroll() }
       stopLayoutAnimation(); removeZoomStage(); magnifying = false
       let first = contextID == nil
@@ -384,6 +411,7 @@ struct MacMediaGrid: NSViewRepresentable {
         scroll.contentView.scroll(to: target); scroll.reflectScrolledClipView(scroll.contentView)
         self.restoring = false; self.applyingSelection = false
         self.applyPendingFocus(); self.scrolled()
+        self.revealMembership()
       }
     }
     var zoomStage: MacGridZoomStage?
@@ -417,6 +445,14 @@ struct MacMediaGrid: NSViewRepresentable {
       // pass), when the requested column count cannot be applied yet.
       if appliedColumns == nil, width() > 120, let layout = collection?.collectionViewLayout as? LibraryTimelineLayout {
         syncDensity(columns: parent.columns, layout: layout)
+      }
+      // A recreated page can receive its first update before AppKit supplies
+      // the viewport width. Adopt membership and header metrics only at the
+      // real width, and refresh them whenever that native width changes.
+      if width() > 120, let collection, let scroll = collection.enclosingScrollView,
+        let layout = collection.collectionViewLayout as? LibraryTimelineLayout,
+        contextID == nil || measuredHeaderWidth != width() {
+        applyItems(scroll: scroll, layout: layout)
       }
       guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView else { return }
       let clip = scroll.contentView, height = settledContentHeight
@@ -901,19 +937,19 @@ struct MacMediaGrid: NSViewRepresentable {
       _ collectionView: NSCollectionView, didDeselectItemsAt indexPaths: Set<IndexPath>
     ) { changeSelection(indexPaths, selected: false) }
     private func changeSelection(_ paths: Set<IndexPath>, selected: Bool) {
-      guard !applyingSelection, parent.selecting else { return }
+      guard !applyingSelection, !parent.readOnly, parent.selecting else { return }
       let ids = paths.compactMap { identifier(at: $0.item) }
       if selected { parent.source.selection.formUnion(ids) }
       else { parent.source.selection.subtract(ids) }
       appliedSelection = parent.source.selection
     }
     @objc func longPress(_ recognizer: NSPressGestureRecognizer) {
-      guard recognizer.state == .began, !parent.selecting, let collection,
+      guard recognizer.state == .began, !parent.readOnly, !parent.selecting, let collection,
         let path = collection.indexPathForItem(at: recognizer.location(in: collection)) else { return }
       beginSelection(at: path)
     }
     func beginSelection(at path: IndexPath) {
-      guard let collection, let id = identifier(at: path.item) else { return }
+      guard !parent.readOnly, let collection, let id = identifier(at: path.item) else { return }
       parent.source.selection.insert(id)
       applyingSelection = true
       collection.isSelectable = true
@@ -923,7 +959,7 @@ struct MacMediaGrid: NSViewRepresentable {
       parent.enterSelection()
     }
     func toggleSelection(at path: IndexPath) {
-      guard parent.selecting, let collection, let id = identifier(at: path.item) else { return }
+      guard !parent.readOnly, parent.selecting, let collection, let id = identifier(at: path.item) else { return }
       if parent.source.selection.contains(id) { parent.source.selection.remove(id) }
       else { parent.source.selection.insert(id) }
       applyingSelection = true
@@ -1013,6 +1049,7 @@ struct MacMediaGrid: NSViewRepresentable {
     inGap(point) ? nil : super.indexPathForItem(at: point)
   }
   private func marquee(from start: NSPoint, with event: NSEvent) {
+    guard isSelectable else { return }
     let extend = !event.modifierFlags.intersection([.command, .shift]).isEmpty
     let base = extend ? selectionIndexPaths : []
     if !extend, !selectionIndexPaths.isEmpty {
@@ -1075,6 +1112,7 @@ struct MacMediaGrid: NSViewRepresentable {
   /// Left and Right move through the library in reading order, continuing onto
   /// the next or previous row, as Photos does. Shift extends from the anchor.
   private func arrowStep(_ step: Int, extend: Bool) -> Bool {
+    guard isSelectable else { return false }
     let count = numberOfSections > 0 ? numberOfItems(inSection: 0) : 0
     guard count > 0 else { return false }
     let selected = selectionIndexPaths
@@ -2768,7 +2806,7 @@ struct MacCalendarGrid: NSViewRepresentable {
       headers.insert(header.firstItem)
       let view = face.headers[header.firstItem] ?? MacGridSectionHeader(frame: .zero)
       if view.superview == nil { face.addSubview(view); face.headers[header.firstItem] = view }
-      view.configure(title: header.title, introduction: groupedIntroduction?(header.firstItem)); view.frame = CGRect(x: 28, y: rect.minY, width: max(0, bounds.width - 56), height: rect.height)
+      view.configure(title: header.title, introduction: groupedIntroduction?(header.firstItem)); view.frame = CGRect(x: MacGridSectionHeader.inset, y: rect.minY, width: MacGridSectionHeader.contentWidth(for: bounds.width), height: rect.height)
     }
     for key in Array(face.headers.keys) where !headers.contains(key) { face.headers.removeValue(forKey: key)?.removeFromSuperview() }
   }

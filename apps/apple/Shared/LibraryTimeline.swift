@@ -374,7 +374,9 @@ import AppKit
       result.frame.origin.y = min(max(result.frame.minY, top), next - result.frame.height)
       result.zIndex = 20
     }
-    result.frame.origin.x = 28; result.frame.size.width = max(0,(collectionView?.enclosingScrollView?.contentSize.width ?? 0)-56)
+    let inset: CGFloat = 28
+    result.frame.origin.x = inset
+    result.frame.size.width = max(0, (collectionView?.enclosingScrollView?.contentSize.width ?? 0) - inset * 2)
     result.alpha = fromHeaders[id] == nil ? progress : toHeaders[id] == nil ? 1-progress
       : fromHeaders[id]?.title == toHeaders[id]?.title ? 1 : abs(1-2*progress)
     return result

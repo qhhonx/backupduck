@@ -101,7 +101,7 @@ struct MacWorkspace: View {
       smaller: { historyColumns = min(9, MacLibraryDensity.step(historyColumns, by: 1)) },
       larger: { historyColumns = MacLibraryDensity.step(historyColumns, by: -1) },
       canShrink: historyColumns < 9, canGrow: historyColumns > 3) : nil)
-    .focusedSceneValue(\.gridSearch, destination == .transfers && !hasViewer ? MacGridSearchAction(open: { historySearchExpanded = true }) : nil)
+    .focusedSceneValue(\.gridSearch, destination == .transfers && !hasViewer ? MacGridSearchAction(open: { withAnimation(.snappy(duration: 0.25)) { historySearchExpanded = true } }) : nil)
     .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
       info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
     // The accent reaches the system as its accent color: selection, switches and
@@ -252,7 +252,8 @@ struct MacWorkspace: View {
   @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
   if hasViewer {
     MacViewerToolbar(navigation: libraryNavigation, back: closeViewer)
-  } else if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen, library.authorized {
+  } else if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen {
+    if library.authorized {
     MacLibraryScale(columns: $density, enabled: libraryNavigation.level == .all)
     MacBrowsingToolbarGap()
     ToolbarItem(id: "library.viewMode", placement: .primaryAction) {
@@ -267,15 +268,18 @@ struct MacWorkspace: View {
       }
     }
     MacBrowsingToolbarGap()
+    }
     ToolbarItemGroup(placement: .primaryAction) {
-      if libraryNavigation.level == .all && !MacLibraryDensity.isDense(density) && library.placeholder == nil && library.loaded > 0 {
       Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
         .toggleStyle(.button).help("calendar_original_aspect")
         .accessibilityIdentifier("library.original_aspect")
-      }
+        .disabled(!MacLibraryDensity.canChangeAspect(level: libraryNavigation.level, columns: density,
+          hasPhotos: library.placeholder == nil && library.loaded > 0))
+      if library.authorized {
       MacGridFilterMenu(shows: MacGridFilterMenu.backupViews, selected: library.backupView.rawValue,
         choose: { raw in if let view = LibraryBackupView(rawValue: raw) { Task { await library.changeBackupView(view) } } },
         type: Binding(get: { library.filter }, set: { value in Task { await library.changeFilter(value) } }), identifier: "library.filter")
+      }
     }
     if !library.selection.isEmpty || backupAction.added || backupAction.busy {
       MacBrowsingToolbarGap()

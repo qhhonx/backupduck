@@ -32,9 +32,10 @@ twice, with two scroll positions, two sets of gestures and two places to look.
 - **The photo's detail answers the backup question.** The viewer's info shows
   the facts from `records.md` (sent to the Pixel, in the Pixel's Photos), next
   to the date and source.
-- **The hub keeps the summary.** "Needs you" cards stay on the hub and open the
-  Needs you view; "Backup History" opens Recently backed up. The separate
-  history page (`BackupHistoryView`) is retired once the views exist.
+- **The hub keeps the summary.** On iPhone its History, Needs You and
+  earlier-photos actions push `BackupHistoryView` within the Backup tab, using
+  all, attention and saved respectively. Photos backup views remain independent
+  choices in the Photos menu.
 - **Pixel unchanged.** The Pixel has no library of its own; Received photos is
   its only photo grid and stays as built.
 
@@ -86,8 +87,8 @@ The page answers one question: are these the photos I mean to back up?
    - Recently backed up: items saved in the last seven days, from
      `backup_tasks` ordered by latest change, shown in the grid's date groups.
 3. **UI.** The library's existing menu gets a Backup section with the four
-   views, behind the catalog's design switch. The hub's Needs you and Backup
-   History open the matching view.
+   views. iPhone hub actions retain the Backup tab and push History with the
+   corresponding task filter; they do not change the Photos view.
 4. **Catalog.** Library scenarios run on the iOS Simulator against a synthetic
    photo library (generated images added with `simctl addmedia`); the catalog
    answers backup commands from that library's identifiers. The Mac catalog
@@ -99,8 +100,8 @@ The page answers one question: are these the photos I mean to back up?
 
 - Built behind the design switch on iPhone and Mac: the core's
   `received_sources`, the model's backup views, the Backup section in the
-  library menu, the view's name in the grid subtitle, and the hub's Needs
-  attention and Backup History rows opening Needs you and Recently backed up.
+  library menu and the view's name in the grid subtitle. iPhone hub navigation
+  now pushes History within Backup, independently of the Photos menu.
 - Checked on the iOS Simulator with a synthetic library of 240 photos: 246 in
   All (with the Simulator's samples), 34 not backed up, 4 needing the user, 30
   recently backed up, each in the grid's date order.
@@ -156,7 +157,8 @@ does nothing; the library's primary button stays "Added to Backup". Decision:
 - **One toolbar order** for every grid page, trailing side, each group only
   when it applies: Zoom Out / Zoom In; the page's view control (Library: Years,
   Months, All Photos; Folders: By Folder, All Photos; History: none); Original
-  Aspect, only in views where it changes the tiles; Filter; the page's own
+  Aspect on Photo Library only, retained in place and system-disabled at gapless
+  overview densities or with empty/placeholder content; Filter; the page's own
   actions (Folders: Add Folder, More); the primary text action, only while the
   selection contains eligible items (Back Up N Items), with its brief "Added"
   feedback, then gone; Search as a magnifier circle, collapsed by default,
@@ -166,6 +168,18 @@ does nothing; the library's primary button stays "Added to Backup". Decision:
   All Photos, Not Backed Up, Needs You, Recently Backed Up (History: All, Needs
   You); "Type" — All Types, Photos, Live Photos, Videos, Bursts. All Types sits
   inside the Type section. An active non-default choice tints the filter symbol.
+- **Filter presentation.** Committed Show, Type and search membership is adopted
+  once with a 0.2-second grid crossfade (Reduce Motion: instant), without
+  interpolating collection rows. New views start at their newest edge; returning
+  restores that view's retained anchor. Pending source work cannot adopt old
+  rows as a new context. Toolbar state and membership must commit together.
+- **Folder headers.** A folder summary is its section header, aligned with the
+  date text at the library header's 28 pt inset, measured at the exact laid-out width. Nested dates show
+  only the date. All Photos shows dates without folder summaries.
+- **Album browsing.** The album photo browser uses a scoped PhotoKit source and
+  the same native grid, density stops, marks and viewer as Photo Library, with
+  selection disabled. Its single text action is Choose This Album or Deselect
+  This Album, according to the saved rule.
 - **Empty results** after a filter say so ("No Photos Match", Show All Photos);
   they never reuse the photo-access placeholder.
 - **Album picker (Mac).** The "back up these albums" editor shows albums as an
@@ -189,3 +203,20 @@ Horizontal paging runs from older to newer: swipe left for a newer photo and
 right for an older one. Apply the same ordering to the library, recent mosaic,
 history and selected-photo review; preserve the entry collection and return
 anchor. Paging never changes grid or durable backup order.
+
+
+## 9. iPhone filter commits and viewer direction
+
+Backup-view and media filters prepare complete immutable membership off the
+main thread, then publish content, count and active filter state together.
+The native grid adopts one complete layout with a 0.2-second crossfade of the
+grid and its labels (instant under Reduce Motion). A new view starts at its
+newest edge; returning restores that view's retained anchor. Any non-default
+backup view or media type uses the filled accent filter symbol; All restores
+the plain symbol.
+
+The thumbnail strip runs older on the left to newer on the right, without a
+mirrored collection transform. It follows the pager in the same direction:
+swiping the photo left advances to the newer item. This applies to every entry
+collection, including albums, History and selected-photo review, preserving
+that collection's return anchor.

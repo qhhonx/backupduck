@@ -157,6 +157,9 @@ enum MacLibraryDensity {
     [max(denseThreshold + 2, Int(width / 44)), max(denseThreshold + 14, Int(width / 22))]
   }
   static func isDense(_ columns: Int) -> Bool { columns >= denseThreshold }
+  static func canChangeAspect(level: MacLibraryLevel, columns: Int, hasPhotos: Bool) -> Bool {
+    level == .all && !isDense(columns) && hasPhotos
+  }
   static func step(_ columns: Int, by delta: Int) -> Int {
     let all = self.columns
     let index = all.firstIndex(of: columns)
@@ -402,21 +405,30 @@ struct MacGridFilterMenu: View {
 struct MacGridSearch: View {
   @Binding var text: String
   @Binding var presented: Bool
+  var prompt: LocalizedStringKey = "folders_search"
   @FocusState private var focused: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     Group {
       if presented {
-        TextField("folders_search", text: $text).textFieldStyle(.roundedBorder)
+        TextField(prompt, text: $text).textFieldStyle(.roundedBorder)
           .frame(minWidth: 120, idealWidth: 180, maxWidth: 220).focused($focused)
           .onAppear { focused = true }
-          .onExitCommand { if text.isEmpty { presented = false } }
+          .onExitCommand { if text.isEmpty { show(false) } }
           .accessibilityIdentifier("grid.search_field")
+          .transition(.opacity.combined(with: .scale(scale: 0.6, anchor: .trailing)))
       } else {
-        Button { presented = true } label: { Label("folders_search", systemImage: "magnifyingglass") }
-          .labelStyle(.iconOnly).help("folders_search").accessibilityIdentifier("grid.search")
+        Button { show(true) } label: { Label(prompt, systemImage: "magnifyingglass") }
+          .labelStyle(.iconOnly).help(Text(prompt)).accessibilityIdentifier("grid.search")
+          .transition(.opacity)
       }
     }
     .onChange(of: presented) { _, value in focused = value }
+    // An empty field folds back once it loses focus, as the system search does.
+    .onChange(of: focused) { _, value in if !value, text.isEmpty, presented { show(false) } }
+  }
+  private func show(_ value: Bool) {
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { presented = value }
   }
 }
 struct MacGridSearchAction { var open: () -> Void }

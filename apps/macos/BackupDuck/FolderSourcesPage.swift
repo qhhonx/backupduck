@@ -15,7 +15,6 @@ struct FolderSourcesPage: View {
   @State private var adding: URL?
   @State private var stopping: FolderSource?
   @StateObject private var navigation = MacLibraryNavigation()
-  @State private var columns = MacLibraryDensity.standard
   @State private var toolbarWidth: CGFloat = 1180
   var body: some View {
     Group {
@@ -46,7 +45,7 @@ struct FolderSourcesPage: View {
           else if browser.sections.allSatisfy({ $0.photos.isEmpty }) && (!browser.search.isEmpty || browser.filter != .all || browser.type != .all) {
             MacGridFilterEmpty { browser.filter = .all; browser.type = .all; browser.search = "" }
           } else {
-            MacFolderGrid(folders: folders, browser: browser, navigation: navigation, columns: columns, resize: { columns = $0 }, settings: settings, stop: { stopping = $0 })
+            MacFolderGrid(folders: folders, browser: browser, navigation: navigation, columns: browser.columns, resize: { browser.columns = $0 }, settings: settings, stop: { stopping = $0 })
               .allowsHitTesting(!backupAction.busy)
           }
         }
@@ -57,7 +56,7 @@ struct FolderSourcesPage: View {
     .background(MacToolbarWidth(width: $toolbarWidth))
     .toolbar {
       if !viewerOpen && !hidesBrowsing {
-        MacLibraryScale(columns: $columns, stops: MacLibraryDensity.grid)
+        MacLibraryScale(columns: $browser.columns, stops: MacLibraryDensity.grid)
         MacBrowsingToolbarGap()
         ToolbarItem(id: "folders.view", placement: .primaryAction) {
           if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth {
@@ -94,8 +93,8 @@ struct FolderSourcesPage: View {
     }
     .focusedSceneValue(\.gridSearch, !viewerOpen && !hidesBrowsing ? MacGridSearchAction(open: beginSearch) : nil)
     .focusedSceneValue(\.historyZoom, !viewerOpen && !hidesBrowsing ? MacHistoryZoomActions(
-      smaller: { columns = min(9, MacLibraryDensity.step(columns, by: 1)) },
-      larger: { columns = MacLibraryDensity.step(columns, by: -1) }, canShrink: columns < 9, canGrow: columns > 3) : nil)
+      smaller: { browser.columns = min(9, MacLibraryDensity.step(browser.columns, by: 1)) },
+      larger: { browser.columns = MacLibraryDensity.step(browser.columns, by: -1) }, canShrink: browser.columns < 9, canGrow: browser.columns > 3) : nil)
     .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
     .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
@@ -121,7 +120,7 @@ struct FolderSourcesPage: View {
       }.frame(width: 0, height: 0)
     }
   }
-  private func beginSearch() { browser.searchExpanded = true }
+  private func beginSearch() { withAnimation(.snappy(duration: 0.25)) { browser.searchExpanded = true } }
   /// Empty and unavailable pages show only their title (A10): there is nothing to
   /// view, filter or search, and the empty state offers Add Folder itself.
   private var hidesBrowsing: Bool { folders.loadFailed || folders.sources.isEmpty }
@@ -206,8 +205,8 @@ struct FolderSectionHeader: View {
     VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
       HStack(alignment: .top) {
         VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-          Text(folders.displayName(source)).font(.headline)
-          Text(folders.location(source)).font(.callout).foregroundStyle(.secondary)
+          Text(folders.displayName(source)).font(.headline).fixedSize(horizontal: false, vertical: true)
+          Text(folders.location(source)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
           Text(folderSentence(facts)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.opacity(facts?.available == false ? 0.5 : 1)
         Spacer()
@@ -236,7 +235,7 @@ struct FolderSectionHeader: View {
             }
         }.font(.caption).foregroundStyle(.secondary)
       }
-    }.padding(.horizontal, DuckSpacing.large).padding(.vertical, DuckSpacing.medium)
+    }.padding(.vertical, DuckSpacing.medium)
   }
 }
 

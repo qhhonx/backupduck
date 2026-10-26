@@ -312,6 +312,19 @@ private struct MacScenarioRun: View {
       liveDetail: AnyView(MacCatalogUpdateDetail(unavailable: scenario.id.hasSuffix("unavailable"), automaticChecks: $automaticChecks)))
   }
 
+  private func albumLibrary() -> PhotoLibraryModel {
+    let library = PhotoLibraryModel()
+    let assets = (0..<48).map { index -> PHAsset in
+      let job = BackupJob(id: Int64(12000 + index),
+        asset: .init(metadata: ["created_at_ms": String(1792495800000 - Int64(index) * 3_600_000)],
+          kind: "photo", source_id: "catalog-album-\(index)", revision: "1",
+          resources: [.init(filename: "ALBUM_\(index).JPG", size: 4800000)]),
+        state: "waiting", confirmedBytes: 0, errorCode: nil)
+      return InformationSampleAsset(job: job)
+    }
+    library.installSyntheticAssets(CatalogAssetCollection(assets))
+    return library
+  }
   private func openSettingsDetail(_ navigator: DuckSettingsNavigator) {
     if let step = scenario.step, step.hasPrefix("help."),
       let topic = (HelpCenter.tasks + HelpCenter.problems).first(where: { "help." + $0.id == step }) {
@@ -319,7 +332,7 @@ private struct MacScenarioRun: View {
     } else if scenario.id == "settings.scope.browser", let scope = session.scope,
       let album = scope.albums.albums.first(where: { $0.name == "Family" }) {
       navigator.open(DuckSettingsPage(title: Text(verbatim: album.name),
-        content: AnyView(MacScopeAlbumBrowser(album: album, store: scope.store))))
+        content: AnyView(MacScopeAlbumBrowser(album: album, store: scope.store, library: albumLibrary()))))
     } else if scenario.step == "thirdPartyLicenses" {
       navigator.open(DuckSettingsPage(title: Text("settings_third_party_licenses"), content: AnyView(DuckThirdPartyLicensesPage())))
     } else if scenario.step == "licenses" || MacCatalogLaunch.value("-start-route") == "licenses" {

@@ -231,7 +231,7 @@ struct BackupHistoryView: View {
     #if os(macOS)
     MacHistoryGrid(history: history, state: gridState, filter: filter, type: mediaFilter, search: search,
       columns: columns ?? MacLibraryDensity.standard, initialFocus: initialFocus, clearFilters: clearFilters,
-      resize: resize, retry: { Task { await reload() } })
+      resize: resize, retry: { Task { await reload() } }, active: active)
       .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(filter)|\(active)") {
         if active { await reload() }
       }

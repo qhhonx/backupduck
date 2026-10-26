@@ -73,6 +73,8 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   @Published var byFolder = true { didSet { contextChanged() } }
   @Published var filter: LibraryBackupView = .all { didSet { contextChanged() } }
   @Published var type: LibraryFilter = .all { didSet { contextChanged() } }
+  /// Kept here, not in the page, so returning to Folders keeps its density.
+  @Published var columns = MacLibraryDensity.standard
   var gridScrolls: [String: MacGridScrollState] = [:]
   @Published var searchExpanded = false
   @Published var search = "" { didSet { contextChanged() } }

@@ -17,7 +17,11 @@ no file list, no path tree and no settings.
   I2), the same skeleton as Photo Library.
 - **Default view, by folder:** each added folder is a section with its name,
   where it lives ("SanDisk external drive", "Pictures › Camera exports"), one
-  true state sentence and a more menu, followed by its recent photos.
+  true state sentence and a more menu, followed by its recent photos. The summary
+  is the folder section header: its leading text and trailing menu align with
+  the date text at the library header's 28 pt inset. Measure its wrapped content at exactly its
+  laid-out width. Date headers contain only the date; All Photos has no folder
+  summaries.
 - **State sentence**, one at a time, in this order: drive not connected; needs
   you; backing up N (size); not yet backed up N (only when the person chose
   "only new photos"); "N photos are in the Pixel's Photos". Never "all" while a
@@ -149,6 +153,9 @@ The native collection engine is shared with Photo Library and Backup History
 (`library.md` §8). Source adapters supply stable file identities, sections,
 images and marks. Membership inserts, removals and moves use diffable updates;
 state changes configure visible cells in place without reloading the grid.
+A committed filter membership replaces the grid once under a 0.2-second
+crossfade; Reduce Motion adopts immediately. A pending source projection must
+not publish the previous rows under the new browse context.
 Each view/filter retains its scroll position, date anchor and selection.
 Folder summaries retain drive availability, unsupported-file explanations and
 management actions above the shared date headers. An unavailable file keeps the

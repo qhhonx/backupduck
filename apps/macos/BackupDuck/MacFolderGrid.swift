@@ -65,8 +65,7 @@ struct MacFolderGrid: View {
       let day = Calendar.current.startOfDay(for: photo.date)
       let key = (browser.byFolder ? photo.folder_id : "") + "|\(day.timeIntervalSince1970)"
       if key != previous {
-        let folder = browser.byFolder ? folders.sources.first(where: { $0.id == photo.folder_id }).map { folders.displayName($0) + " · " } ?? "" : ""
-        titles[index] = folder + photo.date.formatted(date: .long, time: .omitted); previous = key
+        titles[index] = photo.date.formatted(date: .long, time: .omitted); previous = key
       }
     }
     groups = titles
@@ -82,10 +81,10 @@ struct MacFolderGrid: View {
   func introduction(at index: Int) -> AnyView? { introductions[index] }
   func headerHeights(width: CGFloat) -> [Int: CGFloat] {
     introductions.mapValues { content in
-      let host = NSHostingView(rootView: content.frame(width: max(1, width - 4)))
-      return max(44, host.fittingSize.height + 44)
+      MacGridSectionHeader.fittingHeight(introduction: content, width: MacGridSectionHeader.contentWidth(for: width))
     }
   }
+  var membershipReady: Bool { browser.resultKey == browser.key }
   var contextID: String { browser.key }
   var contentRevision: String { "\(folders.indexRevision)|\(folders.revision)" }
   var selection: Set<String> { get { browser.selection } set { browser.selection = newValue } }
