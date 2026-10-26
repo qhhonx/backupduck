@@ -1,0 +1,194 @@
+{
+  "id": "records.sparse-2",
+  "extends": "base-paired",
+  "page": "backup",
+  "title": "Records \u00b7 2 items",
+  "expect": [
+    "Production grid with bounded synthetic membership; no PhotoKit access."
+  ],
+  "records": "all",
+  "step": "history",
+  "mac_only": true,
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 9000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-0",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792495800000,
+          "sort_value": 1792495800000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9001,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_1.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792495800000,
+          "sort_value": 1792495800000,
+          "receiver_id": "catalog-pixel"
+        }
+      ]
+    },
+    "backup_tasks": [
+      {
+        "value": {
+          "items": [],
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 2,
+            "received": 2,
+            "published": 2,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 9600000
+          }
+        },
+        "when": {
+          "state": "attention"
+        }
+      },
+      {
+        "value": {
+          "items": [
+            {
+              "id": "job-9000",
+              "cursor": 9000,
+              "sort_value": 1792495800000,
+              "job": {
+                "id": 9000,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-0",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_0.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792495800000,
+                "sort_value": 1792495800000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9001",
+              "cursor": 9001,
+              "sort_value": 1792495800000,
+              "job": {
+                "id": 9001,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-1",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_1.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792495800000,
+                "sort_value": 1792495800000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            }
+          ],
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 2,
+            "received": 2,
+            "published": 2,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 9600000
+          }
+        }
+      }
+    ],
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 2,
+        "received": 2,
+        "published": 2,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 9600000
+      }
+    }
+  }
+}

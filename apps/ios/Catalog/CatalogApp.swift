@@ -233,8 +233,8 @@ private struct ScenarioRun: View {
     BackupEnvironment.activeNotifier = { notifier }
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
     let library = PhotoLibraryModel()
-    if scenario.step == "largeLibrary" {
-      let fixture = CatalogLibraryFixture(count: 55_000)
+    if scenario.step == "largeLibrary" || scenario.sparseGridCount != nil {
+      let fixture = CatalogLibraryFixture(count: scenario.sparseGridCount ?? 55_000)
       library.installSyntheticAssets(fixture.fetch(filter: .all, view: .all))
       library.syntheticFetch = { filter, view in fixture.fetch(filter: filter, view: view) }
     }
@@ -308,7 +308,7 @@ private struct ScenarioRun: View {
 
   @ViewBuilder private func page(_ item: IOSAppTab) -> some View {
     switch item {
-    case .library where scenario.library != nil || scenario.step == "largeLibrary":
+    case .library where scenario.library != nil || scenario.step == "largeLibrary" || scenario.sparseGridCount != nil:
       IOSLibraryPage(library: library, model: model)
         .task {
           await library.open()

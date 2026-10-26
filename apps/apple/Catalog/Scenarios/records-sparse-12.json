@@ -1,0 +1,774 @@
+{
+  "id": "records.sparse-12",
+  "extends": "base-paired",
+  "page": "backup",
+  "title": "Records \u00b7 12 items",
+  "expect": [
+    "Production grid with bounded synthetic membership; no PhotoKit access."
+  ],
+  "records": "all",
+  "step": "history",
+  "mac_only": true,
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 9000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-0",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_0.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792495800000,
+          "sort_value": 1792495800000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9001,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_1.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792495800000,
+          "sort_value": 1792495800000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9002,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-2",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_2.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792495800000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792495800000,
+          "sort_value": 1792495800000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9003,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-3",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_3.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792409400000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792409400000,
+          "sort_value": 1792409400000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9004,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-4",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_4.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792409400000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792409400000,
+          "sort_value": 1792409400000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9005,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-5",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_5.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792409400000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792409400000,
+          "sort_value": 1792409400000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9006,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-6",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_6.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792323000000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792323000000,
+          "sort_value": 1792323000000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9007,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-7",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_7.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792323000000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792323000000,
+          "sort_value": 1792323000000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9008,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-8",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_8.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792323000000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792323000000,
+          "sort_value": 1792323000000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9009,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-9",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_9.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792236600000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792236600000,
+          "sort_value": 1792236600000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9010,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-10",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_10.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792236600000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792236600000,
+          "sort_value": 1792236600000,
+          "receiver_id": "catalog-pixel"
+        },
+        {
+          "id": 9011,
+          "asset": {
+            "kind": "photo",
+            "source_id": "catalog-history-11",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "IMG_11.JPG",
+                "size": 4800000
+              }
+            ],
+            "metadata": {
+              "created_at_ms": "1792236600000",
+              "source_type": "library"
+            }
+          },
+          "state": "received",
+          "confirmed_bytes": 4800000,
+          "error_code": null,
+          "processing": "complete",
+          "processing_error": null,
+          "state_changed_at_ms": 1792236600000,
+          "sort_value": 1792236600000,
+          "receiver_id": "catalog-pixel"
+        }
+      ]
+    },
+    "backup_tasks": [
+      {
+        "value": {
+          "items": [],
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 12,
+            "received": 12,
+            "published": 12,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 57600000
+          }
+        },
+        "when": {
+          "state": "attention"
+        }
+      },
+      {
+        "value": {
+          "items": [
+            {
+              "id": "job-9000",
+              "cursor": 9000,
+              "sort_value": 1792495800000,
+              "job": {
+                "id": 9000,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-0",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_0.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792495800000,
+                "sort_value": 1792495800000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9001",
+              "cursor": 9001,
+              "sort_value": 1792495800000,
+              "job": {
+                "id": 9001,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-1",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_1.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792495800000,
+                "sort_value": 1792495800000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9002",
+              "cursor": 9002,
+              "sort_value": 1792495800000,
+              "job": {
+                "id": 9002,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-2",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_2.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792495800000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792495800000,
+                "sort_value": 1792495800000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9003",
+              "cursor": 9003,
+              "sort_value": 1792409400000,
+              "job": {
+                "id": 9003,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-3",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_3.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792409400000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792409400000,
+                "sort_value": 1792409400000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9004",
+              "cursor": 9004,
+              "sort_value": 1792409400000,
+              "job": {
+                "id": 9004,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-4",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_4.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792409400000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792409400000,
+                "sort_value": 1792409400000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9005",
+              "cursor": 9005,
+              "sort_value": 1792409400000,
+              "job": {
+                "id": 9005,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-5",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_5.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792409400000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792409400000,
+                "sort_value": 1792409400000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9006",
+              "cursor": 9006,
+              "sort_value": 1792323000000,
+              "job": {
+                "id": 9006,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-6",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_6.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792323000000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792323000000,
+                "sort_value": 1792323000000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9007",
+              "cursor": 9007,
+              "sort_value": 1792323000000,
+              "job": {
+                "id": 9007,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-7",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_7.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792323000000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792323000000,
+                "sort_value": 1792323000000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9008",
+              "cursor": 9008,
+              "sort_value": 1792323000000,
+              "job": {
+                "id": 9008,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-8",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_8.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792323000000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792323000000,
+                "sort_value": 1792323000000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9009",
+              "cursor": 9009,
+              "sort_value": 1792236600000,
+              "job": {
+                "id": 9009,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-9",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_9.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792236600000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792236600000,
+                "sort_value": 1792236600000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9010",
+              "cursor": 9010,
+              "sort_value": 1792236600000,
+              "job": {
+                "id": 9010,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-10",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_10.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792236600000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792236600000,
+                "sort_value": 1792236600000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            },
+            {
+              "id": "job-9011",
+              "cursor": 9011,
+              "sort_value": 1792236600000,
+              "job": {
+                "id": 9011,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "catalog-history-11",
+                  "revision": "1",
+                  "resources": [
+                    {
+                      "filename": "IMG_11.JPG",
+                      "size": 4800000
+                    }
+                  ],
+                  "metadata": {
+                    "created_at_ms": "1792236600000",
+                    "source_type": "library"
+                  }
+                },
+                "state": "received",
+                "confirmed_bytes": 4800000,
+                "error_code": null,
+                "processing": "complete",
+                "processing_error": null,
+                "state_changed_at_ms": 1792236600000,
+                "sort_value": 1792236600000,
+                "receiver_id": "catalog-pixel"
+              },
+              "preparation": null
+            }
+          ],
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 12,
+            "received": 12,
+            "published": 12,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 57600000
+          }
+        }
+      }
+    ],
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 12,
+        "received": 12,
+        "published": 12,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 0,
+        "paused": 0,
+        "confirmed_bytes": 57600000
+      }
+    }
+  }
+}

@@ -28,6 +28,13 @@ import UserNotifications
       MacCatalogRoot().frame(minWidth: min(900, max(640, Double(MacCatalogLaunch.value("-window-width") ?? "") ?? 900)), minHeight: 620)
     }.defaultSize(width: 1180, height: 800).commands {
       MacFolderCommands()
+      if MacCatalogLaunch.value("-viewer-grid") != nil {
+        CommandMenu("Viewer Checks") {
+          Button("Open Grid Viewer") {
+            NotificationCenter.default.post(name: Notification.Name("CatalogOpenGridViewer"), object: nil)
+          }.accessibilityIdentifier("catalog.viewer.open")
+        }
+      }
       MacSettingsCommands()
       CommandGroup(replacing: .appInfo) {
         Button("about_title") { MacAboutNavigation.open {} }
@@ -58,8 +65,8 @@ import UserNotifications
     if MacCatalogLaunch.value("-route-timing") != "warm" { notifier.route = Self.route(scenario) }
     scope = scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil
     model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
-    if scenario.id == "library.synthetic" {
-      let assets: [PHAsset] = (0..<90).map { index in
+    if scenario.id == "library.synthetic" || (scenario.page == "library" && scenario.sparseGridCount != nil) {
+      let assets: [PHAsset] = (0..<(scenario.sparseGridCount ?? 90)).map { index in
         let job = BackupJob(id: Int64(9000 + index),
           asset: .init(metadata: ["created_at_ms": String(1792495800000 - Int64(index) * 3_600_000)],
             kind: "photo", source_id: "catalog-library-\(index)", revision: "1",
@@ -382,6 +389,9 @@ private struct MacScenarioRun: View {
         initialViewerInfo: scenario.id == "folders.viewer-received", initialDiagnosticsPage: scenario.id.hasPrefix("diagnostics.") ? scenario.step : nil,
         openInitialSettingsDetail: openSettingsDetail, settingsUpdateSection: updateSection)
         .background {
+          if let kind = MacCatalogLaunch.value("-viewer-grid") {
+            ViewerGridCatalogOpening(kind: kind)
+          }
           if scenario.id.hasPrefix("folders.viewer"), MacCatalogLaunch.value("-folder-viewer-state") != "browse" {
             FolderViewerCatalogOpening(source: scenario.id == "folders.viewer-received" ? "fixture-photo-0-4" : nil)
           }
@@ -413,6 +423,43 @@ private struct MacCatalogUpdateDetail: View {
     MacUpdateDetail(status: checking ? .checking : .notChecked, canCheck: !unavailable && !checking,
       automaticChecks: $automaticChecks, check: { checking = true })
       .task { if MacCatalogLaunch.value("-updates-check") == "yes" { checking = true } }
+  }
+}
+
+/// An AX-invokable menu opens a real production grid item. No pointer, key
+/// synthesis, media access or application-data mutation belongs to this fixture.
+private struct ViewerGridCatalogOpening: NSViewRepresentable {
+  let kind: String
+  func makeCoordinator() -> Coordinator { Coordinator(kind: kind) }
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView(); context.coordinator.view = view; return view
+  }
+  func updateNSView(_ view: NSView, context: Context) {}
+  @MainActor final class Coordinator {
+    weak var view: NSView?
+    let kind: String
+    var observer: NSObjectProtocol?
+    init(kind: String) {
+      self.kind = kind
+      observer = NotificationCenter.default.addObserver(forName: Notification.Name("CatalogOpenGridViewer"), object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.open() }
+      }
+    }
+    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    func open() {
+      guard let root = view?.window?.contentView else { return }
+      func find(_ node: NSView) -> MacMediaGrid.Coordinator? {
+        if let collection = node as? NSCollectionView,
+          let c = collection.delegate as? MacMediaGrid.Coordinator, !c.ids.isEmpty,
+          (kind == "folders" ? c.parent.source is MacFolderGridSource :
+            kind == "history" ? c.parent.source is MacHistoryGridSource : c.parent.source is MacPhotoLibrarySource) { return c }
+        return node.subviews.lazy.compactMap(find).first
+      }
+      guard let c = find(root), let collection = c.collection,
+        let path = collection.indexPathsForVisibleItems().sorted(by: { $0.item < $1.item }).dropFirst(2).first,
+        let id = c.identifier(at: path.item) else { return }
+      c.parent.preview(id)
+    }
   }
 }
 

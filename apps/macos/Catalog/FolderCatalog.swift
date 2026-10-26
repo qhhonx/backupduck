@@ -23,7 +23,7 @@ import SwiftUI
     for folder in 0..<3 {
       for index in 0..<[18, 24, 48][folder] {
         let sourceID = "fixture-photo-\(folder)-\(index)"
-        let fallback = Date().addingTimeInterval(-Double(folder * 86400 + index * 3600))
+        let fallback = Scenario.fixtureNow.addingTimeInterval(-Double(folder * 86400 + index * 3600))
         let capture = id == "folders.viewer-received" && sourceID == "fixture-photo-0-4"
           ? Date(timeIntervalSince1970: 1_792_495_800) : SampleImages.takenDate(for: sourceID) ?? fallback
         let date = UInt64(max(0, capture.timeIntervalSince1970 * 1000))
@@ -48,6 +48,11 @@ import SwiftUI
           backup: saved ? "saved" : "not_backed_up", saved_at_ms: saved ? photo.saved_at_ms : nil)
       }
       folders.previewSummary = FolderSummary(files: 5, media_kinds: kinds, bytes: 195_510_002, unsupported: 0, scanning: false)
+    }
+    if let suffix = id.split(separator: ".").last, suffix.hasPrefix("sparse-"), let count = Int(suffix.dropFirst(7)) {
+      photos = Array(photos.prefix(count))
+      folders.sources = Array(folders.sources.prefix(1))
+      folders.facts = ["fixture-0": FolderFacts(supported: UInt64(count), saved: UInt64(count), available: true)]
     }
     folders.previewRows = photos
     folders.previewImage = image

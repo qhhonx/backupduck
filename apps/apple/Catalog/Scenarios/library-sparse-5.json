@@ -1,0 +1,9 @@
+{
+  "id": "library.sparse-5",
+  "extends": "base-paired",
+  "page": "library",
+  "title": "Library \u00b7 5 items",
+  "expect": [
+    "Production grid with bounded synthetic membership; no PhotoKit access."
+  ]
+}

@@ -721,3 +721,23 @@ existing scope fixtures share square-cover album cards across Apple hosts;
 View Album opens the read-only native iPhone library grid with a trailing
 Choose/Deselect Album text action. First-run sample strips contain both a photo
 and a video poster with its library duration badge, including limited access.
+
+
+### Mac viewer grid and AX checks
+
+Launch `library.synthetic`, `folders.viewer` or `records.clean` with
+`-viewer-grid library`, `-viewer-grid folders` or `-viewer-grid history`.
+For Folders also pass `-folder-viewer-state browse`. The Catalog's Viewer Checks
+menu exposes Open Grid Viewer, which opens a visible production grid item
+through its real preview callback. These checks require no pointer
+or global keyboard synthesis. A `-snapshot` path with `-snapshot-mode manual`
+suppresses the Catalog control overlay without taking an automatic capture.
+Use `-fixture-now <Unix-seconds>` to freeze scenario-relative and synthetic
+folder timestamps for repeated before/after captures; ordinary Catalog launches
+continue to use the current clock.
+
+Sparse Apple grids: `library.sparse-1`, `library.sparse-2`, `library.sparse-5`
+and `library.sparse-12` use in-memory assets on iOS and Mac. The Mac additionally
+provides `folders.sparse-N` and `records.sparse-N` for the same four counts.
+Folders can be reviewed in By Folder and All Photos; History includes dated
+sections and an empty attention-query result. None accesses a real library.

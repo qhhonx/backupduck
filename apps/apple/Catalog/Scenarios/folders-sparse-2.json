@@ -1,0 +1,10 @@
+{
+  "id": "folders.sparse-2",
+  "extends": "base-paired",
+  "page": "sources",
+  "title": "Folders \u00b7 2 items",
+  "expect": [
+    "Production grid with bounded synthetic membership; no PhotoKit access."
+  ],
+  "mac_only": true
+}

@@ -25,6 +25,9 @@ struct Scenario: Identifiable {
     var updates: [String: Any] = [:]
   }
 
+  /// Bounded, in-memory grid fixture shared by the Apple Catalog hosts.
+  var sparseGridCount: Int? { id.split(separator: ".").last.flatMap { $0.hasPrefix("sparse-") ? Int($0.dropFirst(7)) : nil } }
+
   let id: String
   /// The current root destination, or a standalone Connect/first-run flow.
   let page: String
@@ -90,6 +93,13 @@ struct Scenario: Identifiable {
     return merged
   }
 
+  /// A deterministic clock for repeated Catalog image comparisons only.
+  static var fixtureNow: Date {
+    let args = ProcessInfo.processInfo.arguments
+    if let index = args.firstIndex(of: "-fixture-now"), args.indices.contains(index + 1),
+      let seconds = Double(args[index + 1]) { return Date(timeIntervalSince1970: seconds) }
+    return Date()
+  }
   private init(_ object: [String: Any]) throws {
     id = object["id"] as! String
     guard let page = object["page"] as? String,
@@ -118,7 +128,7 @@ struct Scenario: Identifiable {
     }
     // Timestamps written against `now_ms` move with the real clock, so "Today"
     // in a scenario stays today whenever it is reviewed.
-    let shift = (object["now_ms"] as? NSNumber).map { Int64(Date().timeIntervalSince1970 * 1000) - $0.int64Value } ?? 0
+    let shift = (object["now_ms"] as? NSNumber).map { Int64(Self.fixtureNow.timeIntervalSince1970 * 1000) - $0.int64Value } ?? 0
     library = object["library"] as? [String: Any]
     var sourceCore = object["core"]
     #if os(macOS)
