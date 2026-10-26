@@ -117,7 +117,7 @@ struct IOSHub: View {
       }
     case .caughtUp(let last, let saving):
       DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
-        title: Text(LocalizedStringKey(BackupHubStatus.caughtUpTitle(saving: saving, earlierPhotosStarted: model.earlierPhotosStarted))),
+        title: Text(LocalizedStringKey(BackupHubStatus.caughtUpTitle(saving: saving, earlierPhotosStarted: model.earlierPhotosStarted, autoBackup: model.autoBackup))),
         note: saving > 0
           ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
           : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })

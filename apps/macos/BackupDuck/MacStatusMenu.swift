@@ -65,11 +65,13 @@ enum MacAboutNavigation {
   let receiver: String
   let preparing: Bool
   let earlierPhotosStarted: Bool
+  let autoBackup: Bool
 
   init(model: BackupModel) {
     receiver = model.peerDevice?.name ?? "Pixel"
     preparing = model.importing
     earlierPhotosStarted = model.earlierPhotosStarted
+    autoBackup = model.autoBackup
     let hub = model.hubStatus
     if case .backingUp(let remaining, _) = hub {
       let jobs = model.jobs.filter {
@@ -102,15 +104,15 @@ enum MacAboutNavigation {
     switch status {
     case .backingUp:
       return String(format: NSLocalizedString("menu_backup_destination", comment: ""),
-        status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted), receiver)
+        status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup), receiver)
     case .problem(.receiverRejected):
       return NSLocalizedString("menu_problem_receiver_rejected", comment: "")
     case .empty, .caughtUp:
       // Original preparation is work, not proof that all photos are saved.
       if preparing { return NSLocalizedString("importing_originals", comment: "") }
-      return status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted)
+      return status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup)
     default:
-      return status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted)
+      return status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup)
     }
   }
 }

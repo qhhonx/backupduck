@@ -77,6 +77,7 @@ final class BackupHubStatusTests: XCTestCase {
     XCTAssertEqual(BackupHubStatus.caughtUpTitle(saving: 0, earlierPhotosStarted: false), "hub_caught_up_new")
     XCTAssertEqual(BackupHubStatus.caughtUpTitle(saving: 0, earlierPhotosStarted: true), "hub_caught_up")
     XCTAssertEqual(BackupHubStatus.caughtUpTitle(saving: 1, earlierPhotosStarted: false), "hub_caught_up_saving")
+    XCTAssertEqual(BackupHubStatus.caughtUpTitle(saving: 0, earlierPhotosStarted: false, autoBackup: false), "hub_caught_up_chosen")
   }
   func testBatchProgressPeakPartialClampAndReset() {
     var batch = HubBatchProgress()

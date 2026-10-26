@@ -1244,6 +1244,7 @@
 "hub_problem_review_action" = "查看";
 
 "hub_caught_up_new" = "新照片都已存进 Pixel 相册";
+"hub_caught_up_chosen" = "选好的都已存进 Pixel 相册";
 "hub_earlier_not_started" = "以前的照片还没开始备份";
 "hub_earlier_not_started_note" = "会按自动备份的范围，在后台慢慢传完。";
 "hub_earlier_start" = "开始备份";

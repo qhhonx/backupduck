@@ -102,19 +102,22 @@ extension BackupModel {
 }
 
 extension BackupHubStatus {
-  static func caughtUpTitle(saving: Int, earlierPhotosStarted: Bool) -> String {
-    saving > 0 ? "hub_caught_up_saving" : earlierPhotosStarted ? "hub_caught_up" : "hub_caught_up_new"
+  /// Claims only what is in scope: all photos after an earlier-photo run,
+  /// new photos while Auto Backup is on, otherwise what was chosen.
+  static func caughtUpTitle(saving: Int, earlierPhotosStarted: Bool, autoBackup: Bool = true) -> String {
+    saving > 0 ? "hub_caught_up_saving" : earlierPhotosStarted ? "hub_caught_up"
+      : autoBackup ? "hub_caught_up_new" : "hub_caught_up_chosen"
   }
   /// The hub's one-line answer, for surfaces that show only a line (the Mac
   /// menu bar, notifications). Same words as the hub card (P3).
-  func sentence(receiver: String, earlierPhotosStarted: Bool = true) -> String {
+  func sentence(receiver: String, earlierPhotosStarted: Bool = true, autoBackup: Bool = true) -> String {
     func text(_ key: String) -> String { NSLocalizedString(key, comment: "") }
     switch self {
     case .notPaired: return text("hub_not_paired")
     case .opening: return text("hub_opening")
     case .empty: return text("hub_empty")
     case .paused: return text("hub_paused")
-    case .caughtUp(_, let saving): return text(Self.caughtUpTitle(saving: saving, earlierPhotosStarted: earlierPhotosStarted))
+    case .caughtUp(_, let saving): return text(Self.caughtUpTitle(saving: saving, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup))
     case .backingUp(let remaining, let bytes):
       return bytes > 0
         ? String(format: text("hub_backing_up"), remaining.formatted(), ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file))
