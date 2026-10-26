@@ -357,18 +357,20 @@ impl Maintenance {
         {
             return Err(Error::Invalid("event code".into()));
         }
-        self.conn
-            .execute(
-                "INSERT INTO events(ts,code,job_id,amount,context) VALUES(?1,?2,?3,?4,?5)",
-                params![
-                    now(),
-                    code,
-                    job,
-                    amount.map(|v| v.min(i64::MAX as u64) as i64),
-                    context.map(serde_json::to_string).transpose()?
-                ],
-            )
-            .map_err(database)?;
+        let context = context.map(serde_json::to_string).transpose()?;
+        let amount = amount.map(|v| v.min(i64::MAX as u64) as i64);
+        // Waiting is a state observation, not a heartbeat. Compare with the last
+        // observation of this code even across other events and process restarts.
+        // The observation clock advances on every poll; it is not a state change.
+        // One SQL statement keeps the comparison and append atomic.
+        self.conn.execute(
+            "INSERT INTO events(ts,code,job_id,amount,context)
+             SELECT ?1,?2,?3,?4,?5 WHERE ?2<>'dispatch_waiting' OR NOT EXISTS (
+               SELECT 1 FROM (SELECT job_id,amount,context FROM events WHERE code=?2 ORDER BY id DESC LIMIT 1)
+               WHERE job_id IS ?3 AND amount IS ?4
+                 AND json_remove(context,'$.observed_at_ms') IS json_remove(?5,'$.observed_at_ms'))",
+            params![now(), code, job, amount, context],
+        ).map_err(database)?;
         self.prune()
     }
     fn prune(&self) -> Result<()> {
@@ -879,6 +881,68 @@ mod tests {
         let empty = m.event_update(Some(newest)).unwrap();
         assert_eq!(empty["reset"], true);
         assert!(empty["newest_id"].is_null());
+    }
+
+    #[test]
+    fn waiting_observations_dedupe_across_events_restarts_and_cursor_exports() {
+        let root = Temp::new();
+        let m = Maintenance::open(&root.0).unwrap();
+        let mut context = EventContext {
+            queued: Some(0),
+            running: Some(0),
+            waiting: Some(0),
+            reason: Some(DispatchReason::NoEligibleJob),
+            ..Default::default()
+        };
+        m.log_context("dispatch_waiting", None, None, Some(&context))
+            .unwrap();
+        let cursor = m.event_update(Some(0)).unwrap()["newest_id"]
+            .as_i64()
+            .unwrap();
+        for tick in 0..6 {
+            context.observed_at_ms = Some(1_000 + tick * 62_000);
+            m.log_context("dispatch_waiting", None, None, Some(&context))
+                .unwrap();
+        }
+        assert_eq!(m.events().unwrap().as_array().unwrap().len(), 1);
+        assert_eq!(m.event_update(Some(cursor)).unwrap()["entries"], json!([]));
+        m.log("app_foreground", None, None).unwrap();
+        drop(m);
+        let m = Maintenance::open(&root.0).unwrap();
+        m.log_context("dispatch_waiting", None, None, Some(&context))
+            .unwrap();
+        assert_eq!(m.events().unwrap().as_array().unwrap().len(), 2);
+        // Counts, reason and error changes remain diagnostic evidence.
+        context.queued = Some(1);
+        m.log_context("dispatch_waiting", None, None, Some(&context))
+            .unwrap();
+        context.reason = Some(DispatchReason::ReceiverUnavailable);
+        m.log_context("dispatch_waiting", None, None, Some(&context))
+            .unwrap();
+        context.system_error = Some(-1009);
+        m.log_context("dispatch_waiting", None, None, Some(&context))
+            .unwrap();
+        // A return to an earlier state is recorded, rather than globally deduped.
+        context.system_error = None;
+        m.log_context("dispatch_waiting", None, None, Some(&context))
+            .unwrap();
+        m.log_context("dispatch_waiting", Some(7), None, Some(&context))
+            .unwrap();
+        m.log_context("dispatch_waiting", Some(7), Some(42), Some(&context))
+            .unwrap();
+        m.log_context("dispatch_waiting", None, None, None).unwrap();
+        m.log_context("dispatch_waiting", None, None, None).unwrap();
+        let exported = m.events().unwrap();
+        assert_eq!(exported.as_array().unwrap().len(), 9);
+        let delta = m.event_update(Some(cursor)).unwrap();
+        assert_eq!(delta["entries"].as_array().unwrap().len(), 8);
+        assert_eq!(delta["entries"][1]["bytes"], 42);
+        assert_eq!(delta["entries"][4]["context"]["system_error"], -1009);
+        assert_eq!(delta["reset"], false);
+        // Ordinary events still represent occurrences and retain identical repeats.
+        m.log("receiver_started", None, None).unwrap();
+        m.log("receiver_started", None, None).unwrap();
+        assert_eq!(m.events().unwrap().as_array().unwrap().len(), 11);
     }
 
     #[test]
