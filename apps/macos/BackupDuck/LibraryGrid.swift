@@ -1429,7 +1429,9 @@ private final class MacMarqueeView: NSView {
       else {
         let expected = token
         FileThumbnailPipeline.shared.request(id: expected, source: source, relative: photo.relative, revision: photo.revision, size: pixels / 2) { [weak self] image in
-          guard let self, self.token == expected, let image else { return }
+          guard let self, self.token == expected else { return }
+          // A missing file (an ejected card) retries on the next configure.
+          guard let image else { self.imageKey = ""; return }
           self.retainDisplayedImage(image)
         }
       }

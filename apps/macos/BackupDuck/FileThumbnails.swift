@@ -19,6 +19,9 @@ import SwiftUI
   init() { cache.totalCostLimit = 32 * 1024 * 1024; cache.countLimit = 256 }
   func request(id: UUID, source: FolderSource, relative: String, revision: String, size: CGFloat,
     completion: @escaping (NSImage?) -> Void) {
+    // Keyed without the mount path, so a card's thumbnails survive eject and remount.
+    let key = "\(source.id)|\(relative)|\(revision)|\(size)" as NSString
+    if let image = cache.object(forKey: key) { completion(image); return }
     var stale = false
     guard let root = try? URL(resolvingBookmarkData: source.bookmark,
       options: [.withSecurityScope, .withoutUI, .withoutMounting], relativeTo: nil,
@@ -27,8 +30,6 @@ import SwiftUI
       !relative.split(separator: "/").contains("..") else { completion(nil); return }
     let file = root.appendingPathComponent(relative).standardizedFileURL
     guard file.path.hasPrefix(root.standardizedFileURL.path + "/") else { completion(nil); return }
-    let key = "\(source.id)|\(file.path)|\(revision)|\(size)" as NSString
-    if let image = cache.object(forKey: key) { completion(image); return }
     guard pending.count < 128 else { completion(nil); return }
     pending.append(Work(id: id, root: root, file: file,
       request: QLThumbnailGenerator.Request(fileAt: file, size: CGSize(width: size, height: size),
