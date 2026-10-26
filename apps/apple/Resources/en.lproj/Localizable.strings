@@ -1063,7 +1063,7 @@
 "records_attention_scope" = "%@ · %@ photos need you";
 
 "onboarding_first_heading" = "Sending your first photo";
-"onboarding_first_preparing" = "Preparing your first photo…";
+"onboarding_first_preparing" = "Preparing the photo…";
 "onboarding_first_failed" = "Your first photo did not arrive";
 "onboarding_first_save_failed" = "The photo could not be saved to the Pixel’s Photos";
 "onboarding_first_limited" = "Only allowed photos can be backed up";
@@ -1259,3 +1259,11 @@
 "library_filter_empty_note" = "Try another filter.";
 
 "library_filter_show_all" = "Show All Photos";
+
+"onboarding_photos_denied" = "BackupDuck can't see your photos. Allow access in Settings to back them up.";
+
+"onboarding_first_progress" = "Sending · %1$@ of %2$@";
+
+"library_deleted_title" = "Deleted from this iPhone";
+
+"library_deleted_saved_note" = "The backup on your Pixel is still there.";

@@ -140,7 +140,7 @@ row metrics supply their spacing.
 
 `DuckSheetLayout` follows `platform-expression.md` A0/A4. On iOS it owns a
 `NavigationStack`, an inline navigation title and system cancellation and
-confirmation toolbar items. iOS 26 uses the system close/confirm button roles;
+confirmation toolbar items. iOS 26 uses the system cancellation/confirmation button roles;
 earlier versions use Cancel/Done. Fitted detents retain a large option for growing
 content. Background, corners and the drag indicator remain system-owned.
 

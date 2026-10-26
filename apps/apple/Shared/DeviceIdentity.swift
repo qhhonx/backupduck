@@ -107,8 +107,13 @@ struct DeviceNameEditor: View {
     DuckSheetLayout(title: "device_rename", busy: model.savingDevice, error: model.deviceError,
       desktopWidth: DuckSheetMetrics.compactWidth, desktopFitsContent: true, form: true, cancel: cancel) {
       Section {
+        #if os(iOS)
+        DeviceNameTextField(name: $name, enabled: !model.savingDevice)
+          .frame(minHeight: DuckSpacing.xxLarge)
+        #else
         TextField("device_name", text: $name)
           .accessibilityIdentifier("device.name").disabled(model.savingDevice)
+        #endif
       } footer: {
         Text("device_name_note").font(.footnote).foregroundStyle(.secondary)
       }
@@ -136,5 +141,44 @@ struct DeviceNameEditor: View {
     }
     #endif
     .onAppear { originalName = name; model.deviceError = nil }
+
   }
 }
+
+#if os(iOS)
+/// UIKit owns the rounded border, clear affordance, editing and keyboard focus.
+private struct DeviceNameTextField: UIViewRepresentable {
+  @Binding var name: String
+  var enabled: Bool
+  func makeCoordinator() -> Coordinator { Coordinator(self) }
+  func makeUIView(context: Context) -> UITextField {
+    let field = UITextField()
+    field.borderStyle = .roundedRect
+    field.clearButtonMode = .whileEditing
+    field.font = .preferredFont(forTextStyle: .body)
+    field.adjustsFontForContentSizeCategory = true
+    field.placeholder = NSLocalizedString("device_name", comment: "")
+    field.accessibilityIdentifier = "device.name"
+    field.delegate = context.coordinator
+    field.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
+    return field
+  }
+  func updateUIView(_ field: UITextField, context: Context) {
+    context.coordinator.parent = self
+    if field.text != name { field.text = name }
+    field.isEnabled = enabled
+    if !context.coordinator.focused {
+      DispatchQueue.main.async { [weak field, weak coordinator = context.coordinator] in
+        guard let field, field.window != nil, let coordinator, !coordinator.focused else { return }
+        coordinator.focused = field.becomeFirstResponder()
+      }
+    }
+  }
+  final class Coordinator: NSObject, UITextFieldDelegate {
+    var parent: DeviceNameTextField
+    var focused = false
+    init(_ parent: DeviceNameTextField) { self.parent = parent }
+    @objc func changed(_ field: UITextField) { parent.name = field.text ?? "" }
+  }
+}
+#endif

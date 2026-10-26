@@ -208,7 +208,7 @@ struct IOSHub: View {
       .navigationTitle("hub_help_title").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
-          DuckSheetDismissButton(title: "settings_done") { offlineHelp = false }
+          DuckSheetConfirmButton(title: "settings_done") { offlineHelp = false }
         }
       }
     }
@@ -217,8 +217,16 @@ struct IOSHub: View {
   // MARK: - Earlier photos, evidence and summaries
 
   private func earlierSummary(_ history: HistoricalImportStatus) -> some View {
-    DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
-      Task { await model.controlHistoricalImport(command) }
+    TimelineView(.periodic(from: .now, by: 60)) { context in
+      let memory = EarlierPhotosCompletion(defaults: .standard)
+      let receiver = model.pairing?.receiverID ?? ""
+      if memory.visible(receiver: receiver, history: history, at: context.date) {
+        DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
+          Task { await model.controlHistoricalImport(command) }
+        }
+        .onAppear { memory.show(receiver: receiver, history: history, at: context.date) }
+        .onChange(of: history) { _, value in memory.show(receiver: receiver, history: value, at: .now) }
+      }
     }
   }
 

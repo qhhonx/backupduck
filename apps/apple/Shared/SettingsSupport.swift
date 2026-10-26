@@ -432,7 +432,9 @@ private struct DuckFeedbackDiagnosticsSheet: View {
         Button { preview = url } label: { Label(url.lastPathComponent, systemImage: "doc.text") }
           .accessibilityIdentifier("settings.feedback_attachment")
         #if os(iOS)
-        if !MFMailComposeViewController.canSendMail() {
+        if MFMailComposeViewController.canSendMail() {
+          Button("settings_feedback_compose") { composing = true }
+        } else {
           Text("settings_feedback_share_note").font(.callout).foregroundStyle(.secondary)
           Link("settings_feedback_open_mail", destination: mailto)
           ShareLink(item: url) { Label("logs_export_share", systemImage: "square.and.arrow.up") }
@@ -447,11 +449,7 @@ private struct DuckFeedbackDiagnosticsSheet: View {
       Button("settings_done") { dismiss() }.buttonStyle(.bordered)
       #endif
       if let url = export.url {
-        #if os(iOS)
-        if MFMailComposeViewController.canSendMail() {
-          Button("settings_feedback_compose") { composing = true }
-        }
-        #else
+        #if os(macOS)
         Button("settings_feedback_compose") { mail.compose(url: url, recipient: recipient) }
           .buttonStyle(.borderedProminent)
         #endif

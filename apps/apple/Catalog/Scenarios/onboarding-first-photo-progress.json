@@ -1,0 +1,51 @@
+{
+  "id": "onboarding.first-photo-progress",
+  "page": "onboarding",
+  "step": "first",
+  "extends": "base-paired",
+  "ios_only": true,
+  "title": "First photo: confirmed byte progress",
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 1,
+        "received": 0,
+        "published": 0,
+        "publication_failed": 0,
+        "waiting": 0,
+        "failed": 0,
+        "queued": 0,
+        "running": 1,
+        "paused": 0,
+        "confirmed_bytes": 0
+      }
+    },
+    "jobs": {
+      "value": [
+        {
+          "id": 1,
+          "receiver_id": "catalog-pixel",
+          "asset": {
+            "kind": "photo",
+            "source_id": "onboarding-sample-1",
+            "revision": "1",
+            "resources": [
+              {
+                "filename": "FIRST.JPG",
+                "size": 3400000
+              }
+            ]
+          },
+          "state": "running",
+          "confirmed_bytes": 1700000,
+          "error_code": null
+        }
+      ]
+    }
+  },
+  "expect": [
+    "Primary action stays in the shared bottom slot; background exit stays available while waiting."
+  ]
+}

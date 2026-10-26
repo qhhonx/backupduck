@@ -45,9 +45,9 @@ just the selected photos, for selections that span far apart in the library.
 The page answers one question: are these the photos I mean to back up?
 
 - A standard system sheet (system corner radius and grabber, large detent),
-  titled with the count ("已选 12 张"), Done on the trailing side and, as the
-  system photo library's selection review does, a leading button that browses
-  the selected photos one at a time in the viewer.
+  titled with the selected count, a system cancellation-role dismissal leading
+  and confirmation-role Done trailing. The existing browse button remains next
+  to the leading dismissal and browses selected photos one at a time in the viewer.
 - The selected photos in the library's grid density, each with its selection
   mark. Tapping a photo deselects it in place (it stays, unmarked, until the
   sheet closes, so a mistaken tap is undone with another tap). Long press opens
@@ -175,3 +175,17 @@ does nothing; the library's primary button stays "Added to Backup". Decision:
 - **Feel** is judged on a Release build with 60 fps recordings of zoom, an
   insert/delete burst during a running backup, and scrolling (iteration
   checklist), compared with the system Photos app first.
+
+### iPhone filtering and viewer continuity
+
+Selection owns the bottom toolbar: hide the active backup-view chip throughout
+selection and restore it when selection ends, retaining the same native grid.
+With Photos access granted, zero matches in a backup view or media-type filter
+show No Photos Match, Try another filter and Show All Photos. Keep the active
+view chip and filter menu available. Show All Photos resets both filters.
+
+Every iPhone photo collection opens the same viewer with information collapsed.
+Horizontal paging runs from older to newer: swipe left for a newer photo and
+right for an older one. Apply the same ordering to the library, recent mosaic,
+history and selected-photo review; preserve the entry collection and return
+anchor. Paging never changes grid or durable backup order.

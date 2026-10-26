@@ -11,14 +11,18 @@ import AVFoundation
   @Published var working = false
   @Published var payload: String?
   @Published var connectionAttempt = 0
+  @Published var connectionCompleted = false
   @Published var connectionNeedsSettings = false
+  @Published var canScanAgain = false
+  private(set) var retryingCode = false
   var needsSettings: Bool { cameraFailure == .permission || connectionNeedsSettings }
   var needsRecovery: Bool { scanError != nil || cameraFailure != nil }
   func retry() {
     scanError = nil; cameraFailure = nil; connectionNeedsSettings = false
-    if payload != nil { connectionAttempt += 1 } else { scannerID = UUID() }
+    connectionCompleted = false
+    if payload != nil { retryingCode = true; connectionAttempt += 1 } else { scannerID = UUID() }
   }
-  func scanAgain() { payload = nil; retry() }
+  func scanAgain() { payload = nil; canScanAgain = false; retryingCode = false; retry() }
   func cameraAuthorizationChanged(_ authorized: Bool) {
     if cameraFailure == .permission && authorized { scanAgain() }
   }
@@ -67,7 +71,7 @@ struct IOSPixelScanner: View {
               Button("photos_open_settings") { openURL(URL(string: UIApplication.openSettingsURLString)!) }.duckPrimaryButton()
               Button("retry_task") { state.retry() }.buttonStyle(.bordered)
             } else { retryButton }
-            if state.payload != nil { Button("apple_scan_again") { state.scanAgain() } }
+            if state.canScanAgain { Button("apple_scan_again") { state.scanAgain() } }
           }
         }
       } else if state.payload != nil {
@@ -80,7 +84,7 @@ struct IOSPixelScanner: View {
       }
     }
     .task(id: state.connectionAttempt) {
-      guard let payload = state.payload, state.scanError == nil else { return }
+      guard let payload = state.payload, state.scanError == nil, !state.connectionCompleted else { return }
       await connect(payload)
     }
     .onChange(of: scenePhase) { _, phase in
@@ -110,8 +114,9 @@ struct IOSPixelScanner: View {
     let paired = await model.pair(payload)
     state.working = false
     guard !Task.isCancelled else { return }
-    if paired { connected() }
+    if paired { state.connectionCompleted = true; connected() }
     else {
+      state.canScanAgain = state.retryingCode && model.pairingCodeInvalid
       state.connectionNeedsSettings = model.pairingNeedsSettings
       state.scanError = model.pairingError ?? NSLocalizedString("desktop_pair_failed", comment: "")
     }
@@ -152,9 +157,8 @@ struct IOSConnectSheet: View {
       }
       .background(DuckRole.background)
       .toolbar {
-        ToolbarItem(placement: connected ? .confirmationAction : .cancellationAction) {
-          if connected { DuckSheetConfirmButton(title: "records_done") { dismiss() } }
-          else { DuckSheetDismissButton { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          DuckSheetConfirmButton(title: "records_done") { dismiss() }
         }
       }
     }

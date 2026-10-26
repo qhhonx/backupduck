@@ -15,6 +15,27 @@ struct HistoricalImportStatus: Decodable, Equatable {
   var isSaved: Bool { state == "scanned" && pending == 0 && published == checked }
 }
 
+/// Presentation lifetime only. Core publication is the sole completion fact.
+struct EarlierPhotosCompletion {
+  let defaults: UserDefaults
+  private func key(receiver: String, run: Int64) -> String {
+    "earlierPhotosShown.v1." + receiver + "." + String(run)
+  }
+  func firstShown(receiver: String, run: Int64) -> Date? {
+    defaults.object(forKey: key(receiver: receiver, run: run)) as? Date
+  }
+  @discardableResult func show(receiver: String, history: HistoricalImportStatus, at now: Date) -> Date? {
+    guard history.isSaved else { return nil }
+    if let date = firstShown(receiver: receiver, run: history.run) { return date }
+    defaults.set(now, forKey: key(receiver: receiver, run: history.run))
+    return now
+  }
+  func visible(receiver: String, history: HistoricalImportStatus, at now: Date) -> Bool {
+    guard history.isSaved, let date = firstShown(receiver: receiver, run: history.run) else { return true }
+    return now.timeIntervalSince(date) < 24 * 60 * 60
+  }
+}
+
 /// Frozen membership for one historical scan. PhotoKit's fetch result is not
 /// durable: enumerating it again after a restart would include newer photos.
 @MainActor final class HistoricalScanCursor {

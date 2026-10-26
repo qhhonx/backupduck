@@ -180,3 +180,20 @@ Mac folder-backed history tiles use the existing file thumbnail pipeline.
 History and Overview open the file-backed viewer with its source scope, collection
 and shared previous/next controls. An absent source retains recorded information
 and the unavailable placeholder.
+
+### Missing iPhone sources
+
+A recorded photo whose source was deleted from this iPhone opens the ordinary
+viewer with information collapsed. Its image area says Deleted from this iPhone.
+Only a core job with received state and complete gallery processing adds The
+backup on your Pixel is still there. Info continues to expose the recorded
+facts; receipt alone cannot supply that reassurance.
+
+### Recent activity on Apple
+
+Diagnostics reads its local activity snapshot when the page appears, without
+waiting for a foreground scene value to propagate through navigation. Returning
+to the foreground refreshes it. Recent Activity shows up to six recognized
+events, or its existing empty text after an empty or unrecognized snapshot;
+unknown event codes remain available in diagnostic exports. Cursor identity is
+independent of observation timestamps and event deduplication.

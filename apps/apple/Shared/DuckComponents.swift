@@ -98,7 +98,7 @@ struct DuckSheetDismissButton: View {
   var action: () -> Void
   var body: some View {
     if #available(iOS 26.0, *) {
-      Button(role: .close, action: action)
+      Button(role: .cancel, action: action)
     } else {
       Button(title, action: action)
     }
@@ -181,8 +181,13 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
       .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: closeOnly ? .confirmationAction : .cancellationAction) {
-          DuckSheetDismissButton(title: closeOnly ? "settings_done" : "cancel", action: { (cancel ?? { dismiss() })() })
-            .disabled(busy).accessibilityIdentifier("sheet.close")
+          if closeOnly {
+            DuckSheetConfirmButton(title: "settings_done", action: { (cancel ?? { dismiss() })() })
+              .disabled(busy).accessibilityIdentifier("sheet.close")
+          } else {
+            DuckSheetDismissButton(action: { (cancel ?? { dismiss() })() })
+              .disabled(busy).accessibilityIdentifier("sheet.close")
+          }
         }
         ToolbarItemGroup(placement: .navigation) {
           if let back { Button("mac_fidelity_back", action: back) }

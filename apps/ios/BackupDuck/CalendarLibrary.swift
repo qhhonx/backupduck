@@ -11,6 +11,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
   @ObservedObject var policy = PreviewNetworkPolicy.shared
   let onPreview: (PHAsset, CGRect) -> Void
   @ObservedObject var backupAction: SelectionBackupAction
+  var selectionChanged: (Bool) -> Void = { _ in }
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeUIViewController(context: Context) -> UINavigationController {
     let grid = CalendarGridController()
@@ -75,6 +76,9 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     }
     grid.placeholderImage = { asset in
       ThumbnailTables.placeholder(asset.id, revision: asset.revision).map { UIImage(cgImage: $0) }
+    }
+    grid.onSelectionMode = { [weak c] value in
+      DispatchQueue.main.async { c?.parent.selectionChanged(value) }
     }
     grid.onSelection = { [weak c] selection in
       c?.parent.library.selection = selection
@@ -171,6 +175,20 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     library.backupReceiver = model.pairing?.receiverID
     guard let grid = c.controller else { return }
     grid.loadViewIfNeeded()
+    if case .filterEmpty? = library.placeholder {
+      if c.emptyHost == nil {
+        let host = UIHostingController(rootView: LibraryPlaceholder(kind: .filterEmpty,
+          clearFilter: { Task { await library.resetFilters() } }))
+        grid.addChild(host)
+        host.view.backgroundColor = .clear
+        grid.grid.backgroundView = host.view
+        host.didMove(toParent: grid)
+        c.emptyHost = host
+      }
+    } else if let host = c.emptyHost {
+      host.willMove(toParent: nil); grid.grid.backgroundView = nil
+      host.removeFromParent(); c.emptyHost = nil
+    }
     grid.canBackup = !backupAction.busy
     grid.grid.isUserInteractionEnabled = !backupAction.busy
     if backupAction.added && library.selection.isEmpty {
@@ -235,6 +253,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
   @MainActor final class Coordinator {
     var parent: IOSCalendarLibrary
     weak var controller: CalendarGridController?
+    var emptyHost: UIHostingController<LibraryPlaceholder>?
     var fetch: PHFetchResult<PHAsset>?
     var positions: [String: Int] = [:]
     var work: Task<Void, Never>?, epoch = 0

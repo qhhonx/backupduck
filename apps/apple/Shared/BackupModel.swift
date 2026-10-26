@@ -148,6 +148,7 @@ enum OriginalPreparationFailure {
 
 @MainActor final class BackupModel: ObservableObject {
   static let shared = BackupModel()
+  @Published var deferredPhotoAccess = false { didSet { updateHubBatch() } }
   @Published private(set) var photoAccess: PhotoAccess { didSet { updateHubBatch() } }
   func refreshPhotoAccess() {
     let access = BackupEnvironment.photoAccess()
@@ -196,16 +197,15 @@ enum OriginalPreparationFailure {
   /// Only a completed connection or an eligible restored session starts workers.
   private(set) var networkingStarted = false
   private func observeNetwork() {
-    guard pairing != nil else { return }
+    guard pairing != nil, !networkingStarted else { return }
     networkingStarted = true
     availability.start()
     BackgroundTransfer.shared.connect()
   }
   private lazy var availability = ReceiverAvailability(monitorNetwork: BackupEnvironment.usesNetwork, changed: { [weak self] in
-    self?.receiverUnavailable = true
-    self?.receiverConnection = .unknown
-    self?.receiverReadings = nil
-    self?.activeExport?.cancel()
+    // Path changes are candidates for a fresh probe, never an outage fact.
+    guard let self, self.networkingStarted else { return }
+    Task { await self.checkConnection() }
   })
   func canPrepareForReceiver() async -> Bool {
     guard networkingStarted, !paused, let target = pairing else { return false }
@@ -217,9 +217,12 @@ enum OriginalPreparationFailure {
       pairing?.token == target.token, pairing?.certificate == target.certificate else { return false }
     guard result != .unknown else { return false }
     let available = result == .ready
-    receiverConnection = result
+    let visible = availability.visibleConnection
     let recovered = receiverUnavailable && available
-    receiverUnavailable = !available
+    if visible != .unknown {
+      receiverConnection = visible
+      receiverUnavailable = visible != .ready
+    }
     if recovered {
       _ = try? await Bridge.call(["op": "recover_connection", "receiver_id": target.receiverID])
     }
@@ -283,6 +286,7 @@ enum OriginalPreparationFailure {
   }
   @Published var pairingError: String?
   @Published var pairingNeedsSettings = false
+  @Published var pairingCodeInvalid = false
   @Published var pairingInProgress = false
   @Published var deviceSnapshot: DeviceSnapshot?
   @Published var deviceError: String?
@@ -408,6 +412,7 @@ enum OriginalPreparationFailure {
     pairingInProgress = true
     pairingError = nil
     pairingNeedsSettings = false
+    pairingCodeInvalid = false
     defer { pairingInProgress = false }
     do {
       let parsed = try JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))
@@ -451,6 +456,7 @@ enum OriginalPreparationFailure {
       if !paused { startWorker() }
       return true
     } catch {
+      pairingCodeInvalid = error is DecodingError || ["invalid_input", "authentication", "expired"].contains((error as? Bridge.Failure)?.code ?? "")
       pairingNeedsSettings = error is ConnectAccessFailure || (error as? Bridge.Failure)?.code == "network"
       pairingError = (error as? Bridge.Failure)?.code == "network"
         ? NSLocalizedString("connect_network_unavailable", comment: "") : error.localizedDescription

@@ -810,19 +810,21 @@ private struct IOSCalendarLibraryPage: View {
   @ObservedObject var model: BackupModel
   @StateObject private var backupAction = SelectionBackupAction()
   @State private var preview: IOSPreviewItem?
+  @State private var selecting = false
   var body: some View {
     Group {
-      if let placeholder = library.placeholder, !isLoadingPlaceholder {
+      if let placeholder = library.placeholder, !isLoadingPlaceholder && !isFilterEmpty {
         NavigationStack {
           LibraryPlaceholder(kind:placeholder,requestingAccess:library.requestingPermission,
             requestAccess:{Task { await library.open(requestPermission:true) }},
             clearFilter:{Task { await library.resetFilters() }})
             .navigationTitle("nav_library")
         }
-      } else if library.backupView != .all {
+      } else {
         // interaction.md I2: the active backup view is a soft pill that clears
         // with one tap, as Photos shows an active filter.
         calendar.safeAreaInset(edge: .bottom) {
+          if library.backupView != .all && !selecting {
           Button { Task { await library.changeBackupView(.all) } } label: {
             HStack(spacing: 8) {
               Text(String(format: NSLocalizedString("library_view_pill", comment: ""),
@@ -835,15 +837,18 @@ private struct IOSCalendarLibraryPage: View {
           }
           .buttonStyle(.plain).padding(.bottom, 8)
           .accessibilityHint(Text("library_view_clear"))
+          }
         }
-      } else {
-        calendar
       }
     }.background(Color(uiColor: .systemBackground)).tint(DuckRole.accent)
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
       .background(IOSPreviewPresentation(item:preview,library:library) { preview=nil }.frame(width:0,height:0))
+  }
+  private var isFilterEmpty: Bool {
+    if case .filterEmpty? = library.placeholder { return true }
+    return false
   }
   private var isLoadingPlaceholder: Bool {
     if case .loading? = library.placeholder { return true }
@@ -853,7 +858,7 @@ private struct IOSCalendarLibraryPage: View {
     IOSCalendarLibrary(library:library,model:model,onPreview:{ asset,frame in
       var transaction=Transaction();transaction.disablesAnimations=true
       withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for:asset)) }
-    }, backupAction: backupAction).ignoresSafeArea(.container)
+    }, backupAction: backupAction, selectionChanged: { selecting = $0 }).ignoresSafeArea(.container)
       .toolbarColorScheme(library.placeholder == nil && library.loaded > 0 ? .dark : nil, for: .navigationBar)
   }
 
@@ -1422,6 +1427,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let panelPan = UIPanGestureRecognizer(target: self, action: #selector(dragInformation(_:))); panelPan.delegate = self
     information.addGestureRecognizer(panelPan)
     session.$current.receive(on: DispatchQueue.main).sink { [weak self] model in self?.currentChanged(model) }.store(in: &cancellables)
+    session.$collectionRevision.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in
+      guard let self else { return }; self.currentChanged(self.session.current)
+    }.store(in: &cancellables)
     session.$zoomed.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] zoomed in
       guard let self else { return }
       self.pager.isScrollEnabled = !zoomed && !self.closing && !self.flying
@@ -1429,8 +1437,13 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     PreviewNetworkPolicy.shared.$choice.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.session.reloadForPolicy() }.store(in: &cancellables)
     index = session.index(of: session.current.asset) ?? 0; installPages(); observeMedia()
     if recordedPhoto != nil {
-      let host = UIHostingController(rootView: AnyView(ContentUnavailableView("source_photo_unavailable", systemImage: "photo")
-        .onTapGesture { [weak self] in self?.toggleChrome() }))
+      let host = UIHostingController(rootView: AnyView(ContentUnavailableView {
+        Label("library_deleted_title", systemImage: "photo")
+      } description: {
+        if recordedPhoto?.job?.state == "received" && recordedPhoto?.job?.processing == "complete" {
+          Text("library_deleted_saved_note")
+        }
+      }.onTapGesture { [weak self] in self?.toggleChrome() }))
       addChild(host); stage.addSubview(host.view); host.view.backgroundColor = .clear; host.didMove(toParent: self)
       unavailableHost = host
     }
@@ -1438,7 +1451,6 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     if flying { session.start(); enter() }
-    if recordedPhoto != nil { setInfo(true) }
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
@@ -1900,7 +1912,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let history = NavigationStack {
       BackupHistoryView(model: backupModel, initialFocus: observedJob.map(HistoryPhoto.init)).navigationTitle("records_title")
         .toolbar { ToolbarItem(placement: .confirmationAction) {
-          Button("records_done") { [weak self] in self?.dismiss(animated: true) }
+          DuckSheetConfirmButton(title: "records_done") { [weak self] in self?.dismiss(animated: true) }
         } }
     }
     present(UIHostingController(rootView: history), animated: true)

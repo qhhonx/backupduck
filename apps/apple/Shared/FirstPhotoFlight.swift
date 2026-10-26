@@ -57,12 +57,12 @@ struct FirstPhotoFlight: View {
       }
       HStack(alignment: .top, spacing: DuckSpacing.medium) {
         VStack(spacing: DuckSpacing.xxSmall) {
-          Text(deviceDisplayName(senderName))
+          Text(verbatim: "iPhone")
           Text("onboarding_sender_photos")
         }.frame(width: 120)
         Spacer(minLength: 0)
         VStack(spacing: DuckSpacing.xxSmall) {
-          Text(deviceDisplayName(receiverName))
+          Text(verbatim: "Pixel")
           Text("onboarding_pixel_photos")
         }.frame(width: 120)
       }
@@ -110,8 +110,15 @@ struct FirstPhotoFlight: View {
         }
       }
       .overlay(alignment: .top) {
-        Capsule().fill(DuckRole.separator).frame(width: DuckSpacing.large, height: DuckSpacing.xxSmall)
-          .padding(.top, DuckSpacing.xxSmall)
+        Group {
+          if symbol == "iphone" {
+            Capsule().fill(DuckRole.separator)
+              .frame(width: DuckSpacing.large, height: DuckSpacing.xSmall)
+          } else {
+            Circle().fill(DuckRole.separator)
+              .frame(width: DuckSpacing.xxSmall, height: DuckSpacing.xxSmall)
+          }
+        }.padding(.top, DuckSpacing.xxSmall)
       }
       .frame(width: Self.device.width, height: Self.device.height)
   }

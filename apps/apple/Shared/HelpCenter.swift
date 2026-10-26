@@ -103,7 +103,7 @@ struct LivePhotoHelpSheet: View {
       HelpArticle(topic: topic)
         .toolbar {
           ToolbarItem(placement: .confirmationAction) {
-            DuckSheetDismissButton(title: "settings_done") { dismiss() }
+            DuckSheetConfirmButton(title: "settings_done") { dismiss() }
           }
         }
     }

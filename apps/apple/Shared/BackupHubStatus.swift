@@ -44,8 +44,7 @@ enum BackupHubStatus: Equatable {
     if input.paused { return .paused }
     if input.connection == .authentication || input.summary.waiting_reason == "authentication" { return .problem(.receiverRejected) }
     if input.connection == .localNetworkDenied { return .problem(.localNetworkBlocked) }
-    if input.receiverUnavailable || input.connection == .network || input.connection == .unavailable
-      || input.summary.waiting_reason == "network" { return .problem(.receiverUnreachable) }
+    if input.receiverUnavailable || input.connection == .network || input.connection == .unavailable { return .problem(.receiverUnreachable) }
     if ["capacity", "low_space"].contains(input.summary.waiting_reason ?? "") { return .problem(.receiverFull) }
     if input.phoneSpaceShort { return .problem(.phoneFull) }
     if input.photoLibraryInScope && input.photoAccess == .denied { return .problem(.photoAccessDenied) }
@@ -78,7 +77,7 @@ extension BackupHubStatus {
 extension BackupModel {
   @MainActor var earlierPhotosStarted: Bool { historicalImport?.hasStarted == true }
   @MainActor var photoLibraryInScope: Bool {
-    autoBackup || (earlierPhotosStarted && historicalImport?.isSaved != true)
+    deferredPhotoAccess || autoBackup || (earlierPhotosStarted && historicalImport?.isSaved != true)
       || pendingImports > 0 || jobs.contains {
         ($0.receiverID == nil || $0.receiverID == pairing?.receiverID)
           && $0.asset.metadata?["source_type"] != "folder"

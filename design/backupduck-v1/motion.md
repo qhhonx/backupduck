@@ -71,9 +71,12 @@ preserves the preview target and settles on a critically damped spring
 (omega 12.5, fitted to Photos release recordings), finishing any remaining blend
 within the settle, and adopts the native collection only when it ends.
 Cancellation restores the initial density; Reduce Motion adopts state without
-spatial animation. Native bottom-bar minimization remains system-owned; period
-controls follow its morph event, rising 14 pt on a 300 ms spring 130 ms after the
-compact platter starts to form, and fading within 80 ms on expansion. Navigation actions retain native
+spatial animation. Native bottom-bar minimization remains system-owned. Period controls follow
+the native icon’s presentation frame and take only the remaining actual bar
+width, separated by the shared small-spacing token. Outgoing native labels must
+be invisible before period labels appear; expansion applies the same rule in
+reverse. Keep the capsule transform stable through reversal, without a final
+position jump. Navigation actions retain native
 sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
@@ -105,8 +108,8 @@ and actions, while retaining downward return and horizontal paging.
 
 Phone calendar pinch tracks two-finger distance linearly after the dead zone;
 terminal one-touch coordinates cannot replace the focal photo. Calendar period
-entry rises from below, while expansion fades it; the native bar's minimization
-event owns the lifecycle rather than timers or library scroll position.
+visibility follows the native bar's presentation geometry and label visibility
+in both directions; neither timers nor library scroll position own its lifecycle.
 
 For comparable gestures, study original-speed recordings and densely sample the
 transition. Use coarse full-video frames to find phase boundaries, then sample

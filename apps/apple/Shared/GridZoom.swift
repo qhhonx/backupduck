@@ -239,3 +239,15 @@ enum GridZoom {
     return min(high, max(low, focusInContent - screenFocus))
   }
 }
+
+/// Shared native dock geometry. The native icon supplies its current visible
+/// frame; the period capsule occupies only the remaining width, never a minimum
+/// width that could intersect the icon during a three-tab morph.
+enum LibraryDockGeometry {
+  static func capsule(bar: CGRect, icon: CGRect, gap: CGFloat, inset: CGFloat) -> CGRect {
+    let leading = max(bar.minX + inset, icon.maxX + gap)
+    let trailing = max(leading, bar.maxX - inset)
+    return CGRect(x: leading, y: icon.midY - icon.height / 2,
+      width: trailing - leading, height: icon.height)
+  }
+}

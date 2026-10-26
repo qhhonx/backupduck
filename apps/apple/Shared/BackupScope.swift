@@ -242,25 +242,21 @@ struct BackupScopeEditor: View {
       Form {
         Section {
           ForEach(BackupMediaKind.allCases) { kind in
-            #if os(macOS)
-            // Mac preference rows: leading label, trailing switch (V7).
             Toggle(isOn: typeBinding(kind)) {
               HStack(spacing: DuckSpacing.small) {
                 Image(systemName: kind.symbol).foregroundStyle(DuckRole.secondaryText)
                   .frame(width: DuckSpacing.large).accessibilityHidden(true)
                 Text(LocalizedStringKey(kind.title))
               }
-            }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
-            #else
-            ScopeChoiceRow(title: NSLocalizedString(kind.title, comment: ""), symbol: kind.symbol,
-              selected: store.rule.types.contains(kind)) {
-              typeBinding(kind).wrappedValue.toggle()
-            }.accessibilityIdentifier("backup.scope.type." + kind.rawValue)
-            #endif
+            }
+            .disabled(store.rule.types.count == 1 && store.rule.types.contains(kind))
+            .accessibilityIdentifier("backup.scope.type." + kind.rawValue)
+
           }
         }
       }
       .formStyle(.grouped)
+      .toggleStyle(DuckPreferenceToggleStyle())
       .accessibilityIdentifier("backup.scope.choices")
     } else if model.denied {
       // The library's own permission state: the right copy and action for
@@ -375,7 +371,7 @@ struct BackupScopeEditor: View {
   private func typeBinding(_ kind: BackupMediaKind) -> Binding<Bool> {
     Binding(get: { store.rule.types.contains(kind) }, set: { included in
       var next = store.rule
-      if included { next.types.insert(kind) } else { next.types.remove(kind) }
+      if included { next.types.insert(kind) } else if next.types.count > 1 { next.types.remove(kind) }
       store.save(next)
     })
   }

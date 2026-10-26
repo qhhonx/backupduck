@@ -1,0 +1,12 @@
+{
+  "id": "settings.rename-iphone",
+  "page": "settings",
+  "step": "rename",
+  "extends": "base-paired",
+  "ios_only": true,
+  "title": "Rename this iPhone",
+  "expect": [
+    "A standard rounded field opens focused, with the keyboard and native clear button.",
+    "System cancellation leading and confirmation trailing."
+  ]
+}

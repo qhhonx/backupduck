@@ -278,12 +278,23 @@ extension PreviewSample {
   var count: Int { reviewAssets?.count ?? library.loaded }
   func asset(at index: Int) -> PHAsset? {
     if let reviewAssets { return reviewAssets.indices.contains(index) ? reviewAssets[index] : nil }
+    #if os(iOS)
+    // The grid stores newest first; horizontal browsing runs oldest to newest.
+    return library.asset(at: count - 1 - index)
+    #else
     return library.asset(at: index)
+    #endif
   }
   func index(of asset: PHAsset) -> Int? {
-    reviewAssets == nil ? library.previewIndex(of: asset) : reviewIndices[asset.localIdentifier]
+    if reviewAssets != nil { return reviewIndices[asset.localIdentifier] }
+    #if os(iOS)
+    return library.previewIndex(of: asset).map { count - 1 - $0 }
+    #else
+    return library.previewIndex(of: asset)
+    #endif
   }
   @Published private(set) var current: MediaPreviewModel
+  @Published private(set) var collectionRevision = 0
   @Published var zoomed = false
   @Published var paging = false
   @Published var fitRevision = 0
@@ -291,6 +302,14 @@ extension PreviewSample {
   private var models: [String: MediaPreviewModel] = [:]
   init(asset: PHAsset, library: PhotoLibraryModel, poster: LibraryImage? = nil, reviewAssets: [PHAsset]? = nil) {
     self.library = library
+    #if os(iOS)
+    let reviewAssets = reviewAssets.map { collection in
+      collection.sorted {
+        if $0.creationDate != $1.creationDate { return ($0.creationDate ?? .distantPast) < ($1.creationDate ?? .distantPast) }
+        return $0.localIdentifier < $1.localIdentifier
+      }
+    }
+    #endif
     self.reviewAssets = reviewAssets
     reviewIndices = Dictionary((reviewAssets ?? []).enumerated().map { ($0.element.localIdentifier,$0.offset) },uniquingKeysWith: { first,_ in first })
     current = MediaPreviewModel(asset: asset, poster: poster ?? library.thumbnails.poster(for: asset))
@@ -311,7 +330,9 @@ extension PreviewSample {
     current.deactivate(); current = model(for: asset); fitMedia(); current.activate()
     Task { [weak self] in
       guard let self else { return }
+      let previousCount = count
       if reviewAssets == nil { _ = await library.previewNeighbor(of: asset, direction: 1) }
+      if count != previousCount { collectionRevision &+= 1 }
       guard current.asset.localIdentifier == asset.localIdentifier else { return }
       let keep = Set([asset, adjacent(to: asset, direction: -1), adjacent(to: asset, direction: 1)].compactMap { $0?.localIdentifier })
       for id in Array(models.keys) where !keep.contains(id) { models.removeValue(forKey: id)?.cancel() }

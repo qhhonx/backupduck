@@ -1,0 +1,12 @@
+{
+  "id": "onboarding.photos-denied",
+  "page": "onboarding",
+  "step": "photos",
+  "extends": "onboarding.photos",
+  "ios_only": true,
+  "photo_access": "denied",
+  "title": "First run: Photos access denied",
+  "expect": [
+    "Stay on Photos with Open Settings and Later; Later ends first run on the hub."
+  ]
+}

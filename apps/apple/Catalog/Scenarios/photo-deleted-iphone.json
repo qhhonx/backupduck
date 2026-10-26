@@ -1,0 +1,12 @@
+{
+  "id": "photo.deleted-iphone",
+  "page": "backup",
+  "step": "deletedPhoto",
+  "extends": "photo.viewer-light",
+  "ios_only": true,
+  "title": "Deleted iPhone source with confirmed publication",
+  "expect": [
+    "The image area says Deleted from this iPhone and adds the reassurance only for confirmed gallery publication.",
+    "Information starts collapsed and remains available from Info."
+  ]
+}

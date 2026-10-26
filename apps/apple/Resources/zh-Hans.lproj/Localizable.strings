@@ -1063,7 +1063,7 @@
 "records_attention_scope" = "%@ · %@ 张照片需要处理";
 
 "onboarding_first_heading" = "送出第一张照片";
-"onboarding_first_preparing" = "正在准备第一张照片…";
+"onboarding_first_preparing" = "正在准备这张照片…";
 "onboarding_first_failed" = "第一张照片没有送到";
 "onboarding_first_save_failed" = "照片没能存进 Pixel 相册";
 "onboarding_first_limited" = "只能备份你允许的照片";
@@ -1263,3 +1263,11 @@
 "library_filter_empty_note" = "换一个筛选条件试试。";
 
 "library_filter_show_all" = "显示所有照片";
+
+"onboarding_photos_denied" = "备份鸭看不到你的照片。在设置里允许访问后才能备份。";
+
+"onboarding_first_progress" = "正在发送 · %1$@ / %2$@";
+
+"library_deleted_title" = "已从这台 iPhone 删除";
+
+"library_deleted_saved_note" = "Pixel 上的备份还在。";

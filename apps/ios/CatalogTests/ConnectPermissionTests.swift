@@ -7,6 +7,128 @@ import Photos
 /// Runs inside the separately identified catalog. No production application,
 /// system permissions, real credentials or media library is used.
 @MainActor final class ConnectPermissionTests: XCTestCase {
+  func testDiagnosticsReadsLocalEventsBeforeForegroundEnvironmentArrives() async throws {
+    try await withModel("diagnostics.root") { model, core in
+      await model.open()
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let window = UIWindow(windowScene: scene)
+      window.frame = scene.coordinateSpace.bounds
+      window.rootViewController = UIHostingController(rootView: DiagnosticsView(model: model).environment(\.scenePhase, .inactive))
+      window.makeKeyAndVisible()
+      defer { window.isHidden = true }
+      try await Task.sleep(for: .milliseconds(400))
+      XCTAssertTrue(operations(core).contains("activity_log"), "Local diagnostics must not remain on Loading while scene propagation waits")
+    }
+  }
+
+  func testDeniedPhotosStayOnStepAndReturningWithAccessAdvances() async throws {
+    try await withModel("onboarding.photos-denied") { model, _ in
+      await model.open()
+      let defaults = UserDefaults(suiteName: "photos-step-" + UUID().uuidString)!
+      let progress = IOSFirstRunProgress(defaults: defaults)
+      progress.update { $0.step = "photos"; $0.receiver = model.pairing?.receiverID }
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let window = UIWindow(windowScene: scene)
+      window.frame = scene.coordinateSpace.bounds
+      window.rootViewController = UIHostingController(rootView: IOSOnboarding(model: model, progress: progress))
+      window.makeKeyAndVisible()
+      defer { window.isHidden = true }
+      try await Task.sleep(for: .milliseconds(200))
+      XCTAssertEqual(progress.record?.step, "photos")
+      let previous = BackupEnvironment.photoAccess
+      defer { BackupEnvironment.photoAccess = previous }
+      BackupEnvironment.photoAccess = { .limited }
+      model.refreshPhotoAccess()
+      try await Task.sleep(for: .milliseconds(300))
+      XCTAssertEqual(progress.record?.step, "choose")
+      XCTAssertEqual(model.photoAccess, .limited)
+    }
+  }
+
+  func testQueueNetworkWaitAloneDoesNotBypassProbeHysteresis() {
+    var summary = SenderSummary()
+    summary.waiting_reason = "network"; summary.waiting = 8
+    let state = BackupHubStatus.derive(.init(paired: true, ready: true, paused: false,
+      connection: .ready, receiverUnavailable: false, summary: summary,
+      phoneSpaceShort: false, photoAccess: .full, photoLibraryInScope: true, jobs: []))
+    XCTAssertEqual(state, .backingUp(remaining: 8, bytes: 0))
+  }
+
+  func testDockNeverIntersectsNativeIconAcrossActualBarWidthsAndReversal() {
+    for width in [CGFloat(320), 375, 430, 768] {
+      let bar = CGRect(x: 0, y: 700, width: width, height: 62)
+      for frame in 0...120 {
+        let fraction = CGFloat(frame <= 60 ? frame : 120 - frame) / 60
+        let icon = CGRect(x: 16 + (width / 3 - 48) * (1 - fraction), y: 707, width: 48, height: 48)
+        let capsule = LibraryDockGeometry.capsule(bar: bar, icon: icon, gap: DuckSpacing.small, inset: DuckSpacing.medium)
+        XCTAssertGreaterThanOrEqual(capsule.minX - icon.maxX, DuckSpacing.small - 0.0001)
+        XCTAssertLessThanOrEqual(capsule.maxX, bar.maxX - DuckSpacing.medium)
+        XCTAssertFalse(icon.intersects(capsule))
+      }
+    }
+  }
+
+  func testProbeHysteresisKeepsLastStateAcrossPathUpdatesAndClearsOnSuccess() async {
+    var now = Date(timeIntervalSince1970: 100)
+    var answer = ReceiverConnection.ready
+    var probes = 0
+    let availability = ReceiverAvailability(monitorNetwork: false, now: { now },
+      diagnose: { _ in probes += 1; return answer }, localNetworkDenied: { _ in false })
+    let pairing = Pairing(version: 2, receiverID: "synthetic", endpoint: "https://127.0.0.1:1", certificate: "fixture", token: "fixture")
+    availability.networkChanged(allowed: true)
+    let initial = await availability.diagnose(pairing)
+    XCTAssertEqual(initial, .ready)
+    XCTAssertEqual(availability.visibleConnection, .ready)
+    availability.networkChanged(allowed: false)
+    XCTAssertEqual(availability.visibleConnection, .ready, "A path update alone is not a failed probe")
+    availability.networkChanged(allowed: true)
+    answer = .network
+    let failed = await availability.diagnose(pairing)
+    XCTAssertEqual(failed, .network, "Preparation stops immediately")
+    XCTAssertEqual(availability.visibleConnection, .ready, "The hub retains its last state")
+    now.addTimeInterval(9.99)
+    XCTAssertEqual(availability.visibleConnection, .ready)
+    now.addTimeInterval(0.01)
+    XCTAssertEqual(availability.visibleConnection, .network)
+    answer = .ready
+    _ = await availability.diagnose(pairing, force: true)
+    XCTAssertEqual(availability.visibleConnection, .ready)
+    answer = .network
+    _ = await availability.diagnose(pairing, force: true)
+    XCTAssertEqual(availability.visibleConnection, .ready)
+    _ = await availability.diagnose(pairing, force: true)
+    XCTAssertEqual(availability.visibleConnection, .network, "Two actual failures are sufficient")
+    XCTAssertEqual(probes, 5)
+    answer = .ready
+    _ = await availability.diagnose(pairing, force: true)
+    XCTAssertEqual(availability.visibleConnection, .ready)
+  }
+
+  func testEarlierPhotosCompletionExpiresFromFirstSavedPresentationAcrossRestart() {
+    let suite = "earlier-presentation-" + UUID().uuidString
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let memory = EarlierPhotosCompletion(defaults: defaults)
+    let now = Date(timeIntervalSince1970: 100)
+    var history = HistoricalImportStatus(run: 9, state: "scanned", checked: 8, pending: 0, published: 7)
+    XCTAssertNil(memory.show(receiver: "pixel", history: history, at: now))
+    XCTAssertTrue(memory.visible(receiver: "pixel", history: history, at: now.addingTimeInterval(100000)))
+    history.published = 8
+    XCTAssertEqual(memory.show(receiver: "pixel", history: history, at: now), now)
+    let restored = EarlierPhotosCompletion(defaults: defaults)
+    XCTAssertEqual(restored.show(receiver: "pixel", history: history, at: now.addingTimeInterval(100)), now)
+    XCTAssertTrue(restored.visible(receiver: "pixel", history: history, at: now.addingTimeInterval(86399)))
+    XCTAssertFalse(restored.visible(receiver: "pixel", history: history, at: now.addingTimeInterval(86400)))
+  }
+
+  func testViewerOrdersFrozenCollectionsFromOlderToNewer() {
+    let assets: [PHAsset] = [DatedCatalogAsset("new", 30), DatedCatalogAsset("old", 10), DatedCatalogAsset("middle", 20)]
+    let session = MediaPreviewSession(asset: assets[2], library: PhotoLibraryModel(), reviewAssets: assets)
+    XCTAssertEqual((0..<session.count).compactMap { session.asset(at: $0)?.localIdentifier }, ["old", "middle", "new"])
+    XCTAssertEqual(session.adjacent(to: assets[2], direction: 1)?.localIdentifier, "new")
+    XCTAssertEqual(session.adjacent(to: assets[2], direction: -1)?.localIdentifier, "old")
+  }
+
   func testViewedAssetAloneRequestsNetworkAndKeepsPosterOnFailure() async throws {
     let original = BackupEnvironment.usesPhotoLibrary
     BackupEnvironment.usesPhotoLibrary = true
@@ -460,4 +582,14 @@ private final class PreviewRequestProbe: PHImageManager {
     return PHImageRequestID(results.count)
   }
   override func cancelImageRequest(_ requestID: PHImageRequestID) {}
+}
+
+private final class DatedCatalogAsset: PHAsset, @unchecked Sendable {
+  let identifier: String
+  let date: Date
+  init(_ identifier: String, _ timestamp: TimeInterval) { self.identifier = identifier; date = Date(timeIntervalSince1970: timestamp); super.init() }
+  override var localIdentifier: String { identifier }
+  override var creationDate: Date? { date }
+  override var mediaType: PHAssetMediaType { .image }
+  override var burstIdentifier: String? { nil }
 }

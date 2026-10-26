@@ -99,7 +99,8 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     return URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
   }()
   func connect() {
-    guard BackupEnvironment.usesNetwork, BackupEnvironment.activeModel().networkingStarted else { return }
+    guard BackupEnvironment.usesNetwork, BackupEnvironment.activeModel().networkingStarted,
+      BackupEnvironment.activeModel().pairing != nil else { return }
     TransferDiagnostics.shared.startMonitoring()
     _ = session
   }

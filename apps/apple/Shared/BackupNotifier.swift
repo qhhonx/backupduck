@@ -307,11 +307,18 @@ struct BackupNotificationPreferences: View {
       DuckSheetLayout(title: "notifications_title", desktopFitsContent: true, cancel: { explanation = false }) {
         Text("notifications_note").font(.body).fixedSize(horizontal: false, vertical: true)
       } actions: {
+        #if os(iOS)
+        DuckSheetConfirmButton(title: "notifications_allow") {
+          notifier.acknowledgeExplanation(); explanation = false
+          Task { await notifier.requestPermission() }
+        }.accessibilityIdentifier("notifications.consent.allow")
+        #else
         Button("notifications_allow") {
           notifier.acknowledgeExplanation(); explanation = false
           Task { await notifier.requestPermission() }
         }.buttonStyle(.borderedProminent).tint(DuckRole.accentFill).keyboardShortcut(.defaultAction)
           .accessibilityIdentifier("notifications.consent.allow")
+        #endif
       }
     }
   }

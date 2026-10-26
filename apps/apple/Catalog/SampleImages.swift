@@ -245,7 +245,6 @@ enum SampleImages {
   }
 }
 
-#if os(macOS)
 /// In-memory PhotoKit-shaped collection; no PhotoKit fetch or service connection.
 final class CatalogAssetCollection: PHFetchResult<PHAsset>, @unchecked Sendable {
   let assets: [PHAsset]
@@ -268,4 +267,3 @@ final class CatalogAssetCollection: PHFetchResult<PHAsset>, @unchecked Sendable 
     for index in indexes { block(assets[index], index, &stop); if stop.boolValue { break } }
   }
 }
-#endif

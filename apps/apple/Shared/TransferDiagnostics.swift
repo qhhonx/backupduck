@@ -15,7 +15,8 @@ import UIKit
   }
   /// Reading local diagnostics must never request network access.
   func startMonitoring() {
-    guard BackupEnvironment.usesNetwork, !monitoring else { return }
+    guard BackupEnvironment.usesNetwork, BackupEnvironment.activeModel().networkingStarted,
+      BackupEnvironment.activeModel().pairing != nil, !monitoring else { return }
     monitoring = true
     #if os(iOS)
     UIDevice.current.isBatteryMonitoringEnabled = true

@@ -1017,12 +1017,17 @@ final class CalendarNativeBarObserver: NSObject {
     available = false
     minimized = false
   }
-  /// The same public geometry drives detection and period placement. No class
-  /// names, selectors, ivars or keys from UIKit's implementation are consulted.
+  /// Read presentation geometry as well as model layout: UIKit adopts its
+  /// destination layout before its native icon and outgoing labels settle.
   static func compactFrame(in view: UIView, relativeTo host: UIView) -> CGRect? {
     guard !view.isHidden, view.alpha > 0.01 else { return nil }
     if view is UIControl, (36...64).contains(view.bounds.width),
       (36...64).contains(view.bounds.height), abs(view.bounds.width - view.bounds.height) < 10 {
+      if let layer = view.layer.presentation() {
+        let rootFrame = layer.convert(layer.bounds, to: nil)
+        let hostLayer = host.layer.presentation() ?? host.layer
+        return hostLayer.convert(rootFrame, from: nil)
+      }
       return view.convert(view.bounds, to: host)
     }
     for child in view.subviews {
@@ -1030,12 +1035,30 @@ final class CalendarNativeBarObserver: NSObject {
     }
     return nil
   }
+  static func labelsVisible(in view: UIView, opacity: Float = 1) -> Bool {
+    guard !view.isHidden else { return false }
+    let opacity = opacity * (view.layer.presentation()?.opacity ?? view.layer.opacity)
+    guard opacity > 0.01 else { return false }
+    if let label = view as? UILabel, !(label.text ?? label.attributedText?.string ?? "").isEmpty { return true }
+    return view.subviews.contains { labelsVisible(in: $0, opacity: opacity) }
+  }
   @objc private func sample() {
-    guard let bar, !bar.isHidden, let host = bar.superview else { return }
-    let next = Self.compactFrame(in: bar, relativeTo: host) != nil
-    guard next != minimized else { return }
-    minimized = next
-    owner?.nativeBarMorphed(minimized: next)
+    guard let bar, !bar.isHidden, let owner, let tabs = owner.tabBarController else { return }
+    let icon = Self.compactFrame(in: bar, relativeTo: tabs.view)
+    let labels = Self.labelsVisible(in: bar)
+    // Labels never crossfade in the same region. The same sampled state drives
+    // entry and reversal, including a tap that reverses an unfinished morph.
+    let next = icon != nil && !labels
+    owner.nativePeriodIcon = icon
+    if next != minimized {
+      minimized = next
+      owner.nativeBarMorphed(minimized: next)
+    }
+    if owner.periodShown { owner.layoutNativePeriod(tabs) }
+    if labels {
+      owner.periodSurface.alpha = 0
+      owner.dock.alpha = 0
+    }
   }
 }
 
@@ -1744,7 +1767,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   }
   var level = CalendarGridLevel.all { didSet { rememberDensity() } }
   var columns = CalendarGridController.rememberedColumns { didSet { rememberDensity() } }
-  var originalAspect = false, selecting = false
+  var originalAspect = false
+  var onSelectionMode: (Bool) -> Void = { _ in }
+  var selecting = false {
+    didSet { if selecting != oldValue { onSelectionMode(selecting) } }
+  }
   func rememberDensity() {
     let value = level == .all && columns <= 3 ? 3 : 5
     if UserDefaults.standard.integer(forKey: Self.densityKey) != value {
@@ -3977,6 +4004,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     nativeBarCompact || CACurrentMediaTime() - nativeBarExpandedAt < 0.35
   }
   var periodShown = false, periodEntry = 0
+  var nativePeriodIcon: CGRect?
   func nativeBarMorphed(minimized: Bool) {
     let expanded = nativeBarCompact && !minimized
     if expanded { nativeBarExpandedAt = CACurrentMediaTime() }
@@ -3989,12 +4017,9 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard #available(iOS 26.0, *), usesNativeMinimization, let tabs = tabBarController else { return }
     setNativePeriod(nativeBarCompact && active && !selecting && !tabs.isTabBarHidden)
   }
-  /// Preserve the existing 130 ms entry delay after compact geometry appears,
-  /// then materialize the glass and rise 14 pt on a 300 ms
-  /// spring without bounce. Exit dematerializes in place within 80 ms, before the
-  /// expanding platter reaches the surface. A visual-effect change ignores
-  /// animation delays, so entry waits explicitly and never begins from the
-  /// current state, which would capture a stale presentation value.
+  /// Native label visibility owns both directions of the handoff. Keep one
+  /// stable frame and fade only after native labels have disappeared; no delayed
+  /// rise or final transform reset can jump underneath the capsule on reversal.
   func setNativePeriod(_ visible: Bool, animated: Bool = true) {
     guard #available(iOS 26.0, *), let tabs = tabBarController ?? tabOwner else { return }
     guard visible != periodShown else {
@@ -4003,71 +4028,31 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     }
     periodShown = visible
     periodEntry += 1
-    let entry = periodEntry
     periodSurface.layer.removeAllAnimations()
     dock.layer.removeAllAnimations()
     periodSurface.isUserInteractionEnabled = visible
     periodSurface.accessibilityElementsHidden = !visible
-    let material: UIVisualEffect =
-      UIAccessibility.isReduceTransparencyEnabled
-      ? UIBlurEffect(style: .systemChromeMaterial) : UIGlassEffect(style: .regular)
-    let still = UIAccessibility.isReduceMotionEnabled
-    if visible {
-      attachPeriodSurface(tabs)
-      UIView.performWithoutAnimation {
-        periodSurface.isHidden = false
-        periodSurface.alpha = 1
-        periodSurface.effect = nil
-        dock.alpha = 0
-        periodSurface.transform = still ? .identity : CGAffineTransform(translationX: 0, y: 14)
-        layoutNativePeriod(tabs)
-      }
-      DispatchQueue.main.asyncAfter(deadline: .now() + (animated ? 0.13 : 0)) { [weak self] in
-        guard let self, self.periodShown, entry == self.periodEntry else { return }
-        UIView.performWithoutAnimation { self.layoutNativePeriod(tabs) }
-        let changes = {
-          self.periodSurface.effect = material
-          self.dock.alpha = 1
-          self.periodSurface.transform = .identity
-        }
-        if animated {
-          UIView.animate(
-            springDuration: still ? 0.2 : 0.3, bounce: 0, initialSpringVelocity: 0, delay: 0,
-            options: [.allowUserInteraction], animations: changes)
-        } else {
-          changes()
-        }
-      }
-    } else {
-      let settle = { [weak self] in
-        guard let self, !self.periodShown, entry == self.periodEntry else { return }
-        self.periodSurface.isHidden = true
-        self.periodSurface.transform = .identity
-      }
-      guard animated else {
-        periodSurface.effect = nil
-        dock.alpha = 0
-        settle()
-        return
-      }
-      UIView.animate(withDuration: 0.08, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
-        self.periodSurface.effect = nil
-        self.dock.alpha = 0
-      } completion: { _ in settle() }
+    attachPeriodSurface(tabs)
+    UIView.performWithoutAnimation {
+      layoutNativePeriod(tabs)
+      periodSurface.transform = .identity
+      periodSurface.isHidden = !visible
+      periodSurface.alpha = visible ? 1 : 0
+      dock.alpha = visible ? 1 : 0
+      periodSurface.effect = visible
+        ? (UIAccessibility.isReduceTransparencyEnabled
+          ? UIBlurEffect(style: .systemChromeMaterial) : UIGlassEffect(style: .regular)) : nil
     }
   }
-  /// The surface centers between the compact native button and its mirror
-  /// position, using the same public laid-out geometry as the observer.
   func layoutNativePeriod(_ tabs: UITabBarController) {
-    let bar = tabs.tabBar
-    let frame = bar.convert(bar.bounds, to: tabs.view)
-    let icon = CalendarNativeBarObserver.compactFrame(in: bar, relativeTo: tabs.view) ?? CGRect(x: 28, y: frame.minY + 7, width: 48, height: 48)
-    let width = tabs.view.bounds.width
-    let reserve = min(icon.maxX, width - icon.minX) + 12
-    periodSurface.bounds = CGRect(x: 0, y: 0, width: max(180, width - 2 * reserve), height: 48)
-    periodSurface.center = CGPoint(x: tabs.view.bounds.midX, y: icon.midY)
-    dock.bounds = periodSurface.bounds.insetBy(dx: 4, dy: 4)
-    dock.center = CGPoint(x: periodSurface.bounds.midX, y: periodSurface.bounds.midY)
+    guard let icon = nativePeriodIcon else { return }
+    let bar = tabs.tabBar.convert(tabs.tabBar.bounds, to: tabs.view)
+    let frame = LibraryDockGeometry.capsule(bar: bar, icon: icon,
+      gap: DuckSpacing.small, inset: DuckSpacing.medium)
+    UIView.performWithoutAnimation {
+      periodSurface.frame = frame
+      dock.frame = periodSurface.bounds.insetBy(dx: DuckSpacing.xxSmall, dy: DuckSpacing.xxSmall)
+    }
   }
   /// Host the period surface in the tab controller's view, outside the tab
   /// bar's own container: inside it, the native press effect blanks the glass
@@ -4419,7 +4404,8 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     view.addSubview(grid)
     browseItem.accessibilityIdentifier = "calendar.selected_browse"
     browseItem.accessibilityLabel = NSLocalizedString("library_browse_selected", comment: "")
-    navigationItem.leftBarButtonItem = browseItem
+    navigationItem.leftBarButtonItems = [UIBarButtonItem(
+      barButtonSystemItem: .cancel, target: self, action: #selector(done)), browseItem]
     navigationItem.rightBarButtonItem = UIBarButtonItem(
       barButtonSystemItem: .done, target: self, action: #selector(done))
     navigationItem.rightBarButtonItem?.accessibilityIdentifier = "calendar.selected_done"

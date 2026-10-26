@@ -13,7 +13,7 @@ import UserNotifications
     BackupEnvironment.core = Self.core
     BackupEnvironment.credentials = Self.credentials
     BackupEnvironment.discoversReceivers = false
-    BackupEnvironment.usesNetwork = false
+    BackupEnvironment.usesNetwork = ProcessInfo.processInfo.arguments.contains("-scan-network-audit")
     BackupEnvironment.usesCamera = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
@@ -226,8 +226,12 @@ private struct ScenarioRun: View {
       : scenario.notificationAuthorization == "authorized" ? .authorized : .notDetermined
     let notifier = BackupNotifier(catalogAuthorization: authorization)
     BackupEnvironment.activeNotifier = { notifier }
-    _library = StateObject(wrappedValue: PhotoLibraryModel())
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
+    let library = PhotoLibraryModel()
+    if scenario.step == "filterEmpty" {
+      library.installSyntheticAssets(CatalogAssetCollection([]), filter: .video, backupView: .recent)
+    }
+    _library = StateObject(wrappedValue: library)
     BackupEnvironment.activeModel = { made }
     _model = StateObject(wrappedValue: made)
     let start = IOSAppTab.allCases.first { "\($0)" == scenario.page } ?? .settings
@@ -236,10 +240,14 @@ private struct ScenarioRun: View {
 
   var body: some View {
     if scenario.step == "filterEmpty" {
-      NavigationStack {
-        LibraryPlaceholder(kind: .filterEmpty)
-          .background(DuckRole.background).navigationTitle("nav_photos")
-      }
+      IOSLibraryPage(library: library, model: model).task { await model.open() }
+    } else if scenario.step == "rename" {
+      IPhoneNameCatalog(model: model).task { await model.open() }
+    } else if scenario.step == "deletedPhoto" {
+      Group {
+        if let job = model.jobs.first { IOSRecordedPhotoViewer(photo: HistoryPhoto(job: job), model: model, close: {}).ignoresSafeArea() }
+        else { ProgressView() }
+      }.task { await model.open() }.onDisappear { model.stop() }
     } else if scenario.step == "photoAccessDenied" || scenario.step == "photoAccessRestricted" {
       NavigationStack {
         LibraryPlaceholder(kind: .permission(scenario.step == "photoAccessDenied" ? .denied : .restricted))
@@ -870,5 +878,18 @@ private struct ContextSheetInventoryCatalog: UIViewControllerRepresentable {
           asset: InformationSampleAsset(job: job), library: PhotoLibraryModel(), model: model, presenter: self)
       }
     }
+  }
+}
+
+/// Presents the production editor in its real sheet and keyboard context.
+private struct IPhoneNameCatalog: View {
+  @ObservedObject var model: BackupModel
+  @State private var presented = false
+  var body: some View {
+    NavigationStack { Text("settings_title") }
+      .sheet(isPresented: $presented) {
+        DeviceNameEditor(model: model, name: model.deviceSnapshot?.device.name ?? "iPhone")
+      }
+      .onChange(of: model.ready, initial: true) { _, ready in if ready { presented = true } }
   }
 }

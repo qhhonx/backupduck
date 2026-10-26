@@ -67,8 +67,9 @@ bottom capsule.
 ## A6 Choosing from many (albums, subfolders)
 
 A6 is for large or unbounded sets. A small fixed set (up to about seven
-options, such as media types) is inline in a grouped list: a checklist on
-iPhone and Pixel, leading-label/trailing-switch rows on Mac. It has no search
+options, such as media types) is inline in a grouped list: leading-label/trailing-switch rows for persistent Boolean preferences on
+iPhone and Mac, and a checklist on Pixel. Apple media-type rows share order and
+keys; disable the last included type so at least one stays enabled. It has no search
 field or selection summary. Rows that stand for photo collections
 (albums, folders) lead with a cover thumbnail from that collection; symbols
 in a checklist share one column width so titles align.
@@ -85,7 +86,7 @@ and is pushed like any other settings page.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Sheet at the medium detent, expandable, close button (xmark) trailing | One or two sentences: popover from an info button, closed by clicking outside. Longer: a sheet with Done | Modal bottom sheet with a drag handle |
+| Sheet at the medium detent, expandable, one system confirmation-role Done trailing | One or two sentences: popover from an info button, closed by clicking outside. Longer: a sheet with Done | Modal bottom sheet with a drag handle |
 
 ### Third-party software reader
 
@@ -145,6 +146,9 @@ the height). Its one button is the filled primary action, without an
 ellipsis. An empty state has no Retry. While a page shows one of these
 states, its toolbar keeps only the title: subtitle counts and browsing
 controls (view, zoom, filter, search) appear once there is content.
+An iPhone filter with zero matches keeps its filter menu and active-view chip
+available so the person can leave that view. Show All Photos clears both the
+backup view and media-type filter.
 
 ## A11 More actions and context menus
 
@@ -181,8 +185,8 @@ states the count and the device.
 ### Apple selected-photo review
 
 The iPhone selected-photo review follows `library.md`: a native large sheet
-with the selected count, the system browse button leading and checkmark
-confirmation trailing. The native bottom toolbar has Deselect All / 取消全选
+with the selected count, system cancellation leading, the browse button beside
+it, and checkmark confirmation trailing. The native bottom toolbar has Deselect All / 取消全选
 leading and prominent Back Up N Photos / 备份 N 张 trailing. Closing preserves
 selection; the backup action registers the same durable intent as the library.
 
@@ -220,3 +224,17 @@ The Mac split workspace hides the automatic native toolbar backdrop so the
 shared window surface continues across the titlebar; no content column paints
 a separate toolbar surface. Folder preferences use leading labels, trailing
 native buttons and a current file-rule summary.
+
+### iOS sheet headers
+
+Every `DuckSheetLayout` and independently tooled iOS sheet follows the same
+header roles. Editing sheets use the system cancellation role leading and
+confirmation role trailing; current systems render these as a cross and a
+checkmark. Read-only and informational sheets have one confirmation-role Done
+trailing and no leading close. Their task actions stay in the content rather
+than adding another header action. A lone cross is never the complete header.
+System-owned sharing and mail composition retain their own controls. On older
+systems the same placements use localized Cancel and Done text.
+
+The Rename Device sheet uses a native rounded text field with its standard
+clear button. It focuses that field and presents the keyboard on opening.

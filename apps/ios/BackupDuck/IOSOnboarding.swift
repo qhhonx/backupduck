@@ -119,17 +119,25 @@ struct IOSOnboarding: View {
     self.finish = finish
     self.progress = progress
     _scanner = StateObject(wrappedValue: scanner ?? IOSPixelScannerState())
+    _path = State(initialValue: Self.path(to: Step(rawValue: progress.record?.step ?? "") ?? .welcome))
   }
 
-  private var navigationPath: Binding<[Step]> {
-    Binding(get: { step == .welcome ? [] : Array(Step.allCases.dropFirst().prefix { $0 != step }) + [step] },
-      set: { path in go(path.last ?? .welcome) })
+  @State private var path: [Step] = []
+  private static func path(to step: Step) -> [Step] {
+    step == .welcome ? [] : Array(Step.allCases.dropFirst().prefix { $0 != step }) + [step]
   }
 
   var body: some View {
-    NavigationStack(path: navigationPath) {
+    NavigationStack(path: $path) {
       page(.welcome)
         .navigationDestination(for: Step.self) { page($0) }
+    }
+    .onChange(of: path) { _, value in
+      let next = value.last ?? .welcome
+      if next != step { saveStep(next) }
+    }
+    .onChange(of: model.photoAccess) { _, access in
+      if step == .photos && (access == .full || access == .limited) { go(.choose) }
     }
     .tint(DuckRole.accent)
     .toolbar(step == .welcome ? .hidden : .visible, for: .navigationBar)
@@ -162,7 +170,7 @@ struct IOSOnboarding: View {
     .sheet(isPresented: $spaceHelp) {
       NavigationStack {
         HelpArticle(topic: HelpCenter.Topic(id: "space", symbol: "externaldrive"))
-          .toolbar { ToolbarItem(placement: .confirmationAction) { Button("settings_done") { spaceHelp = false } } }
+          .toolbar { ToolbarItem(placement: .confirmationAction) { DuckSheetConfirmButton(title: "settings_done") { spaceHelp = false } } }
       }.presentationDetents([.medium, .large])
     }
     .onAppear { if step == .first { checkLanded() } }
@@ -227,7 +235,7 @@ struct IOSOnboarding: View {
     case .photos:
       VStack(alignment: .leading, spacing: 16) {
         Text("onboarding_photos_title").font(.title2.bold())
-        Text("onboarding_photos_body").foregroundStyle(.secondary)
+        Text(model.photoAccess == .denied ? "onboarding_photos_denied" : "onboarding_photos_body").foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         VStack(alignment: .leading, spacing: DuckSpacing.medium) {
           photoPoint("onboarding_photos_direct", symbol: "arrow.right.circle")
@@ -254,12 +262,14 @@ struct IOSOnboarding: View {
           .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
         FirstPhotoFlight(
           sourceID: firstJob?.asset.source_id,
-          senderName: model.deviceSnapshot?.device.name ?? UIDevice.current.localizedModel,
-          receiverName: model.peerDevice?.name ?? "Pixel",
+          senderName: "iPhone",
+          receiverName: "Pixel",
           landed: landed
         ) { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { announced = true } }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DuckSpacing.medium)
+        DuckConfirmedProgress(value: firstPhotoProgress)
+          .accessibilityIdentifier("onboarding.first.progress")
         VStack(alignment: .center, spacing: DuckSpacing.xSmall) {
           if showsArrival {
             Text("onboarding_first_notify").foregroundStyle(.secondary)
@@ -323,18 +333,24 @@ struct IOSOnboarding: View {
           }
           if scanner.payload != nil {
             if scanner.needsSettings { secondary("retry_task") { scanner.retry() } }
-            secondary("apple_scan_again") { scanner.scanAgain() }
+            if scanner.canScanAgain { secondary("apple_scan_again") { scanner.scanAgain() } }
           }
         } else { primary("apple_scan_again") {}.hidden().accessibilityHidden(true) }
       case .connected:
-        primary("onboarding_continue") { go(.photos) }
+        primary("onboarding_continue") { go(.photos) }.accessibilityIdentifier("onboarding.connected.continue")
       case .photos:
-        primary("onboarding_continue") {
-          working = true
-          Task {
-            _ = await model.authorizePhotos()
-            progress.update { $0.photoAccess = BackupEnvironment.photoAccess().rawValue }
-            working = false; go(.choose)
+        if model.photoAccess == .denied {
+          primary("hub_problem_photos_action") { openURL(URL(string: UIApplication.openSettingsURLString)!) }.accessibilityIdentifier("onboarding.photos.settings")
+          secondary("onboarding_later") { leave() }.accessibilityIdentifier("onboarding.photos.later")
+        } else {
+          primary("onboarding_continue") {
+            working = true
+            Task {
+              let allowed = await model.authorizePhotos()
+              progress.update { $0.photoAccess = model.photoAccess.rawValue }
+              working = false
+              if allowed && step == .photos { go(.choose) }
+            }
           }
         }
       case .choose:
@@ -354,7 +370,7 @@ struct IOSOnboarding: View {
           secondary("onboarding_background") { leave() }
         }
       }
-      if step != .choose && step != .first {
+      if step != .choose && step != .first && !(step == .photos && model.photoAccess == .denied) {
         secondary("onboarding_later") {}.hidden().accessibilityHidden(true)
       }
     }
@@ -372,6 +388,10 @@ struct IOSOnboarding: View {
   }
 
   private func go(_ next: Step) {
+    path = Self.path(to: next)
+    saveStep(next)
+  }
+  private func saveStep(_ next: Step) {
     progress.update {
       $0.step = next.rawValue
       if next == .connected { $0.receiver = model.pairing?.receiverID }
@@ -389,11 +409,19 @@ struct IOSOnboarding: View {
       model.pairing?.receiverID == progress.record?.receiver, model.summary.published > 0 else { return }
     landed = true
   }
+  private var firstPhotoProgress: Double? {
+    guard !landed, let job = firstJob, job.state == "running", job.totalBytes > 0 else { return nil }
+    return Double(min(job.confirmedBytes, job.totalBytes)) / Double(job.totalBytes)
+  }
   private var firstPhotoMessage: String {
     if let blocker { return blocker.message }
+    if let job = firstJob, job.state == "running", job.totalBytes > 0 {
+      return String(format: NSLocalizedString("onboarding_first_progress", comment: ""),
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: min(job.confirmedBytes, job.totalBytes)), countStyle: .file),
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: job.totalBytes), countStyle: .file))
+    }
     let key: String
     if model.summary.received > 0 { key = "onboarding_first_saving" }
-    else if model.summary.running > 0 || firstJob?.state == "running" { key = "onboarding_first_sending" }
     else { key = "onboarding_first_preparing" }
     return NSLocalizedString(key, comment: "")
   }
@@ -470,7 +498,13 @@ struct IOSOnboarding: View {
     }
     working = false
   }
-  private func leave() { progress.leave(); finish() }
+  private func leave() {
+    if step == .photos && model.photoAccess == .denied {
+      progress.update { $0.photoAccess = PhotoAccess.denied.rawValue; $0.receiver = model.pairing?.receiverID }
+      model.deferredPhotoAccess = true
+    }
+    progress.leave(); finish()
+  }
 
   private func choose(earlier: Bool) async {
     working = true; choiceError = nil

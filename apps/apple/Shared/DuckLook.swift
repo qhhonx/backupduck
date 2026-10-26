@@ -100,12 +100,7 @@ struct DuckStateCard<Trailing: View, Action: View>: View {
         action()
         // Reserve this slot for the card's lifetime; value changes never add rows.
         if progress != nil || reservesProgress {
-          Color.clear.frame(height: 3).overlay {
-            if let progress {
-              ProgressView(value: progress).controlSize(.mini).tint(DuckRole.accent)
-                .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.progress), value: progress)
-            }
-          }
+          DuckConfirmedProgress(value: progress)
         }
       }
     }
@@ -300,6 +295,20 @@ enum DuckViewerSurface {
 
 /// A scan is not a transfer job. Only completed membership and confirmed
 /// publication establish a denominator and a saved count.
+/// Stable three-point slot shared by working cards and guided transfer steps.
+struct DuckConfirmedProgress: View {
+  let value: Double?
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  var body: some View {
+    Color.clear.frame(height: 3).overlay {
+      if let value {
+        ProgressView(value: min(1, max(0, value))).controlSize(.mini).tint(DuckRole.accent)
+          .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.progress), value: value)
+      }
+    }
+  }
+}
+
 struct DuckEarlierPhotosCard: View {
   let history: HistoricalImportStatus
   var changing: Bool

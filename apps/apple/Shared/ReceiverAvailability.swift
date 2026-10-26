@@ -10,6 +10,31 @@ enum ReceiverConnection: Equatable {
   }
 }
 
+/// UI evidence is independent of the executor's immediate preparation gate.
+/// A route notification is never a failed probe. Success clears at once.
+struct ReceiverReachability {
+  private(set) var connection = ReceiverConnection.unknown
+  private var failure: ReceiverConnection?
+  private var firstFailure: Date?
+  private var failures = 0
+  mutating func observe(_ result: ReceiverConnection, at now: Date) {
+    guard result != .unknown else { return }
+    if result == .ready {
+      connection = .ready; failure = nil; firstFailure = nil; failures = 0
+    } else {
+      failures += 1
+      if firstFailure == nil { firstFailure = now }
+      failure = result
+      advance(to: now)
+    }
+  }
+  mutating func advance(to now: Date) {
+    if let failure, let firstFailure, failures >= 2 || now.timeIntervalSince(firstFailure) >= 10 {
+      connection = failure
+    }
+  }
+}
+
 /// Preparation requires an allowed network and a response from the pinned peer.
 /// Wi-Fi alone does not establish that the receiver is on the current network.
 @MainActor final class ReceiverAvailability {
@@ -22,13 +47,20 @@ enum ReceiverConnection: Equatable {
   private var result = ReceiverConnection.unknown
   private var expires = Date.distantPast
   private var pending: Task<ReceiverConnection, Never>?
+  private let now: () -> Date
+  private var reachability = ReceiverReachability()
+  var visibleConnection: ReceiverConnection {
+    reachability.advance(to: now())
+    return reachability.connection
+  }
   private(set) var started = false
 
-  init(monitorNetwork: Bool = true, changed: @escaping () -> Void = {},
+  init(monitorNetwork: Bool = true, now: @escaping () -> Date = Date.init, changed: @escaping () -> Void = {},
     probe: ((Pairing) async -> Bool)? = nil,
     diagnose: ((Pairing) async -> ReceiverConnection)? = nil,
     localNetworkDenied: @escaping (Pairing) async -> Bool = { await LocalNetworkDenialCheck.check($0) }) {
     self.changed = changed
+    self.now = now
     let diagnose = diagnose ?? { pairing in
       if let probe { return await probe(pairing) ? .ready : .network }
       do {
@@ -68,7 +100,7 @@ enum ReceiverConnection: Equatable {
   func networkChanged(allowed: Bool) {
     self.allowed = allowed
     generation += 1
-    result = .unknown; expires = .distantPast
+    expires = .distantPast
     pending?.cancel(); pending = nil
     changed()
   }
@@ -78,13 +110,15 @@ enum ReceiverConnection: Equatable {
   }
 
   func diagnose(_ pairing: Pairing, force: Bool = false) async -> ReceiverConnection {
+    // A disallowed path stops preparation without becoming failed-probe evidence.
     guard allowed else { return .network }
     let key = pairing.receiverID + pairing.endpoint + pairing.certificate + pairing.token
     if key != route || force {
+      if key != route { reachability = ReceiverReachability() }
       route = key; generation += 1; expires = .distantPast
       pending?.cancel(); pending = nil
     }
-    if Date() < expires { return result }
+    if now() < expires { return result }
     let version = generation
     let task: Task<ReceiverConnection, Never>
     if let pending { task = pending } else {
@@ -93,8 +127,10 @@ enum ReceiverConnection: Equatable {
     }
     let reachable = await task.value
     guard version == generation, allowed, route == key else { return .unknown }
+    // Concurrent callers share one observation, not two consecutive failures.
+    if pending != nil { reachability.observe(reachable, at: now()) }
     pending = nil; result = reachable
-    expires = Date().addingTimeInterval(reachable == .ready ? 3 : 10)
+    expires = now().addingTimeInterval(3)
     return reachable
   }
 }
@@ -109,6 +145,7 @@ private final class LocalNetworkDenialCheck: @unchecked Sendable {
   private var finished = false
 
   static func check(_ pairing: Pairing) async -> Bool {
+    guard BackupEnvironment.usesNetwork else { return false }
     guard let endpoint = URLComponents(string: pairing.endpoint), endpoint.scheme == "https",
       let host = endpoint.host, !host.isEmpty,
       let rawPort = UInt16(exactly: endpoint.port ?? 443), rawPort != 0,

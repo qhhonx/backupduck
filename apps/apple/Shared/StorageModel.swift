@@ -313,8 +313,9 @@ struct DiagnosticsView: View {
         }
       }
     #endif
-    .task(id: scenePhase) {
-      guard scenePhase == .active else { return }
+    // Reading local events is valid at appearance, even while a navigation
+    // host has not yet propagated its scene's foreground environment.
+    .task {
       await journal.refresh { true }
       guard !didOpenInitial else { return }; didOpenInitial = true
       // Only catalog callers pass a start position. Completion fixtures exercise
@@ -324,6 +325,9 @@ struct DiagnosticsView: View {
         if initialPage == "export-success" { savedName = export.url?.lastPathComponent }
         if initialPage == "export-sheet" { save = export.url != nil }
       }
+    }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active { Task { await journal.refresh { true } } }
     }
   }
   private func prepare() {

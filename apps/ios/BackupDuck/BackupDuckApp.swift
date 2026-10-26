@@ -81,7 +81,12 @@ import SwiftUI
       }
         .onChange(of: model.ready, initial: true) { _, ready in
           if ready { firstRun.resolve(legacyDone: firstRunDone, paired: model.pairing != nil) }
-          if ready { Task { await firstRun.registerScope(model: model) } }
+          if ready {
+            model.deferredPhotoAccess = firstRun.record?.completed == true
+              && firstRun.record?.photoAccess == PhotoAccess.denied.rawValue
+              && firstRun.record?.receiver == model.pairing?.receiverID
+            Task { await firstRun.registerScope(model: model) }
+          }
           consumeNotification()
           consumeActivityLink()
         }

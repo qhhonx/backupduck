@@ -16,7 +16,7 @@ import Darwin
   init(model: BackupModel) { self.model = model }
 
   func update(pairing: Pairing?, active: Bool) {
-    guard BackupEnvironment.usesNetwork, active, let pairing else { stop(); return }
+    guard BackupEnvironment.usesNetwork, model?.networkingStarted == true, active, let pairing else { stop(); return }
     if receiverID != pairing.receiverID { stop(); receiverID = pairing.receiverID }
     if browser == nil, Date() >= nextBrowse {
       let browser = NetServiceBrowser()
@@ -62,7 +62,7 @@ import Darwin
     nextBrowse = Date().addingTimeInterval(30)
   }
   func netServiceDidResolveAddress(_ service: NetService) {
-    guard !probing, Date() >= nextProbe, let model, let saved = model.pairing,
+    guard model?.networkingStarted == true, !probing, Date() >= nextProbe, let model, let saved = model.pairing,
       saved.receiverID == receiverID, let txt = service.txtRecordData(), txt.count <= 1024,
       NetService.dictionary(fromTXTRecord: txt)["id"] == Data(saved.receiverID.utf8),
       (1...65535).contains(service.port) else { return }

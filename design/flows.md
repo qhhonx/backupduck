@@ -46,9 +46,9 @@ iPhone connect contract below.
 | 1 | **Welcome.** Headline: "Bigger than iCloud. Simpler than a NAS. And free." Subline: "One old Pixel backs up all your photos to Google Photos, full quality, without limits." Steps: ① Install BackupDuck on a Pixel ② Connect the two devices ③ Photos back up to Google Photos · free and unlimited. Small print: "Original Pixel: unlimited Original quality. Pixel 2 to 5: unlimited Storage saver. The offer is Google's." Welcome duck | Get Started | The bold value line follows the brief |
 | 2 | **Install on the Pixel.** A QR code that opens the Pixel download page in the Pixel's camera; the address as text below | It's Installed | Skipped if a Pixel was paired before |
 | 3 | **Connect.** One sentence on why the camera is needed, then the scanner. On success: "Connected to Pixel 8 Pro" with the connecting duck | Scan the code on your Pixel | Mac shows its own code for the Pixel to scan instead |
-| 4 | **Photos.** "BackupDuck reads your photos and sends them straight to your Pixel, never through our servers." then the system prompt | Continue | iPhone keeps three benefits in one aligned symbol column: direct to the Pixel, no upload to BackupDuck servers, and full quality without compression. Limited access: say what will and won't back up |
+| 4 | **Photos.** "BackupDuck reads your photos and sends them straight to your Pixel, never through our servers." then the system prompt | Continue | iPhone keeps three benefits in one aligned symbol column: direct to the Pixel, no upload to BackupDuck servers, and full quality without compression. Denial stays on this step with the photo-access explanation, Open Settings and Later; Later ends first run on the hub. Returning with full or limited access advances automatically. Limited access counts only the allowed photos and retains the limited-access note |
 | 5 | **Earlier photos too?** Use the earlier-photo question with the actual accessible count as the sole page heading. Keep the step marks, new-photo subtitle, recent-photo strip, background-transfer note and conditions link in the content; do not add another question heading. New-photo backup is on, explained in one line without a switch. Show an approximate size only if a supported source supplies it; do not guess. The note says: "However many there are, they can finish sending in the background. If your Pixel runs low on space, you can free up photos already backed up to Google Photos." Learn More explains storage conditions | Back Up Everything | Secondary: Only New Photos; the only decision is whether to include earlier photos |
-| 6 | **First photo lands.** The first thumbnail travels between equal, light device illustrations with photo screens; symmetric device/destination labels and centered title/status share one axis. The approved done duck appears on confirmed arrival, then "Your first photo is in the Pixel's Photos". One orchestrated motion; static under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
+| 6 | **First photo lands.** The first thumbnail travels between equal, light device illustrations with photo screens: the iPhone has a top capsule and the Pixel a centered camera dot. Labels use the device kinds iPhone and Pixel above the unchanged destination labels, without generated device names. A thin shared progress bar under the devices uses only the job’s confirmed/total bytes, with Sending and the byte counts; before bytes are known, show Preparing the photo. Symmetric labels and centered title/status share one axis. The approved done duck appears on confirmed arrival, then "Your first photo is in the Pixel's Photos". One orchestrated motion; static under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
 | 7 | **Hub.** Progress card for earlier photos, keep-screen-on switch while a large batch runs, Live Activity on the lock screen | — | First run ends here. Only New Photos skips the first-photo step and ends first run on the hub; until an earlier-photo run starts, the hub says new photos are saved (never "all photos") and offers Earlier Photos with one Back Up action, using the Auto Backup scope. |
 
 ### Mac first run gap
@@ -101,8 +101,9 @@ claim an unavailable path proves denial. Report a specific blocked privilege
 only when Network.framework supplies that reason; otherwise say to check the
 same Wi-Fi, WLAN access and Local Network in Settings.
 
-On connection failure, preserve the scanned code and show **Open Settings**,
-**Retry**, and **Scan Again** in the current connect flow. Returning from Settings
+On local-network denial, preserve the scanned code and show **Open Settings**
+with one secondary **Retry** in the current connect flow. Show **Scan Again**
+only after a retry establishes that the code is invalid or expired. Returning from Settings
 does not retry networking automatically. Retry reuses the code; Scan Again
 discards it and returns to the camera. Do not start workers after a failed or
 cancelled attempt, and do not replace existing trust on failure. Terminating and
@@ -344,3 +345,19 @@ offline plain-text reader. Scroll, select and copy within the document; Back
 returns to the source/license page. There are no per-component destinations.
 Apple uses the document for the current distribution, with Sparkle only in the
 direct Mac build; Android combines its release libraries and Rust crates.
+
+### Receiver reachability on iPhone
+
+A network path update retains the hub’s last reachability state while an
+authenticated probe runs. Only actual probe failure is outage evidence: show
+unreachable after it persists for ten seconds or after two consecutive failed
+probes. Clear the problem immediately on a successful probe. Preparation remains
+gated by the actual probe result throughout this display grace period.
+
+### Earlier-photo card lifetime on iPhone
+
+Scanning and saving retain their current progress states. Complete wording
+requires `HistoricalImportStatus.isSaved`, including publication of every frozen
+member. Persist the first time that completed state is shown, scoped by receiver
+and run; hide the card after 24 hours. Scanned membership and adding work to the
+queue do not establish completion; keep the saved-progress note while saving.

@@ -12,6 +12,8 @@ import UIKit
 
   func prepare(_ pairing: Pairing) async throws {
     guard BackupEnvironment.usesNetwork else { return }
+    // A preflight belongs to one decoded scan; stale callbacks cannot leak into retry.
+    path = nil; connectionPath = nil; connectionState = .setup
     guard let url = URLComponents(string: pairing.endpoint), url.scheme == "https",
       let host = url.host, !host.isEmpty,
       let port = NWEndpoint.Port(rawValue: UInt16(exactly: url.port ?? 443) ?? 0),
