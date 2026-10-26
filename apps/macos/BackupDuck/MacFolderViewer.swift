@@ -29,13 +29,15 @@ struct FolderViewer: View {
       if let player { MacVideoWithPoster(player: player, image: image) }
       else if let image { MacMediaZoom(image: image, livePhoto: nil, playRequest: 0, fitRevision: 0, zoomed: { zoomed = $0 }) }
       else if failure {
-        ContentUnavailableView { Label("library_preview_unavailable", systemImage: "photo.badge.exclamationmark") }
-          actions: { Button("retry_task") { Task { await load() } } }
+        MacFolderPreviewUnavailable { Task { await load() } }
       } else { ProgressView("library_loading") }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .padding(DuckSpacing.large)
     .background(DuckRole.background)
+    .modifier(MacViewerNavigationControls(previousEnabled: index > 0 && !zoomed,
+      nextEnabled: index + 1 < context.count && !zoomed,
+      previous: { move(-1) }, next: { move(1) }))
     .inspector(isPresented: $navigation.viewerInfo) {
       ScrollView {
         PhotoInformationLayout(takenAt: photo.date, job: facts.job,
@@ -127,6 +129,7 @@ struct FolderViewer: View {
     _ = root.startAccessingSecurityScopedResource(); self.root = root
     let file = root.appendingPathComponent(photo.relative).standardizedFileURL
     guard file.path.hasPrefix(root.path + "/"), file.resolvingSymlinksInPath().path == file.path else { failure = true; return }
+    guard FileManager.default.isReadableFile(atPath: file.path) else { failure = true; return }
     navigation.viewerShare = { MacViewerSharing.show(file) }
     let expected = photo.id
     if photo.media_type.hasPrefix("video/") { player = AVPlayer(url: file) }
@@ -139,5 +142,13 @@ struct FolderViewer: View {
       guard !Task.isCancelled, photo.id == expected else { return }
       image = result; failure = result == nil
     }
+  }
+}
+
+struct MacFolderPreviewUnavailable: View {
+  var retry: () -> Void
+  var body: some View {
+    ContentUnavailableView { Label("mac_library_preview_unavailable", systemImage: "photo.badge.exclamationmark") }
+      actions: { Button("retry_task", action: retry) }
   }
 }

@@ -7,6 +7,7 @@ import SwiftUI
 #endif
 
 enum LibraryPlaceholderKind {
+  case filterEmpty
   case loading
   case permission(PHAuthorizationStatus)
   case empty(filtered: Bool)
@@ -44,6 +45,16 @@ struct LibraryPlaceholder: View {
               ProgressView("photos_waiting_permission").accessibilityIdentifier("photos.permission_pending")
             }
           }
+        }
+      case .filterEmpty:
+        ContentUnavailableView {
+          Label("library_filter_empty", systemImage: "line.3.horizontal.decrease.circle")
+            .foregroundStyle(DuckRole.primaryText)
+        } description: {
+          Text("library_filter_empty_note")
+        } actions: {
+          Button("library_filter_show_all", action: clearFilter).duckPrimaryButton()
+            .accessibilityIdentifier("library.clear_filter")
         }
       case .empty(let filtered):
         ContentUnavailableView {

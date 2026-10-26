@@ -92,11 +92,18 @@ pub struct Maintenance {
     conn: Connection,
     pub settings: Settings,
 }
-/// Diagnostics accept only counters and fixed vocabulary, never arbitrary text
-/// that could accidentally export filenames, endpoints or credentials.
+/// Diagnostics accept counters, fixed vocabulary and bounded error-domain
+/// identifiers, excluding descriptions, filenames, endpoints and credentials.
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EventContext {
+    #[serde(deserialize_with = "diagnostic_error_domain")]
+    pub error_domain: Option<String>,
+    pub error_code: Option<i64>,
+    #[serde(deserialize_with = "diagnostic_error_domain")]
+    pub underlying_domain: Option<String>,
+    pub underlying_code: Option<i64>,
+    pub photos_error: Option<PhotosErrorCase>,
     pub publication_error: Option<PublicationError>,
     pub queued: Option<u64>,
     pub running: Option<u64>,
@@ -152,6 +159,49 @@ pub struct EventContext {
     pub min_free_bytes: Option<u64>,
     pub export_allowance: Option<u64>,
 }
+/// Public PhotoKit cases only; raw NSError userInfo never crosses this boundary.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PhotosErrorCase {
+    InternalError,
+    UserCancelled,
+    LibraryVolumeOffline,
+    RelinquishingLibraryBundleToWriter,
+    SwitchingSystemPhotoLibrary,
+    NetworkAccessRequired,
+    NetworkError,
+    IdentifierNotFound,
+    MultipleIdentifiersFound,
+    ChangeNotSupported,
+    OperationInterrupted,
+    InvalidResource,
+    MissingResource,
+    NotEnoughSpace,
+    RequestNotSupportedForAsset,
+    LimitExceeded,
+    AccessRestricted,
+    AccessUserDenied,
+    LibraryInFileProviderSyncRoot,
+    PersistentChangeTokenExpired,
+    PersistentChangeDetailsUnavailable,
+    Unknown,
+}
+fn diagnostic_error_domain<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error> {
+    let value = Option::<String>::deserialize(deserializer)?;
+    if value.as_ref().is_some_and(|domain| {
+        domain.is_empty()
+            || domain.len() > 128
+            || !domain
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'-'))
+    }) {
+        return Err(serde::de::Error::custom("invalid diagnostic error domain"));
+    }
+    Ok(value)
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PublicationError {
@@ -565,7 +615,7 @@ impl Maintenance {
                 |r| r.get(0),
             )
             .map_err(database)?;
-        let mut s=self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND retry_at<=?2 AND (error_code IS NULL OR error_code IN ('local_cache_budget','local_free_space')) ORDER BY created_at_ms DESC,source LIMIT 5").map_err(database)?;
+        let mut s=self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND retry_at<=?2 AND (error_code IS NULL OR error_code IN ('local_cache_budget','local_free_space','network')) ORDER BY created_at_ms DESC,source LIMIT 5").map_err(database)?;
         let ids = s
             .query_map(params![receiver, now()], |r| r.get::<_, String>(0))
             .map_err(database)?
@@ -1002,6 +1052,11 @@ mod tests {
             json!({"queued":-1}),
             json!({"reason":"https://private.example"}),
             json!({"publication_error":"private-filename.jpg"}),
+            json!({"error_domain":"/private/photo.jpg"}),
+            json!({"error_domain":"https://private.example"}),
+            json!({"error_domain":"x".repeat(129)}),
+            json!({"photos_error":"private-filename.jpg"}),
+            json!({"error_code":"private"}),
         ] {
             assert!(serde_json::from_value::<EventContext>(invalid).is_err());
         }

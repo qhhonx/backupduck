@@ -7,6 +7,27 @@ import Photos
 /// Runs inside the separately identified catalog. No production application,
 /// system permissions, real credentials or media library is used.
 @MainActor final class ConnectPermissionTests: XCTestCase {
+  func testViewedAssetAloneRequestsNetworkAndKeepsPosterOnFailure() async throws {
+    let original = BackupEnvironment.usesPhotoLibrary
+    BackupEnvironment.usesPhotoLibrary = true
+    defer { BackupEnvironment.usesPhotoLibrary = original }
+    let manager = PreviewRequestProbe()
+    let poster = try XCTUnwrap(UIImage(systemName: "photo"))
+    let preview = MediaPreviewModel(asset: PreviewRequestAsset(), poster: poster, manager: manager)
+    preview.load(promptForCloud: false)
+    XCTAssertEqual(manager.network, [false, false], "Adjacent pages keep local posters only")
+    preview.activate()
+    XCTAssertEqual(Array(manager.network.suffix(2)), [false, true], "Opening the page explicitly permits its display request")
+    XCTAssertTrue(preview.image === poster)
+    manager.results.last?(nil, [PHImageErrorKey: NSError(domain: PHPhotosErrorDomain, code: 3169), PHImageResultIsInCloudKey: true])
+    try await Task.sleep(for: .milliseconds(30))
+    XCTAssertFalse(preview.loading)
+    XCTAssertTrue(preview.failure)
+    XCTAssertFalse(preview.cloudNeeded, "An allowed download failure is a Retry state")
+    XCTAssertTrue(preview.image === poster, "Failure must preserve the low-resolution media")
+    preview.cancel()
+  }
+
   private let payload = #"{"version":2,"receiver_id":"catalog-pixel","endpoint":"https://127.0.0.1:1","certificate":"fixture","token":"fixture"}"#
 
   func testSelectionCatalogChromeSettlesAfterHostContainment() async throws {
@@ -420,4 +441,23 @@ private actor DelayedPairingCore: CoreTransport {
 /// An empty in-memory collection never queries or changes the simulator library.
 private final class EmptyCatalogAssets: PHFetchResult<PHAsset>, @unchecked Sendable {
   override var count: Int { 0 }
+}
+
+private final class PreviewRequestAsset: PHAsset, @unchecked Sendable {
+  override var localIdentifier: String { "network-probe" }
+  override var mediaType: PHAssetMediaType { .image }
+  override var mediaSubtypes: PHAssetMediaSubtype { [] }
+  override var burstIdentifier: String? { nil }
+  override var pixelWidth: Int { 800 }
+  override var pixelHeight: Int { 600 }
+}
+private final class PreviewRequestProbe: PHImageManager {
+  var network: [Bool] = []
+  var results: [(UIImage?, [AnyHashable: Any]?) -> Void] = []
+  override func requestImage(for asset: PHAsset, targetSize: CGSize, contentMode: PHImageContentMode,
+    options: PHImageRequestOptions?, resultHandler: @escaping (UIImage?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
+    network.append(options?.isNetworkAccessAllowed ?? false); results.append(resultHandler)
+    return PHImageRequestID(results.count)
+  }
+  override func cancelImageRequest(_ requestID: PHImageRequestID) {}
 }

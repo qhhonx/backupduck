@@ -51,6 +51,9 @@ struct FolderSummary: Decodable, Equatable {
 
 @MainActor final class FolderSources: ObservableObject {
   static let shared = FolderSources(backup: .shared)
+  // Catalog adapters never open the owner's folder configuration or indexes.
+  static var catalog: FolderSources?
+  static var active: FolderSources { catalog ?? shared }
   @Published var sources: [FolderSource] = []
   @Published private(set) var loadFailed = false
   @Published private(set) var loaded = false
@@ -657,7 +660,13 @@ struct FolderSummary: Decodable, Equatable {
       "directory": directory, "offset": offset, "descending": descending, "receiver": backup.pairing?.receiverID ?? ""]))
   }
   func previewEntry(_ id: String, job: Int64, sourceID: String) async throws -> FolderEntry? {
-    try JSONDecoder().decode(FolderEntry?.self, from: await call(["action": "preview_entry", "source": id, "job": job, "source_id": sourceID]))
+    if let previewRows {
+      return previewRows.first { $0.folder_id == id && $0.source_id == sourceID }.map {
+        FolderEntry(relative: $0.relative, source_id: $0.source_id, revision: $0.revision,
+          size: $0.size, media_type: $0.media_type, modified_ms: $0.modified_ms)
+      }
+    }
+    return try JSONDecoder().decode(FolderEntry?.self, from: await call(["action": "preview_entry", "source": id, "job": job, "source_id": sourceID]))
   }
   func refreshFacts() async {
     guard !isPreview, backup.ready else { return }

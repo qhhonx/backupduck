@@ -94,6 +94,58 @@ private struct ProcessingEventsResult: Decodable {
   let active: Bool
 }
 
+/// Preparation failures retain only public error identity, never descriptions or userInfo.
+enum OriginalPreparationFailure {
+  static func reason(_ error: Error) -> String {
+    if let failure = error as? Bridge.Failure { return failure.code }
+    let error = error as NSError
+    // A failing iCloud download (seen as missingResource wrapping an iCloud
+    // Photos error under heavy earlier-photo runs) is retried, not reported missing.
+    if isTransient(error) { return "network" }
+    // These public Photos cases describe an unavailable original/resource or
+    // an inability to download it onto this device, rather than a connection retry.
+    if error.domain == PHPhotosErrorDomain,
+      [3164, 3201, 3303, 3305].contains(error.code) { return "source_unavailable" }
+    return "internal"
+  }
+  private static func isTransient(_ error: NSError, depth: Int = 0) -> Bool {
+    if error.domain == PHPhotosErrorDomain && [3169, 3301, 3307].contains(error.code) { return true }
+    if error.domain == NSURLErrorDomain && [NSURLErrorTimedOut, NSURLErrorCannotFindHost,
+      NSURLErrorCannotConnectToHost, NSURLErrorNetworkConnectionLost, NSURLErrorDNSLookupFailed,
+      NSURLErrorNotConnectedToInternet, NSURLErrorResourceUnavailable,
+      NSURLErrorInternationalRoamingOff, NSURLErrorCallIsActive, NSURLErrorDataNotAllowed].contains(error.code) { return true }
+    // CloudKit's public service-unavailable, throttling, zone-busy and network cases.
+    if error.domain == "CKErrorDomain" && [3, 4, 6, 7, 23].contains(error.code) { return true }
+    // iCloud Photos' own download failures (private domain, codes undocumented).
+    if error.domain == "CloudPhotoLibraryErrorDomain" { return true }
+    if depth < 4, let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+      return isTransient(underlying, depth: depth + 1)
+    }
+    return false
+  }
+  static func context(_ error: Error) -> [String: Any] {
+    let error = error as NSError
+    var context: [String: Any] = ["error_domain": error.domain, "error_code": error.code]
+    if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+      context["underlying_domain"] = underlying.domain; context["underlying_code"] = underlying.code
+    }
+    if error.domain == PHPhotosErrorDomain {
+      context["photos_error"] = photosCases[error.code] ?? "unknown"
+    }
+    return context
+  }
+  private static let photosCases: [Int: String] = [
+    -1: "internalError", 3072: "userCancelled", 3114: "libraryVolumeOffline",
+    3142: "relinquishingLibraryBundleToWriter", 3143: "switchingSystemPhotoLibrary",
+    3164: "networkAccessRequired", 3169: "networkError", 3201: "identifierNotFound",
+    3202: "multipleIdentifiersFound", 3300: "changeNotSupported", 3301: "operationInterrupted",
+    3302: "invalidResource", 3303: "missingResource", 3305: "notEnoughSpace",
+    3306: "requestNotSupportedForAsset", 3307: "limitExceeded", 3310: "accessRestricted",
+    3311: "accessUserDenied", 5423: "libraryInFileProviderSyncRoot",
+    3105: "persistentChangeTokenExpired", 3210: "persistentChangeDetailsUnavailable"
+  ]
+}
+
 @MainActor final class BackupModel: ObservableObject {
   static let shared = BackupModel()
   @Published private(set) var photoAccess: PhotoAccess { didSet { updateHubBatch() } }
@@ -872,12 +924,13 @@ private struct ProcessingEventsResult: Decodable {
         succeeded = false
         message = error.localizedDescription
         if preparationFailure == nil { preparationFailure = message }
-        let reason = (error as? Bridge.Failure)?.code ?? "source_unavailable"
+        let reason = OriginalPreparationFailure.reason(error)
         preparationReason = reason
-        _ = try? await Bridge.call(["op": "record_event", "receiver": false, "code": reason])
+        _ = try? await Bridge.call(["op": "record_event", "receiver": false, "code": reason,
+          "context": OriginalPreparationFailure.context(error)])
         _ = try? await Bridge.call([
           "op": "source_result", "receiver_id": target.receiverID, "source": requestID,
-          "complete": false, "error": preparation == nil ? NSNull() : reason as Any,
+          "complete": false, "error": reason,
         ])
       }
     }

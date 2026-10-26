@@ -6,6 +6,11 @@ import Photos
 
 /// Catalog-only asset: no identifiers, resources or pixels from the person's library.
 final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable {
+  var previewDownloadState: PreviewDownloadState {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let i = arguments.firstIndex(of: "-preview-state"), arguments.indices.contains(i + 1) else { return .available }
+    return arguments[i + 1] == "failed" ? .failed : arguments[i + 1] == "downloading" ? .downloading : .available
+  }
   let job: BackupJob
   private let identifier: String?
   init(job: BackupJob, identifier: String? = nil) { self.job = job; self.identifier = identifier; super.init() }

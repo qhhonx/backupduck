@@ -48,9 +48,9 @@ impl Maintenance {
             if handed_off.contains(&request) {
                 continue;
             }
-            let attention = error_code
-                .as_deref()
-                .is_some_and(|e| !matches!(e, "local_cache_budget" | "local_free_space"));
+            let attention = error_code.as_deref().is_some_and(|e| {
+                !matches!(e, "local_cache_budget" | "local_free_space" | "network")
+            });
             result.insert(
                 source,
                 LibrarySourceState {
@@ -207,7 +207,7 @@ impl Maintenance {
         self.conn.total_changes() as i64
     }
     pub fn preparations(&self, receiver: Option<&str>, ready: bool, limit: u32) -> Result<Value> {
-        let mut query=self.conn.prepare("SELECT p.source,p.receiver,r.repeating,p.error_code FROM pending_sources p JOIN source_preparations r ON r.receiver=p.receiver AND r.request=p.source WHERE (?1 IS NULL OR p.receiver=?1) AND (?2=0 OR (p.retry_at<=?3 AND (p.error_code IS NULL OR p.error_code IN ('local_cache_budget','local_free_space')))) ORDER BY p.created_at_ms DESC,p.source LIMIT ?4").map_err(database)?;
+        let mut query=self.conn.prepare("SELECT p.source,p.receiver,r.repeating,p.error_code FROM pending_sources p JOIN source_preparations r ON r.receiver=p.receiver AND r.request=p.source WHERE (?1 IS NULL OR p.receiver=?1) AND (?2=0 OR (p.retry_at<=?3 AND (p.error_code IS NULL OR p.error_code IN ('local_cache_budget','local_free_space','network')))) ORDER BY p.created_at_ms DESC,p.source LIMIT ?4").map_err(database)?;
         let rows=query.query_map(params![receiver,ready,now(),limit.clamp(1,500)],|row|Ok(json!({"request_id":row.get::<_,String>(0)?,"target":row.get::<_,String>(1)?,"repeat":row.get::<_,bool>(2)?,"error":row.get::<_,Option<String>>(3)?}))).map_err(database)?.collect::<std::result::Result<Vec<_>,_>>().map_err(database)?;
         Ok(json!(rows))
     }
@@ -247,7 +247,11 @@ impl Maintenance {
             )
             .map_err(database)?;
         } else {
-            let retry_at = if error.is_some() { 0 } else { now() + 300 };
+            let retry_at = if error.is_none() || error == Some("network") {
+                now() + 300
+            } else {
+                0
+            };
             tx.execute("UPDATE pending_sources SET retry_at=?3,error_code=?4 WHERE receiver=?1 AND source=?2",params![receiver,source,retry_at,error]).map_err(database)?;
         }
         tx.commit().map_err(database)?;
@@ -258,6 +262,71 @@ impl Maintenance {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn transient_source_failure_retries_after_existing_backoff_and_survives_restart() {
+        let dir =
+            std::env::temp_dir().join(format!("source-backoff-{}-{}", std::process::id(), now()));
+        let path = &dir;
+        {
+            let m = Maintenance::open(&path).unwrap();
+            m.register_preparations(&[request("retry", "asset", 1)])
+                .unwrap();
+            m.source_result_with_error("target", "retry", false, Some("network"))
+                .unwrap();
+            assert!(m
+                .preparations(Some("target"), true, 10)
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty());
+            let (retry_at, error): (i64, String) = m
+                .conn
+                .query_row(
+                    "SELECT retry_at,error_code FROM pending_sources WHERE source='retry'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            assert!(retry_at >= now() + 299);
+            assert_eq!(error, "network");
+            let states = m
+                .library_preparation_states("target", &Default::default())
+                .unwrap();
+            assert_eq!(
+                states["asset"].tile_state,
+                backupduck_sender::LibraryTileState::Sending
+            );
+        }
+        let m = Maintenance::open(&path).unwrap();
+        m.conn
+            .execute("UPDATE pending_sources SET retry_at=0", [])
+            .unwrap();
+        assert_eq!(
+            m.preparations(Some("target"), true, 10)
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(m.pending("target").unwrap()["sources"], json!(["retry"]));
+        assert_eq!(m.pending("other").unwrap()["sources"], json!([]));
+        m.source_result_with_error("target", "retry", false, Some("source_unavailable"))
+            .unwrap();
+        assert!(m
+            .preparations(Some("target"), true, 10)
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            m.library_preparation_states("target", &Default::default())
+                .unwrap()["asset"]
+                .tile_state,
+            backupduck_sender::LibraryTileState::NeedsYou
+        );
+    }
+
     fn request(id: &str, source: &str, date: i64) -> PreparationRegistration {
         PreparationRegistration {
             receiver_id: "target".into(),

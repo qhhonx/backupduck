@@ -109,12 +109,15 @@ struct MacTransferThumbnail: View {
   var size: CGFloat = 56
   var cornerRadius: CGFloat = 8
   var fillsFrame = false
-  @ObservedObject private var folders = FolderSources.shared
+  @ObservedObject private var folders = FolderSources.active
   @AppStorage("macListThumbnails") private var enabled = true
   @State private var entry: FolderEntry?
   var body: some View {
     Group {
-      if let entry, let source = folders.sources.first(where: { $0.id == job.asset.metadata?["source_ref"] }) {
+      if folders.isPreview, let photo = folders.previewRows?.first(where: { $0.source_id == job.asset.source_id }),
+        let image = folders.syntheticImage(photo) {
+        Image(nsImage: image).resizable().scaledToFill().frame(width: size, height: size).clipped()
+      } else if let entry, let source = folders.sources.first(where: { $0.id == job.asset.metadata?["source_ref"] }) {
         MacFileThumbnail(source: source, relative: entry.relative, revision: entry.revision,
           video: job.asset.kind == "video", size: size, cornerRadius: cornerRadius, fillsFrame: fillsFrame)
       } else {

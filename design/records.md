@@ -160,3 +160,18 @@ English below; the zh-Hans strings (`records_*` keys in
   problem cards can show the photos.
 - The history grid duplicates the library grid on iPhone and Mac. `library.md`
   proposes one grid with backup marks and views, retiring this page there.
+
+### Apple original preparation failures
+
+Only absent PhotoKit resources and Photos errors `networkAccessRequired`,
+`identifierNotFound`, `missingResource` and `notEnoughSpace` use the original
+unavailable cause. Transient network, timeout, interruption and public cloud
+throttling errors retain active preparation membership and retry through the
+core's pending-source backoff. Other failures retain a retry action without
+claiming the original is missing. Diagnostic events record error domain, code
+and the public Photos case, excluding descriptions, paths and userInfo.
+
+Mac folder-backed history tiles use the existing file thumbnail pipeline.
+History and Overview open the file-backed viewer with its source scope, collection
+and shared previous/next controls. An absent source retains recorded information
+and the unavailable placeholder.

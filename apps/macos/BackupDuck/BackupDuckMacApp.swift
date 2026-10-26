@@ -259,9 +259,11 @@ struct MacWorkspace: View {
     }
     MacBrowsingToolbarGap()
     ToolbarItemGroup(placement: .primaryAction) {
+      if libraryNavigation.level == .all && library.placeholder == nil && library.loaded > 0 {
       Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
         .toggleStyle(.button).help("calendar_original_aspect")
-        .accessibilityIdentifier("library.original_aspect").disabled(libraryNavigation.level != .all)
+        .accessibilityIdentifier("library.original_aspect")
+      }
       // One flat menu, as in Photos: everything, then each media type, with
       // a check on the current one. No nested submenu, no menu chevron.
       Menu {
@@ -352,7 +354,7 @@ struct MacWorkspace: View {
           MacLibraryPlaceholder(kind: placeholder,
             requestingAccess: library.requestingPermission,
             requestAccess: { Task { await library.open(requestPermission: true) } },
-            clearFilter: { Task { await library.changeFilter(.all) } })
+            clearFilter: { Task { await library.resetFilters() } })
         } else {
           ZStack {
             MacLibraryGrid(

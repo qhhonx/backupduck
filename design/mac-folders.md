@@ -47,8 +47,8 @@ complete results; a paged search never presents its loaded count as a total.
 
 Trailing groups keep this order, with native shared capsule backgrounds:
 
-1. A shared Zoom Out / Zoom In capsule only if the grid supports density.
-   The current Folders grid has fixed density and omits this group.
+1. A shared Zoom Out / Zoom In capsule. Folders uses the Photo Library's grid
+   engine and density levels (`library.md` §8).
 2. A **By Folder | All Photos** segmented capsule, replaced by a pop-up at
    narrow window widths or while search is expanded. Each view retains its own
    scroll position and selection (I6).
@@ -139,3 +139,8 @@ Folder count phrases distinguish supported photos and videos in every state,
 visible-scope subtitle and Add Folder preview. Video MIME types start with
 `video/`; other supported types count as photos. Mixed phrases name both counts;
 English uses native plural rules for each kind and the sentence agreement.
+
+The Settings stop-folder control attaches the native confirmation immediately
+from its button action, using the stored folder name/path without resolving a
+bookmark. Folder removal starts only after confirmation. Both folder and photo
+library viewers reuse the same edge-revealed previous/next controls.

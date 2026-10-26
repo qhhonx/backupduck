@@ -34,7 +34,7 @@ struct HistoryPhoto: Identifiable, Equatable {
 
   /// The tile mark: nothing when the photo is in the Pixel's Photos.
   var mark: Mark {
-    guard let job else { return preparationError == nil || ["local_cache_budget", "local_free_space"].contains(preparationError!) ? .sending : .needsYou }
+    guard let job else { return preparationError == nil || ["local_cache_budget", "local_free_space", "network"].contains(preparationError!) ? .sending : .needsYou }
     if job.state == "failed" { return .needsYou }
     guard job.state == "received" else { return .sending }
     switch job.processing {
@@ -53,7 +53,7 @@ struct HistoryPhoto: Identifiable, Equatable {
       if job.errorCode == "source_unavailable" { return .originalUnavailable }
       return .notSent
     }
-    return .originalUnavailable
+    return preparationError == "source_unavailable" ? .originalUnavailable : .notSent
   }
 
   /// When it last changed, for day grouping.
@@ -376,7 +376,15 @@ struct HistoryTile: View {
 
   var body: some View {
     GeometryReader { geometry in
+      #if os(macOS)
+      if let job = photo.job, job.asset.metadata?["source_type"] == "folder" {
+        MacTransferThumbnail(job: job, size: geometry.size.width, cornerRadius: 0, fillsFrame: true)
+      } else {
+        AssetThumbnail(sourceID: photo.source, size: geometry.size.width, cornerRadius: 0)
+      }
+      #else
       AssetThumbnail(sourceID: photo.source, size: geometry.size.width, cornerRadius: 0)
+      #endif
     }
     .aspectRatio(1, contentMode: .fit)
     .clipShape(RoundedRectangle(cornerRadius: showsMark ? 2 : 6))
@@ -699,7 +707,36 @@ struct PhotoBackupInfo: View {
     #endif
   }
 
+  #if os(macOS)
+  private func openFolder(_ photo: HistoryPhoto, collection: [HistoryPhoto]) async {
+    let folders = FolderSources.active
+    var context: [FolderPhoto] = []
+    for item in collection + (collection.contains(where: { $0.id == photo.id }) ? [] : [photo]) {
+      guard let job = item.job, job.asset.metadata?["source_type"] == "folder",
+        let source = job.asset.metadata?["source_ref"],
+        let entry = try? await folders.previewEntry(source, job: job.id, sourceID: item.source),
+        entry.revision == job.asset.revision || job.asset.revision.hasPrefix(entry.revision + "|") else { continue }
+      context.append(FolderPhoto(relative: entry.relative, source_id: entry.source_id,
+        revision: entry.revision, size: entry.size, media_type: entry.media_type,
+        modified_ms: entry.modified_ms, folder_id: source,
+        capture_ms: item.takenAt.map { UInt64(max(0, $0.timeIntervalSince1970 * 1000)) } ?? entry.modified_ms,
+        date_source: item.takenAt == nil ? "file_modified" : "embedded",
+        backup: item.mark == .saved ? "saved" : item.mark == .needsYou ? "needs_you" : "sending",
+        saved_at_ms: nil))
+    }
+    guard let selected = context.first(where: { $0.source_id == photo.source }) else { unavailable(photo); return }
+    if let macPresent { macPresent(.folder(selected, context, folders, nil)) }
+    else { MacFolderViewer.open(selected, context: context, folders: folders) }
+  }
+  #endif
+
   func open(_ photo: HistoryPhoto, collection: [HistoryPhoto], frame: CGRect) {
+    #if os(macOS)
+    if photo.job?.asset.metadata?["source_type"] == "folder" {
+      Task { await openFolder(photo, collection: collection) }
+      return
+    }
+    #endif
     guard BackupEnvironment.usesPhotoLibrary else { unavailable(photo); return }
     let sources = Array(Set(collection.map(\.source) + [photo.source]))
     let fetched = PHAsset.fetchAssets(withLocalIdentifiers: sources, options: nil)

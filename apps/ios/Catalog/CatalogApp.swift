@@ -235,7 +235,12 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.step == "photoAccessDenied" || scenario.step == "photoAccessRestricted" {
+    if scenario.step == "filterEmpty" {
+      NavigationStack {
+        LibraryPlaceholder(kind: .filterEmpty)
+          .background(DuckRole.background).navigationTitle("nav_photos")
+      }
+    } else if scenario.step == "photoAccessDenied" || scenario.step == "photoAccessRestricted" {
       NavigationStack {
         LibraryPlaceholder(kind: .permission(scenario.step == "photoAccessDenied" ? .denied : .restricted))
           .background(DuckRole.background).navigationTitle("nav_photos")

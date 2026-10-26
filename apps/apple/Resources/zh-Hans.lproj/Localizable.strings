@@ -453,7 +453,6 @@
 
 "library_select" = "选择";
 "library_preview" = "照片预览";
-"library_preview_unavailable" = "原片不在这台 iPhone 上。浏览时不会下载 iCloud 原片。";
 "library_selected_count" = "已选 %d 项";
 
 
@@ -495,7 +494,7 @@
 "mac_settings_simple_note" = "显示、传输与本机设置。";
 
 
-"mac_library_preview_unavailable" = "这台 Mac 上暂时无法预览完整媒体；不会下载 iCloud 原片。";
+"mac_library_preview_unavailable" = "这台 Mac 上暂时无法预览完整媒体。";
 
 
 
@@ -767,7 +766,7 @@
 "records_cause_not_sent" = "%@ 张照片没送成功";
 "records_cause_retry_note" = "照片还在这台设备上，可以重新发送。";
 "records_cause_original" = "%@ 张照片暂时取不到原片";
-"records_cause_original_note" = "原片可能还在 iCloud 里，没有下载到这台设备。在“照片”App 里打开它们，再点重试。";
+"records_cause_original_note" = "备份鸭暂时无法从这台设备或 iCloud 取得原片，稍后再试。";
 "records_cause_pixel" = "%@ 张照片没能存进 Pixel 相册";
 "records_cause_pixel_note" = "Pixel 已收到这些照片，在 Pixel 上打开备份鸭重试。";
 "records_fact_sent" = "已送到 %@";
@@ -785,7 +784,7 @@
 "records_fact_not_saved_note" = "在 Pixel 上打开备份鸭重试。";
 "records_fact_not_yet_saved" = "还没存进 Pixel 相册";
 "records_detail_retry_note" = "这张照片还在这台设备上，可以重新发送。";
-"records_detail_original_note" = "原片可能还在 iCloud 里。在“照片”App 里打开它，再点重试。";
+"records_detail_original_note" = "备份鸭暂时无法从这台设备或 iCloud 取得这张原片，稍后再试。";
 "records_detail_pixel_note" = "Pixel 已收到这张照片，在 Pixel 上打开备份鸭重试。";
 "nav_photos" = "照片";
 "mac_section_photos" = "照片";
@@ -1256,3 +1255,11 @@
 "folders_media_photos" = "%llu 张照片";
 "folders_media_videos" = "%llu 个视频";
 "folders_media_mixed" = "%1$llu 张照片和 %2$llu 个视频";
+
+"library_preview_icloud_failed" = "无法从 iCloud 载入这张照片。";
+
+"library_filter_empty" = "没有符合条件的照片";
+
+"library_filter_empty_note" = "换一个筛选条件试试。";
+
+"library_filter_show_all" = "显示所有照片";

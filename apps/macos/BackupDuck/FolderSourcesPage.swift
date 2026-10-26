@@ -239,7 +239,7 @@ struct FolderSectionHeader: View {
 }
 
 @MainActor func stopTitle(_ source: FolderSource?, folders: FolderSources) -> String {
-  String(format: NSLocalizedString("folders_stop_question", comment: ""), source.map { folders.displayName($0) } ?? "")
+  String(format: NSLocalizedString("folders_stop_question", comment: ""), source.map { ($0.lastKnownPath.map { $0 as NSString })?.lastPathComponent ?? $0.name } ?? "")
 }
 
 /// A5: AppKit owns the alert and its prominent, Return-activated default action.
@@ -248,6 +248,18 @@ struct FolderStopAlert: NSViewRepresentable {
   let folders: FolderSources
   var confirm: (FolderSource) -> Void
 
+  @MainActor static func makeAlert(_ source: FolderSource, folders: FolderSources) -> NSAlert {
+    let alert = NSAlert()
+    alert.alertStyle = .informational
+    alert.messageText = stopTitle(source, folders: folders)
+    alert.informativeText = NSLocalizedString("folders_stop_note", comment: "")
+    let stop = alert.addButton(withTitle: NSLocalizedString("folders_stop", comment: ""))
+    stop.keyEquivalent = "\r"
+    alert.window.defaultButtonCell = stop.cell as? NSButtonCell
+    let cancel = alert.addButton(withTitle: NSLocalizedString("cancel", comment: ""))
+    cancel.keyEquivalent = "\u{1b}"
+    return alert
+  }
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeNSView(context: Context) -> Anchor {
     let view = Anchor()
@@ -291,15 +303,7 @@ struct FolderStopAlert: NSViewRepresentable {
     private func present(in window: NSWindow) {
       guard let source = parent.source else { dismiss(); return }
       guard alert == nil, window.attachedSheet == nil else { return }
-      let alert = NSAlert()
-      alert.alertStyle = .informational
-      alert.messageText = stopTitle(source, folders: parent.folders)
-      alert.informativeText = NSLocalizedString("folders_stop_note", comment: "")
-      let stop = alert.addButton(withTitle: NSLocalizedString("folders_stop", comment: ""))
-      stop.keyEquivalent = "\r"
-      alert.window.defaultButtonCell = stop.cell as? NSButtonCell
-      let cancel = alert.addButton(withTitle: NSLocalizedString("cancel", comment: ""))
-      cancel.keyEquivalent = "\u{1b}"
+      let alert = FolderStopAlert.makeAlert(source, folders: parent.folders)
       self.alert = alert
       alert.beginSheetModal(for: window) { [weak self] response in
         guard let self else { return }
@@ -373,5 +377,40 @@ private struct FolderToolbarSearch: ViewModifier {
     if enabled {
       content.searchable(text: $text, isPresented: $presented, placement: .toolbar, prompt: Text("folders_search"))
     } else { content }
+  }
+}
+
+/// Present the system confirmation directly from its native control action.
+/// No bookmark resolution or folder work runs before the sheet is attached.
+struct FolderStopButton: NSViewRepresentable {
+  let source: FolderSource
+  let folders: FolderSources
+  var confirm: (FolderSource) -> Void
+  func makeCoordinator() -> Coordinator { Coordinator(self) }
+  func makeNSView(context: Context) -> NSButton {
+    let button = NSButton(title: NSLocalizedString("folders_stop_button", comment: ""),
+      target: context.coordinator, action: #selector(Coordinator.present(_:)))
+    button.bezelStyle = .rounded; button.controlSize = .small
+    button.setAccessibilityIdentifier("folders.stop")
+    return button
+  }
+  func updateNSView(_ button: NSButton, context: Context) {
+    context.coordinator.parent = self; button.isEnabled = source.pendingControl == nil
+  }
+  @MainActor final class Coordinator: NSObject {
+    var parent: FolderStopButton
+    private var alert: NSAlert?
+    init(_ parent: FolderStopButton) { self.parent = parent }
+    @objc func present(_ button: NSButton) {
+      guard let window = button.window, window.attachedSheet == nil, alert == nil else { return }
+      let source = parent.source
+      let alert = FolderStopAlert.makeAlert(source, folders: parent.folders)
+      self.alert = alert
+      alert.beginSheetModal(for: window) { [weak self] response in
+        guard let self else { return }
+        self.alert = nil
+        if response == .alertFirstButtonReturn { self.parent.confirm(source) }
+      }
+    }
   }
 }

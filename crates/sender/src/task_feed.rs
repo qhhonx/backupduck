@@ -78,7 +78,7 @@ impl Sender {
           WHERE j.receiver_id=?1 AND (?2 IS NULL OR COALESCE(json_extract(j.manifest,'$.metadata.source_ref'),'library')=?2)
           UNION ALL
           SELECT p.feed_cursor,'preparation:'||p.source,NULL,p.source,COALESCE(r.source_ref,p.source),COALESCE(r.revision,''),p.error_code,
-            CASE WHEN p.error_code IS NULL OR p.error_code IN ('local_cache_budget','local_free_space') THEN 'active' ELSE 'attention' END,
+            CASE WHEN p.error_code IS NULL OR p.error_code IN ('local_cache_budget','local_free_space','network') THEN 'active' ELSE 'attention' END,
             'preparing',p.added_at_ms,p.created_at_ms,p.state_changed_at_ms,p.retry_at*1000
           FROM preparations.pending_sources p LEFT JOIN preparations.source_preparations r ON r.receiver=p.receiver AND r.request=p.source
           WHERE p.receiver=?1 AND (?2 IS NULL OR ?2='library') AND NOT EXISTS(

@@ -72,7 +72,8 @@ import UserNotifications
     folders = FolderSources(backup: model)
     // Catalog folders never open configuration files, bookmarks, watchers or native indexes.
     folders.previewRows = []
-    if scenario.id.hasPrefix("folders.") || scenario.id.hasPrefix("settings.folder") {
+    FolderSources.catalog = folders
+    if scenario.id.hasPrefix("folders.") || scenario.id.hasPrefix("settings.folder") || scenario.id.hasSuffix("folder-media") {
       FolderCatalog.install(scenario.id, folders: folders, sheet: MacCatalogLaunch.value("-sheet"))
     }
   }
@@ -309,7 +310,12 @@ private struct MacScenarioRun: View {
 
   var body: some View {
     Group {
-      if scenario.step == "selectedBackup" {
+      if scenario.step == "filterEmpty" {
+        NavigationStack {
+          LibraryPlaceholder(kind: .filterEmpty)
+            .background(DuckRole.background).navigationTitle("nav_photos")
+        }
+      } else if scenario.step == "selectedBackup" {
         SelectionBackupCatalog(mode: scenario.id.components(separatedBy: ".").last ?? "direct")
       } else if scenario.step == "statusMenu" || MacCatalogLaunch.value("-status-menu") == "items" {
         MacStatusMenuCatalog(model: session.model)

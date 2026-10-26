@@ -131,14 +131,17 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     super.init()
   }
 
-  func installSyntheticAssets(_ assets: PHFetchResult<PHAsset>) {
+  func installSyntheticAssets(_ assets: PHFetchResult<PHAsset>, filter: LibraryFilter = .all,
+    backupView: LibraryBackupView = .all, access: PHAuthorizationStatus = .authorized) {
     precondition(!BackupEnvironment.usesPhotoLibrary)
     precondition((0..<assets.count).allSatisfy { assets.object(at: $0) is any PreviewSample })
     fetch = assets
     presentation = LibraryPresentationIndex()
     presentation.load(assets, targetRows: assets.count)
     total = assets.count; loaded = presentation.rows.count
-    authorized = true; authorizationStatus = .authorized
+    self.filter = filter; requestedFilter = filter
+    self.backupView = backupView; requestedBackupView = backupView
+    authorized = Self.allowed(access); authorizationStatus = access
     generation += 1
   }
 
@@ -152,7 +155,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   var placeholder: LibraryPlaceholderKind? {
     if !authorized { return .permission(authorizationStatus) }
     if fetch == nil { return .loading }
-    if total == 0 { return .empty(filtered: filter != .all) }
+    if total == 0 { return filter != .all || backupView != .all ? .filterEmpty : .empty(filtered: false) }
     return nil
   }
 
@@ -303,6 +306,14 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     scrollOffset = .zero
     scrollAnchorID = nil
     scrollAnchorInset = 0
+    scrollResetGeneration += 1
+    await reload(resetWindow: true)
+  }
+  func resetFilters() async {
+    requestedBackupView = .all; backupView = .all
+    requestedFilter = .all; filter = .all
+    selection.removeAll()
+    scrollOffset = .zero; scrollAnchorID = nil; scrollAnchorInset = 0
     scrollResetGeneration += 1
     await reload(resetWindow: true)
   }

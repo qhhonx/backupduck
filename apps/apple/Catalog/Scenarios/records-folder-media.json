@@ -1,0 +1,425 @@
+{
+  "id": "records.folder-media",
+  "page": "backup",
+  "title": "Folder-backed media entry points",
+  "extends": "records.clean",
+  "mac_only": true,
+  "core": {
+    "jobs": {
+      "value": [
+        {
+          "id": 700,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534500000,
+          "received_at_ms": 1792534500000,
+          "published_at_ms": 1792534560000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-0",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1000.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792495800000"
+            }
+          }
+        },
+        {
+          "id": 701,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534499000,
+          "received_at_ms": 1792534499000,
+          "published_at_ms": 1792534559000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-1",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1001.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792492200000"
+            }
+          }
+        },
+        {
+          "id": 702,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534498000,
+          "received_at_ms": 1792534498000,
+          "published_at_ms": 1792534558000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-2",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1002.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792488600000"
+            }
+          }
+        },
+        {
+          "id": 703,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534497000,
+          "received_at_ms": 1792534497000,
+          "published_at_ms": 1792534557000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-3",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1003.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792485000000"
+            }
+          }
+        }
+      ]
+    },
+    "source_job": [
+      {
+        "when": {
+          "source_id": "fixture-photo-0-0"
+        },
+        "value": {
+          "id": 700,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534500000,
+          "received_at_ms": 1792534500000,
+          "published_at_ms": 1792534560000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-0",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1000.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792495800000"
+            }
+          }
+        }
+      },
+      {
+        "when": {
+          "source_id": "fixture-photo-0-1"
+        },
+        "value": {
+          "id": 701,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534499000,
+          "received_at_ms": 1792534499000,
+          "published_at_ms": 1792534559000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-1",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1001.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792492200000"
+            }
+          }
+        }
+      },
+      {
+        "when": {
+          "source_id": "fixture-photo-0-2"
+        },
+        "value": {
+          "id": 702,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534498000,
+          "received_at_ms": 1792534498000,
+          "published_at_ms": 1792534558000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-2",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1002.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792488600000"
+            }
+          }
+        }
+      },
+      {
+        "when": {
+          "source_id": "fixture-photo-0-3"
+        },
+        "value": {
+          "id": 703,
+          "receiver_id": "catalog-pixel",
+          "state": "received",
+          "processing": "complete",
+          "confirmed_bytes": 8000000,
+          "state_changed_at_ms": 1792534497000,
+          "received_at_ms": 1792534497000,
+          "published_at_ms": 1792534557000,
+          "asset": {
+            "kind": "photo",
+            "source_id": "fixture-photo-0-3",
+            "revision": "fixture-v1",
+            "resources": [
+              {
+                "filename": "IMG_1003.jpg",
+                "size": 8000000
+              }
+            ],
+            "metadata": {
+              "source_type": "folder",
+              "source_ref": "fixture-0",
+              "created_at_ms": "1792485000000"
+            }
+          }
+        }
+      }
+    ],
+    "backup_tasks": [
+      {
+        "when": {
+          "state": "attention"
+        },
+        "value": {
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 4,
+            "received": 4,
+            "published": 4,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 32000000,
+            "active": 0,
+            "attention": 0,
+            "preparation_waiting": 0,
+            "preparation_failed": 0
+          },
+          "items": []
+        }
+      },
+      {
+        "value": {
+          "summary": {
+            "waiting_reason": null,
+            "next_retry_at": null,
+            "total": 4,
+            "received": 4,
+            "published": 4,
+            "publication_failed": 0,
+            "waiting": 0,
+            "failed": 0,
+            "queued": 0,
+            "running": 0,
+            "paused": 0,
+            "confirmed_bytes": 32000000,
+            "active": 0,
+            "attention": 0,
+            "preparation_waiting": 0,
+            "preparation_failed": 0
+          },
+          "items": [
+            {
+              "id": "transfer:700",
+              "cursor": 700,
+              "sort_value": 1792534500000,
+              "job": {
+                "id": 700,
+                "receiver_id": "catalog-pixel",
+                "state": "received",
+                "processing": "complete",
+                "confirmed_bytes": 8000000,
+                "state_changed_at_ms": 1792534500000,
+                "received_at_ms": 1792534500000,
+                "published_at_ms": 1792534560000,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "fixture-photo-0-0",
+                  "revision": "fixture-v1",
+                  "resources": [
+                    {
+                      "filename": "IMG_1000.jpg",
+                      "size": 8000000
+                    }
+                  ],
+                  "metadata": {
+                    "source_type": "folder",
+                    "source_ref": "fixture-0",
+                    "created_at_ms": "1792495800000"
+                  }
+                }
+              }
+            },
+            {
+              "id": "transfer:701",
+              "cursor": 701,
+              "sort_value": 1792534499000,
+              "job": {
+                "id": 701,
+                "receiver_id": "catalog-pixel",
+                "state": "received",
+                "processing": "complete",
+                "confirmed_bytes": 8000000,
+                "state_changed_at_ms": 1792534499000,
+                "received_at_ms": 1792534499000,
+                "published_at_ms": 1792534559000,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "fixture-photo-0-1",
+                  "revision": "fixture-v1",
+                  "resources": [
+                    {
+                      "filename": "IMG_1001.jpg",
+                      "size": 8000000
+                    }
+                  ],
+                  "metadata": {
+                    "source_type": "folder",
+                    "source_ref": "fixture-0",
+                    "created_at_ms": "1792492200000"
+                  }
+                }
+              }
+            },
+            {
+              "id": "transfer:702",
+              "cursor": 702,
+              "sort_value": 1792534498000,
+              "job": {
+                "id": 702,
+                "receiver_id": "catalog-pixel",
+                "state": "received",
+                "processing": "complete",
+                "confirmed_bytes": 8000000,
+                "state_changed_at_ms": 1792534498000,
+                "received_at_ms": 1792534498000,
+                "published_at_ms": 1792534558000,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "fixture-photo-0-2",
+                  "revision": "fixture-v1",
+                  "resources": [
+                    {
+                      "filename": "IMG_1002.jpg",
+                      "size": 8000000
+                    }
+                  ],
+                  "metadata": {
+                    "source_type": "folder",
+                    "source_ref": "fixture-0",
+                    "created_at_ms": "1792488600000"
+                  }
+                }
+              }
+            },
+            {
+              "id": "transfer:703",
+              "cursor": 703,
+              "sort_value": 1792534497000,
+              "job": {
+                "id": 703,
+                "receiver_id": "catalog-pixel",
+                "state": "received",
+                "processing": "complete",
+                "confirmed_bytes": 8000000,
+                "state_changed_at_ms": 1792534497000,
+                "received_at_ms": 1792534497000,
+                "published_at_ms": 1792534557000,
+                "asset": {
+                  "kind": "photo",
+                  "source_id": "fixture-photo-0-3",
+                  "revision": "fixture-v1",
+                  "resources": [
+                    {
+                      "filename": "IMG_1003.jpg",
+                      "size": 8000000
+                    }
+                  ],
+                  "metadata": {
+                    "source_type": "folder",
+                    "source_ref": "fixture-0",
+                    "created_at_ms": "1792485000000"
+                  }
+                }
+              }
+            }
+          ],
+          "has_more": false
+        }
+      }
+    ]
+  },
+  "expect": [
+    "Folder thumbnails use the file source adapter.",
+    "Opening a tile uses the shared folder viewer and navigation controls."
+  ],
+  "records": "all"
+}

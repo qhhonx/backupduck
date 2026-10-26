@@ -10,7 +10,6 @@ struct MacPhotoPreview: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @ObservedObject private var navigation: MacLibraryNavigation
   @State private var playRequest = 0
-  @State private var edge = 0
   @State private var pageAnimated = false
   private var information: Bool { navigation.viewerInfo }
   @ObservedObject private var model = BackupEnvironment.activeModel()
@@ -40,22 +39,12 @@ struct MacPhotoPreview: View {
           Spacer(minLength: 0)
           BurstPreviewControls(preview: session.current, select: session.activate)
         }
-        // Arrows stay out of the way until the pointer nears an edge.
-        HStack {
-          arrow("chevron.left", label: "preview_previous", id: "library.preview.previous", direction: 1)
-            .keyboardShortcut(.leftArrow, modifiers: []).opacity(edge < 0 ? 1 : 0)
-          Spacer()
-          arrow("chevron.right", label: "preview_next", id: "library.preview.next", direction: -1)
-            .keyboardShortcut(.rightArrow, modifiers: []).opacity(edge > 0 ? 1 : 0)
-        }.padding(.horizontal, 14).allowsHitTesting(edge != 0)
       }
-      .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: edge)
+      .modifier(MacViewerNavigationControls(previousEnabled: session.adjacent(to: session.current.asset, direction: 1) != nil && !session.paging && !session.zoomed,
+        nextEnabled: session.adjacent(to: session.current.asset, direction: -1) != nil && !session.paging && !session.zoomed,
+        previous: { move(1) }, next: { move(-1) }))
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(DuckRole.background).tint(DuckRole.accent)
-      .onContinuousHover { phase in
-        guard case .active(let point) = phase else { edge = 0; return }
-        edge = point.x < 90 ? -1 : point.x > proxy.size.width - 90 ? 1 : 0
-      }
     }
     .inspector(isPresented: Binding(get: { navigation.viewerInfo }, set: { navigation.viewerInfo = $0 })) {
       ScrollView {
@@ -100,7 +89,7 @@ struct MacPhotoPreview: View {
       Button("selection_backup_repeat_action") { Task { await backupAction.confirm(library: library, model: model) } }
       Button("cancel", role: .cancel) { backupAction.cancel() }
     } message: { Text("selection_backup_repeat_note") }
-    .alert("library_context_share", isPresented: $shareFailure) { Button("settings_done") {} } message: { Text("library_preview_unavailable") }
+    .alert("library_context_share", isPresented: $shareFailure) { Button("settings_done") {} } message: { Text("library_preview_icloud_failed") }
     .sheet(isPresented: $history) {
       NavigationStack {
         BackupHistoryView(model: model, initialFocus: facts.job.map(HistoryPhoto.init)).navigationTitle("records_title")
@@ -155,10 +144,6 @@ struct MacPhotoPreview: View {
     navigation.viewerSubtitle = MacViewerTitle.subtitle(asset.creationDate, index: index, total: total)
     navigation.viewerHasLive = session.current.livePhoto != nil
   }
-  private func arrow(_ symbol: String, label: String, id: String, direction: Int) -> some View {
-    icon(symbol, label: label, id: id) { move(direction) }
-      .disabled(session.adjacent(to: session.current.asset, direction: direction) == nil || session.paging || session.zoomed)
-  }
   private func setInformation(_ value: Bool) {
     withAnimation(reduceMotion ? nil : .timingCurve(0.2,0.8,0.2,1,duration: 0.26)) { navigation.viewerInfo = value }
   }
@@ -179,6 +164,41 @@ struct MacPhotoPreview: View {
   private func icon(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
     Button(action: action) { Image(systemName: symbol) }.buttonStyle(.borderless).accessibilityLabel(Text(LocalizedStringKey(label)))
       .help(Text(LocalizedStringKey(label))).accessibilityIdentifier(id)
+  }
+}
+
+/// Both source adapters use the same edge-revealed navigation controls.
+struct MacViewerNavigationControls: ViewModifier {
+  let previousEnabled: Bool
+  let nextEnabled: Bool
+  var previous: () -> Void
+  var next: () -> Void
+  @State private var edge = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  func body(content: Content) -> some View {
+    GeometryReader { proxy in
+      ZStack {
+        content
+        HStack {
+        arrow("chevron.left", label: "preview_previous", id: "library.preview.previous", action: previous)
+          .keyboardShortcut(.leftArrow, modifiers: []).disabled(!previousEnabled).opacity(edge < 0 ? 1 : 0)
+        Spacer()
+        arrow("chevron.right", label: "preview_next", id: "library.preview.next", action: next)
+          .keyboardShortcut(.rightArrow, modifiers: []).disabled(!nextEnabled).opacity(edge > 0 ? 1 : 0)
+      }.padding(.horizontal, 14).frame(maxHeight: .infinity)
+        .allowsHitTesting(edge != 0)
+      }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: edge)
+        .onContinuousHover { phase in
+          guard case .active(let point) = phase else { edge = 0; return }
+          edge = point.x < 90 ? -1 : point.x > proxy.size.width - 90 ? 1 : 0
+        }
+    }
+  }
+  private func arrow(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) { Image(systemName: symbol) }.buttonStyle(.borderless)
+      .accessibilityLabel(Text(LocalizedStringKey(label))).help(Text(LocalizedStringKey(label)))
+      .accessibilityIdentifier(id)
   }
 }
 
@@ -299,11 +319,7 @@ private struct MacPreviewPage: View {
         }.allowsHitTesting(false).accessibilityLabel(Text("library_loading"))
       }
       if preview.cloudNeeded || preview.failure {
-        VStack(spacing: 12) {
-          Image(systemName: preview.cloudNeeded ? "icloud.and.arrow.down" : "exclamationmark.circle").font(.largeTitle)
-          Text(preview.cloudNeeded ? "preview_cloud_title" : "library_preview_unavailable").font(.callout)
-          Button("retry_task") { preview.load() }.duckSecondaryAction()
-        }.padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        MediaPreviewFailure { preview.load() }
       }
     }.frame(maxWidth: .infinity, maxHeight: .infinity).foregroundStyle(.primary)
   }
@@ -574,13 +590,22 @@ struct MacRecordedPhotoPreview: View {
   @ObservedObject var navigation: MacLibraryNavigation
   var close: () -> Void
   @StateObject private var facts = MacViewerFacts()
+  @StateObject private var router = BackupPhotoRouter()
+  @Environment(\.macViewerPresentation) private var present
   @Environment(\.macViewerHistory) private var openHistory
   @State private var history = false
   var body: some View {
     GeometryReader { proxy in
       let side = max(1, min(proxy.size.width, proxy.size.height))
-      AssetThumbnail(sourceID: photo.source, size: side, cornerRadius: 0)
-        .frame(width: proxy.size.width, height: proxy.size.height)
+      if photo.job?.asset.metadata?["source_type"] == "folder" {
+        MacFolderPreviewUnavailable {
+          router.macPresent = present
+          router.open(photo, collection: [photo], frame: .zero)
+        }.frame(width: proxy.size.width, height: proxy.size.height)
+      } else {
+        AssetThumbnail(sourceID: photo.source, size: side, cornerRadius: 0)
+          .frame(width: proxy.size.width, height: proxy.size.height)
+      }
     }.padding(DuckSpacing.large).background(DuckRole.background)
       .inspector(isPresented: $navigation.viewerInfo) {
         ScrollView {

@@ -90,7 +90,7 @@ Pixel receiver and the browser page falls into one of four outcomes:
 
 | Feature | Decision | Where it goes |
 | --- | --- | --- |
-| Receiver management page | Advanced | Reached from the Pixel's Advanced; not redesigned now |
+| Receiver management page | Advanced | Reached from the Pixel's Advanced; unchanged in 0.5.0 (owner, October 26), redesigned after the 0.5.0 release |
 
 ## Meanings confirmed in code
 

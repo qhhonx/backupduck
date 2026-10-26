@@ -816,7 +816,7 @@ private struct IOSCalendarLibraryPage: View {
         NavigationStack {
           LibraryPlaceholder(kind:placeholder,requestingAccess:library.requestingPermission,
             requestAccess:{Task { await library.open(requestPermission:true) }},
-            clearFilter:{Task { await library.changeFilter(.all) }})
+            clearFilter:{Task { await library.resetFilters() }})
             .navigationTitle("nav_library")
         }
       } else if library.backupView != .all {
@@ -871,7 +871,7 @@ private struct IOSLegacyLibraryPage: View {
           LibraryPlaceholder(kind: placeholder,
             requestingAccess: library.requestingPermission,
             requestAccess: { Task { await library.open(requestPermission: true) } },
-            clearFilter: { Task { await library.changeFilter(.all) } })
+            clearFilter: { Task { await library.resetFilters() } })
         } else {
           IOSLibraryGrid(library: library,
             preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")",
@@ -1289,6 +1289,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   var expandedToolbarHeight: CGFloat = 44
   private var expandedNavigationHeight: CGFloat = 0
   let loadingIndicator = MediaLoadingIndicator()
+  private let previewFailure = UIHostingController(rootView: MediaPreviewFailure(retry: {}))
   let stripLayout = MediaFilmstripLayout()
   lazy var strip = UICollectionView(frame: .zero, collectionViewLayout: stripLayout)
   let information = UIView()
@@ -1390,6 +1391,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     }.store(in: &cancellables)
     loadingIndicator.retry = { [weak self] in self?.session.current.load() }
     view.addSubview(loadingIndicator)
+    previewFailure.rootView = MediaPreviewFailure(retry: { [weak self] in self?.session.current.load() })
+    addChild(previewFailure); view.addSubview(previewFailure.view); previewFailure.didMove(toParent: self)
+    previewFailure.view.backgroundColor = .clear
+    previewFailure.view.isHidden = true
     strip.backgroundColor = .clear; strip.showsHorizontalScrollIndicator = false
     // The filmstrip reads oldest to newest while retaining the grid's IDs,
     // collection order, paging context and native scrub coordinates.
@@ -1513,6 +1518,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let selectionReserve: CGFloat = review == nil ? 0 : 44
     let loadingY: CGFloat = max(view.safeAreaInsets.top+6,min(footer.frame.minY-42,media.maxY-42-selectionReserve))
     loadingIndicator.frame = CGRect(x: loadingX,y: loadingY,width: 36,height: 36)
+    let failureSize = previewFailure.sizeThatFits(in: CGSize(width: max(1, b.width - 2 * DuckSpacing.large), height: b.height))
+    previewFailure.view.frame = CGRect(x: (b.width - failureSize.width) / 2,
+      y: (b.height - failureSize.height) / 2, width: failureSize.width, height: failureSize.height)
+    previewFailure.view.alpha = !flying && !closing ? infoFade : 0
     loadingIndicator.alpha = !flying && !closing ? infoFade : 0
   }
   func makePage(_ asset: PHAsset, cache: Bool = true) -> NativeMediaPage {
@@ -1577,7 +1586,8 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let model = session.current
     updateBackupControl()
     loadingIndicator.update(loading: model.loading,progress: model.progress,cloud: model.cloudNeeded,failure: model.failure)
-    if recordedPhoto != nil { loadingIndicator.isHidden = true }
+    previewFailure.view.isHidden = !model.failure || recordedPhoto != nil
+    if model.failure || recordedPhoto != nil { loadingIndicator.isHidden = true }
     if !flying && !closing && verticalKind == 0 && infoAnimator?.isRunning != true { layoutMedia() }
   }
   func numberOfSections(in collectionView: UICollectionView) -> Int { 1 }

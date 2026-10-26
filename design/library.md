@@ -125,3 +125,53 @@ The page answers one question: are these the photos I mean to back up?
 - The order of work: the Photos tab is the most-used page and the riskiest
   change; it may be built behind the design switch in two steps (views first,
   marks second).
+
+## 8. One grid engine and one toolbar (October 26, 2026)
+
+Owner's real-device review of the Mac: Photo Library, Folders and Backup
+History look and behave like three different grids. History redraws and
+flickers while backups progress, has no zoom animation and its header and date
+headers read differently; Folders has no zoom; search starts expanded; the
+filter menu splits "All" from the media types; the aspect button shows where it
+does nothing; the library's primary button stays "Added to Backup". Decision:
+
+- **One engine.** On Mac every photo grid (Photo Library, Folders, Backup
+  History, and later the album picker's photo previews) is the Photo Library's
+  native collection grid with a different item source. Shared: tile and marks,
+  zoom levels with the same animated density change (buttons and pinch), sticky
+  date headers in the library's style, selection and marquee, the viewer with
+  previous/next controls and the information panel, virtualization,
+  cancellation and stable identifiers. Sources supply items, sections, marks and
+  images only. On iPhone, Backup History moves to the library's UIKit grid the
+  same way (second step).
+- **Changes animate, state updates in place.** Inserted, removed and moved
+  items animate as in the system Photos app (diffable updates keyed by stable
+  identifiers). A mark or progress change updates the visible cell in place; it
+  never reloads the grid or the section. Scroll position and the date anchor are
+  kept across updates.
+- **Backup History stays a page.** It remains the one place that lists backups
+  from every source (photo library and folders) by latest change, with Needs
+  You at the top. It is no longer a separate grid implementation. The library's
+  Recently Backed Up view stays as the per-source view.
+- **One toolbar order** for every grid page, trailing side, each group only
+  when it applies: Zoom Out / Zoom In; the page's view control (Library: Years,
+  Months, All Photos; Folders: By Folder, All Photos; History: none); Original
+  Aspect, only in views where it changes the tiles; Filter; the page's own
+  actions (Folders: Add Folder, More); the primary text action, only while the
+  selection contains eligible items (Back Up N Items), with its brief "Added"
+  feedback, then gone; Search as a magnifier circle, collapsed by default,
+  expanded by click or ⌘F, collapsed by Escape when empty (Folders and any page
+  that gains search).
+- **Filter menu.** Two sections with headers and no other dividers: "Show" —
+  All Photos, Not Backed Up, Needs You, Recently Backed Up (History: All, Needs
+  You); "Type" — All Types, Photos, Live Photos, Videos, Bursts. All Types sits
+  inside the Type section. An active non-default choice tints the filter symbol.
+- **Empty results** after a filter say so ("No Photos Match", Show All Photos);
+  they never reuse the photo-access placeholder.
+- **Album picker (Mac).** The "back up these albums" editor shows albums as an
+  adaptive grid of cover cards (square cover, name, count, a checkmark when
+  included), with the existing All Albums switch and search above. The iPhone
+  keeps its full-width list, which already fills the screen.
+- **Feel** is judged on a Release build with 60 fps recordings of zoom, an
+  insert/delete burst during a running backup, and scrolling (iteration
+  checklist), compared with the system Photos app first.

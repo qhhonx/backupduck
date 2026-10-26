@@ -1,0 +1,7 @@
+{
+  "id": "library.filter-empty",
+  "title": "Photo Library — no filter matches",
+  "page": "library",
+  "step": "filterEmpty",
+  "expect": ["No Photos Match", "Try another filter.", "Show All Photos"]
+}

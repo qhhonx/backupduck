@@ -19,8 +19,14 @@ import UniformTypeIdentifiers
 /// Production assets continue through the native resource pipeline.
 protocol PreviewSample {
   var previewImage: LibraryImage? { get }
+  var previewDownloadState: PreviewDownloadState { get }
   var previewFilename: String { get }
   var previewMetadata: [(String, String)] { get }
+}
+
+enum PreviewDownloadState { case available, downloading, failed }
+extension PreviewSample {
+  var previewDownloadState: PreviewDownloadState { .available }
 }
 
 @MainActor final class MediaPreviewModel: ObservableObject {
@@ -45,6 +51,7 @@ protocol PreviewSample {
   private var generation = UUID()
   private var cloudPoster = false
   private var promptForCloud = true
+  private var networkRequested = false
   private let manager: PHImageManager?
   init(asset: PHAsset, poster: LibraryImage? = nil, manager: PHImageManager? = nil) {
     self.asset = asset; image = poster; self.manager = BackupEnvironment.usesPhotoLibrary ? (manager ?? .default()) : nil
@@ -87,7 +94,10 @@ protocol PreviewSample {
     self.promptForCloud = promptForCloud
     if let next, next.localIdentifier != asset.localIdentifier { asset = next; image = nil }
     if let sample = asset as? any PreviewSample {
-      image = sample.previewImage; loading = false; failure = image == nil
+      image = sample.previewImage
+      loading = sample.previewDownloadState == .downloading
+      failure = sample.previewDownloadState == .failed || image == nil
+      cloudNeeded = false; progress = 0
       return
     }
     guard BackupEnvironment.usesPhotoLibrary, let manager else { loading = false; failure = true; return }
@@ -102,7 +112,8 @@ protocol PreviewSample {
     livePhoto = nil; player = nil; metadata = []
     cloudPoster = false; cloudNeeded = false; failure = false; loading = true; progress = 0
     let expected = generation
-    let network = PreviewNetworkPolicy.shared.allowed
+    let network = promptForCloud && PreviewNetworkPolicy.shared.allowed
+    networkRequested = network
     let options = PHImageRequestOptions()
     options.isNetworkAccessAllowed = network
     options.deliveryMode = .opportunistic; options.resizeMode = .exact
@@ -168,9 +179,11 @@ protocol PreviewSample {
     let error = (info?[PHImageErrorKey] ?? info?[PHLivePhotoInfoErrorKey]) as? NSError
     let networkRequired = error?.domain == PHPhotosErrorDomain && error?.code == PHPhotosError.Code.networkAccessRequired.rawValue
     cloudNeeded = !available && (info?[PHImageResultIsInCloudKey] as? Bool == true || cloudPoster || networkRequired)
-    failure = !available && !cloudNeeded
+    failure = !available
+    if networkRequested { cloudNeeded = false }
   }
   func activate() {
+    if !networkRequested { load() }
     promptForCloud = true
   }
   func deactivate() { promptForCloud = false; player?.pause() }
@@ -376,5 +389,19 @@ struct PhotoMetadataPanel: View {
     var result = [("preview_resolution", "\(preview.asset.pixelWidth) × \(preview.asset.pixelHeight)")]
     if preview.asset.mediaType == .video { result.append(("preview_video_duration", videoDurationLabel(preview.asset.duration))) }
     return result + preview.metadata
+  }
+}
+
+/// A failed explicit media download retains the poster and the existing Retry action.
+struct MediaPreviewFailure: View {
+  var retry: () -> Void
+  var body: some View {
+    VStack(spacing: DuckSpacing.small) {
+      Image(systemName: "exclamationmark.circle").font(.largeTitle)
+      Text("library_preview_icloud_failed").font(.callout).multilineTextAlignment(.center)
+      Button("retry_task", action: retry).duckSecondaryAction()
+    }.padding(DuckSpacing.medium + DuckSpacing.xxSmall)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DuckRadius.feature))
+      .accessibilityIdentifier("library.preview.failure")
   }
 }

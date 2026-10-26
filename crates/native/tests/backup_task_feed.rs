@@ -25,6 +25,23 @@ fn preparations_are_exhaustive_paged_and_handoff_keeps_identity_without_changing
             json!({"op":"backup_tasks","receiver_id":"target","state":category,"sort":"capture","descending":true}),
         )
     };
+    call(
+        json!({"op":"record_event","receiver":false,"code":"source_unavailable",
+        "context":{"error_domain":"PHPhotosErrorDomain","error_code":3303,"photos_error":"missingResource"}}),
+    );
+    let diagnostics = rusqlite::Connection::open(root.join("maintenance.sqlite3")).unwrap();
+    let context: String = diagnostics
+        .query_row(
+            "SELECT context FROM events WHERE code='source_unavailable'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let context: Value = serde_json::from_str(&context).unwrap();
+    assert_eq!(context["error_domain"], "PHPhotosErrorDomain");
+    assert_eq!(context["error_code"], 3303);
+    assert_eq!(context["photos_error"], "missingResource");
+    drop(diagnostics);
     let rev = call(json!({"op":"sender_revision"}));
     call(json!({"op":"schedule_sources","receiver_id":"target","sources":["one","two","three"]}));
     assert!(call(json!({"op":"sender_revision"})).as_i64().unwrap() > rev.as_i64().unwrap());
@@ -49,6 +66,20 @@ fn preparations_are_exhaustive_paged_and_handoff_keeps_identity_without_changing
     call(
         json!({"op":"source_result","receiver_id":"target","source":"three","complete":false,"error":"source_unavailable"}),
     );
+    call(
+        json!({"op":"source_result","receiver_id":"target","source":"two","complete":false,"error":"network"}),
+    );
+    assert_eq!(feed("active")["summary"]["preparation_waiting"], 2);
+    assert_eq!(feed("attention")["summary"]["preparation_failed"], 1);
+    let retry = feed("active")["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["preparation"]["source"] == "two")
+        .unwrap()
+        .clone();
+    assert_eq!(retry["preparation"]["error_code"], "network");
+    assert!(retry["preparation"]["retry_at"].as_i64().unwrap() > 0);
     let file = root.join("fixture.jpg");
     fs::write(&file, b"synthetic-original").unwrap();
     let job = call(

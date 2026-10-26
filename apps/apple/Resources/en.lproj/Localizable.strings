@@ -453,7 +453,6 @@
 
 "library_select" = "Select";
 "library_preview" = "Photo preview";
-"library_preview_unavailable" = "The original is not available on this iPhone. Browsing does not download iCloud originals.";
 "library_selected_count" = "%d selected";
 
 
@@ -495,7 +494,7 @@
 "mac_settings_simple_note" = "Display, transfers and local settings.";
 
 
-"mac_library_preview_unavailable" = "The full media is not available to preview on this Mac. No iCloud originals are downloaded.";
+"mac_library_preview_unavailable" = "The full media is not available to preview on this Mac.";
 
 
 
@@ -767,7 +766,7 @@
 "records_cause_not_sent" = "%@ photos weren't sent";
 "records_cause_retry_note" = "The photos are still on this device and can be sent again.";
 "records_cause_original" = "%@ photos' originals aren't available right now";
-"records_cause_original_note" = "The originals may still be in iCloud. Open them in Photos, then try again.";
+"records_cause_original_note" = "BackupDuck couldn't get these originals from this device or iCloud. Try again later.";
 "records_cause_pixel" = "%@ photos couldn't be saved to the Pixel's Photos";
 "records_cause_pixel_note" = "The Pixel has them. Open BackupDuck on the Pixel to retry.";
 "records_fact_sent" = "Sent to %@";
@@ -785,7 +784,7 @@
 "records_fact_not_saved_note" = "Open BackupDuck on the Pixel to retry.";
 "records_fact_not_yet_saved" = "Not in the Pixel's Photos yet";
 "records_detail_retry_note" = "This photo is still on this device and can be sent again.";
-"records_detail_original_note" = "The original may still be in iCloud. Open it in Photos, then try again.";
+"records_detail_original_note" = "BackupDuck couldn't get this original from this device or iCloud. Try again later.";
 "records_detail_pixel_note" = "The Pixel has this photo. Open BackupDuck on the Pixel to retry.";
 "nav_photos" = "Photos";
 "mac_section_photos" = "Photos";
@@ -1252,3 +1251,11 @@
 "hub_earlier_not_started_note" = "They follow your Auto Backup choices and finish in the background.";
 "hub_earlier_start" = "Back Up";
 "onboarding_notify_question" = "Turn on backup notifications?";
+
+"library_preview_icloud_failed" = "This photo couldn't be loaded from iCloud.";
+
+"library_filter_empty" = "No Photos Match";
+
+"library_filter_empty_note" = "Try another filter.";
+
+"library_filter_show_all" = "Show All Photos";

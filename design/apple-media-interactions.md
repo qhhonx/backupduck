@@ -193,3 +193,17 @@ rendition. Unavailable backup controls absorb their toolbar touch region, even
 when native transparent navigation would otherwise pass taps to the grid.
 Information values wrap fully; accessibility sizes place values below their keys.
 The map has a Capture Location heading and a pin with no duplicate visible title.
+
+### Explicit viewer downloads
+
+Opening or paging to one asset explicitly permits PhotoKit network access for
+that asset's display image, video or Live Photo. Keep the available poster on
+screen while the existing small media progress indicator reports downloading;
+replace it when the display media arrives. Adjacent-page posters and grid
+thumbnails remain local-only. A failed download retains the poster and shows
+`library_preview_icloud_failed` with Retry on both Apple hosts.
+
+An authorized library with no matches for its media filter or backup view uses
+`LibraryPlaceholder.filterEmpty`: No Photos Match, Try another filter, and Show
+All Photos. That action resets both choices. Access and genuinely empty-library
+states retain their own placeholders.
