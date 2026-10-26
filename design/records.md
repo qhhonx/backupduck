@@ -134,12 +134,17 @@ English below; the zh-Hans strings (`records_*` keys in
   320-pixel WebP picture per photo (about 10 KB) so removed photos stay
   browsable. Photos seen before this existed get one when first shown while
   their copy is present. The picture is never evidence of any copy. Photos
-  removed before they had one show the type icon. Completed video tiles up to
-  640 pixels in both dimensions use that picture first, without opening the
-  published copy; photos and larger viewer requests decode the copy so they
-  stay sharp. Video
-  decoding tries the system media thumbnail before extracting a frame from the
-  full file; cancellation remains owned by the requesting view.
+  removed before they had one show the type icon. Completed photo and video
+  requests show the receipt picture first. When it is smaller than the requested
+  pixel size, tiles up to 640 pixels in both dimensions then use the system media
+  thumbnail, cross-fading over the short 120 ms status-replacement duration
+  (immediate with animations disabled). Larger viewer requests decode the copy;
+  original image decoding or video frame extraction is also the fallback when
+  the system thumbnail fails. Removed copies keep their receipt picture without
+  a second stage. Both renditions share a memory cache sized to one eighth of
+  the app memory class, with a 32 MB minimum. Resolved copy locations are retained
+  until processing changes or a read fails. The grid prefetches the next row;
+  cancellation remains owned by the requesting view.
 - **Scope line.** "1,284 photos · 1,277 in the Pixel's Photos"; it names the
   sending device only when one device sent everything shown.
 - **Ordering.** The core pages a fixed read snapshot by latest recorded state

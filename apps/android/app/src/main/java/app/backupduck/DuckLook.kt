@@ -445,7 +445,7 @@ internal class PhotoMosaic(context: Context) : ViewGroup(context) {
 
     fun bind(items: List<HistoryItem>, images: PhotoImages, describe: (HistoryItem) -> String, open: (HistoryItem, ImageView, List<HistoryItem>) -> Unit) {
         val shown = items.take(if (items.size >= 8) 8 else if (items.size >= 4) 4 else items.size)
-        val ids = shown.map { it.id }
+        val ids = shown.map { "${it.id}:${it.receipt}:${it.processing}" }
         if (ids == tag) return
         tag = ids
         jobs.forEach { (job, signal) -> signal.cancel(); job.cancel() }
@@ -461,7 +461,7 @@ internal class PhotoMosaic(context: Context) : ViewGroup(context) {
             addView(image)
             val signal = CancellationSignal()
             images.load(item, size, size, signal) { bitmap -> if (bitmap != null) {
-                image.setImageBitmap(bitmap); image.setTag(R.id.photo_transition_ready, item.id)
+                image.showPhotoBitmap(bitmap); image.setTag(R.id.photo_transition_ready, item.id)
             } } to signal
         }
         requestLayout()

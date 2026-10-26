@@ -1,5 +1,7 @@
 package app.backupduck
 
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -57,6 +59,8 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
     private val adapter = PhotoAdapter(activity, images, ::cardAction, { item, source -> open(item, source) }, actions)
     private val span = (activity.resources.displayMetrics.widthPixels / activity.dp(96)).coerceAtLeast(3)
     private val layout = GridLayoutManager(activity, span).apply {
+        isItemPrefetchEnabled = true
+        initialPrefetchItemCount = span
         spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
             override fun getSpanSize(position: Int) = if (adapter.currentList.getOrNull(position) is PhotoRow.Tile) 1 else span
         }
@@ -73,12 +77,19 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
                 if (newState == RecyclerView.SCROLL_STATE_DRAGGING) needsYouRequested = false
             }
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                this@ReceivedPhotosPage.adapter.prefetch(recyclerView, layout, dy)
                 if (dy > 0 && layout.findLastVisibleItemPosition() >= this@ReceivedPhotosPage.adapter.itemCount - span * 4) actions.more()
             }
         })
     }
 
-    init { adapter.enableSelection(view, "received-photos") }
+    init {
+        adapter.enableSelection(view, "received-photos")
+        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { view.post { adapter.prefetch(view, layout, 1) } }
+            override fun onViewDetachedFromWindow(v: View) { adapter.cancelPrefetch() }
+        })
+    }
 
     private fun open(item: HistoryItem, source: ImageView?, list: RecyclerView = view) {
         NativePhotoViewerActivity.open(activity, adapter.live(item), source, list,
@@ -111,6 +122,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         adapter.hasSenders = activity.hasKnownSenders != false
         adapter.submitList(photoRows(history.items, causes, ReceiverEnvironment.now(), ZoneId.systemDefault(),
             history.loading, history.failed, history.nextCursor != null)) {
+            view.post { adapter.prefetch(view, layout, 1) }
             if (needsYouRequested) {
                 val section = adapter.currentList.indexOf(PhotoRow.NeedsHeader)
                 if (section >= 0) {
@@ -170,60 +182,78 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
     fun showDetail(item: HistoryItem) { open(item, null) }
 }
 
-/**
- * Prefer the published copy, falling back to the core's disposable preview of
- * the received original. Neither a picture nor its absence is publication evidence.
- */
+/** Receipt pictures paint first; the published copy supplies the sharper rendition. */
 internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompatActivity) {
     companion object {
-        private fun imageCache() = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
-            override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+        @Volatile private var nativeCache: LruCache<String, Bitmap>? = null
+        private fun imageCache(context: Context): LruCache<String, Bitmap> = nativeCache ?: synchronized(this) {
+            nativeCache ?: object : LruCache<String, Bitmap>(
+                ((context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).memoryClass * (1024 * 1024 / 8))
+                    .coerceAtLeast(32 * 1024 * 1024)) {
+                override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+            }.also { nativeCache = it }
         }
-        private val nativeCache = imageCache()
-        private val nativePermits = Semaphore(2)
-        fun clearCache() = nativeCache.evictAll()
+        private val thumbnailPermits = Semaphore(4)
+        private val fullSizePermits = Semaphore(2)
+        fun clearCache() { nativeCache?.evictAll() }
     }
-    private val cache = nativeCache
-    private val permits = nativePermits
-    fun cached(item: HistoryItem, width: Int, height: Int): Bitmap? = cache.get(key(item, width, height))
-    private fun key(item: HistoryItem, width: Int, height: Int) = "${item.id}:${item.receipt}:${item.processing}:${width}x$height"
+    private val cache = imageCache(activity.applicationContext)
+    private fun baseKey(item: HistoryItem) = "${item.id}:${item.receipt}:${item.processing}"
+    private fun key(item: HistoryItem, width: Int, height: Int) = "${baseKey(item)}:${width}x$height"
+    fun cached(item: HistoryItem, width: Int, height: Int): Bitmap? {
+        GalleryPreview.observe(item)
+        return cache.get(key(item, width, height))
+    }
 
-    /** Loads off the main thread; the caller checks the result still belongs to its view. */
+    /** May publish twice. Both callbacks belong to the caller's cancellable binding. */
     fun load(item: HistoryItem, width: Int, height: Int, signal: CancellationSignal, done: (Bitmap?) -> Unit): Job =
         activity.lifecycleScope.launch {
+            GalleryPreview.observe(item)
             val key = key(item, width, height)
-            val image = try {
-                cache.get(key) ?: withContext(Dispatchers.IO) {
-                    permits.withPermit {
-                        currentCoroutineContext().ensureActive()
-                        signal.throwIfCanceled()
-                        val image = runCatching {
-                            // Video frames decode slowly from large originals; photos stay sharp from the copy.
-                            if (item.kind == "video" && item.processing == "complete" && width <= 2 * 320 && height <= 2 * 320) {
-                                ReceiptThumbnails.read(activity, item.id)?.let { return@runCatching it }
-                            }
-                            val published = if (item.processing == "complete") runCatching {
-                                ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
-                                GalleryPreview.resolve(activity, item, null, signal)?.let {
-                                    GalleryPreview.decode(activity, it, Size(width, height), signal)
-                                }
-                            }.getOrNull() else null
-                            signal.throwIfCanceled()
-                            if (published != null && ReceiverEnvironment.previewImage == null) ReceiptThumbnails.save(activity, item.id, published)
-                            // A copy removed from Photos keeps its receipt-time picture.
-                            published ?: (if (item.processing == "complete") ReceiptThumbnails.read(activity, item.id) else null)
-                                ?: receivedPreview(item, signal)
-                        }.getOrNull()
-                        currentCoroutineContext().ensureActive()
-                        signal.throwIfCanceled()
-                        image?.also { cache.put(key, it) }
+            fun publish(image: Bitmap?) {
+                if (isActive && !signal.isCanceled) done(image)
+            }
+            try {
+                cache.get(key)?.let { publish(it); return@launch }
+                val receiptKey = "${baseKey(item)}:receipt"
+                val receipt = if (item.processing == "complete") cache.get(receiptKey) ?: withContext(Dispatchers.IO) {
+                    thumbnailPermits.withPermit {
+                        currentCoroutineContext().ensureActive(); signal.throwIfCanceled()
+                        ReceiptThumbnails.read(activity, item.id)?.also {
+                            signal.throwIfCanceled(); cache.put(receiptKey, it)
+                        }
+                    }
+                } else null
+                currentCoroutineContext().ensureActive(); signal.throwIfCanceled()
+                if (receipt != null) {
+                    publish(receipt)
+                    if (receipt.width >= width && receipt.height >= height) {
+                        cache.put(key, receipt)
+                        return@launch
                     }
                 }
+                val permits = if (width <= 640 && height <= 640) thumbnailPermits else fullSizePermits
+                val image = withContext(Dispatchers.IO) {
+                    permits.withPermit {
+                        currentCoroutineContext().ensureActive(); signal.throwIfCanceled()
+                        val published = if (item.processing == "complete") runCatching {
+                            ReceiverEnvironment.previewImage?.let { return@runCatching it(item, width, height) }
+                            GalleryPreview.resolve(activity, item, null, signal)?.let {
+                                GalleryPreview.decode(activity, it, Size(width, height), signal)
+                            }
+                        }.getOrNull() else null
+                        currentCoroutineContext().ensureActive(); signal.throwIfCanceled()
+                        if (published != null && ReceiverEnvironment.previewImage == null) ReceiptThumbnails.save(activity, item.id, published)
+                        val result = published ?: receipt ?: runCatching { receivedPreview(item, signal) }.getOrNull()
+                        currentCoroutineContext().ensureActive(); signal.throwIfCanceled()
+                        result?.also { cache.put(key, it) }
+                    }
+                }
+                // A removed or unreadable copy never clears its already visible receipt picture.
+                if (image !== receipt || receipt == null) publish(image)
             } catch (_: android.os.OperationCanceledException) {
                 // Recycling cancels the Android signal independently of the coroutine job.
-                return@launch
             }
-            if (isActive && !signal.isCanceled) done(image)
         }
 
     private fun receivedPreview(item: HistoryItem, signal: CancellationSignal): Bitmap? {
@@ -276,6 +306,38 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         set(value) { if (field != value) { field = value; currentList.indexOf(PhotoRow.Scope).takeIf { it >= 0 }?.let(::notifyItemChanged) } }
     var hasSenders = true
     private var liveProgress: Map<String, ReceiverByteProgress> = emptyMap()
+    private val ahead = mutableMapOf<String, Pair<Job, CancellationSignal>>()
+    private fun tileSize() = (activity.resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)
+
+    /** Only the next row in the current direction; obsolete requests retain recycle cancellation. */
+    fun prefetch(list: RecyclerView, layout: GridLayoutManager, dy: Int) {
+        if (!list.isAttachedToWindow || dy == 0) return
+        val edge = if (dy > 0) layout.findLastVisibleItemPosition() else layout.findFirstVisibleItemPosition()
+        if (edge == RecyclerView.NO_POSITION) return
+        val positions = if (dy > 0) (edge + 1 until itemCount) else (edge - 1 downTo 0)
+        val next = positions.asSequence().mapNotNull { (currentList.getOrNull(it) as? PhotoRow.Tile)?.item }
+            .take(layout.spanCount).map(::live).associateBy { "${it.id}:${it.receipt}:${it.processing}" }
+        ahead.keys.toList().filter { it !in next }.forEach { key ->
+            ahead.remove(key)?.let { (job, signal) -> signal.cancel(); job.cancel() }
+        }
+        next.forEach { (key, item) ->
+            val size = tileSize()
+            if (key !in ahead && images.cached(item, size, size) == null) {
+                val signal = CancellationSignal()
+                ahead[key] = images.load(item, size, size, signal) {} to signal
+            }
+        }
+    }
+
+    fun cancelPrefetch() {
+        ahead.values.forEach { (job, signal) -> signal.cancel(); job.cancel() }
+        ahead.clear()
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        cancelPrefetch()
+        super.onDetachedFromRecyclerView(recyclerView)
+    }
 
     init { setHasStableIds(true); stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY }
     override fun getItemId(position: Int) = getItem(position).key
@@ -333,6 +395,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
     }
 
     override fun onCurrentListChanged(previousList: MutableList<PhotoRow>, currentList: MutableList<PhotoRow>) {
+        cancelPrefetch()
         selection?.rowsChanged()
     }
 
@@ -409,7 +472,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             image.transitionName = photoTransitionName(item.id)
             selection?.bind(itemView, item.id)
             mark(item)
-            val size = (activity.resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)
+            val size = tileSize()
             val key = "${item.id}:${item.receipt}:${item.processing}"
             if (bound == key) return
             cancel(); bound = key
@@ -426,7 +489,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         }
         private var pictured = false
         private fun show(bitmap: Bitmap) {
-            image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
+            image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.showPhotoBitmap(bitmap, fade = pictured)
             image.setTag(R.id.photo_transition_ready, item?.id)
             pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true) }
         }
@@ -492,7 +555,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                     }
                     placeholder(loading = true)
                     fun show(bitmap: Bitmap) {
-                        image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.setImageBitmap(bitmap)
+                        image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.showPhotoBitmap(bitmap)
                         image.transitionName = photoTransitionName(item.id)
                         image.setTag(R.id.photo_transition_ready, item.id)
                         image.contentDescription = tileDescription(activity, item)

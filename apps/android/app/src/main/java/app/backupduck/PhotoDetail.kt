@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.CancellationSignal
 import android.view.Gravity
@@ -421,17 +422,21 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         (poster ?: images.cached(item, (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384),
             (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)))?.let { preview.setImageBitmap(it); hasPreview = true }
         fun load() {
-            work = images.load(item, resources.displayMetrics.widthPixels.coerceAtMost(1440), resources.displayMetrics.heightPixels.coerceAtMost(2560), signal) { bitmap ->
+            work = images.load(item, resources.displayMetrics.widthPixels.coerceAtMost(1440), resources.displayMetrics.heightPixels.coerceAtMost(2560), signal) paint@ { bitmap ->
+                val hadPreview = hasPreview
                 if (bitmap != null && isShowing()) {
-                    fun publish() { if (isShowing()) { preview.setImageBitmap(bitmap); zoom.refresh() } }
-                    if (hasPreview) afterEnter(::publish) else publish()
+                    val displayed = (preview.drawable as? BitmapDrawable)?.bitmap
+                    if (hadPreview && displayed != null && bitmap.width <= displayed.width && bitmap.height <= displayed.height) return@paint
+                    fun publish() { if (isShowing()) { preview.showPhotoBitmap(bitmap); zoom.refresh() } }
+                    if (hadPreview) afterEnter(::publish) else publish()
+                    hasPreview = true
                 } else if (!hasPreview && isShowing()) {
                     preview.scaleType = ImageView.ScaleType.CENTER
                     preview.setImageResource(R.drawable.ic_photo)
                     preview.imageTintList = ColorStateList.valueOf(white)
                     preview.contentDescription = getString(R.string.photos_preview_unavailable)
                 }
-                if (!hasPreview) preview.doOnPreDraw { ready(bitmap != null) }
+                if (!hadPreview) preview.doOnPreDraw { ready(bitmap != null) }
             }
         }
         if (hasPreview) preview.doOnPreDraw { ready(true); afterEnter(::load) } else load()
