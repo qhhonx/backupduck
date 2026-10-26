@@ -264,6 +264,7 @@ class ReceiverService : Service() {
             val success = try {
                 val copy = MediaPublisher.publish(this, item)
                 NativeBridge.request(JSONObject().put("op", "gallery_publication").put("id", cursor).put("copy", copy.json()))
+                ReceiptThumbnails.capture(this, item.getString("id"), copy.locator)
                 ReceiverState.mutable.update { it.copy(error = null) }
                 true
             } catch (cancelled: CancellationException) { throw cancelled }

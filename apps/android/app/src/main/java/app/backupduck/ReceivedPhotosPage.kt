@@ -85,7 +85,8 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
             (list.adapter as? PhotoTransitionItems)?.photoItems().orEmpty())
     }
 
-    fun render(state: HistoryState) { history = state; rebuild() }
+    fun render(state: HistoryState) { history = state; rebuild(); copies.refresh() }
+    private val copies = CopiesInPhotos(activity) { rebuild() }
     fun attention(state: HistoryState) { attention = state; rebuild() }
     fun progress(values: Map<String, ReceiverByteProgress>) = adapter.progress(view, values)
     fun scrollToTop() = layout.scrollToPositionWithOffset(0, 0)
@@ -106,7 +107,7 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
     private fun rebuild() {
         // The failed filter returns attention items only; the check also keeps a stale page honest.
         val causes = needsYou(attention.items.filter { it.processing == "failed" }, attention.nextCursor != null)
-        adapter.scope = photoScope(history.counts, history.items, history.total, activity.devicePanels.senderNames)
+        adapter.scope = photoScope(history.counts, history.items, history.total, activity.devicePanels.senderNames, copies.value)
         adapter.hasSenders = activity.hasKnownSenders != false
         adapter.submitList(photoRows(history.items, causes, ReceiverEnvironment.now(), ZoneId.systemDefault(),
             history.loading, history.failed, history.nextCursor != null)) {
@@ -204,7 +205,10 @@ internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompa
                                 }
                             }.getOrNull() else null
                             signal.throwIfCanceled()
-                            published ?: receivedPreview(item, signal)
+                            if (published != null && ReceiverEnvironment.previewImage == null) ReceiptThumbnails.save(activity, item.id, published)
+                            // A copy removed from Photos keeps its receipt-time picture.
+                            published ?: (if (item.processing == "complete") ReceiptThumbnails.read(activity, item.id) else null)
+                                ?: receivedPreview(item, signal)
                         }.getOrNull()
                         currentCoroutineContext().ensureActive()
                         signal.throwIfCanceled()
@@ -576,7 +580,8 @@ private fun scopeLine(context: android.content.Context, scope: PhotoScope): Stri
     val total = String.format(java.util.Locale.getDefault(), "%,d", scope.total)
     val photos = scope.sender?.let { resources.getQuantityString(R.plurals.photos_scope_from, scope.total, total, it) }
         ?: resources.getQuantityString(R.plurals.photos_scope, scope.total, total)
-    val saved = if (scope.allSaved) getString(R.string.photos_scope_all_saved)
+    val saved = if (scope.removed > 0) getString(R.string.photos_scope_removed, String.format(java.util.Locale.getDefault(), "%,d", scope.removed))
+        else if (scope.allSaved) getString(R.string.photos_scope_all_saved)
         else getString(R.string.photos_scope_saved, String.format(java.util.Locale.getDefault(), "%,d", scope.saved))
     getString(R.string.photos_scope_summary, photos, saved) + if (scope.pending > 0) " · " + resources.getQuantityString(
         R.plurals.photos_scope_pending, scope.pending, scope.pending) else ""

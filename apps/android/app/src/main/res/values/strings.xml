@@ -156,6 +156,7 @@
     <string name="rhub_receiving_from">Receiving photos from %1$s</string>
     <string name="rhub_caught_up">All photos are in Photos</string>
     <string name="rhub_caught_up_note">%1$s photos. Google Photos uploads them from this Pixel once its backup is on.</string>
+    <string name="rhub_caught_up_note_removed">%1$s photos; %2$s are no longer on this Pixel.</string>
     <string name="rhub_space_full">Almost full, so receiving is paused</string>
     <string name="rhub_space_full_note">Photos Google Photos has backed up can be removed from this Pixel; they stay in Google Photos in the cloud. Receiving continues once there is space.</string>
     <string name="rhub_free_reading">%1$s free</string>
@@ -187,6 +188,7 @@
     </plurals>
     <string name="photos_scope_all_saved">all in the Pixel\'s Photos</string>
     <string name="photos_scope_saved">%1$s in the Pixel\'s Photos</string>
+    <string name="photos_scope_removed">%1$s no longer on this Pixel</string>
     <string name="photos_needs_you">Needs you</string>
     <plurals name="photos_cause_live">
         <item quantity="one">%1$s Live Photo can\'t be saved to the Pixel\'s Photos as it is</item>
@@ -216,6 +218,8 @@
     <string name="photos_receiving_from">Receiving from %1$s</string>
     <string name="photos_receiving">Receiving</string>
     <string name="photos_in_photos">In the Pixel\'s Photos</string>
+    <string name="photos_removed">No longer on this Pixel</string>
+    <string name="photos_removed_note">If it was backed up to Google Photos, the original is there.</string>
     <string name="photos_saving">Saving to the Pixel\'s Photos…</string>
     <string name="photos_after_arrival">Goes to the Pixel\'s Photos once it arrives</string>
     <string name="photos_not_saved">Couldn\'t be saved to the Pixel\'s Photos</string>

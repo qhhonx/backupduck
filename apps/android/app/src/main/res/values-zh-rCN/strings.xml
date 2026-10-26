@@ -156,6 +156,7 @@
     <string name="rhub_receiving_from">正在接收 %1$s 的照片</string>
     <string name="rhub_caught_up">照片都已存进相册</string>
     <string name="rhub_caught_up_note">共 %1$s 张。Google 相册打开备份后，会从这台 Pixel 上传它们。</string>
+    <string name="rhub_caught_up_note_removed">共 %1$s 张，其中 %2$s 张已不在这台 Pixel 上。</string>
     <string name="rhub_space_full">空间快满了，已暂停接收</string>
     <string name="rhub_space_full_note">Google 相册备份过的照片可以从这台 Pixel 上移除，它们仍在 Google 相册云端。有空间后会自动继续。</string>
     <string name="rhub_free_reading">剩余 %1$s</string>
@@ -186,6 +187,7 @@
     <!-- U+2060 keeps the two-character Photos term together when this summary wraps. -->
     <string name="photos_scope_all_saved">都已存进 Pixel 相⁠册</string>
     <string name="photos_scope_saved">%1$s 张已存进 Pixel 相⁠册</string>
+    <string name="photos_scope_removed">%1$s 张已不在这台 Pixel 上</string>
     <string name="photos_needs_you">需要你处理</string>
     <plurals name="photos_cause_live">
         <item quantity="other">%1$s 张实况照片不能原样存进 Pixel 相册</item>
@@ -213,6 +215,8 @@
     <string name="photos_receiving_from">正在从 %1$s 接收</string>
     <string name="photos_receiving">正在接收</string>
     <string name="photos_in_photos">已存进 Pixel 相册</string>
+    <string name="photos_removed">已不在这台 Pixel 上</string>
+    <string name="photos_removed_note">如果它已备份到 Google 相册，原片在那里。</string>
     <string name="photos_saving">正在存进 Pixel 相册…</string>
     <string name="photos_after_arrival">收到后存进 Pixel 相册</string>
     <string name="photos_not_saved">没能存进 Pixel 相册</string>

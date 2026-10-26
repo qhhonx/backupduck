@@ -106,7 +106,7 @@ internal fun photoRows(items: List<HistoryItem>, attention: List<CauseGroup>, no
 }
 
 /** How the scope line reads: every photo saved, or how many of them are. */
-internal data class PhotoScope(val total: Int, val saved: Int, val sender: String?, val pending: Int = 0) {
+internal data class PhotoScope(val total: Int, val saved: Int, val sender: String?, val pending: Int = 0, val removed: Int = 0) {
     val allSaved get() = total > 0 && saved >= total
 }
 
@@ -115,10 +115,14 @@ internal data class PhotoScope(val total: Int, val saved: Int, val sender: Strin
  * one device sent everything loaded and no other device is paired, so a count
  * never claims a single source it cannot know.
  */
-internal fun photoScope(counts: HistoryCounts?, items: List<HistoryItem>, fallbackTotal: Int, paired: List<String>): PhotoScope {
+internal fun photoScope(counts: HistoryCounts?, items: List<HistoryItem>, fallbackTotal: Int, paired: List<String>,
+    copiesInPhotos: Long? = null): PhotoScope {
     val senders = items.flatMap { it.senders }.distinct()
     val sender = senders.singleOrNull()?.takeIf { paired.isEmpty() || paired == listOf(it) }
-    return PhotoScope(counts?.total ?: fallbackTotal, counts?.published ?: items.count { it.processing == "complete" }, sender,
+    val saved = counts?.published ?: items.count { it.processing == "complete" }
+    // Saved copies no longer indexed in Photos were removed from this Pixel; where they went is unknown.
+    val removed = removedFromPixel(saved, copiesInPhotos)
+    return PhotoScope(counts?.total ?: fallbackTotal, saved, sender,
         counts?.let { (it.total - it.published - it.failed).coerceAtLeast(0) }
-            ?: items.count { it.processing in setOf("pending", "running") })
+            ?: items.count { it.processing in setOf("pending", "running") }, removed)
 }

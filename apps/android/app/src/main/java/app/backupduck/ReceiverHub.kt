@@ -56,6 +56,7 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
     private var photos: List<HistoryItem> = emptyList()
     private var saved = 0; private var total = 0; private var failed = 0
     private var rendered: List<Any?>? = null
+    private val copies = CopiesInPhotos(activity) { rendered = null; render(ReceiverState.snapshot.value, null, false) }
 
     override val view: View = activity.scrollPage { panel ->
         with(activity) {
@@ -102,8 +103,9 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
         val storage = ReceiverEnvironment.deviceStorage(this)
         val cleanup = PhotosCleanup(this).enabled
         val cleanupState = currentCleanupStatus()
+        copies.refresh()
         val key = listOf(hub, total, failed, names, state.published, state.total, state.failed, state.error,
-            state.temperatureDeciCelsius.takeIf { state.thermalHeld }, saved, photos.size, storage.low, cleanup, cleanupState, devicePanels.peers)
+            state.temperatureDeciCelsius.takeIf { state.thermalHeld }, saved, photos.size, storage.low, cleanup, cleanupState, devicePanels.peers, copies.value)
         if (key == rendered) { if (hub == ReceiverHubState.RECEIVING) this@ReceiverHub.state.show(withLastConnection(receiving(state, names))); return@with }
         rendered = key
         val noDevice = hub == ReceiverHubState.NO_DEVICE
@@ -164,8 +166,12 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
             ReceiverHubState.CAUGHT_UP -> if (failed > 0) LookState(R.drawable.ic_alert, attention,
                 resources.getQuantityString(R.plurals.rhub_received_some, failed, count(failed)), getString(R.string.rhub_received_some_note),
                 action = getString(R.string.photos_view) to { actions.records(true) })
-            else LookState(R.drawable.ic_check, getColor(R.color.duck_state_saved), getString(R.string.rhub_caught_up),
-                getString(R.string.rhub_caught_up_note, count(maxOf(saved, state.published))))
+            else maxOf(saved, state.published).let { all -> removedFromPixel(all, copies.value).let { removed ->
+                LookState(R.drawable.ic_check, getColor(R.color.duck_state_saved), getString(R.string.rhub_caught_up),
+                    // Removed copies are no longer here for Google Photos to upload; where they went is unknown.
+                    if (removed > 0) getString(R.string.rhub_caught_up_note_removed, count(all), count(removed))
+                    else getString(R.string.rhub_caught_up_note, count(all)))
+            } }
             ReceiverHubState.SPACE_FULL -> LookState(R.drawable.ic_storage, attention, getString(R.string.rhub_space_full), getString(R.string.rhub_space_full_note),
                 reading = getString(R.string.rhub_free_reading, Formatter.formatShortFileSize(this, storage.freeBytes)),
                 action = if (cleanup) getString(R.string.rhub_free_up) to actions.openPhotos else getString(R.string.rhub_auto_cleanup) to actions.openCleanup,

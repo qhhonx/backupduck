@@ -140,7 +140,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             actionRow.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
             return cell
         }
-        action(R.drawable.ic_viewer_share, R.string.photos_share) {
+        val shareAction = action(R.drawable.ic_viewer_share, R.string.photos_share) {
             if (shareWork?.isActive == true) return@action
             shareWork = lifecycleScope.launch {
                 val copy = withContext(Dispatchers.IO) { runCatching { photoShareCopy(activity, item, signal) }.getOrNull() }
@@ -435,9 +435,20 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             }
         }
         if (hasPreview) preview.doOnPreDraw { ready(true); afterEnter(::load) } else load()
+        var removedShown = false
+        // A saved photo whose copy is gone from Photos was removed from this Pixel (often by
+        // Google Photos' Free up space). Say only that; BackupDuck cannot see the cloud.
+        fun showRemoved() {
+            if (removedShown || !isShowing() || item.processing != "complete" || openCopy != null || ReceiverEnvironment.previewImage != null) return
+            removedShown = true
+            pill.setText(R.string.photos_removed); pill.isClickable = false; pill.visibility = View.VISIBLE
+            shareAction.visibility = View.GONE
+            lookRow(facts, R.drawable.ic_photo, getString(R.string.photos_removed), getString(R.string.photos_removed_note))
+        }
         lookup = lifecycleScope.launch {
             openCopy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() }
             if (isShowing()) openAction.visibility = if (item.processing == "complete") View.VISIBLE else View.GONE
+            showRemoved()
         }
         val observations = lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
@@ -457,6 +468,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                         if (item.processing == "complete") {
                             openCopy = withContext(Dispatchers.IO) { runCatching { GalleryPreview.resolve(activity, item, null, signal) }.getOrNull() }
                             openAction.visibility = if (item.processing == "complete") View.VISIBLE else View.GONE
+                            showRemoved()
                         }
                     }
                 }

@@ -1,6 +1,12 @@
 package app.backupduck
 
 import android.content.Context
+import android.os.SystemClock
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.provider.MediaStore
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -39,3 +45,27 @@ internal object GalleryInventory {
         return GalleryUsage(bytes, count, pendingBytes, pendingCount, unknown)
     }
 }
+
+/**
+ * Copies of this installation still indexed in Photos, re-read at most every
+ * five seconds. Saved photos beyond this count were removed from this Pixel.
+ */
+internal class CopiesInPhotos(private val activity: androidx.appcompat.app.AppCompatActivity, private val changed: () -> Unit) {
+    var value: Long? = null; private set
+    private var job: Job? = null
+    private var readAt = 0L
+    fun refresh() {
+        if (ReceiverEnvironment.previewImage != null || job?.isActive == true) return
+        val now = SystemClock.elapsedRealtime()
+        if (value != null && now - readAt < 5_000) return
+        readAt = now
+        job = activity.lifecycleScope.launch {
+            val count = withContext(Dispatchers.IO) { runCatching { GalleryInventory.read(activity).readyCount }.getOrNull() }
+            if (count != null && count != value) { value = count; changed() }
+        }
+    }
+}
+
+/** Saved photos whose copy is no longer in Photos; zero while the count is unknown. */
+internal fun removedFromPixel(saved: Int, copiesInPhotos: Long?): Int =
+    copiesInPhotos?.let { (saved - it).coerceIn(0, saved.toLong().coerceAtLeast(0)).toInt() } ?: 0

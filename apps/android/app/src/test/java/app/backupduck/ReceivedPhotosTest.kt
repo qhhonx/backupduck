@@ -147,6 +147,14 @@ class ReceivedPhotosTest {
         assertEquals(1, photoScope(null, listOf(item(2, processing = "pending")), 1, emptyList()).pending)
     }
 
+    @Test fun savedCopiesMissingFromPhotosCountAsRemoved() {
+        val counts = HistoryCounts(997, 997, 0)
+        assertEquals(0, photoScope(counts, emptyList(), 0, emptyList()).removed)
+        assertEquals(996, photoScope(counts, emptyList(), 0, emptyList(), copiesInPhotos = 1).removed)
+        assertEquals(0, photoScope(counts, emptyList(), 0, emptyList(), copiesInPhotos = 1_200).removed)
+        assertEquals(997, photoScope(counts, emptyList(), 0, emptyList(), copiesInPhotos = 0).removed)
+    }
+
     @Test fun deviceNamesWithTheCodeSeparatorStayOneSender() {
         assertEquals(listOf("琥珀柳树 · F27F"), item(1, sender = "琥珀柳树 · F27F").senders)
         assertEquals(listOf("琥珀柳树 · F27F", "Sunny Mac · C1"), item(2, sender = "琥珀柳树 · F27F${SENDER_SEPARATOR}Sunny Mac · C1").senders)

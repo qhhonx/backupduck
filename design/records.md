@@ -121,6 +121,20 @@ English below; the zh-Hans strings (`records_*` keys in
   conversion is on.
 - **Detail action.** Try again for a failed save; Open in Photos only once the
   copy in Photos is found.
+- **Copies removed from this Pixel.** Google Photos' Free up space, or the
+  user, can delete BackupDuck's copies from the Pixel's Photos after they were
+  saved. Saved photos beyond the copies still indexed in Photos are "no longer
+  on this Pixel". The scope line and the hub note then say how many ("1,002
+  photos · 997 no longer on this Pixel"); they never claim where the photos
+  went, because BackupDuck cannot see Google Photos' cloud. The viewer shows a
+  non-actionable "No longer on this Pixel" pill, hides Share, keeps Google
+  Photos (which opens the app), and adds a detail fact: "If it was backed up to
+  Google Photos, the original is there."
+- **Receipt thumbnails.** After saving to Photos, the Pixel keeps one private
+  320-pixel WebP picture per photo (about 10 KB) so removed photos stay
+  browsable. Photos seen before this existed get one when first shown while
+  their copy is present. The picture is never evidence of any copy. Photos
+  removed before they had one show the type icon.
 - **Scope line.** "1,284 photos · 1,277 in the Pixel's Photos"; it names the
   sending device only when one device sent everything shown.
 - **Ordering.** The core pages a fixed read snapshot by latest recorded state
