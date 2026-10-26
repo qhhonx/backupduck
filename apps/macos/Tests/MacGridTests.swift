@@ -5,6 +5,116 @@ import XCTest
 @testable import BackupDuck
 
 @MainActor final class MacGridTests: XCTestCase {
+  func testGroupedZoomHasOneNativeSizeHeaderAndExactSettledGeometry() {
+    for count in [1, 2, 5, 12, 90] {
+      let groups = Dictionary(uniqueKeysWithValues: stride(from: 0, to: count, by: 3).map { ($0, "Section \($0)") })
+      let width: CGFloat = 804
+      func geometry(_ columns: Int) -> LibraryTimelineGeometry {
+        MacGridGeometry.make(count: count, groups: groups, columns: columns, width: width, headerHeights: [0: 138])
+      }
+      func pitch(_ columns: Int) -> CGFloat { geometry(columns).items[0].width + 2 }
+      let g = geometry(3), anchor = g.items[0]
+      let stage = MacGridZoomStage(count: count, anchor: 0, fraction: CGPoint(x: 0.5, y: 0.5),
+        columns: 3, pitch: pitch(3), focus: CGPoint(x: anchor.midX, y: anchor.midY))
+      stage.frame = CGRect(x: 0, y: 0, width: width, height: 1200)
+      stage.referenceSide = { geometry($0).items[0].width }
+      stage.groupedGeometry = geometry
+      stage.makeTile = { _, _ in NSView() }
+      stage.ensureFace(3, opacity: 1)
+      for columns in [4, 6, 9, 6, 4, 3] {
+        stage.ensureFace(columns, opacity: 0)
+        let now = CACurrentMediaTime()
+        stage.show(columns, animated: true, at: now)
+        for frame in 0...60 {
+          stage.advanceBlend(to: now + Double(frame) / 60)
+          stage.render()
+          let captions = stage.subviews.compactMap { $0 as? MacGridSectionHeader }
+          XCTAssertEqual(captions.count, Set(captions.map { ObjectIdentifier($0) }).count)
+          for h in geometry(columns).headers {
+            if let rect = stage.headerFrame(at: h.firstItem) { XCTAssertEqual(rect.height, h.frame.height) }
+          }
+          XCTAssertFalse(stage.subviews.contains { face in face.subviews.contains { $0 is MacGridSectionHeader } }, "Caption must not belong to a crossfading face")
+        }
+        let destination = geometry(columns)
+        stage.pitch = pitch(columns)
+        stage.focus = CGPoint(x: destination.items[0].midX, y: destination.items[0].midY)
+        stage.show(columns, animated: false); stage.render()
+        for header in destination.headers {
+          if let rect = stage.headerFrame(at: header.firstItem) {
+            XCTAssertEqual(rect.minY, header.frame.minY, accuracy: 0.001)
+            XCTAssertEqual(rect.height, header.frame.height)
+            XCTAssertEqual(rect.minX, MacGridSectionHeader.inset)
+          }
+        }
+      }
+      stage.stop()
+    }
+  }
+
+  func testToolbarStageStartsWithinDisplayPixelOfClampedPhotoPointInShortGrid() async {
+    for count in [1, 2, 5, 12] {
+      for grouped in [false, true] {
+        let source = GridTestSource(); source.identifiers = (0..<count).map { "item-\($0)" }
+        if grouped { source.introduction = AnyView(Text("Folder summary")) }
+        let grid = MacMediaGrid(source: source, navigation: MacLibraryNavigation(), queueRevision: 0, receiverID: nil, columns: 9)
+        let coordinator = MacMediaGrid.Coordinator(grid)
+        let scroll = NSScrollView(frame: CGRect(x: 0, y: 0, width: 804, height: 600))
+        let collection = NSCollectionView(frame: scroll.bounds)
+        let layout = LibraryTimelineLayout(mode: .all, target: 88); layout.requestedColumns = 9
+        collection.collectionViewLayout = layout
+        collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
+        collection.register(MacGridSectionHeader.self, forSupplementaryViewOfKind: LibraryTimelineLayout.headerKind, withIdentifier: .init("timeline"))
+        scroll.documentView = collection; coordinator.collection = collection
+        coordinator.installDataSource(collection); coordinator.applyItems(scroll: scroll, layout: layout)
+        try? await Task.sleep(for: .milliseconds(50))
+        collection.layoutSubtreeIfNeeded()
+        coordinator.animateLayout(columns: 6)
+        guard let stage = coordinator.zoomStage else { XCTFail("Missing live zoom stage"); continue }
+        var compared = 0
+        for index in 0..<count {
+          let settled = collection.convert(layout.frame(at: index), to: scroll)
+          // The lattice also carries chronological neighbours outside its
+          // natural columns. Compare the canonical on-screen copy.
+          let copies = stage.subviews.flatMap(\.subviews).compactMap { $0 as? MacSourceZoomTile }
+            .filter { ($0.cell.presentationID ?? $0.cell.assetID) == source.identifiers[index] }
+            .map { $0.convert($0.bounds, to: scroll) }
+          if let rendered = copies.min(by: {
+            hypot($0.minX - settled.minX, $0.minY - settled.minY) < hypot($1.minX - settled.minX, $1.minY - settled.minY)
+          }) {
+            XCTAssertEqual(rendered.minY, settled.minY, accuracy: 0.5)
+            compared += 1
+          }
+        }
+        XCTAssertGreaterThan(compared, 0)
+        coordinator.removeZoomStage()
+      }
+    }
+  }
+
+  func testOverviewStageStartsWithTheSettledGaplessPitch() async {
+    for count in [1, 2, 5, 12] {
+      for columns in MacLibraryDensity.overview(forWidth: 804) + [20, 40] {
+        let source = GridTestSource(); source.identifiers = (0..<count).map { "item-\($0)" }
+        let grid = MacMediaGrid(source: source, navigation: MacLibraryNavigation(), queueRevision: 0, receiverID: nil, columns: columns)
+        let coordinator = MacMediaGrid.Coordinator(grid)
+        let scroll = NSScrollView(frame: CGRect(x: 0, y: 0, width: 804, height: 600))
+        let collection = NSCollectionView(frame: scroll.bounds)
+        let layout = LibraryTimelineLayout(mode: .all, target: 20)
+        layout.requestedColumns = columns; layout.denseThreshold = MacLibraryDensity.denseThreshold
+        collection.collectionViewLayout = layout
+        collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
+        scroll.documentView = collection; coordinator.collection = collection
+        coordinator.installDataSource(collection); coordinator.applyItems(scroll: scroll, layout: layout)
+        try? await Task.sleep(for: .milliseconds(50))
+        collection.layoutSubtreeIfNeeded()
+        coordinator.animateLayout(columns: 9)
+        guard let stage = coordinator.zoomStage else { XCTFail("Missing overview stage"); continue }
+        XCTAssertEqual(stage.pitch, layout.frame(at: 0).width, "A gapless overview must not gain an ordinary-grid gap on entry")
+        coordinator.removeZoomStage()
+      }
+    }
+  }
+
   func testAspectAvailabilityAtEveryDensityAndPlaceholder() {
     for columns in MacLibraryDensity.grid {
       XCTAssertTrue(MacLibraryDensity.canChangeAspect(level: .all, columns: columns, hasPhotos: true))

@@ -619,7 +619,7 @@ struct MacMediaGrid: NSViewRepresentable {
       let frame = layout.frame(at: anchor)
       let focus = CGPoint(x: frame.minX+frame.width*anchorFractionX,y: anchorY)
       let stage = MacGridZoomStage(count: count,anchor: anchor,fraction: CGPoint(x: anchorFractionX,y: anchorFraction),
-        columns: layout.columns,pitch: frame.width+2,focus: focus)
+        columns: layout.columns,pitch: frame.width+gap(layout.columns),focus: focus)
       stage.frame = scroll.contentView.frame; stage.autoresizingMask = [.width,.height]
       stage.referenceSide = { [weak self] columns in (self?.naturalPitch(columns) ?? 3)-(self?.gap(columns) ?? 2) }
       stage.denseAsset = { [weak self] index in self?.asset(at: index) }
@@ -629,7 +629,15 @@ struct MacMediaGrid: NSViewRepresentable {
         let count = count, groups = parent.source.groups, width = width()
         let heights = parent.source.headerHeights(width: width)
         stage.groupedIntroduction = { [source = parent.source] index in source.introduction(at: index) }
-        stage.groupedGeometry = { columns in MacGridGeometry.make(count: count, groups: groups, columns: columns, width: width, headerHeights: heights) }
+        // All faces and the shared captions read the same immutable snapshot.
+        // Rebuilding the full item geometry per caption frame defeats paging.
+        var geometries: [Int: LibraryTimelineGeometry] = [:]
+        stage.groupedGeometry = { columns in
+          if let cached = geometries[columns] { return cached }
+          let geometry = MacGridGeometry.make(count: count, groups: groups, columns: columns, width: width, headerHeights: heights)
+          geometries[columns] = geometry
+          return geometry
+        }
       }
       stage.makeTile = { [weak self] index, side in
         guard let self, let id = self.identifier(at: index) else { return NSView() }
@@ -673,7 +681,9 @@ struct MacMediaGrid: NSViewRepresentable {
         let frame = layout.frame(at: anchor)
         anchorFraction = min(1,max(0,(point.y-frame.minY)/max(1,frame.height)))
         anchorFractionX = min(1,max(0,(point.x-frame.minX)/max(1,frame.width)))
-        anchorY = point.y-scroll.contentView.bounds.minY
+        // A toolbar anchor can land in the blank area below a short grid.
+        // Its screen point must use the same clamped fraction as the stage.
+        anchorY = frame.minY + anchorFraction * frame.height - scroll.contentView.bounds.minY
       }
       keepsTop = wasAtTop
     }
@@ -2593,7 +2603,6 @@ struct MacCalendarGrid: NSViewRepresentable {
     var leading = 0
     var canvas: MacDenseCanvas?
     var tiles: [String: (Int,NSView)] = [:]
-    var headers: [Int: MacGridSectionHeader] = [:]
     var weight: CGFloat = 0
     override var isFlipped: Bool { true }
     init(columns: Int) { self.columns = columns; super.init(frame: .zero); wantsLayer = true }
@@ -2601,6 +2610,8 @@ struct MacCalendarGrid: NSViewRepresentable {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
   }
   private var faces: [Int: Face] = [:]
+  /// Section text belongs to the stage, independent of the photo crossfade.
+  private var headers: [Int: MacGridSectionHeader] = [:]
   private var order: [Int] = []
   private var blend: (from: [Int: CGFloat], target: Int, start: CFTimeInterval, duration: CFTimeInterval, requested: CFTimeInterval)?
   /// Outgoing faces stay opaque until the shown face has most of its pixels,
@@ -2623,7 +2634,11 @@ struct MacCalendarGrid: NSViewRepresentable {
     let face = Face(columns: columns)
     face.leading = leading
     face.weight = opacity; face.alphaValue = opacity
-    addSubview(face); faces[columns] = face; order.append(columns)
+    // New faces stack above older faces but stay below the shared captions.
+    if let caption = subviews.first(where: { $0 is MacGridSectionHeader }) {
+      addSubview(face, positioned: .below, relativeTo: caption)
+    } else { addSubview(face) }
+    faces[columns] = face; order.append(columns)
     render()
   }
   /// Moves the shared focus to a viewport point without moving any pixel, and
@@ -2719,6 +2734,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   func render() {
     CATransaction.begin(); CATransaction.setDisableActions(true)
     for face in faces.values { face.frame = bounds; populate(face) }
+    populateHeaders()
     CATransaction.commit()
   }
   private func snap(_ value: CGFloat) -> CGFloat {
@@ -2797,19 +2813,48 @@ struct MacCalendarGrid: NSViewRepresentable {
     for key in Array(face.tiles.keys) where !keep.contains(key) {
       if let old = face.tiles.removeValue(forKey: key) { releaseTile?(old.1); old.1.removeFromSuperview() }
     }
-    var headers = Set<Int>()
-    for (index, header) in geometry.headers.enumerated() {
-      var rect = frame(header.frame)
-      let next = index + 1 < geometry.headers.count ? frame(geometry.headers[index + 1].frame).minY : CGFloat.greatestFiniteMagnitude
-      rect.origin.y = min(max(rect.minY, 0), next - rect.height)
-      guard rect.intersects(bounds) else { continue }
-      headers.insert(header.firstItem)
-      let view = face.headers[header.firstItem] ?? MacGridSectionHeader(frame: .zero)
-      if view.superview == nil { face.addSubview(view); face.headers[header.firstItem] = view }
-      view.configure(title: header.title, introduction: groupedIntroduction?(header.firstItem)); view.frame = CGRect(x: MacGridSectionHeader.inset, y: rect.minY, width: MacGridSectionHeader.contentWidth(for: bounds.width), height: rect.height)
-    }
-    for key in Array(face.headers.keys) where !headers.contains(key) { face.headers.removeValue(forKey: key)?.removeFromSuperview() }
   }
+  /// One unscaled caption follows the blended position of its section's first
+  /// row. Each face supplies tile geometry only; text never crossfades twice.
+  private func populateHeaders() {
+    guard let geometry = groupedGeometry?(shown), geometry.items.indices.contains(anchor) else { return }
+    let active = faces.values.filter { $0.weight > 0 }
+    let total = active.reduce(CGFloat.zero) { $0 + $1.weight }
+    guard total > 0 else { return }
+    var positions: [Int: CGFloat] = [:]
+    for face in active {
+      guard let g = groupedGeometry?(face.columns), g.items.indices.contains(anchor) else { continue }
+      let reference = max(1, referenceSide(face.columns)), ratio = pitch / (reference + 2)
+      let a = g.items[anchor]
+      let offset = focus.y - (a.minY + fraction.y * a.height) * ratio
+      for h in g.headers where g.items.indices.contains(h.firstItem) {
+        // Header height remains native; the bottom follows the section's row.
+        let y = offset + g.items[h.firstItem].minY * ratio - h.frame.height
+        positions[h.firstItem, default: 0] += y * face.weight / total
+      }
+    }
+    var keep = Set<Int>()
+    for (i, header) in geometry.headers.enumerated() {
+      guard let y = positions[header.firstItem] else { continue }
+      let next = i + 1 < geometry.headers.count
+        ? positions[geometry.headers[i + 1].firstItem] ?? .greatestFiniteMagnitude : .greatestFiniteMagnitude
+      let rect = CGRect(x: MacGridSectionHeader.inset,
+        y: snap(min(max(y, 0), next - header.frame.height)),
+        width: MacGridSectionHeader.contentWidth(for: bounds.width), height: header.frame.height)
+      guard rect.intersects(bounds) else { continue }
+      keep.insert(header.firstItem)
+      let view: MacGridSectionHeader
+      if let existing = headers[header.firstItem] { view = existing }
+      else {
+        view = MacGridSectionHeader(frame: rect)
+        view.configure(title: header.title, introduction: groupedIntroduction?(header.firstItem))
+        headers[header.firstItem] = view; addSubview(view)
+      }
+      view.frame = rect
+    }
+    for id in Array(headers.keys) where !keep.contains(id) { headers.removeValue(forKey: id)?.removeFromSuperview() }
+  }
+  func headerFrame(at firstItem: Int) -> CGRect? { headers[firstItem]?.frame }
   func tile(at index: Int) -> NSView? {
     faces[shown]?.tiles.values.first { $0.0 == index }?.1
       ?? faces.values.lazy.compactMap { $0.tiles.values.first { $0.0 == index }?.1 }.first
@@ -2818,6 +2863,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   func stop() {
     for face in faces.values { release(face); face.removeFromSuperview() }
     faces.removeAll(); order.removeAll(); blend = nil
+    for header in headers.values { header.removeFromSuperview() }; headers.removeAll()
   }
 }
 

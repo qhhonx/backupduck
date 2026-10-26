@@ -220,3 +220,16 @@ mirrored collection transform. It follows the pager in the same direction:
 swiping the photo left advances to the newer item. This applies to every entry
 collection, including albums, History and selected-photo review, preserving
 that collection's return anchor.
+
+### Group captions during Mac density changes
+
+A live grid zoom owns one native-size caption per section, shared across the
+photo density faces. Its bottom follows the blended position of the section's
+first row; sticky bounds use the next section's caption. Folder summaries use
+the same path. Caption text, width and native height never scale with tiles.
+The stage's final caption frame equals the settled collection header frame.
+
+Toolbar zoom anchors use the clamped point on the selected photo when the
+viewport centre falls outside its rectangle. A stage entering a gapless overview
+uses that density's zero gap, including its initial pitch. These entry corrections
+do not change settled collection frames.

@@ -199,3 +199,14 @@ failure recovery retain their existing meaning. The loading surface never
 changes the image frame or contributes layout space. Filmstrip paging updates
 focus and selection on retained cells; only collection membership changes reload
 the strip. Offscreen request cancellation keeps an unchanged thumbnail's pixels.
+
+
+Mac grouped-grid density faces crossfade photos only. One stage-owned section
+caption follows the section's first-row position continuously, retaining its
+native text and summary geometry. The final caption pose uses the settled
+collection's header insets, width, height and sticky bounds.
+
+A grid stage starts at the photo point that its focal fractions describe, even
+when a toolbar anchor was requested in empty space. Overview entry uses the
+settled density's gapless pitch. Neither entry may reposition or resize content
+before tracking or settling begins.
