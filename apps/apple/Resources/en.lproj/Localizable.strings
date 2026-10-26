@@ -870,10 +870,10 @@
 "folders_search" = "Search";
 "folders_counting" = "Counting…";
 "folders_disconnected" = "Drive not connected. Photos already backed up are unaffected. Backup continues when the drive returns.";
-"folders_needs_you" = "%llu photos need you.";
-"folders_backing_up" = "Backing up %llu photos (%@).";
-"folders_not_backed_up" = "%llu photos are not backed up yet.";
-"folders_saved" = "%llu photos are in the Pixel’s Photos.";
+"folders_needs_you" = "%2$@ need you.";
+"folders_backing_up" = "Backing up %@ (%@).";
+"folders_not_backed_up" = "%2$@ are not backed up yet.";
+"folders_saved" = "%2$@ are in the Pixel’s Photos.";
 "folders_unsupported" = "%llu files won’t be backed up.";
 "folders_unsupported_info" = "Why these files won’t be backed up";
 "folders_unsupported_note" = "BackupDuck can’t save these photo formats, including RAW, to the Pixel’s Photos. The files stay on your Mac.";
@@ -885,7 +885,7 @@
 "folders_stop" = "Stop Backing Up";
 "folders_stop_question" = "Stop backing up “%@”?";
 "folders_stop_note" = "New photos in this folder will no longer be backed up. Files on your Mac and photos already in the Pixel’s Photos won’t be deleted.";
-"folders_count_size" = "%llu photos · %@";
+"folders_count_size" = "%@ · %@";
 "folders_add_decision" = "Which photos would you like to back up?";
 "folders_include_existing" = "Everything in this folder, including new photos";
 "folders_only_new" = "Only photos added from now on";
@@ -1045,8 +1045,8 @@
 
 "mac_viewer_position" = "%d of %d";
 
-"folders_inventory_count" = "%ld folders · %llu photos";
-"folders_scope_count" = "%@ · %llu photos";
+"folders_inventory_count" = "%ld folders · %@";
+"folders_scope_count" = "%@ · %@";
 "folders_search_results" = "Search results";
 
 "notifications_off" = "Notifications are off";

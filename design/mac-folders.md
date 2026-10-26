@@ -134,3 +134,8 @@ and videos) with a trailing Edit button. Auto Backup has the trailing Stop
 Backing Up This Folder action and its existing confirmation. These are ordinary
 41-point preference rows that grow for long content; no dismissive rules footer
 or leading button-only rows.
+
+Folder count phrases distinguish supported photos and videos in every state,
+visible-scope subtitle and Add Folder preview. Video MIME types start with
+`video/`; other supported types count as photos. Mixed phrases name both counts;
+English uses native plural rules for each kind and the sentence agreement.

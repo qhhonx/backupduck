@@ -1,15 +1,48 @@
 import AppKit
 import SwiftUI
 
+struct FolderMediaCounts: Decodable, Equatable {
+  var photos: UInt64 = 0
+  var videos: UInt64 = 0
+  var total: UInt64 { photos + videos }
+  static func + (lhs: Self, rhs: Self) -> Self {
+    Self(photos: lhs.photos + rhs.photos, videos: lhs.videos + rhs.videos)
+  }
+}
+
+/// One count phrase for every folder state, scope and preview summary.
+func folderMediaCount(_ counts: FolderMediaCounts, bundle: Bundle = .main) -> String {
+  let key = counts.videos == 0 ? "folders_media_photos"
+    : counts.photos == 0 ? "folders_media_videos" : "folders_media_mixed"
+  let format = bundle.localizedString(forKey: key, value: nil, table: nil)
+  return counts.photos > 0 && counts.videos > 0
+    ? String.localizedStringWithFormat(format, counts.photos, counts.videos)
+    : String.localizedStringWithFormat(format, counts.videos == 0 ? counts.photos : counts.videos)
+}
+
 struct FolderFacts: Decodable, Equatable {
   var supported: UInt64 = 0
+  var supported_kinds: FolderMediaCounts? = nil
   var saved: UInt64 = 0
+  var saved_kinds: FolderMediaCounts? = nil
   var in_flight: UInt64 = 0
+  var in_flight_kinds: FolderMediaCounts? = nil
   var in_flight_bytes: UInt64 = 0
   var needs_you: UInt64 = 0
+  var needs_you_kinds: FolderMediaCounts? = nil
   var not_backed_up: UInt64 = 0
+  var not_backed_up_kinds: FolderMediaCounts? = nil
   var available: Bool? = nil
   var unsupported_by_kind: [String: UInt64] = [:]
+  func media(_ state: String) -> FolderMediaCounts {
+    switch state {
+    case "saved": saved_kinds ?? .init(photos: saved)
+    case "in_flight": in_flight_kinds ?? .init(photos: in_flight)
+    case "needs_you": needs_you_kinds ?? .init(photos: needs_you)
+    case "not_backed_up": not_backed_up_kinds ?? .init(photos: not_backed_up)
+    default: supported_kinds ?? .init(photos: supported)
+    }
+  }
 }
 struct FolderPhoto: Decodable, Identifiable, Equatable {
   let relative: String
@@ -103,10 +136,10 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
 func folderSentence(_ facts: FolderFacts?) -> String {
   guard let facts, facts.available != nil else { return NSLocalizedString("folders_counting", comment: "") }
   if facts.available == false { return NSLocalizedString("folders_disconnected", comment: "") }
-  if facts.needs_you > 0 { return String(format: NSLocalizedString("folders_needs_you", comment: ""), facts.needs_you) }
-  if facts.in_flight > 0 { return String(format: NSLocalizedString("folders_backing_up", comment: ""), facts.in_flight, ByteCountFormatter.string(fromByteCount: Int64(clamping: facts.in_flight_bytes), countStyle: .file)) }
-  if facts.not_backed_up > 0 { return String(format: NSLocalizedString("folders_not_backed_up", comment: ""), facts.not_backed_up) }
-  return String(format: NSLocalizedString("folders_saved", comment: ""), facts.saved)
+  if facts.needs_you > 0 { return String(format: NSLocalizedString("folders_needs_you", comment: ""), facts.needs_you, folderMediaCount(facts.media("needs_you"))) }
+  if facts.in_flight > 0 { return String(format: NSLocalizedString("folders_backing_up", comment: ""), folderMediaCount(facts.media("in_flight")), ByteCountFormatter.string(fromByteCount: Int64(clamping: facts.in_flight_bytes), countStyle: .file)) }
+  if facts.not_backed_up > 0 { return String(format: NSLocalizedString("folders_not_backed_up", comment: ""), facts.not_backed_up, folderMediaCount(facts.media("not_backed_up"))) }
+  return String(format: NSLocalizedString("folders_saved", comment: ""), facts.saved, folderMediaCount(facts.media("saved")))
 }
 
 extension FolderSources {

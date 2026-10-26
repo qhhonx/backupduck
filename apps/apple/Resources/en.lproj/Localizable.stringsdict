@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>folders_media_photos</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%llu photo</string>
+			<key>other</key>
+			<string>%llu photos</string>
+		</dict>
+	</dict>
+	<key>folders_media_videos</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%llu video</string>
+			<key>other</key>
+			<string>%llu videos</string>
+		</dict>
+	</dict>
+	<key>folders_media_mixed</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@photos@ and %2$#@videos@</string>
+		<key>photos</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%1$llu photo</string>
+			<key>other</key>
+			<string>%1$llu photos</string>
+		</dict>
+		<key>videos</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%2$llu video</string>
+			<key>other</key>
+			<string>%2$llu videos</string>
+		</dict>
+	</dict>
+	<key>folders_inventory_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@folders@ · %2$@</string>
+		<key>folders</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%1$llu folder</string>
+			<key>other</key>
+			<string>%1$llu folders</string>
+		</dict>
+	</dict>
+	<key>folders_needs_you</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@items@</string>
+		<key>items</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%2$@ needs you.</string>
+			<key>other</key>
+			<string>%2$@ need you.</string>
+		</dict>
+	</dict>
+	<key>folders_not_backed_up</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@items@</string>
+		<key>items</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%2$@ is not backed up yet.</string>
+			<key>other</key>
+			<string>%2$@ are not backed up yet.</string>
+		</dict>
+	</dict>
+	<key>folders_saved</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@items@</string>
+		<key>items</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>llu</string>
+			<key>one</key>
+			<string>%2$@ is in the Pixel’s Photos.</string>
+			<key>other</key>
+			<string>%2$@ are in the Pixel’s Photos.</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

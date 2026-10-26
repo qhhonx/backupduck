@@ -33,6 +33,7 @@ pub struct Entry {
 #[derive(Debug, Serialize)]
 pub struct Summary {
     pub files: u64,
+    pub media_kinds: MediaCounts,
     pub bytes: u64,
     pub unsupported: u64,
     pub scanning: bool,
@@ -46,6 +47,7 @@ struct Scan {
     rules: Rules,
     unsupported: u64,
     files: u64,
+    media_kinds: MediaCounts,
     bytes: u64,
 }
 pub struct Index {
@@ -164,6 +166,7 @@ impl Index {
             rules: self.rules(source)?,
             unsupported: 0,
             files: 0,
+            media_kinds: MediaCounts::default(),
             bytes: 0,
         });
         Ok(())
@@ -286,6 +289,7 @@ impl Index {
                 continue;
             }
             scan.files += 1;
+            scan.media_kinds.record(mime);
             scan.bytes += meta.len();
             let modified = millis(meta.modified()?);
             // Birth time identifies files introduced after a manual run began,
@@ -311,22 +315,27 @@ impl Index {
         }
         Ok(Summary {
             files: scan.files,
+            media_kinds: scan.media_kinds,
             bytes: scan.bytes,
             unsupported: scan.unsupported,
             scanning: true,
         })
     }
     pub fn summary(&self, source: &str, _unsupported: u64) -> Result<Summary> {
-        let (files, bytes) = self
+        let (files, bytes, videos) = self
             .conn
             .query_row(
-                "SELECT COUNT(*),COALESCE(SUM(size),0) FROM files WHERE source=?1 AND present=1",
+                "SELECT COUNT(*),COALESCE(SUM(size),0),COALESCE(SUM(mime LIKE 'video/%'),0) FROM files WHERE source=?1 AND present=1",
                 [source],
-                |r| Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64)),
+                |r| Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64, r.get::<_, i64>(2)? as u64)),
             )
             .map_err(db)?;
         Ok(Summary {
             files,
+            media_kinds: MediaCounts {
+                photos: files - videos,
+                videos,
+            },
             bytes,
             unsupported: self.unsupported(source)?.values().sum(),
             scanning: self.scan.as_ref().is_some_and(|s| s.source == source),

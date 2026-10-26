@@ -17,6 +17,7 @@
 		100CC9033F2D0FC8FEB91A19 /* StorageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD73467DFE30B87BA715C9D /* StorageModel.swift */; };
 		11E8EFF2EC7E3E52C2B2D177 /* ThirdPartyNotices-ios.txt in Resources */ = {isa = PBXBuildFile; fileRef = B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */; };
 		156EE3F6047F2638470B0047 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
+		1A959CEFB1E370296ADD0DFF /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = 86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1EA7F7835EB4B5D829065D8A /* IOSOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881E3008BF625B6D7F0B01 /* IOSOnboarding.swift */; };
 		222975947CF5E6AACCA539C7 /* IOSSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFD8F4EDF68890A9D55D056 /* IOSSettings.swift */; };
@@ -121,6 +122,7 @@
 		BC8BBCDBBC2D4415D7BC6127 /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620A0D38838A61333D998D46 /* SettingsSupport.swift */; };
 		BE486E6624A190A14204F7BB /* BackupHubStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697A1D0A56178F9956C34BFC /* BackupHubStatus.swift */; };
 		C48A9F57D6004D4A628EE4C8 /* CalendarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63393D3E70EEF613D5806923 /* CalendarLibrary.swift */; };
+		C67B9A5ED67A53157823297D /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = 86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */; };
 		C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		C794E31CBB327B21E8350212 /* BackgroundLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B5E76D6F2FE3502719A1D2 /* BackgroundLifecycle.swift */; };
@@ -226,6 +228,7 @@
 		4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Illustrations.xcassets; sourceTree = "<group>"; };
 		48543A6804607508613E2435 /* PairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
 		533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPhotoFlight.swift; sourceTree = "<group>"; };
+		541F63EB35F0B8619E4E267B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = en; path = en.lproj/Localizable.stringsdict; sourceTree = "<group>"; };
 		5640817ADD4633BA2C294FF2 /* BackupHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistoryTests.swift; sourceTree = "<group>"; };
 		56F6F85441FF999570ADC1F3 /* ConnectPermissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectPermissionTests.swift; sourceTree = "<group>"; };
 		57324330CBEE5EFFF7BE2995 /* BackupActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActivityAttributes.swift; sourceTree = "<group>"; };
@@ -413,6 +416,7 @@
 				B51AE83EA3375BF052D8C0BF /* ThirdPartyNotices-ios.txt */,
 				FC24582406B7B42FD52AC817 /* InfoPlist.strings */,
 				D54CA1F1DA8164B463AAC43D /* Localizable.strings */,
+				86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */,
 			);
 			name = Resources;
 			path = ../apple/Resources;
@@ -679,6 +683,7 @@
 				0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */,
 				EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */,
 				473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */,
+				1A959CEFB1E370296ADD0DFF /* Localizable.stringsdict in Resources */,
 				3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */,
 				FBD98B94832C96416B3D3E72 /* ThirdPartyNotices-ios.txt in Resources */,
 			);
@@ -695,6 +700,7 @@
 				5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
+				C67B9A5ED67A53157823297D /* Localizable.stringsdict in Resources */,
 				11E8EFF2EC7E3E52C2B2D177 /* ThirdPartyNotices-ios.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -946,6 +952,14 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
+		86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */ = {
+			isa = PBXVariantGroup;
+			children = (
+				541F63EB35F0B8619E4E267B /* en */,
+			);
+			name = Localizable.stringsdict;
+			sourceTree = "<group>";
+		};
 		D54CA1F1DA8164B463AAC43D /* Localizable.strings */ = {
 			isa = PBXVariantGroup;
 			children = (

@@ -699,3 +699,10 @@ from leaving the standalone fixture's controls nearly transparent. Add
 `-measure-selection` to write native enabled state, appearance, tint adjustment
 and ancestor opacity to `Documents/selection-measurement.json`; the measurement
 is observational and does not force production colors or opacity.
+
+### Mixed folder media counts
+
+`folders.mixed-pending` and `folders.mixed-saved` each contain four synthetic
+photos and one synthetic video in one folder. Review the state sentence, toolbar
+subtitle and Add Folder sheet in English and Simplified Chinese. `-sheet add`
+opens the same five-item, 195.5 MB preview without reading a real folder.

@@ -137,18 +137,20 @@ struct FolderSourcesPage: View {
       guard browser.resultKey == browser.key,
         !browser.search.isEmpty || !browser.byFolder,
         !browser.sections.contains(where: \.hasMore) else { return scope }
-      return String(format: NSLocalizedString("folders_scope_count", comment: ""), scope, browser.sections.reduce(UInt64(0)) { $0 + UInt64($1.photos.count) })
+      return String(format: NSLocalizedString("folders_scope_count", comment: ""), scope, folderMediaCount(browser.sections.flatMap(\.photos).reduce(FolderMediaCounts()) { counts, photo in
+        counts + (photo.media_type.hasPrefix("video/") ? .init(videos: 1) : .init(photos: 1))
+      }))
     }
     guard folders.loaded || folders.isPreview, folders.sources.allSatisfy({ folders.facts[$0.id] != nil }) else {
       return NSLocalizedString("folders_counting", comment: "")
     }
-    let count = folders.sources.compactMap { folders.facts[$0.id] }.reduce(UInt64(0)) { result, facts in
-      result + (browser.filter == .notBackedUp ? facts.not_backed_up : browser.filter == .needsYou ? facts.needs_you : facts.supported)
+    let count = folders.sources.compactMap { folders.facts[$0.id] }.reduce(FolderMediaCounts()) { result, facts in
+      result + facts.media(browser.filter == .notBackedUp ? "not_backed_up" : browser.filter == .needsYou ? "needs_you" : "supported")
     }
     if browser.filter != .all {
-      return String(format: NSLocalizedString("folders_scope_count", comment: ""), NSLocalizedString(browser.filter.title, comment: ""), count)
+      return String(format: NSLocalizedString("folders_scope_count", comment: ""), NSLocalizedString(browser.filter.title, comment: ""), folderMediaCount(count))
     }
-    return String(format: NSLocalizedString("folders_inventory_count", comment: ""), folders.sources.count, count)
+    return String(format: NSLocalizedString("folders_inventory_count", comment: ""), UInt64(folders.sources.count), folderMediaCount(count))
   }
   private func backUpSelected() {
     let photos = browser.selected, tokens = browser.selection
@@ -325,7 +327,7 @@ struct AddFolderSheet: View {
   var body: some View {
     DuckSheetLayout(title: LocalizedStringKey(String(format: NSLocalizedString("folders_add_named", comment: ""), url.lastPathComponent)), busy: adding, error: error, desktopFitsContent: true, form: true) {
       if let count {
-        Text(String(format: NSLocalizedString("folders_count_size", comment: ""), count.files, ByteCountFormatter.string(fromByteCount: Int64(clamping: count.bytes), countStyle: .file))).foregroundStyle(.secondary)
+        Text(String(format: NSLocalizedString("folders_count_size", comment: ""), folderMediaCount(count.media_kinds ?? .init(photos: count.files)), ByteCountFormatter.string(fromByteCount: Int64(clamping: count.bytes), countStyle: .file))).foregroundStyle(.secondary)
       } else { Text("folders_counting").foregroundStyle(.secondary) }
       Picker("folders_add_decision", selection: $existing) {
         Text("folders_include_existing").tag(true)
@@ -348,7 +350,7 @@ struct AddFolderSheet: View {
     .task { await countFolder() }
   }
   private func countFolder() async {
-    if folders.isPreview { count = FolderSummary(files: 248, bytes: 1_240_000_000, unsupported: 12, scanning: false); return }
+    if folders.isPreview { count = folders.previewSummary ?? FolderSummary(files: 248, bytes: 1_240_000_000, unsupported: 12, scanning: false); return }
     _ = url.startAccessingSecurityScopedResource()
     defer { url.stopAccessingSecurityScopedResource() }
     do {

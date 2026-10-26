@@ -23,6 +23,7 @@
 		10C05972F063622785014F89 /* MacPreferenceGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37E118348EBEA45F865C366 /* MacPreferenceGroup.swift */; };
 		16747707B98624D480EC06F4 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		17A337617A0FFA79F33E0348 /* FolderWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8092617AEB476C19587672C8 /* FolderWatch.swift */; };
+		1A959CEFB1E370296ADD0DFF /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = 86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */; };
 		1D21138CFD7DD57F9D1B0D3F /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790522FA25588024EE51100B /* PhotoLibraryChanges.swift */; };
 		1DAE3203534279498E99F2AA /* FolderSourcesPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774C6225CA051D4BF9220D34 /* FolderSourcesPage.swift */; };
 		22C1BB50D4A30FF3ED81B30E /* MacAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC664820D43C5E36E1794DA7 /* MacAppMain.swift */; };
@@ -46,6 +47,7 @@
 		3596354693362991FA4D9E63 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B879720B5A1DAB699000E2E /* Assets.xcassets */; };
 		3847361A2E188CCDB2245BB5 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2240B6B1E76D07784056F214 /* AppUpdater.swift */; };
 		3A17D15F5A215D093FC5F5D3 /* BackgroundTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EA1DE3AF848C064AD25BB8 /* BackgroundTransfer.swift */; };
+		3A1FC61BD751067A7172F8D5 /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = 86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */; };
 		3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */ = {isa = PBXBuildFile; fileRef = 97B2FA3346C393306279C748 /* Scenarios */; };
 		3BD0C5D4F8BC13104E3197A7 /* BackupEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A7CA0FDF08863F46447C16 /* BackupEnvironment.swift */; };
 		3CABCB80B1CC3783D7CDF280 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39898A776B4A23AF72454A2 /* TransferViews.swift */; };
@@ -160,6 +162,7 @@
 		BEB3BA61AD75C30CAAD148AB /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620A0D38838A61333D998D46 /* SettingsSupport.swift */; };
 		C0CF5B725CF9B0AFFBDE0905 /* MacHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96643277A7E41AF1DC12B80A /* MacHub.swift */; };
 		C523FE7BCDFCE7BAE44D6008 /* DuckLook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41506FFB9A2E2ABA3A192FA4 /* DuckLook.swift */; };
+		C67B9A5ED67A53157823297D /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = 86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */; };
 		C6BE49050EA4F7E97F0B7D62 /* DuckTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728F0586C99805E1F1C10684 /* DuckTokens.swift */; };
 		C6CF7E9C89BEA6C69606156C /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110AD52A05DA30D64850E6D /* TransferProgress.swift */; };
 		C7F10210940291A3ED1353EF /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D97B6B65AD87FB6AE83B23C /* PhotoBackupOrder.swift */; };
@@ -252,6 +255,7 @@
 		4708F005DB1E0FFFDC310112 /* Illustrations.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Illustrations.xcassets; sourceTree = "<group>"; };
 		49B4243B08406794F3828620 /* BackupDuckMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupDuckMacApp.swift; sourceTree = "<group>"; };
 		533F41F1389F0E410204F6F2 /* FirstPhotoFlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPhotoFlight.swift; sourceTree = "<group>"; };
+		541F63EB35F0B8619E4E267B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.stringsdict; name = en; path = en.lproj/Localizable.stringsdict; sourceTree = "<group>"; };
 		5C22A10344FF24A5AFAAC246 /* MacLibraryPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLibraryPlaceholder.swift; sourceTree = "<group>"; };
 		5CBA4F7B4794F768E7D3071B /* BackupScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupScope.swift; sourceTree = "<group>"; };
 		604819320A8AF91EACFAD75F /* FolderMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderMedia.swift; sourceTree = "<group>"; };
@@ -415,6 +419,7 @@
 				A1EBE7D8C230F84D6C57E032 /* ThirdPartyNotices-mac.txt */,
 				FC24582406B7B42FD52AC817 /* InfoPlist.strings */,
 				D54CA1F1DA8164B463AAC43D /* Localizable.strings */,
+				86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */,
 			);
 			name = Resources;
 			path = ../apple/Resources;
@@ -589,6 +594,7 @@
 				0FDE19538CE5293933C3BF50 /* DuckMenuBar.pdf in Resources */,
 				EA6FE1230712D35D54D58102 /* Illustrations.xcassets in Resources */,
 				473D2EA57EEF3E110C8DE98B /* Localizable.strings in Resources */,
+				1A959CEFB1E370296ADD0DFF /* Localizable.stringsdict in Resources */,
 				3B4F1A7F5616ED796F3BED53 /* Scenarios in Resources */,
 				7C8EDA21C9A70EBA6609C4A8 /* ThirdPartyNotices-mac.txt in Resources */,
 			);
@@ -605,6 +611,7 @@
 				5D22649FB16B41B3A7FC916E /* Illustrations.xcassets in Resources */,
 				77CF168597D84F93678A05CF /* InfoPlist.strings in Resources */,
 				85C0ADD7D7FF1A38B3FF9932 /* Localizable.strings in Resources */,
+				C67B9A5ED67A53157823297D /* Localizable.stringsdict in Resources */,
 				DB14522B9295FEB7F58DC823 /* ThirdPartyNotices-mac-sparkle.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -620,6 +627,7 @@
 				D10B35DF72278E1BFC075963 /* Illustrations.xcassets in Resources */,
 				AE07C56044FC909304692C2A /* InfoPlist.strings in Resources */,
 				0BE4D0EA2DB8BE499CDC1BE9 /* Localizable.strings in Resources */,
+				3A1FC61BD751067A7172F8D5 /* Localizable.stringsdict in Resources */,
 				230187633955F7DCA32D842E /* ThirdPartyNotices-mac.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -889,6 +897,14 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
+		86E5EBD5848A73AB677E7B2D /* Localizable.stringsdict */ = {
+			isa = PBXVariantGroup;
+			children = (
+				541F63EB35F0B8619E4E267B /* en */,
+			);
+			name = Localizable.stringsdict;
+			sourceTree = "<group>";
+		};
 		D54CA1F1DA8164B463AAC43D /* Localizable.strings */ = {
 			isa = PBXVariantGroup;
 			children = (

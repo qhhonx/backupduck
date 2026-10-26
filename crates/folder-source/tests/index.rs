@@ -808,3 +808,118 @@ fn directory_rule_tokens_skip_descendants() {
     scan(&mut i, "a", &t.root(), 1);
     assert_eq!(i.summary("a", 0).unwrap().files, 0);
 }
+
+#[test]
+fn media_splits_cover_partial_scans_every_backup_state_and_receiver_scope() {
+    let t = Temp::new();
+    for (name, bytes) in [
+        ("saved.jpg", 1),
+        ("saved.mp4", 2),
+        ("sending.jpg", 3),
+        ("saving.mov", 4),
+        ("attention.png", 5),
+        ("attention.m4v", 6),
+        ("new.heic", 7),
+        ("new.mp4", 8),
+        ("ignored.cr3", 9),
+    ] {
+        fs::write(t.root().join(name), vec![1; bytes]).unwrap();
+    }
+    let mut index = t.index();
+    index.begin("a", &t.root(), 1).unwrap();
+    loop {
+        let summary = index.step(1, 1).unwrap();
+        assert_eq!(
+            summary.files,
+            summary.media_kinds.photos + summary.media_kinds.videos
+        );
+        if !summary.scanning {
+            break;
+        }
+    }
+    let summary = index.summary("a", 0).unwrap();
+    assert_eq!(
+        (summary.files, summary.bytes, summary.unsupported),
+        (8, 36, 1)
+    );
+    assert_eq!(
+        summary.media_kinds,
+        MediaCounts {
+            photos: 4,
+            videos: 4
+        }
+    );
+    for (job, name) in [
+        (1, "saved.jpg"),
+        (2, "saved.mp4"),
+        (3, "sending.jpg"),
+        (4, "saving.mov"),
+        (5, "attention.png"),
+        (6, "attention.m4v"),
+    ] {
+        let entry = index.entry("a", name).unwrap();
+        index
+            .mark("a", name, "receiver", &entry.revision, job)
+            .unwrap();
+    }
+    let facts = index
+        .facts("a", "receiver", |job| {
+            Ok(Observation {
+                state: match job {
+                    1 | 2 => "saved",
+                    3 => "sending",
+                    4 => "saving",
+                    _ => "needs_you",
+                }
+                .into(),
+                saved_at_ms: None,
+            })
+        })
+        .unwrap();
+    assert_eq!(facts.supported, 8);
+    assert_eq!(
+        facts.supported_kinds,
+        MediaCounts {
+            photos: 4,
+            videos: 4
+        }
+    );
+    for (total, split) in [
+        (facts.saved, facts.saved_kinds),
+        (facts.in_flight, facts.in_flight_kinds),
+        (facts.needs_you, facts.needs_you_kinds),
+        (facts.not_backed_up, facts.not_backed_up_kinds),
+    ] {
+        assert_eq!(total, 2);
+        assert_eq!(
+            split,
+            MediaCounts {
+                photos: 1,
+                videos: 1
+            }
+        );
+    }
+    assert_eq!(facts.in_flight_bytes, 7);
+    let other = index.facts("a", "other", |_| unreachable!()).unwrap();
+    assert_eq!(other.not_backed_up_kinds, summary.media_kinds);
+    fs::remove_file(t.root().join("new.mp4")).unwrap();
+    scan(&mut index, "a", &t.root(), 2);
+    assert_eq!(
+        index.summary("a", 0).unwrap().media_kinds,
+        MediaCounts {
+            photos: 4,
+            videos: 3
+        }
+    );
+    drop(index);
+    assert_eq!(
+        t.index()
+            .facts("a", "other", |_| unreachable!())
+            .unwrap()
+            .supported_kinds,
+        MediaCounts {
+            photos: 4,
+            videos: 3
+        }
+    );
+}

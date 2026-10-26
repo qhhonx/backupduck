@@ -1,0 +1,10 @@
+{
+  "id": "folders.mixed-saved",
+  "extends": "folders.sections",
+  "title": "Mixed folder \u2014 saved",
+  "mac_only": true,
+  "expect": [
+    "One synthetic folder contains four photos and one video. The toolbar and Add Folder sheet use the same media count phrase.",
+    "The folder sentence shows the saved count without calling the video a photo."
+  ]
+}

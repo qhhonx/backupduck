@@ -33,6 +33,22 @@ import SwiftUI
           backup: id == "folders.viewer-received" && sourceID == "fixture-photo-0-4" ? "saving" : folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? "saved" : folder == 1 ? "sending" : "not_backed_up", saved_at_ms: id == "folders.viewer-received" && sourceID == "fixture-photo-0-4" ? nil : folder == 0 || folder == 1 && index < 6 || folder == 2 && index < 40 ? saved : nil))
       }
     }
+    if id.hasPrefix("folders.mixed") {
+      folders.sources = Array(folders.sources.prefix(1))
+      let saved = id.hasSuffix("saved")
+      let kinds = FolderMediaCounts(photos: 4, videos: 1)
+      folders.facts = ["fixture-0": FolderFacts(supported: 5, supported_kinds: kinds,
+        saved: saved ? 5 : 0, saved_kinds: saved ? kinds : .init(),
+        not_backed_up: saved ? 0 : 5, not_backed_up_kinds: saved ? .init() : kinds, available: true)]
+      photos = Array(photos.prefix(5)).enumerated().map { index, photo in
+        FolderPhoto(relative: index == 4 ? "CLIP_0001.mp4" : "IMG_\(1000 + index).jpg",
+          source_id: photo.source_id, revision: photo.revision, size: index == 4 ? 194_797_842 : 178_040,
+          media_type: index == 4 ? "video/mp4" : "image/jpeg", modified_ms: photo.modified_ms,
+          folder_id: photo.folder_id, capture_ms: photo.capture_ms, date_source: photo.date_source,
+          backup: saved ? "saved" : "not_backed_up", saved_at_ms: saved ? photo.saved_at_ms : nil)
+      }
+      folders.previewSummary = FolderSummary(files: 5, media_kinds: kinds, bytes: 195_510_002, unsupported: 0, scanning: false)
+    }
     folders.previewRows = photos
     folders.previewImage = image
     if id.hasPrefix("folders.viewer") {

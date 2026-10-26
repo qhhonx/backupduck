@@ -43,6 +43,7 @@ struct FolderSource: Codable, Identifiable {
 }
 struct FolderSummary: Decodable, Equatable {
   let files: UInt64
+  var media_kinds: FolderMediaCounts? = nil
   let bytes: UInt64
   let unsupported: UInt64
   let scanning: Bool
@@ -54,6 +55,7 @@ struct FolderSummary: Decodable, Equatable {
   @Published private(set) var loadFailed = false
   @Published private(set) var loaded = false
   @Published var selectedSourceID: String?
+  var previewSummary: FolderSummary?
   @Published var summaries: [String: FolderSummary] = [:]
   @Published var phases: [String: String] = [:]
   @Published var error: String?

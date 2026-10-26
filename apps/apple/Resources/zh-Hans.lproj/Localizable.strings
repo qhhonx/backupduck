@@ -870,10 +870,10 @@
 "folders_search" = "搜索";
 "folders_counting" = "正在统计…";
 "folders_disconnected" = "硬盘未连接，已经备份的照片不受影响。重新连接硬盘后会继续备份。";
-"folders_needs_you" = "有 %llu 张照片需要你处理。";
-"folders_backing_up" = "正在备份 %llu 张照片（%@）。";
-"folders_not_backed_up" = "还有 %llu 张照片尚未备份。";
-"folders_saved" = "%llu 张照片已存进 Pixel 相册。";
+"folders_needs_you" = "有 %2$@需要你处理。";
+"folders_backing_up" = "正在备份 %@（%@）。";
+"folders_not_backed_up" = "还有 %2$@尚未备份。";
+"folders_saved" = "%2$@已存进 Pixel 相册。";
 "folders_unsupported" = "%llu 个文件不会备份。";
 "folders_unsupported_info" = "为什么这些文件不会备份";
 "folders_unsupported_note" = "备份鸭无法把这些照片格式（包括 RAW）存进 Pixel 相册。文件仍保留在 Mac 上。";
@@ -885,7 +885,7 @@
 "folders_stop" = "停止备份";
 "folders_stop_question" = "停止备份“%@”？";
 "folders_stop_note" = "此文件夹里的新照片将不再备份。Mac 上的文件和已存进 Pixel 相册的照片都不会删除。";
-"folders_count_size" = "%llu 张照片 · %@";
+"folders_count_size" = "%@ · %@";
 "folders_add_decision" = "要备份哪些照片？";
 "folders_include_existing" = "文件夹里已有的照片和以后的新照片";
 "folders_only_new" = "只备份从现在起添加的照片";
@@ -1045,8 +1045,8 @@
 
 "mac_viewer_position" = "第 %d 项，共 %d 项";
 
-"folders_inventory_count" = "%ld 个文件夹 · %llu 张照片";
-"folders_scope_count" = "%@ · %llu 张照片";
+"folders_inventory_count" = "%ld 个文件夹 · %@";
+"folders_scope_count" = "%@ · %@";
 "folders_search_results" = "搜索结果";
 
 "notifications_off" = "通知已关闭";
@@ -1252,3 +1252,7 @@
 "hub_earlier_not_started_note" = "会按自动备份的范围，在后台慢慢传完。";
 "hub_earlier_start" = "开始备份";
 "onboarding_notify_question" = "要打开备份通知吗？";
+
+"folders_media_photos" = "%llu 张照片";
+"folders_media_videos" = "%llu 个视频";
+"folders_media_mixed" = "%1$llu 张照片和 %2$llu 个视频";

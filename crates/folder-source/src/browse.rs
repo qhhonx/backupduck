@@ -52,14 +52,34 @@ pub struct BrowseEntry {
     pub backup: String,
     pub saved_at_ms: Option<u64>,
 }
+/// Supported media split; non-video supported formats retain the photo vocabulary.
+#[derive(Debug, Clone, Copy, Default, Serialize, PartialEq, Eq)]
+pub struct MediaCounts {
+    pub photos: u64,
+    pub videos: u64,
+}
+impl MediaCounts {
+    pub(crate) fn record(&mut self, mime: &str) {
+        if mime.starts_with("video/") {
+            self.videos += 1;
+        } else {
+            self.photos += 1;
+        }
+    }
+}
 #[derive(Debug, Default, Serialize)]
 pub struct FolderFacts {
     pub supported: u64,
+    pub supported_kinds: MediaCounts,
     pub saved: u64,
+    pub saved_kinds: MediaCounts,
     pub in_flight: u64,
+    pub in_flight_kinds: MediaCounts,
     pub in_flight_bytes: u64,
     pub needs_you: u64,
+    pub needs_you_kinds: MediaCounts,
     pub not_backed_up: u64,
+    pub not_backed_up_kinds: MediaCounts,
     pub available: Option<bool>,
     pub unsupported_by_kind: BTreeMap<String, u64>,
 }
@@ -185,14 +205,25 @@ impl Index {
         };
         self.visit(Some(source), receiver, "", observe, |row| {
             facts.supported += 1;
+            facts.supported_kinds.record(&row.entry.media_type);
             match row.backup.as_str() {
-                "saved" => facts.saved += 1,
-                "needs_you" => facts.needs_you += 1,
+                "saved" => {
+                    facts.saved += 1;
+                    facts.saved_kinds.record(&row.entry.media_type);
+                }
+                "needs_you" => {
+                    facts.needs_you += 1;
+                    facts.needs_you_kinds.record(&row.entry.media_type);
+                }
                 "sending" | "saving" => {
                     facts.in_flight += 1;
+                    facts.in_flight_kinds.record(&row.entry.media_type);
                     facts.in_flight_bytes += row.entry.size;
                 }
-                _ => facts.not_backed_up += 1,
+                _ => {
+                    facts.not_backed_up += 1;
+                    facts.not_backed_up_kinds.record(&row.entry.media_type);
+                }
             }
             true
         })?;
