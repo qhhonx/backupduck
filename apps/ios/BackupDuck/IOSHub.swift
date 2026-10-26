@@ -163,6 +163,9 @@ struct IOSHub: View {
       problem("wifi.exclamationmark", DuckRole.attentionGlyph,
         Text(verbatim: String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)), note: "hub_problem_offline_note",
         action: "hub_problem_offline_action") { offlineHelp = true }
+    case .localNetworkBlocked:
+      problem("network.slash", DuckRole.attentionGlyph, Text("hub_problem_local_network"), note: "hub_problem_local_network_note",
+        action: "hub_problem_photos_action") { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } }
     case .receiverFull:
       problem("externaldrive.badge.exclamationmark", DuckRole.attentionGlyph, Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note")
     case .phoneFull:

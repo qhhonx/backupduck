@@ -238,7 +238,7 @@ struct IOSOnboarding: View {
     case .choose:
       VStack(alignment: .leading, spacing: 16) {
         Text(earlierQuestion).font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
-        if BackupEnvironment.photoAccess() == .limited { Text("onboarding_access_limited").font(.subheadline).foregroundStyle(.secondary) }
+        if model.photoAccess == .limited { Text("onboarding_access_limited").font(.subheadline).foregroundStyle(.secondary) }
         if let error = choiceError ?? progress.scopeError { Text(error).foregroundStyle(.secondary) }
         Text("onboarding_choose_auto_note").font(.subheadline).foregroundStyle(.secondary)
         // Photos lead (visual-language.md): the question shows the user's own photos.
@@ -419,7 +419,7 @@ struct IOSOnboarding: View {
     // evidence of missing access, empty scope or a failed network send.
     guard model.summary.received == 0, model.summary.running == 0,
       firstJob?.state != "running" else { return nil }
-    let access = BackupEnvironment.photoAccess()
+    let access = model.photoAccess
     if access == .limited || access == .denied || access == .undetermined {
       return Blocker(
         message: NSLocalizedString(access == .limited ? "onboarding_first_limited" : "onboarding_first_denied", comment: ""),

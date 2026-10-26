@@ -64,8 +64,8 @@ enum BackupEnvironment {
   /// How many photos and videos the library holds, or nil before access is granted.
   nonisolated(unsafe) static var libraryCount: @MainActor () -> Int? = {
     guard usesPhotoLibrary else { return nil }
-    let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-    guard access == .authorized || access == .limited else { return nil }
+    let access = activeModel().photoAccess
+    guard access == .full || access == .limited else { return nil }
     return PHAsset.fetchAssets(with: nil).count
   }
 }

@@ -1,0 +1,14 @@
+{
+  "id": "hub.localNetworkBlocked",
+  "page": "backup",
+  "extends": "hub.offline",
+  "title": "Local network blocked",
+  "core": {
+    "check_pairing": { "error": "local_network_denied" }
+  },
+  "expect": [
+    "The hub names local-network denial with the network.slash attention glyph and one Settings action.",
+    "iPhone asks to enable Local Network; Mac asks to turn BackupDuck off and on again."
+  ],
+  "actions": []
+}

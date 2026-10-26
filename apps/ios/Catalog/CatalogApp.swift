@@ -678,11 +678,11 @@ private final class SelectionReviewAsset: PHAsset, PreviewSample, @unchecked Sen
   }
 }
 
-private final class SelectionReviewSample: UIViewController {
+final class SelectionReviewSample: UIViewController {
   let mode: String, model: BackupModel
   let appearance: UIUserInterfaceStyle
   let library = PhotoLibraryModel(), action = SelectionBackupAction()
-  let photos = (0..<48).map(SelectionReviewAsset.init)
+  private let photos = (0..<48).map(SelectionReviewAsset.init)
   let calendar = CalendarGridController()
   override var navigationItem: UINavigationItem { calendar.navigationItem }
   override var childForStatusBarStyle: UIViewController? { calendar }
@@ -749,12 +749,27 @@ private final class SelectionReviewSample: UIViewController {
   override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); calendar.view.frame = view.bounds }
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    // A fixture starts at its settled chrome state. The navigation host installs
+    // status-bar containment next; interrupting this reveal there preserves a
+    // nearly transparent presentation value in the standalone Catalog host.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.calendar.selectionReview == nil else { return }
+      // Re-enter the fixture's production chrome after containment has completed;
+      // a cancelled reveal already retained its target enum with partial opacity.
+      self.calendar.chrome = .navigation
+      self.calendar.refreshSelection()
+      self.settleInitialChrome()
+    }
     guard !opened else { return }; opened = true
     // Include system-owned sheet chrome in the Catalog's app-only appearance.
     view.window?.overrideUserInterfaceStyle = appearance
     let arguments = ProcessInfo.processInfo.arguments
+    if arguments.contains("-measure-selection") {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.measureSelection() }
+    }
     if let flag = arguments.firstIndex(of: "-start-zoom"), arguments.indices.contains(flag + 1) {
       calendar.changeLevel(arguments[flag + 1] == "years" ? .years : .months, asset: photos.count - 1, from: nil)
+      settleInitialChrome()
     } else if mode != "selected" {
       calendar.reviewSelection()
       calendar.selectionReview?.navigationController?.overrideUserInterfaceStyle = appearance
@@ -763,6 +778,29 @@ private final class SelectionReviewSample: UIViewController {
       }
       if mode == "feedback" { submit() }
     }
+  }
+  private func settleInitialChrome() {
+    guard let motion = calendar.chromeMotion else { return }
+    motion.stopAnimation(false)
+    motion.finishAnimation(at: .end)
+  }
+  private func measureSelection() {
+    let button = calendar.selectedButton
+    func traits(_ view: UIView) -> [String: Any] {
+      ["class": String(describing: type(of: view)), "style": view.traitCollection.userInterfaceStyle.rawValue,
+       "tintAdjustment": view.tintAdjustmentMode.rawValue, "alpha": view.alpha,
+       "tint": String(describing: view.tintColor), "frame": String(describing: view.frame)]
+    }
+    var parents: [[String: Any]] = []; var node: UIView? = button
+    while let view = node { parents.append(traits(view)); node = view.superview }
+    let result: [String: Any] = ["enabled": button.isEnabled, "selected": calendar.selected.count,
+      "title": button.titleLabel?.text ?? "", "color": String(describing: button.titleLabel?.textColor),
+      "configurationColor": String(describing: button.configuration?.baseForegroundColor),
+      "chrome": String(describing: calendar.chrome), "active": calendar.active,
+      "motion": String(describing: calendar.chromeMotion?.state), "parents": parents]
+    let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+      .write(to: directory.appendingPathComponent("selection-measurement.json"), options: .atomic)
   }
   private func submit() {
     Task { @MainActor in

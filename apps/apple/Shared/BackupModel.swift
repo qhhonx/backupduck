@@ -4,6 +4,10 @@ import Photos
 import Security
 import UniformTypeIdentifiers
 
+#if os(macOS)
+  import AppKit
+#endif
+
 #if os(iOS)
   import BackgroundTasks
   import UIKit
@@ -92,6 +96,11 @@ private struct ProcessingEventsResult: Decodable {
 
 @MainActor final class BackupModel: ObservableObject {
   static let shared = BackupModel()
+  @Published private(set) var photoAccess: PhotoAccess { didSet { updateHubBatch() } }
+  func refreshPhotoAccess() {
+    let access = BackupEnvironment.photoAccess()
+    if photoAccess != access { photoAccess = access }
+  }
   @Published var historicalImport: HistoricalImportStatus? { didSet { updateHubBatch() } }
   @Published var historyError: String?
   @Published var changingHistory = false
@@ -129,6 +138,7 @@ private struct ProcessingEventsResult: Decodable {
       receiverReadings = try JSONDecoder().decode(ReceiverReadings?.self, from: data)
     } catch { receiverReadings = nil }
   }
+  private var photoAccessActivation: AnyCancellable?
   private var activeExport: BoundedExportWriter?
   /// Saved trust may exist while an unfinished first run restores its scanner.
   /// Only a completed connection or an eligible restored session starts workers.
@@ -239,9 +249,17 @@ private struct ProcessingEventsResult: Decodable {
   private var lastScheduleError: Int?
   let root: URL
   init(root: URL? = nil) {
+    photoAccess = BackupEnvironment.photoAccess()
     self.root = root ?? FileManager.default.urls(
       for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(
         "BackupDuck", isDirectory: true)
+    #if os(iOS)
+      let activeNotification = UIApplication.didBecomeActiveNotification
+    #else
+      let activeNotification = NSApplication.didBecomeActiveNotification
+    #endif
+    photoAccessActivation = NotificationCenter.default.publisher(for: activeNotification)
+      .receive(on: RunLoop.main).sink { [weak self] _ in self?.refreshPhotoAccess() }
   }
 
   func open() async {
@@ -462,6 +480,7 @@ private struct ProcessingEventsResult: Decodable {
     await discovery?.discoverAndQueue(using: self)
   }
   func becameActive() async {
+    refreshPhotoAccess()
     await open()
     discovery?.observeIfAllowed()
     await BackgroundTransfer.shared.kick(reconcile: true)
@@ -597,6 +616,7 @@ private struct ProcessingEventsResult: Decodable {
   }
   func authorizePhotos() async -> Bool {
     let allowed = await BackupEnvironment.requestPhotoAccess()
+    refreshPhotoAccess()
     if !allowed { message = NSLocalizedString("photos_permission_needed", comment: "") }
     return allowed
   }
@@ -635,10 +655,11 @@ private struct ProcessingEventsResult: Decodable {
       message = NSLocalizedString("apple_selected_receiver_needed", comment: "")
       return false
     }
-    let authorization = requestAuthorization
-      ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-      : PHPhotoLibrary.authorizationStatus(for: .readWrite)
-    guard authorization == .authorized || authorization == .limited else {
+    if requestAuthorization {
+      _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+      refreshPhotoAccess()
+    }
+    guard photoAccess == .full || photoAccess == .limited else {
       message = NSLocalizedString("photos_permission_needed", comment: "")
       return false
     }
@@ -721,11 +742,11 @@ private struct ProcessingEventsResult: Decodable {
     // the regular preparation worker will consume them after the batch finishes.
     // This prevents a rescan from replacing source membership during export.
     if scanningHistory { return true }
-    let authorization =
-      requestAuthorization
-      ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-      : PHPhotoLibrary.authorizationStatus(for: .readWrite)
-    guard authorization == .authorized || authorization == .limited else {
+    if requestAuthorization {
+      _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+      refreshPhotoAccess()
+    }
+    guard photoAccess == .full || photoAccess == .limited else {
       message = NSLocalizedString("photos_permission_needed", comment: "")
       return false
     }
@@ -955,8 +976,7 @@ private struct ProcessingEventsResult: Decodable {
         guard self.pairing?.receiverID == pairing.receiverID else { return }
         result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         pendingImports = result?["count"] as? Int ?? 0
-        let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        guard !paused, access == .authorized || access == .limited else { return }
+        guard !paused, photoAccess == .full || photoAccess == .limited else { return }
         guard await canPrepareForReceiver() else { return }
         let unordered = result?["unordered"] as? [String] ?? []
         if unordered.isEmpty { break }

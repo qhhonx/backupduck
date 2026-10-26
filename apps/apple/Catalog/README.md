@@ -685,3 +685,17 @@ fixture. Its reachability pill and the offline hub identity dot use
 photo-fact warnings and placeholder warnings use this role. Media marks over
 photos, including needs-you tile triangles, are white with soft shadows in every
 appearance (V5).
+
+### Local-network denial and selection host containment
+
+`hub.localNetworkBlocked` renders the production Apple hub's explicit
+local-network denial card. iPhone uses the app Settings action; Mac uses Local
+Network settings with the Security pane as fallback. The fixture supplies the
+connection diagnosis and never changes system permissions.
+
+Selection-review fixtures settle their initial chrome reveal before the
+navigation host installs status-bar containment. This keeps host reparenting
+from leaving the standalone fixture's controls nearly transparent. Add
+`-measure-selection` to write native enabled state, appearance, tint adjustment
+and ancestor opacity to `Documents/selection-measurement.json`; the measurement
+is observational and does not force production colors or opacity.

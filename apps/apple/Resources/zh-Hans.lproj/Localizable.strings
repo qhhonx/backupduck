@@ -733,6 +733,9 @@
 "hub_problem_receiver_full_note" = "在 Pixel 上释放空间后会自动继续。";
 "hub_problem_phone_full" = "iPhone 空间不够准备照片，已暂停";
 "hub_problem_phone_full_note" = "空出空间后会自动继续。";
+"hub_problem_local_network" = "备份鸭用不了本地网络";
+"hub_problem_local_network_note" = "在设置里为备份鸭打开“本地网络”。";
+"hub_problem_local_network_note_mac" = "在“本地网络”设置里，把备份鸭关掉再打开。";
 "hub_problem_photos" = "备份鸭看不到你的照片";
 "hub_problem_photos_note" = "允许访问后，新照片会自动备份。";
 "hub_problem_photos_action" = "打开设置";

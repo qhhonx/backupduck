@@ -171,7 +171,11 @@ import CryptoKit
     return await Task.detached(priority: .utility) { scope.selectedIDs(from: ids) }.value
   }
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
-    Task { @MainActor in await BackupModel.shared.discoverPhotos() }
+    Task { @MainActor in
+      let model = BackupEnvironment.activeModel()
+      model.refreshPhotoAccess()
+      await model.discoverPhotos()
+    }
   }
   func discoverAndQueue(using model: BackupModel) async {
     guard BackupEnvironment.usesPhotoLibrary, (state.enabled || state.closingToken != nil || !state.pending.isEmpty),

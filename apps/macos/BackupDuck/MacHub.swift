@@ -104,6 +104,15 @@ struct MacHub: View {
       card(Text(verbatim: String(format: NSLocalizedString("hub_problem_offline", comment: ""), receiverName)),
         note: "hub_problem_offline_note", symbol: "wifi.exclamationmark", tone: DuckRole.attentionGlyph,
         action: "hub_problem_offline_action") { offlineHelp = true }
+    case .localNetworkBlocked:
+      card(Text("hub_problem_local_network"), note: "hub_problem_local_network_note_mac", symbol: "network.slash", tone: DuckRole.attentionGlyph,
+        action: "hub_problem_photos_action_mac") {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork"),
+          !NSWorkspace.shared.open(url),
+          let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
+          NSWorkspace.shared.open(fallback)
+        }
+      }
     case .receiverFull:
       card(Text("hub_problem_receiver_full"), note: "hub_problem_receiver_full_note", symbol: "externaldrive.badge.exclamationmark", tone: DuckRole.attentionGlyph)
     case .phoneFull:
@@ -162,6 +171,12 @@ struct MacHub: View {
     var seen = Set<String>()
     return model.jobs.filter { $0.state == "received" && ($0.receiverID == nil || $0.receiverID == model.pairing?.receiverID) }
       .sorted { ($0.stateChangedAt ?? 0) > ($1.stateChangedAt ?? 0) }
+      .filter { job in
+        if job.asset.metadata?["source_type"] == "folder" {
+          return folders.sources.contains { $0.id == job.asset.metadata?["source_ref"] }
+        }
+        return model.photoAccess == .full || model.photoAccess == .limited
+      }
       .filter { seen.insert($0.asset.source_id).inserted }
       .prefix(8).map(HistoryPhoto.init(job:))
   }

@@ -9,6 +9,31 @@ import Photos
 @MainActor final class ConnectPermissionTests: XCTestCase {
   private let payload = #"{"version":2,"receiver_id":"catalog-pixel","endpoint":"https://127.0.0.1:1","certificate":"fixture","token":"fixture"}"#
 
+  func testSelectionCatalogChromeSettlesAfterHostContainment() async throws {
+    try await withModel("selection.review.selected") { model, _ in
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      for style in [UIUserInterfaceStyle.light, .dark] {
+        let sample = SelectionReviewSample(mode: "selected", model: model, appearance: style)
+        let window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        window.overrideUserInterfaceStyle = style
+        window.rootViewController = CalendarNavigationController(rootViewController: sample)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(800))
+        let button = sample.calendar.selectedButton
+        XCTAssertEqual(sample.calendar.selected.count, 12)
+        XCTAssertTrue(button.isEnabled)
+        XCTAssertNotNil(button.window)
+        XCTAssertFalse(button.isHidden)
+        XCTAssertEqual(button.alpha, 1)
+        XCTAssertEqual(button.superview?.alpha, 1, "Catalog containment must not stop the reveal near zero opacity")
+        XCTAssertFalse(button.superview?.isHidden ?? true)
+        XCTAssertEqual(button.traitCollection.userInterfaceStyle, style)
+      }
+    }
+  }
+
   func testAttentionGlyphContrastsWithResolvedNativeSurfaces() {
     func luminance(_ color: UIColor, traits: UITraitCollection) -> CGFloat {
       var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0

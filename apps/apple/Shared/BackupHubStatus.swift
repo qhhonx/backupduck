@@ -7,6 +7,7 @@ enum BackupHubStatus: Equatable {
   enum Problem: Equatable {
     case receiverRejected
     case receiverUnreachable
+    case localNetworkBlocked
     case receiverFull
     case phoneFull
     case photoAccessDenied
@@ -42,6 +43,7 @@ enum BackupHubStatus: Equatable {
     // connection reading must not read as a problem.
     if input.paused { return .paused }
     if input.connection == .authentication || input.summary.waiting_reason == "authentication" { return .problem(.receiverRejected) }
+    if input.connection == .localNetworkDenied { return .problem(.localNetworkBlocked) }
     if input.receiverUnavailable || input.connection == .network || input.connection == .unavailable
       || input.summary.waiting_reason == "network" { return .problem(.receiverUnreachable) }
     if ["capacity", "low_space"].contains(input.summary.waiting_reason ?? "") { return .problem(.receiverFull) }
@@ -84,7 +86,7 @@ extension BackupModel {
       }
   }
   @MainActor var showsEarlierPhotosNotStarted: Bool {
-    let access = BackupEnvironment.photoAccess()
+    let access = photoAccess
     return pairing != nil && ready && receiverConnection == .ready && !earlierPhotosStarted
       && (access == .full || access == .limited)
   }
@@ -96,7 +98,7 @@ extension BackupModel {
       paired: pairing != nil, ready: ready, paused: paused, connection: receiverConnection,
       receiverUnavailable: receiverUnavailable, summary: summary,
       phoneSpaceShort: storage?.reason == "local_free_space",
-      photoAccess: BackupEnvironment.photoAccess(), photoLibraryInScope: photoLibraryInScope,
+      photoAccess: photoAccess, photoLibraryInScope: photoLibraryInScope,
       jobs: jobs.filter { $0.receiverID == nil || $0.receiverID == pairing?.receiverID }))
   }
 }
@@ -126,6 +128,7 @@ extension BackupHubStatus {
       switch problem {
       case .receiverRejected: return text("hub_problem_rejected")
       case .receiverUnreachable: return String(format: text("hub_problem_offline"), receiver)
+      case .localNetworkBlocked: return text("hub_problem_local_network")
       case .receiverFull: return text("hub_problem_receiver_full")
       #if os(macOS)
       case .phoneFull: return text("hub_problem_mac_full")
@@ -146,14 +149,14 @@ extension ReceiverConnection {
     switch self {
     case .ready: DuckRole.saved
     case .unknown: DuckRole.secondaryText
-    case .network, .authentication, .unavailable: DuckRole.attentionGlyph
+    case .network, .localNetworkDenied, .authentication, .unavailable: DuckRole.attentionGlyph
     }
   }
   var identityLabel: String {
     switch self {
     case .ready: NSLocalizedString("device_connected_now", comment: "")
     case .unknown: NSLocalizedString("device_connection_unknown", comment: "")
-    case .network, .authentication, .unavailable: NSLocalizedString("device_unreachable", comment: "")
+    case .network, .localNetworkDenied, .authentication, .unavailable: NSLocalizedString("device_unreachable", comment: "")
     }
   }
 }

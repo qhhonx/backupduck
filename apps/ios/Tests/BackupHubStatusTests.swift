@@ -20,6 +20,91 @@ final class BackupHubStatusTests: XCTestCase {
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.photoAccess = .denied }), .problem(.photoAccessDenied))
   }
 
+  func testLocalNetworkBlockKeepsUnreachablePriorityAndSpecificCause() {
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.connection = .localNetworkDenied; $0.receiverUnavailable = true
+      $0.summary.waiting_reason = "network"; $0.photoAccess = .denied
+      $0.phoneSpaceShort = true
+    }), .problem(.localNetworkBlocked))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.connection = .localNetworkDenied; $0.summary.waiting_reason = "authentication"
+    }), .problem(.receiverRejected))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.connection = .localNetworkDenied; $0.paused = true
+    }), .paused)
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.connection = .network }), .problem(.receiverUnreachable))
+    XCTAssertEqual(BackupHubStatus.problem(.localNetworkBlocked).sentence(receiver: "Pixel"),
+      NSLocalizedString("hub_problem_local_network", comment: ""))
+  }
+
+  @MainActor func testHubReadsCachedPhotoAccessUntilExplicitRefresh() {
+    let original = BackupEnvironment.photoAccess
+    defer { BackupEnvironment.photoAccess = original }
+    var reads = 0, access = PhotoAccess.full
+    BackupEnvironment.photoAccess = { reads += 1; return access }
+    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    XCTAssertEqual(reads, 1)
+    access = .denied
+    for _ in 0..<100 {
+      model.autoBackup = true; model.ready = true
+      _ = model.hubStatus; _ = model.photoLibraryInScope; _ = model.showsEarlierPhotosNotStarted
+    }
+    XCTAssertEqual(reads, 1)
+    XCTAssertEqual(model.photoAccess, .full)
+    model.refreshPhotoAccess()
+    XCTAssertEqual(model.photoAccess, .denied)
+    XCTAssertEqual(reads, 2)
+  }
+
+  @MainActor func testPhotoRequestRefreshesCacheAfterBothResults() async {
+    let originalAccess = BackupEnvironment.photoAccess
+    let originalRequest = BackupEnvironment.requestPhotoAccess
+    defer {
+      BackupEnvironment.photoAccess = originalAccess
+      BackupEnvironment.requestPhotoAccess = originalRequest
+    }
+    var access = PhotoAccess.undetermined
+    BackupEnvironment.photoAccess = { access }
+    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    BackupEnvironment.requestPhotoAccess = { access = .denied; return false }
+    let denied = await model.authorizePhotos()
+    XCTAssertFalse(denied)
+    XCTAssertEqual(model.photoAccess, .denied)
+    BackupEnvironment.requestPhotoAccess = { access = .limited; return true }
+    let allowed = await model.authorizePhotos()
+    XCTAssertTrue(allowed)
+    XCTAssertEqual(model.photoAccess, .limited)
+  }
+
+  @MainActor func testNetworkDenialCheckerRefinesOnlyNetworkFailuresAndCaches() async {
+    let pairing = Pairing(version: 2, receiverID: "synthetic", endpoint: "https://127.0.0.1:1", certificate: "fixture", token: "fixture")
+    var probes = 0, checks = 0
+    var response = ReceiverConnection.network
+    var denied = true
+    let gate = ReceiverAvailability(monitorNetwork: false,
+      diagnose: { _ in probes += 1; return response },
+      localNetworkDenied: { target in
+        XCTAssertEqual(target.endpoint, pairing.endpoint)
+        checks += 1; return denied
+      })
+    gate.networkChanged(allowed: true)
+    let blocked = await gate.diagnose(pairing)
+    XCTAssertEqual(blocked, .localNetworkDenied)
+    denied = false
+    let cached = await gate.diagnose(pairing)
+    XCTAssertEqual(cached, .localNetworkDenied)
+    XCTAssertEqual(probes, 1); XCTAssertEqual(checks, 1)
+    let unreachable = await gate.diagnose(pairing, force: true)
+    XCTAssertEqual(unreachable, .network)
+    for result in [ReceiverConnection.ready, .authentication, .unavailable] {
+      response = result
+      let actual = await gate.diagnose(pairing, force: true)
+      XCTAssertEqual(actual, result)
+    }
+    XCTAssertEqual(checks, 2)
+    XCTAssertEqual(probes, 5)
+  }
+
   func testPausingOutranksStaleConnectionReadings() {
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.paused = true; $0.connection = .network }), .paused)
   }

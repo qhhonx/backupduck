@@ -157,8 +157,7 @@ extension BackupModel {
     defer { scanningHistory = false }
     await refreshHistoricalImport()
     guard !paused, let status = historicalImport, status.state == "scanning" else { return }
-    let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-    guard access == .authorized || access == .limited else {
+    guard photoAccess == .full || photoAccess == .limited else {
       historyError = NSLocalizedString("photos_permission_needed", comment: "")
       historicalCursor = nil
       return

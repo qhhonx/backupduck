@@ -217,6 +217,8 @@ items. It becomes a notification only when it lasts.
 | Pixel too hot | Pixel hub; iPhone status line | "The Pixel is too hot; it continues once it cools down." | Resumes after cooling | — |
 | Running in the background on iPhone | iPhone hub while a batch waits | "BackupDuck is slower in the background; open it to go faster." | Continues when the system allows | Keep-screen-on switch |
 
+When the paired connection reports local-network denial, the hub shows "BackupDuck can't use the local network" at the unreachable-problem priority with Open Settings; iPhone asks to enable Local Network, while Mac asks to turn BackupDuck off and on again in Local Network settings.
+
 Every failure message comes from the same state the item shows, so the hub,
 the item and any notification never disagree (P3).
 

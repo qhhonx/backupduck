@@ -733,6 +733,9 @@
 "hub_problem_receiver_full_note" = "It continues once space is freed on the Pixel.";
 "hub_problem_phone_full" = "Not enough space on this iPhone to prepare photos; paused";
 "hub_problem_phone_full_note" = "It continues once space is free.";
+"hub_problem_local_network" = "BackupDuck can't use the local network";
+"hub_problem_local_network_note" = "In Settings, turn on Local Network for BackupDuck.";
+"hub_problem_local_network_note_mac" = "In Local Network settings, turn BackupDuck off and on again.";
 "hub_problem_photos" = "BackupDuck can't see your photos";
 "hub_problem_photos_note" = "Allow access and new photos back up automatically.";
 "hub_problem_photos_action" = "Open Settings";

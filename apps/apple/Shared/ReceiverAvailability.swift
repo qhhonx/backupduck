@@ -2,7 +2,7 @@ import Foundation
 import Network
 
 enum ReceiverConnection: Equatable {
-  case unknown, ready, network, authentication, unavailable
+  case unknown, ready, network, localNetworkDenied, authentication, unavailable
   static func failure(_ error: Error) -> Self {
     guard let failure = error as? Bridge.Failure else { return .unavailable }
     return failure.code == "authentication" ? .authentication
@@ -26,15 +26,21 @@ enum ReceiverConnection: Equatable {
 
   init(monitorNetwork: Bool = true, changed: @escaping () -> Void = {},
     probe: ((Pairing) async -> Bool)? = nil,
-    diagnose: ((Pairing) async -> ReceiverConnection)? = nil) {
+    diagnose: ((Pairing) async -> ReceiverConnection)? = nil,
+    localNetworkDenied: @escaping (Pairing) async -> Bool = { await LocalNetworkDenialCheck.check($0) }) {
     self.changed = changed
-    self.probe = diagnose ?? { pairing in
+    let diagnose = diagnose ?? { pairing in
       if let probe { return await probe(pairing) ? .ready : .network }
       do {
         _ = try await Bridge.call(["op": "check_pairing",
           "pairing": JSONSerialization.jsonObject(with: JSONEncoder().encode(pairing))])
         return .ready
       } catch { return .failure(error) }
+    }
+    self.probe = { pairing in
+      let result = await diagnose(pairing)
+      guard result == .network, !Task.isCancelled else { return result }
+      return await localNetworkDenied(pairing) ? .localNetworkDenied : .network
     }
     monitor = monitorNetwork ? NWPathMonitor() : nil
     monitor?.pathUpdateHandler = { [weak self] path in
@@ -90,5 +96,59 @@ enum ReceiverConnection: Equatable {
     pending = nil; result = reachable
     expires = Date().addingTimeInterval(reachable == .ready ? 3 : 10)
     return reachable
+  }
+}
+
+/// A payload-free TCP attempt distinguishes an explicit OS denial from an
+/// ordinary unreachable peer. Every completion and cancellation stays serialized.
+private final class LocalNetworkDenialCheck: @unchecked Sendable {
+  private let queue = DispatchQueue(label: "app.backupduck.network.denial")
+  private var connection: NWConnection?
+  private var deadline: DispatchWorkItem?
+  private var continuation: CheckedContinuation<Bool, Never>?
+  private var finished = false
+
+  static func check(_ pairing: Pairing) async -> Bool {
+    guard let endpoint = URLComponents(string: pairing.endpoint), endpoint.scheme == "https",
+      let host = endpoint.host, !host.isEmpty,
+      let rawPort = UInt16(exactly: endpoint.port ?? 443), rawPort != 0,
+      let port = NWEndpoint.Port(rawValue: rawPort) else { return false }
+    let check = LocalNetworkDenialCheck()
+    return await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        check.queue.async {
+          guard !check.finished else { continuation.resume(returning: false); return }
+          check.continuation = continuation
+          let parameters = NWParameters.tcp
+          parameters.prohibitedInterfaceTypes = [.cellular]
+          let connection = NWConnection(host: NWEndpoint.Host(host), port: port, using: parameters)
+          check.connection = connection
+          connection.stateUpdateHandler = { [weak check, weak connection] state in
+            guard let check else { return }
+            switch state {
+            case .waiting, .failed:
+              check.finish(connection?.currentPath?.unsatisfiedReason == .localNetworkDenied)
+            case .ready, .cancelled: check.finish(false)
+            default: break
+            }
+          }
+          let deadline = DispatchWorkItem { check.finish(false) }
+          check.deadline = deadline
+          check.queue.asyncAfter(deadline: .now() + 2, execute: deadline)
+          connection.start(queue: check.queue)
+        }
+      }
+    } onCancel: {
+      check.queue.async { check.finish(false) }
+    }
+  }
+
+  private func finish(_ denied: Bool) {
+    guard !finished else { return }
+    finished = true
+    deadline?.cancel(); deadline = nil
+    connection?.stateUpdateHandler = nil
+    connection?.cancel(); connection = nil
+    continuation?.resume(returning: denied); continuation = nil
   }
 }

@@ -165,6 +165,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       requestPermission
       ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
       : PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    if requestPermission { BackupEnvironment.activeModel().refreshPhotoAccess() }
     guard applyAuthorization(access) else { return }
     if !observerRegistered {
       PHPhotoLibrary.shared().register(self)
@@ -552,6 +553,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor in
       guard BackupEnvironment.usesPhotoLibrary else { return }
+      BackupEnvironment.activeModel().refreshPhotoAccess()
       let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
       guard self.applyAuthorization(access), let fetch = self.fetch,
         let details = changeInstance.changeDetails(for: fetch) else { return }

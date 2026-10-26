@@ -190,7 +190,8 @@ extension Scenario {
       .appendingPathComponent("catalog/\(id)-\(UUID().uuidString)", isDirectory: true)
     let model = BackupModel(root: root)
     let connectionError = coreConnectionError
-    model.receiverConnection = connectionError == nil ? .ready : connectionError == "authentication" ? .authentication : .network
+    model.receiverConnection = connectionError == nil ? .ready : connectionError == "authentication" ? .authentication
+      : connectionError == "local_network_denied" ? .localNetworkDenied : .network
     model.receiverUnavailable = connectionError != nil
     do {
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

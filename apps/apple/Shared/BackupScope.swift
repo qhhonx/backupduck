@@ -124,6 +124,7 @@ struct ScopeAlbum: Identifiable, Hashable {
   private var loadedSelections = Set<String>()
   @Published var loading = false
   @Published var denied = false
+  @Published private(set) var authorizationStatus: PHAuthorizationStatus = .denied
   private let suppliedAlbums: Bool
   init(albums: [ScopeAlbum]? = nil, denied: Bool = false) {
     suppliedAlbums = albums != nil
@@ -133,16 +134,24 @@ struct ScopeAlbum: Identifiable, Hashable {
     guard !suppliedAlbums, BackupEnvironment.usesPhotoLibrary else { return }
     // Registering asks for photo access when it has not been decided yet.
     let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    authorizationStatus = access
     if BackupEnvironment.usesPhotoLibrary, access == .authorized || access == .limited { PHPhotoLibrary.shared().register(self) }
   }
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
-    Task { @MainActor [weak self] in self?.lastLoad = nil }
+    Task { @MainActor [weak self] in
+      BackupEnvironment.activeModel().refreshPhotoAccess()
+      self?.lastLoad = nil
+    }
   }
   func load(requestPermission: Bool = false, selectedIDs: Set<String> = []) async {
     guard !suppliedAlbums, BackupEnvironment.usesPhotoLibrary, !loading else { return }; loading = true
     defer { loading = false }
     var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-    if requestPermission, status == .notDetermined { status = await PHPhotoLibrary.requestAuthorization(for: .readWrite) }
+    if requestPermission, status == .notDetermined {
+      status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+      BackupEnvironment.activeModel().refreshPhotoAccess()
+    }
+    authorizationStatus = status
     denied = status != .authorized && status != .limited
     guard !denied else { return }
     if lastAuthorization == status, let lastLoad, Date().timeIntervalSince(lastLoad) < 30, selectedIDs.isSubset(of: loadedSelections.union(Set(albums.map(\.id)))) { return }
@@ -256,8 +265,7 @@ struct BackupScopeEditor: View {
     } else if model.denied {
       // The library's own permission state: the right copy and action for
       // denied, restricted or undecided access, at the optical center.
-      LibraryPlaceholder(kind: .permission(BackupEnvironment.usesPhotoLibrary
-          ? PHPhotoLibrary.authorizationStatus(for: .readWrite) : .denied),
+      LibraryPlaceholder(kind: .permission(model.authorizationStatus),
         requestingAccess: model.loading,
         requestAccess: { Task { await loadAlbums(requestPermission: true) } })
     } else {
