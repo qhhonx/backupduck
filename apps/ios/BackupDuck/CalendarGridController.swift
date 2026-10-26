@@ -1,15 +1,7 @@
 import AVFoundation
 import UIKit
 
-struct CalendarGridAsset: Equatable {
-  let id: String
-  let date: Date?
-  let aspect: CGFloat
-  var videoDuration: String? = nil
-  var live = false
-  /// Modification time in milliseconds: an edit invalidates stored thumbnails.
-  var revision: Int64 = 0
-}
+typealias CalendarGridAsset = LibraryGridAsset
 enum CalendarGridLevel: Int, CaseIterable { case years, months, all }
 struct CalendarGridTile {
   let id: String
@@ -1711,7 +1703,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     denseCanvas.hidePreviewTile(frame)
   }
   private func photoActions(_ asset: CalendarGridAsset) -> [UIAccessibilityCustomAction] {
-    guard !selecting else { return [] }
+    guard !selecting, !browseOnly else { return [] }
     var actions = [UIAccessibilityCustomAction(name: NSLocalizedString("library_select", comment: "")) { [weak self] _ in
       guard let self, let index = self.assets.firstIndex(where: { $0.id == asset.id }) else { return false }
       if !self.selecting { self.toggleSelection() }
@@ -1770,6 +1762,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var columns = CalendarGridController.rememberedColumns { didSet { rememberDensity() } }
   var originalAspect = false
   var onSelectionMode: (Bool) -> Void = { _ in }
+  var browseOnly = false
   var selecting = false {
     didSet { if selecting != oldValue { onSelectionMode(selecting) } }
   }
@@ -1806,6 +1799,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var restoringNativeNavigation = false
   var chrome: Chrome = .navigation, chromeMotion: UIViewPropertyAnimator?,
     expandedNavigation = false
+  var filterActive = false
   var filterItem: UIBarButtonItem!, selectItem: UIBarButtonItem!, closeItem: UIBarButtonItem!,
     backupItem: UIBarButtonItem!, moreItem: UIBarButtonItem!
   var headerSelecting: Bool?
@@ -2000,6 +1994,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     onBackup()
   }
   func refreshMenu() {
+    filterItem?.image = UIImage(systemName: filterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+    filterItem?.tintColor = filterActive ? UIColor(DuckRole.accent) : nil
     filterItem?.menu = displayMenu()
     let backup = UIAction(title: NSLocalizedString("calendar_backup_action", comment: ""),
       image: UIImage(systemName: "arrow.up"), attributes: canBackup && !selected.isEmpty ? [] : .disabled) { [weak self] _ in
@@ -2021,7 +2017,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     // The same item objects persist across the switch and the change is
     // animated, so the bar uses the system transition (a glass morph on iOS 26)
     // instead of replacing its groups at once.
-    let items: [UIBarButtonItem] = selecting ? [backupItem, closeItem]
+    let items: [UIBarButtonItem] = browseOnly ? [] : selecting ? [backupItem, closeItem]
       : backupAdded ? [backupItem, selectItem, filterItem] : [selectItem, filterItem]
     navigationItem.setRightBarButtonItems(items, animated: animated && !UIAccessibility.isReduceMotionEnabled)
   }
@@ -2030,10 +2026,10 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     LaunchTrace.mark("grid view appeared")
     active = true
     startCoverClock()
-    installTabReselection()
-    tabOwner = tabBarController
+    if !browseOnly { installTabReselection() }
+    tabOwner = browseOnly ? nil : tabBarController
     contentOwner = tabBarController?.selectedViewController
-    if #available(iOS 26.0, *), let tabs = tabBarController {
+    if #available(iOS 26.0, *), !browseOnly, let tabs = tabBarController {
       if nativeBarObserver == nil { nativeBarObserver = CalendarNativeBarObserver(owner: self) }
       // Follow the native bar through public laid-out geometry.
       let native = nativeBarObserver?.start(tabs.tabBar) == true
@@ -2098,7 +2094,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       height: showsInterval ? subtitleLabel.frame.maxY + 16 : view.safeAreaInsets.top + 16)
     headerFade.frame = headerBackdrop.bounds
     headerBackdrop.isHidden = navigationController?.isNavigationBarHidden == true
-    subtitleLabel.isHidden = !showsInterval
+    subtitleLabel.isHidden = browseOnly || !showsInterval
     updateMediaHeader()
     updateHeaderFade()
     titleLabel.adjustsFontSizeToFitWidth = true
@@ -2150,7 +2146,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   /// Light-on-photo chrome only when photos actually lie behind the header. A
   /// short view (a backup view with a few photos) leaves the canvas there.
   var photosBehindHeader: Bool {
-    guard !assets.isEmpty else { return false }
+    // A browse-only album sits under the system navigation bar, not the photo header.
+    guard !browseOnly, !assets.isEmpty else { return false }
     // Before the grid has a size, keep the media contrast so launch never flashes.
     guard grid.bounds.height > 0, grid.bounds.width > 0 else { return true }
     let content: CGFloat
@@ -2203,15 +2200,21 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   var motionActive: Bool {
     changing || stage != nil || adoptionCover != nil || selectionStart != nil
   }
-  func replaceAssets(_ values: [CalendarGridAsset]) {
-    if values == assets { pendingAssets = nil; return }
-    if isViewLoaded, !assets.isEmpty, motionActive { pendingAssets = values; return }
+  struct ViewAnchor { let id: String; let screenY: CGFloat; let leadingSlots: Int }
+  func browsingAnchor() -> ViewAnchor? {
+    guard isViewLoaded, let id = focusedAsset(), let index = assets.firstIndex(where: { $0.id == id }),
+      let tile = layout.geometry.tiles.firstIndex(where: { $0.members.contains(index) }) else { return nil }
+    return ViewAnchor(id: id, screenY: layout.frame(tile).minY - grid.contentOffset.y, leadingSlots: leadingSlots)
+  }
+  func replaceAssets(_ values: [CalendarGridAsset], newView: Bool = false, anchor: ViewAnchor? = nil) {
+    if values == assets && !newView { pendingAssets = nil; return }
+    if isViewLoaded, !assets.isEmpty, motionActive, !newView { pendingAssets = values; return }
     pendingAssets = nil
     let first = assets.isEmpty
     var anchorID: String?, anchorScreenY: CGFloat = 0
     let measurable = isViewLoaded && grid.bounds.height > 0 && !first
     let atNewest = measurable && clampedOffset(.greatestFiniteMagnitude) - grid.contentOffset.y < 24
-    if measurable, !atNewest, let id = focusedAsset(),
+    if measurable, !newView, !atNewest, let id = focusedAsset(),
       let index = assets.firstIndex(where: { $0.id == id }),
       let tile = layout.geometry.tiles.firstIndex(where: { $0.members.contains(index) })
     {
@@ -2219,12 +2222,13 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       anchorScreenY = layout.frame(tile).minY - grid.contentOffset.y
     }
     // Items added before the oldest edge keep every existing row's composition.
-    if level == .all, !first, values.count > assets.count,
+    if level == .all, !newView, !first, values.count > assets.count,
       values.suffix(assets.count).elementsEqual(assets)
     {
       let added = values.count - assets.count
       leadingSlots = ((leadingSlots - added) % columns + columns) % columns
     }
+    if newView { leadingSlots = anchor?.leadingSlots ?? 0 }
     stopRange(revert: false)
     stopMotion()
     geometryWork?.cancel()
@@ -2243,7 +2247,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     hasPosition = !first
     guard isViewLoaded else { return }
     rebuildIfNeeded()
-    if atNewest {
+    if newView, let anchor, let index = assets.firstIndex(where: { $0.id == anchor.id }),
+      let tile = layout.geometry.tiles.firstIndex(where: { $0.members.contains(index) }) {
+      grid.contentSize = layout.collectionViewContentSize
+      place(layout.frame(tile).minY - anchor.screenY)
+    } else if newView || atNewest {
       scrollToLatest()
     } else if let anchorID, let index = assets.firstIndex(where: { $0.id == anchorID }),
       let tile = layout.geometry.tiles.firstIndex(where: { $0.members.contains(index) })
@@ -3185,7 +3193,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if cancelled != nil, let navigation = navigationController {
       // An interrupted level change leaves the bar at its resting visibility.
       navigation.navigationBar.alpha = 1
-      navigation.setNavigationBarHidden(level != .all && !selecting, animated: false)
+      navigation.setNavigationBarHidden(browseOnly || level != .all && !selecting, animated: false)
     }
     grid.accessibilityElementsHidden = false
     grid.panGestureRecognizer.isEnabled = true
@@ -3891,6 +3899,12 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   }
   func updateChrome() {
     guard isViewLoaded, filterItem != nil, !chromeUpdating else { return }
+    if browseOnly {
+      subtitleLabel.isHidden = true; headerBackdrop.isHidden = true
+      browsingControls.isHidden = true; selectionControls.isHidden = true
+      navigationController?.setNavigationBarHidden(true, animated: false)
+      return
+    }
     chromeUpdating = true
     updateMediaHeader()
     defer { chromeUpdating = false }
@@ -4158,6 +4172,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     motion.startAnimation()
   }
   @objc func toggleSelection() {
+    guard !browseOnly else { return }
     expandedNavigation = false
     selecting.toggle()
     navigationController?.setNavigationBarHidden(level != .all && !selecting,animated: false)

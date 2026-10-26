@@ -596,7 +596,7 @@
 
 
 "scope_album_item" = "%@ 项";
-"scope_album_view" = "查看照片";
+"scope_album_view" = "查看相簿";
 "scope_album_choose" = "选择此相簿";
 "scope_album_deselect" = "取消选择此相簿";
 "scope_album_no_photos" = "这个相簿中没有可访问的照片或视频。";

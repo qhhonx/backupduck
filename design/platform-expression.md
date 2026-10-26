@@ -76,7 +76,7 @@ in a checklist share one column width so titles align.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Push a system list with search, a selection summary and checkmarks. Preference rows include list insets in their 52 pt minimum and grow for wrapping; covers fit inside the row. Changes apply at once; no Save | A list with a search field in the settings detail; from a task, a sheet with Done | A full-screen pushed page with a search bar and checkbox rows |
+| Push a searchable, virtualized album card grid: two columns on phone widths, adaptive on iPad. All Albums is alone in a 52 pt preference group; its summary is the footer. Shared square-cover cards show name, count and included checkmark; tap toggles and View Album opens the read-only native library grid. Choose/Deselect Album is a trailing text button. Unavailable albums retain their rows below. Changes apply at once; no Save | The same shared adaptive album cards with search in the settings detail; from a task, a sheet with Done | A full-screen pushed page with a search bar and checkbox rows |
 
 ## A7 Explanation, Learn more, help
 

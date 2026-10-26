@@ -12,6 +12,16 @@ enum DuckPreferenceMetrics {
   static let desktopVerticalInset: CGFloat = (rowHeight - desktopControlHeight) / 2
 }
 
+/// Preference rows supply their own vertical metrics; groups only clip the
+/// shared surface and inset the leading label and trailing control.
+struct DuckPreferenceGroup<Content: View>: View {
+  @ViewBuilder var content: () -> Content
+  var body: some View {
+    VStack(spacing: 0, content: content).padding(.horizontal, DuckSpacing.medium)
+      .background(DuckRole.groupedSurface, in: RoundedRectangle(cornerRadius: DuckRadius.card))
+  }
+}
+
 /// Standalone loading feedback fills its content region. Indicators attached
 /// to an action or preference control retain their own inline geometry.
 struct DuckLoadingState: View {

@@ -706,3 +706,18 @@ is observational and does not force production colors or opacity.
 photos and one synthetic video in one folder. Review the state sentence, toolbar
 subtitle and Add Folder sheet in English and Simplified Chinese. `-sheet add`
 opens the same five-item, 195.5 MB preview without reading a real folder.
+
+
+### iPhone revision and library acceptance
+
+`library.large-synthetic` provides 55,000 deterministic in-memory assets without
+PhotoKit access. Backup and media filters use the production membership and
+native grid adoption paths. Check a new view at its newest edge, return to a
+retained anchor, and inspect the 0.2-second grid/label crossfade. Any active
+non-default filter fills and tints the native filter symbol.
+
+`hub.attention-navigation` pushes attention History in the Backup tab. The
+existing scope fixtures share square-cover album cards across Apple hosts;
+View Album opens the read-only native iPhone library grid with a trailing
+Choose/Deselect Album text action. First-run sample strips contain both a photo
+and a video poster with its library duration badge, including limited access.

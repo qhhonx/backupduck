@@ -11,12 +11,15 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
   @ObservedObject var policy = PreviewNetworkPolicy.shared
   let onPreview: (PHAsset, CGRect) -> Void
   @ObservedObject var backupAction: SelectionBackupAction
+  var browseOnly = false
   var selectionChanged: (Bool) -> Void = { _ in }
   func makeCoordinator() -> Coordinator { Coordinator(self) }
   func makeUIViewController(context: Context) -> UINavigationController {
     let grid = CalendarGridController()
+    grid.browseOnly = browseOnly
     context.coordinator.controller = grid
     let c = context.coordinator
+    library.viewWillChange = { [weak c] in c?.prepareViewTransition() }
     library.previewPoster = { [weak c] id in
       guard let c, id == c.previewOrigin else { return nil }
       return c.previewPoster
@@ -52,7 +55,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       return { [weak c] in c?.parent.library.thumbnails.cancel(request) }
     }
     grid.requestVideo = { [weak c] media, done in
-      guard let c, let asset = c.asset(media.id), asset.mediaType == .video else {
+      guard BackupEnvironment.usesPhotoLibrary, let c, let asset = c.asset(media.id), asset.mediaType == .video else {
         done(nil); return {}
       }
       let gate = CalendarCoverRequestGate()
@@ -104,7 +107,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       }
     }
     grid.photoMenu = { [weak c] item in
-      guard let c, let asset = c.asset(item.id), let grid = c.controller else { return nil }
+      guard let c, !c.parent.browseOnly, let asset = c.asset(item.id), let grid = c.controller else { return nil }
       return LibraryPhotoActions.menu(asset: asset, library: c.parent.library,
         model: c.parent.model, presenter: grid)
     }
@@ -113,13 +116,13 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       return LibraryPhotoPreview(asset: asset, pipeline: c.parent.library.thumbnails, poster: poster)
     }
     grid.photoAccessibilityActions = { [weak c] item in
-      guard let c, let asset = c.asset(item.id), let grid = c.controller else { return [] }
+      guard let c, !c.parent.browseOnly, let asset = c.asset(item.id), let grid = c.controller else { return [] }
       return LibraryPhotoActions.accessibilityActions(asset: asset, library: c.parent.library,
         model: c.parent.model, presenter: grid)
     }
     library.previewVisibility = { [weak c] id in
       guard let c, let grid = c.controller else { return }
-      let asset = id.flatMap { PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: photoLibraryFetchOptions()).firstObject }
+      let asset = id.flatMap { c.asset($0) }
       grid.setPreviewHidden(asset?.burstIdentifier.map { "burst:" + $0 } ?? id)
     }
     grid.configureReview = { [weak c] review in
@@ -167,7 +170,9 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       menus.insert(UIMenu(title: NSLocalizedString("library_view_section", comment: ""), options: .displayInline, children: views), at: 0)
       return menus
     }
-    return CalendarNavigationController(rootViewController: grid)
+    let nav = CalendarNavigationController(rootViewController: grid)
+    if browseOnly { nav.setNavigationBarHidden(true, animated: false) }
+    return nav
   }
   func updateUIViewController(_ nav: UINavigationController, context: Context) {
     let c = context.coordinator
@@ -213,6 +218,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       alert.addAction(UIAlertAction(title: NSLocalizedString("settings_done", comment: ""), style: .default) { _ in backupAction.error = nil })
       presenter.present(alert, animated: true)
     }
+    if c.fetch !== library.fetch { c.rebuild() }
     grid.displayedTotal = library.total
     grid.viewTitle = library.backupView == .all ? nil : NSLocalizedString(library.backupView.title, comment: "")
     grid.indexing = library.fetch == nil || library.loading || c.work != nil
@@ -220,16 +226,14 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       grid.selected = library.selection
       grid.refreshSelection()
     }
-    if c.fetch !== library.fetch { c.rebuild() }
     if c.networkAllowed != policy.allowed {
       c.networkAllowed = policy.allowed
       grid.stopCoverPlayback()
       grid.grid.reloadData()
     }
-    if c.filter != library.filter {
-      c.filter = library.filter
-      grid.refreshMenu()
-    }
+    grid.filterActive = library.filter != .all || library.backupView != .all
+    grid.filterItem.accessibilityValue = [library.backupView.title, library.filter.title].map { NSLocalizedString($0, comment: "") }.joined(separator: ", ")
+    grid.refreshMenu()
     grid.updateChrome()
     if c.queueRevision != model.queueRevision || c.receiver != model.pairing?.receiverID {
       c.queueRevision = model.queueRevision
@@ -241,6 +245,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     coordinator.work?.cancel()
     coordinator.prefill?.cancel()
     coordinator.refresh.cancel()
+    coordinator.parent.library.viewWillChange = nil
     coordinator.parent.library.previewVisibility = nil
     coordinator.parent.library.previewFrame = nil
     coordinator.parent.library.previewPoster = nil
@@ -260,6 +265,9 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     let refresh = LibraryRefreshScheduler()
     var queueRevision: Int64 = -1, receiver: String?
     var networkAllowed = false, filter: LibraryFilter?
+    var pendingTransition: (UIView, UIView)?
+    var viewKey: String?
+    var anchors: [String: CalendarGridController.ViewAnchor] = [:]
     var previewOrigin: String?
     var previewPoster: UIImage?
     var lastPreheat: CFTimeInterval = 0
@@ -291,108 +299,64 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         if let id = wanted[index] { assetCache.setObject(asset, forKey: id as NSString) }
       }
     }
+    func prepareViewTransition() {
+      guard pendingTransition == nil, !UIAccessibility.isReduceMotionEnabled,
+        let grid = controller,
+        let stage = grid.view.window?.rootViewController?.view,
+        let cover = stage.snapshotView(afterScreenUpdates: false) else { return }
+      // Capture before the model changes, including the SwiftUI view/count chip
+      // outside this native controller. Each fading scene keeps its own labels.
+      cover.frame = stage.bounds
+      pendingTransition = (stage, cover)
+    }
     func rebuild() {
       work?.cancel()
       epoch += 1
-      let version = epoch
       fetch = parent.library.fetch
       positions = [:]
       assetCache.removeAllObjects()
-      guard let fetch else {
+      guard fetch != nil else {
         work = nil
         controller?.replaceAssets([])
         return
       }
       LaunchTrace.mark("calendar rebuild start")
-      controller?.indexing = true
-      controller?.updateChrome()
-      let progressive = controller?.assets.isEmpty != false
-      work = Task { [weak self] in
-        // The newest edge is what opens first; publish it before indexing the rest.
-        // The first screen plus one pinch into the 15-column month overview.
-        if progressive, fetch.count > 2000 {
-          let head = Task.detached(priority: .userInitiated) { Self.index(fetch, upTo: 600) }
-          let partial = await withTaskCancellationHandler(
-            operation: { await head.value }, onCancel: { head.cancel() })
-          guard let self, !Task.isCancelled, self.epoch == version else { return }
-          self.positions = partial.1
-          LaunchTrace.mark("newest items published (\(partial.0.count))")
-          self.controller?.replaceAssets(partial.0)
-        }
-        let job = Task.detached(priority: .userInitiated) { Self.index(fetch, upTo: fetch.count) }
-        let result = await withTaskCancellationHandler(
-          operation: { await job.value }, onCancel: { job.cancel() })
-        guard let self, !Task.isCancelled, self.epoch == version else { return }
-        self.work = nil
-        self.positions = result.1
-        self.controller?.indexing = false
-        LaunchTrace.mark("all items published (\(result.0.count))")
-        self.controller?.replaceAssets(result.0)
-        self.startPrefill(result.0)
-        self.parent.library.previewFrame = { [weak self] id in
-          guard let self, let grid = self.controller else { return nil }
-          let asset = PHAsset.fetchAssets(
-            withLocalIdentifiers: [id], options: photoLibraryFetchOptions()
-          ).firstObject
-          let key = asset?.burstIdentifier.map { "burst:" + $0 } ?? id
-          guard let index = grid.assets.firstIndex(where: { $0.id == key }) else { return nil }
-          if grid.level != .all { grid.changeLevel(.all, asset: index, from: nil) }
-          let rect = grid.grid.convert(grid.layout.frame(index), to: grid.view)
-          if rect.minY < grid.view.safeAreaInsets.top || rect.maxY > grid.view.bounds.height - 90
-          {
-            grid.locateAsset(index)
-          }
-          return grid.grid.convert(grid.layout.frame(index), to: nil)
-        }
-        self.refreshStates()
+      guard let membership = parent.library.membership, let grid = controller else { return }
+      let key = parent.library.backupView.rawValue + "|" + parent.library.filter.rawValue
+      let changedView = viewKey != nil && viewKey != key
+      if let viewKey, changedView { anchors[viewKey] = grid.browsingAnchor() }
+      let transition = changedView ? pendingTransition : nil
+      pendingTransition = nil
+      let cover = transition?.1
+      if let (stage, cover) = transition { stage.addSubview(cover) }
+      positions = membership.positions
+      work = nil
+      grid.indexing = false
+      grid.displayedTotal = parent.library.total
+      grid.viewTitle = parent.library.backupView == .all ? nil : NSLocalizedString(parent.library.backupView.title, comment: "")
+      grid.filterActive = parent.library.filter != .all || parent.library.backupView != .all
+      grid.replaceAssets(membership.rows, newView: changedView, anchor: anchors[key])
+      viewKey = key
+      grid.grid.layoutIfNeeded()
+      grid.refreshMenu(); grid.updateChrome()
+      if let cover {
+        UIView.animate(withDuration: 0.2, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
+          cover.alpha = 0
+        } completion: { _ in cover.removeFromSuperview() }
       }
-    }
-    /// Rows in chronological order (oldest first) for the newest `limit` raw
-    /// assets, with bursts collapsed to their representative. Batched
-    /// enumeration is far cheaper than per-index access on large libraries.
-    nonisolated static func index(_ fetch: PHFetchResult<PHAsset>, upTo limit: Int)
-      -> ([CalendarGridAsset], [String: Int])
-    {
-      LaunchTrace.mark("index start (\(limit))")
-      var rows: [CalendarGridAsset] = []
-      var positions: [String: Int] = [:]
-      var rowPositions: [String: Int] = [:]
-      rows.reserveCapacity(min(limit, fetch.count))
-      let range = IndexSet(integersIn: 0..<min(limit, fetch.count))
-      // Partial enumeration faults objects one by one on device (about 0.5 ms
-      // each, measured); a bulk fetch of the same range loads them together.
-      let objects: [PHAsset] = limit < fetch.count ? fetch.objects(at: range) : []
-      func visit(_ asset: PHAsset, _ raw: Int, _ stop: UnsafeMutablePointer<ObjCBool>) {
-        if raw % 512 == 0, Task.isCancelled { stop.pointee = true; return }
-        let key = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
-        let row = CalendarGridAsset(
-          id: key, date: asset.creationDate,
-          aspect: CGFloat(max(1, asset.pixelWidth)) / CGFloat(max(1, asset.pixelHeight)),
-          videoDuration: asset.mediaType == .video ? videoDurationLabel(asset.duration) : nil,
-          live: asset.mediaSubtypes.contains(.photoLive),
-          revision: Int64(PhotoLibraryModel.revision(asset)) ?? 0)
-        if positions[key] != nil {
-          if asset.representsBurst, let i = rowPositions[key] {
-            positions[key] = raw
-            rows[i] = CalendarGridAsset(id: key, date: row.date, aspect: row.aspect,
-              videoDuration: nil, live: row.live, revision: row.revision)
-          }
-          return
-        }
-        positions[key] = raw
-        rowPositions[key] = rows.count
-        rows.append(row)
+      LaunchTrace.mark("filter settled (\(membership.rows.count))")
+      startPrefill(membership.rows)
+      parent.library.previewFrame = { [weak self] id in
+        guard let self, let grid = self.controller else { return nil }
+        let asset = self.asset(id)
+        let key = asset?.burstIdentifier.map { "burst:" + $0 } ?? id
+        guard let index = grid.assets.firstIndex(where: { $0.id == key }) else { return nil }
+        if grid.level != .all { grid.changeLevel(.all, asset: index, from: nil) }
+        let rect = grid.grid.convert(grid.layout.frame(index), to: grid.view)
+        if rect.minY < grid.view.safeAreaInsets.top || rect.maxY > grid.view.bounds.height - 90 { grid.locateAsset(index) }
+        return grid.grid.convert(grid.layout.frame(index), to: nil)
       }
-      if objects.isEmpty {
-        fetch.enumerateObjects(at: range, options: []) { asset, raw, stop in visit(asset, raw, stop) }
-      } else {
-        var stop: ObjCBool = false
-        for (raw, asset) in objects.enumerated() {
-          visit(asset, raw, &stop)
-          if stop.boolValue { break }
-        }
-      }
-      return (Array(rows.reversed()), positions)
+      refreshStates()
     }
     /// Fills the overview table for every item, newest first, from PhotoKit's
     /// local renditions (never the network) at background priority, so dense
@@ -400,7 +364,7 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
     var prefill: Task<Void, Never>?
     func startPrefill(_ rows: [CalendarGridAsset]) {
       prefill?.cancel()
-      guard ThumbnailTables.enabled, ThumbnailTables.overview.available, let fetch else { return }
+      guard BackupEnvironment.usesPhotoLibrary, ThumbnailTables.enabled, ThumbnailTables.overview.available, let fetch else { return }
       let positions = positions
       prefill = Task.detached(priority: .utility) {
         let started = CACurrentMediaTime()
@@ -473,8 +437,8 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
       let pairs = ids.compactMap { id in asset(id).map { (id, $0) } }
       let photos = pairs.map { $0.1 }
       let library = parent.library
-      let version = epoch
       let queueRevision = parent.model.queueRevision
+      let version = epoch
       let preparation = "\(parent.model.pendingImports)|\(parent.model.importingSourceID ?? "")"
       refresh.schedule { [weak self, weak grid] in
         let groups = await library.visibleGroups(photos)

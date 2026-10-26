@@ -1,0 +1,31 @@
+{
+  "id": "hub.attention-navigation",
+  "page": "backup",
+  "title": "Hub: push attention History in Backup",
+  "extends": "records-base",
+  "ios_only": true,
+  "core": {
+    "backup_summary": {
+      "value": {
+        "waiting_reason": null,
+        "next_retry_at": null,
+        "total": 48,
+        "received": 44,
+        "published": 40,
+        "publication_failed": 3,
+        "waiting": 0,
+        "failed": 2,
+        "queued": 1,
+        "running": 1,
+        "paused": 0,
+        "confirmed_bytes": 9876543210,
+        "active": 3,
+        "attention": 5,
+        "conversion_required": 0
+      }
+    }
+  },
+  "expect": [
+    "View pushes attention History inside Backup; Back restores the hub."
+  ]
+}

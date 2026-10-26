@@ -1403,7 +1403,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     strip.backgroundColor = .clear; strip.showsHorizontalScrollIndicator = false
     // The filmstrip reads oldest to newest while retaining the grid's IDs,
     // collection order, paging context and native scrub coordinates.
-    strip.transform = CGAffineTransform(scaleX: -1,y: 1)
+    strip.transform = .identity
     // This manually placed horizontal strip must not inherit navigation safe-area insets.
     strip.contentInsetAdjustmentBehavior = .never
     strip.alwaysBounceVertical = false
@@ -1602,7 +1602,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { session.count }
   func collectionView(_ collectionView: UICollectionView, cellForItemAt path: IndexPath) -> UICollectionViewCell {
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "preview.strip",for: path) as! PreviewStripCell
-    cell.contentView.transform = CGAffineTransform(scaleX: -1,y: 1)
+    cell.contentView.transform = .identity
     if let asset = session.asset(at: path.item) { cell.configure(asset, selected: path.item == index, pipeline: session.library.thumbnails) }
     return cell
   }

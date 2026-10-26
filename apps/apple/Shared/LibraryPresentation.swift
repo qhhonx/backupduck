@@ -114,6 +114,40 @@ func libraryTileAccessibilityKey(_ state: String?) -> String {
   }
 }
 
+/// Complete immutable browsing membership, prepared away from the UI. Native
+/// hosts adopt rows, raw positions and filter labels in one presentation commit.
+struct LibraryGridAsset: Equatable, Sendable {
+  let id: String
+  let date: Date?
+  let aspect: CGFloat
+  var videoDuration: String? = nil
+  var live = false
+  var revision: Int64 = 0
+}
+struct LibraryMembership: Sendable {
+  let rows: [LibraryGridAsset]
+  let positions: [String: Int]
+  init(_ fetch: PHFetchResult<PHAsset>) {
+    var rows: [LibraryGridAsset] = []
+    var positions: [String: Int] = [:], rowPositions: [String: Int] = [:]
+    rows.reserveCapacity(fetch.count); positions.reserveCapacity(fetch.count)
+    fetch.enumerateObjects { asset, raw, stop in
+      if raw % 512 == 0, Task.isCancelled { stop.pointee = true; return }
+      let key = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
+      let row = LibraryGridAsset(id: key, date: asset.creationDate,
+        aspect: CGFloat(max(1, asset.pixelWidth)) / CGFloat(max(1, asset.pixelHeight)),
+        videoDuration: asset.mediaType == .video ? videoDurationLabel(asset.duration) : nil,
+        live: asset.mediaSubtypes.contains(.photoLive), revision: Int64(PhotoLibraryModel.revision(asset)) ?? 0)
+      if positions[key] != nil {
+        if asset.representsBurst, let i = rowPositions[key] { positions[key] = raw; rows[i] = row }
+        return
+      }
+      positions[key] = raw; rowPositions[key] = rows.count; rows.append(row)
+    }
+    self.rows = rows.reversed(); self.positions = positions
+  }
+}
+
 struct LibrarySourceObservation: Decodable {
   let revision: String?
   let preparing: Bool
@@ -140,7 +174,9 @@ struct LibrarySourceObservation: Decodable {
   // Fetch once per observed core/preparation revision, not once per scroll window.
   if cache.receiver != receiver || cache.revision != revision || cache.observations == nil {
     guard let data = try? await Bridge.call(["op": "library_source_states", "receiver_id": receiver]),
-      let observations = try? JSONDecoder().decode([String: LibrarySourceObservation].self, from: data),
+      let observations = await Task.detached(priority: .userInitiated, operation: {
+        try? JSONDecoder().decode([String: LibrarySourceObservation].self, from: data)
+      }).value,
       !Task.isCancelled else { return nil }
     cache.receiver = receiver
     cache.revision = revision

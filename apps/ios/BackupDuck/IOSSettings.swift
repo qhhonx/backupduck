@@ -253,3 +253,32 @@ struct IOSDevicePage: View {
       .sheet(isPresented: $connecting) { IOSConnectSheet(model: model, reconnect: false) }
   }
 }
+
+/// The media status-bar container reparents SwiftUI's host, so color-scheme
+/// preferences alone no longer reach the UIWindow. Apply the saved choice at
+/// the window boundary, including sibling windows and UIKit presentations.
+struct IOSAppearanceBridge: UIViewRepresentable {
+  let appearance: String
+  static func style(_ value: String) -> UIUserInterfaceStyle {
+    value == "dark" ? .dark : value == "light" ? .light : .unspecified
+  }
+  @MainActor static func apply(_ appearance: String, windows: [UIWindow]) {
+    let style = style(appearance)
+    for window in windows where window.overrideUserInterfaceStyle != style {
+      window.overrideUserInterfaceStyle = style
+    }
+  }
+  final class WindowProbe: UIView {
+    var appearance = "system"
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+      if let window { IOSAppearanceBridge.apply(appearance, windows: [window]) }
+    }
+  }
+  func makeUIView(context: Context) -> WindowProbe { WindowProbe() }
+  func updateUIView(_ view: WindowProbe, context: Context) {
+    view.appearance = appearance
+    let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+    Self.apply(appearance, windows: windows)
+  }
+}

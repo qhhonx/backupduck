@@ -48,10 +48,7 @@ import SwiftUI
       // Three positions (design/navigation.md): Photos, Backup, Settings.
       IOSLibraryPage(library: library, model: model).duckTabSurface()
         .tabItem { IOSAppTab.library.label }.tag(IOSAppTab.library.rawValue)
-      IOSHub(model: model, notification: $notification, showLibrary: { view in
-        selectedTab = IOSAppTab.library.rawValue
-        Task { await library.changeBackupView(view) }
-      }).duckTabSurface().tabItem { IOSAppTab.backup.label }.tag(IOSAppTab.backup.rawValue)
+      IOSHub(model: model, notification: $notification).duckTabSurface().tabItem { IOSAppTab.backup.label }.tag(IOSAppTab.backup.rawValue)
       IOSSettings(model: model).duckTabSurface()
         .tabItem { IOSAppTab.settings.label }.tag(IOSAppTab.settings.rawValue)
     }
@@ -97,7 +94,7 @@ import SwiftUI
           activityReceiver = receiver
           consumeActivityLink()
         }
-        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckRole.background.ignoresSafeArea()).preferredColorScheme(colorScheme).tint(DuckRole.accent).task {
+        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckRole.background.ignoresSafeArea()).preferredColorScheme(colorScheme).background(IOSAppearanceBridge(appearance: appearance).frame(width: 0, height: 0)).tint(DuckRole.accent).task {
           await model.open()
           BackupNotifier.shared.start(model)
           BackupLiveActivity.shared.start(model)

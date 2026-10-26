@@ -197,6 +197,110 @@ import Photos
     }
   }
 
+  func testLimitedDiscoveryUsesOnlyFetchedIdentifiers() {
+    let observed: Set<String> = ["readable-photo", "outside-selection", "missing-original"]
+    var fetches = 0
+    let fetch: (Set<String>) -> Set<String> = { ids in
+      fetches += 1; XCTAssertEqual(ids, observed)
+      return ["readable-photo", "unrelated"]
+    }
+    XCTAssertEqual(PhotoLibraryChanges.readableIdentifiers(observed, limited: true, fetch: fetch), ["readable-photo"])
+    XCTAssertEqual(fetches, 1)
+    XCTAssertEqual(PhotoLibraryChanges.readableIdentifiers(observed, limited: false, fetch: fetch), observed)
+    XCTAssertEqual(fetches, 1, "Full access keeps genuine missing originals actionable")
+  }
+
+  func testAppearanceUpdatesAllWindowsAndUIKitPresentationsImmediately() async throws {
+    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let windows = (0..<2).map { _ in UIWindow(windowScene: scene) }
+    for window in windows {
+      let root = UIViewController(); let native = UINavigationController(rootViewController: root)
+      window.rootViewController = native; window.makeKeyAndVisible()
+    }
+    defer { windows.forEach { $0.isHidden = true } }
+    for (choice, expected) in [("dark", UIUserInterfaceStyle.dark), ("light", .light), ("system", .unspecified)] {
+      IOSAppearanceBridge.apply(choice, windows: windows)
+      try await Task.sleep(for: .milliseconds(30))
+      for window in windows {
+        XCTAssertEqual(window.overrideUserInterfaceStyle, expected)
+        if expected != .unspecified {
+          XCTAssertEqual(window.rootViewController?.traitCollection.userInterfaceStyle, expected)
+          XCTAssertEqual(window.rootViewController?.children.first?.traitCollection.userInterfaceStyle, expected)
+        }
+      }
+    }
+  }
+
+  func testNeedsYouCountAgreesAcrossHubHistoryAndLibraryMembership() async throws {
+    var legacy = SenderSummary()
+    legacy.failed = 1; legacy.publication_failed = 1; legacy.preparation_failed = 1
+    XCTAssertEqual(legacy.count(for: "attention"), 3, "Legacy summaries still include preparation failures")
+    try await withModel("hub.conversion") { model, core in
+      let sources = ["attention-transfer", "attention-publication", "attention-original"]
+      var items: [[String: Any]] = []
+      for (index, source) in sources.enumerated() {
+        if index == 2 {
+          items.append(["id": "preparation:original", "cursor": -1, "sort_value": 100,
+            "preparation": ["cursor": -1, "request_id": "original", "source": source, "revision": "1", "error_code": "source_unavailable"]])
+        } else {
+          items.append(["id": "job-\(index)", "cursor": index + 1, "sort_value": 100,
+            "job": ["id": index + 1, "state": index == 0 ? "failed" : "received", "confirmed_bytes": 0,
+              "processing": index == 0 ? "not_requested" : "failed",
+              "asset": ["source_id": source, "revision": "1", "kind": "photo", "resources": [["filename": "Example.jpg", "size": 10]]]]])
+        }
+      }
+      let summary: [String: Any] = ["total": 3, "attention": 3, "active": 0, "saved": 0,
+        "failed": 1, "publication_failed": 1, "preparation_failed": 1,
+        "received": 1, "published": 0, "waiting": 0, "queued": 0, "running": 0, "paused": 0, "confirmed_bytes": 0]
+      core.setValue(summary, for: "backup_summary")
+      core.setValue(["items": items, "summary": summary], for: "backup_tasks")
+      await model.open()
+      let history = BackupHistoryModel(); await history.reload(receiver: "catalog-pixel", state: "attention")
+      let librarySources = await PhotoLibraryModel.taskSources(receiver: "catalog-pixel", view: .needsYou)
+      XCTAssertEqual(model.summary.count(for: "attention"), 3)
+      XCTAssertEqual(history.total, 3); XCTAssertEqual(history.attention.count, 3)
+      XCTAssertTrue(history.attention.allSatisfy { $0.mark == .needsYou })
+      XCTAssertEqual(Set(librarySources ?? []), Set(sources))
+    }
+  }
+
+  func testLargeMembershipCommitsFiltersAndRowsTogether() async throws {
+    let original = BackupEnvironment.usesPhotoLibrary; BackupEnvironment.usesPhotoLibrary = false
+    defer { BackupEnvironment.usesPhotoLibrary = original }
+    let fixture = CatalogLibraryFixture(count: 55_000)
+    let library = PhotoLibraryModel()
+    library.installSyntheticAssets(fixture.fetch(filter: .all, view: .all))
+    library.syntheticFetch = { filter, view in
+      try? await Task.sleep(for: .milliseconds(50))
+      return fixture.fetch(filter: filter, view: view)
+    }
+    let change = Task { await library.changeBackupView(.recent) }
+    await Task.yield()
+    XCTAssertEqual(library.backupView, .all); XCTAssertEqual(library.total, 55_000)
+    await change.value
+    XCTAssertEqual(library.backupView, .recent); XCTAssertEqual(library.total, 2)
+    XCTAssertEqual(library.membership?.rows.count, 2)
+    XCTAssertEqual(library.membership?.rows.map(\.id), ["catalog-library-1", "catalog-library-0"])
+    await library.changeFilter(.video)
+    XCTAssertEqual(library.filter, .video); XCTAssertEqual(library.total, 1)
+    XCTAssertEqual(library.membership?.rows.first?.videoDuration, "1:23")
+  }
+
+  func testNativeFilterReplacementRestoresRetainedAnchor() throws {
+    let rows = LibraryMembership(CatalogLibraryFixture(count: 2_000).fetch(filter: .all, view: .all)).rows
+    let grid = CalendarGridController()
+    grid.loadViewIfNeeded(); grid.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+    grid.view.layoutIfNeeded(); grid.replaceAssets(rows)
+    grid.locateAsset(1_000)
+    let anchor = try XCTUnwrap(grid.browsingAnchor())
+    grid.replaceAssets(Array(rows.suffix(2)), newView: true)
+    XCTAssertEqual(grid.leadingSlots, 0)
+    grid.replaceAssets(rows, newView: true, anchor: anchor)
+    let index = try XCTUnwrap(grid.assets.firstIndex { $0.id == anchor.id })
+    XCTAssertEqual(grid.layout.frame(index).minY - grid.grid.contentOffset.y, anchor.screenY, accuracy: 1)
+    XCTAssertEqual(grid.leadingSlots, anchor.leadingSlots)
+  }
+
   private func withModel(_ scenarioID: String = "onboarding.connect-camera-denied",
     body: (BackupModel, ScenarioCore) async throws -> Void) async throws {
     let core = ScenarioCore()

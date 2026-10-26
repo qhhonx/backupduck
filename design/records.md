@@ -41,6 +41,18 @@ What BackupDuck takes:
 
 **Records page** (opened from the hub; the Mac lists it in the sidebar):
 
+On iPhone the hub pushes this page inside the Backup tab's NavigationStack.
+Backup History opens `all`, the Needs You card's View action opens `attention`,
+and the earlier-photos card opens `saved`. The system push/back transition
+retains the Backup tab. The Photos tab keeps its own independent backup views.
+Hub attention, History Needs You and the Photos Needs You view use the same
+core attention jobs and preparations. Waiting for an original is active;
+preparation failures needing a person are attention. Under limited access,
+unfetchable library identifiers are ignored and their source-unavailable
+preparations are dismissed on the next observation. Full-access failures stay
+actionable.
+
+
 1. **Needs you** (only when something does): one card per cause, in this order:
    - Live Photos that cannot be saved to Photos as they are. Kept on the Pixel.
      Action: View.

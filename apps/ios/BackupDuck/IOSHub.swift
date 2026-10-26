@@ -4,7 +4,7 @@ import UIKit
 /// The Backup tab as the hub (design/flows.md § Every day, § When something goes
 /// wrong; interaction.md I2 task center). One state card answers "are my photos
 /// safe?", recently saved photos are the evidence, and summary rows open the
-/// matching library views. No primary action while calm. Used by the app and
+/// matching History filters. No primary action while calm. Used by the app and
 /// design catalog.
 struct IOSHub: View {
   @ObservedObject var model: BackupModel
@@ -18,19 +18,10 @@ struct IOSHub: View {
   @State private var records: String?
   @Binding private var notification: BackupNotifier.Route?
 
-  /// Opens a backup view of the library (design/library.md). When set, the
-  /// hub's history and needs-you rows go to the library instead of a page.
-  var showLibrary: ((LibraryBackupView) -> Void)?
-
-  init(model: BackupModel, records: String? = nil, notification: Binding<BackupNotifier.Route?> = .constant(nil), showLibrary: ((LibraryBackupView) -> Void)? = nil) {
+  init(model: BackupModel, records: String? = nil, notification: Binding<BackupNotifier.Route?> = .constant(nil)) {
     self.model = model
-    self.showLibrary = showLibrary
     _records = State(initialValue: records)
     _notification = notification
-  }
-
-  func open(_ view: LibraryBackupView, fallback: String) {
-    if let showLibrary { showLibrary(view) } else { records = fallback }
   }
 
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
@@ -67,8 +58,8 @@ struct IOSHub: View {
       }
       .background(DuckRole.background)
       .navigationTitle("nav_backup")
-      .navigationDestination(item: $records) { _ in
-        BackupHistoryView(model: model).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
+      .navigationDestination(item: $records) { filter in
+        BackupHistoryView(model: model, filter: filter).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
       }
     }
     .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: status == .problem(.receiverRejected)) }
@@ -81,8 +72,8 @@ struct IOSHub: View {
       switch route.notice {
       case .unreachable: offlineHelp = true
       case .full: records = nil
-      case .convert: open(.needsYou, fallback: "attention")
-      case .earlier: open(.recent, fallback: "saved")
+      case .convert: records = "attention"
+      case .earlier: records = "saved"
       }
     }
     .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
@@ -113,7 +104,7 @@ struct IOSHub: View {
       DuckStateCard(symbol: "hourglass", tone: .secondary, title: Text("hub_opening"))
     case .empty:
       DuckEmptyState(pose: .empty, title: "hub_empty", note: "hub_empty_note") {
-        Button("library_show_all") { open(.all, fallback: "all") }.duckPrimaryButton()
+        Button("library_show_all") { records = "all" }.duckPrimaryButton()
       }
     case .caughtUp(let last, let saving):
       DuckStateCard(symbol: saving > 0 ? "clock.fill" : "checkmark.circle.fill", tone: saving > 0 ? DuckRole.accent : DuckRole.saved,
@@ -180,7 +171,7 @@ struct IOSHub: View {
     case .photosNeedYou(let count):
       problem("exclamationmark.triangle.fill", DuckRole.attentionGlyph,
         Text(verbatim: String(format: NSLocalizedString("hub_problem_photos_need_you", comment: ""), count.formatted())),
-        note: "hub_problem_photos_need_you_note", action: "hub_problem_review_action") { open(.needsYou, fallback: "attention") }
+        note: "hub_problem_photos_need_you_note", action: "hub_problem_review_action") { records = "attention" }
     }
   }
 
@@ -224,6 +215,9 @@ struct IOSHub: View {
         DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
           Task { await model.controlHistoricalImport(command) }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { records = "saved" }
+        .accessibilityAction(named: Text("records_title")) { records = "saved" }
         .onAppear { memory.show(receiver: receiver, history: history, at: context.date) }
         .onChange(of: history) { _, value in memory.show(receiver: receiver, history: value, at: .now) }
       }
@@ -244,10 +238,10 @@ struct IOSHub: View {
       let attention = model.summary.count(for: "attention")
       if attention > 0 && !model.hubStatus.showsAttentionDetails {
         summaryRow(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
-          symbol: "exclamationmark.triangle.fill", tone: DuckRole.attentionGlyph) { open(.needsYou, fallback: "attention") }
+          symbol: "exclamationmark.triangle.fill", tone: DuckRole.attentionGlyph) { records = "attention" }
         Divider().padding(.leading, DuckSpacing.medium)
       }
-      summaryRow(Text("records_title"), value: model.summary.total.formatted(), symbol: nil, tone: nil) { open(.recent, fallback: "all") }
+      summaryRow(Text("records_title"), value: model.summary.total.formatted(), symbol: nil, tone: nil) { records = "all" }
     }
     .background(DuckLook.cardSurface, in: RoundedRectangle(cornerRadius: DuckLook.cardRadius, style: .continuous))
   }

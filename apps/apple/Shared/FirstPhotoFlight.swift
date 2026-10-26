@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 /// Exercises the production reduced-motion path in Catalog without OS changes.
@@ -28,31 +29,56 @@ struct FirstPhotoFlight: View {
   @Environment(\.duckFirstPhotoReducedMotion) private var previewReduceMotion
   @State private var progress: CGFloat = 0
   @State private var arrived = false
+  @State private var flying = false
+  @State private var thumbnail: LibraryImage?
+  @State private var thumbnailRequest = PHInvalidImageRequestID
+  private static let thumbnails = ThumbnailPipeline()
 
-  // Illustration metrics: equal device slots and a photo that fits both screens.
+  /// Device artwork with its transparent screen opening, measured as fractions
+  /// of the image (Illustrations.xcassets DeviceIPhone / DevicePixel).
+  private struct DeviceArt {
+    let asset: String
+    let size: CGSize
+    let screen: CGRect
+    let radius: CGFloat
+    init(asset: String, aspect: CGFloat, height: CGFloat, screen: CGRect, radius: CGFloat) {
+      self.asset = asset
+      size = CGSize(width: height * aspect, height: height)
+      self.screen = CGRect(x: screen.minX * size.width, y: screen.minY * height,
+        width: screen.width * size.width, height: screen.height * height)
+      self.radius = radius * size.width
+    }
+  }
   private static let width: CGFloat = 264
-  private static let tile: CGFloat = 40
-  private static let device = CGSize(width: 64, height: 120)
-  private static let landedScale: CGFloat = 1
+  private static let sender = DeviceArt(asset: "DeviceIPhone", aspect: 546 / 1151, height: 136,
+    screen: CGRect(x: 0.04945, y: 0.02259, width: 0.89927, height: 0.95482), radius: 0.09707)
+  // Sized so both screen openings are the same height; the photo then fits both.
+  private static let receiver = DeviceArt(asset: "DevicePixel", aspect: 534 / 1152, height: 138.13,
+    screen: CGRect(x: 0.05431, y: 0.02691, width: 0.89139, height: 0.94010), radius: 0.06554)
+  private static let screen = sender.screen.size
+  private static let stageHeight = max(sender.size.height, receiver.size.height)
 
   var body: some View {
     VStack(spacing: DuckSpacing.small) {
       ZStack(alignment: .topLeading) {
         HStack(spacing: 0) {
-          device("iphone")
+          device(Self.sender, showsPhoto: true)
           Spacer(minLength: 0)
-          device("smartphone")
+          device(Self.receiver, showsPhoto: arrived)
         }
-        .frame(width: Self.width, height: Self.device.height)
+        .frame(width: Self.width, height: Self.stageHeight)
         photo
-          .frame(width: Self.tile, height: Self.tile)
-          .modifier(Flight(progress: progress, start: start, end: end, endScale: Self.landedScale))
-          .opacity(arrived ? 0 : 1)
+          .frame(width: Self.screen.width, height: Self.screen.height)
+          .modifier(Flight(progress: progress, start: start, end: end, endScale: 1))
+          // The tile lifts off the sender only when the flight starts, so the
+          // sender's Dynamic Island stays visible while the photo rests there.
+          .opacity(!flying || arrived || reduceMotion || previewReduceMotion ? 0 : 1)
+          .animation(nil, value: arrived)
         Image(systemName: "checkmark.circle.fill")
           .font(.title2).symbolRenderingMode(.palette)
           .foregroundStyle(DuckRole.background, DuckRole.saved)
           .background(Circle().fill(DuckRole.background).padding(2))
-          .scaleEffect(arrived ? 1 : 0.6).opacity(arrived ? 1 : 0)
+          .scaleEffect(reduceMotion || previewReduceMotion ? 1 : arrived ? 1 : 0.6).opacity(arrived ? 1 : 0)
           .offset(x: Self.width - DuckSpacing.medium, y: -DuckSpacing.xSmall)
       }
       HStack(alignment: .top, spacing: DuckSpacing.medium) {
@@ -74,60 +100,84 @@ struct FirstPhotoFlight: View {
     }
     // The adjacent status block owns the current fact, including blocked states.
     .accessibilityHidden(true)
+    .task(id: sourceID) {
+      Self.thumbnails.cancel(thumbnailRequest)
+      thumbnail = nil
+      guard BackupEnvironment.usesPhotoLibrary, let sourceID,
+        let asset = PHAsset.fetchAssets(withLocalIdentifiers: [sourceID], options: photoLibraryFetchOptions()).firstObject else { return }
+      thumbnailRequest = Self.thumbnails.request(asset, pixels: Self.screen.height * 3) { image, _ in
+        if let image { thumbnail = image }
+      }
+    }
+    .onDisappear { Self.thumbnails.cancel(thumbnailRequest) }
     .onAppear { if landed { fly() } }
     .onChange(of: landed) { _, value in if value { fly() } }
   }
 
-  // Tile positions are top-leading offsets inside the stage, centred in each glyph.
-  private var start: CGPoint {
-    CGPoint(x: (Self.device.width - Self.tile) / 2, y: (Self.device.height - Self.tile) / 2)
+  // Tile positions are top-leading offsets inside the stage: each device is
+  // vertically centred, and the tile is centred on its screen opening.
+  private static func origin(_ art: DeviceArt, x: CGFloat) -> CGPoint {
+    CGPoint(x: x + art.screen.midX - screen.width / 2,
+      y: (stageHeight - art.size.height) / 2 + art.screen.midY - screen.height / 2)
   }
-  private var end: CGPoint {
-    CGPoint(x: Self.width - (Self.device.width + Self.tile) / 2, y: start.y)
-  }
+  private var start: CGPoint { Self.origin(Self.sender, x: 0) }
+  private var end: CGPoint { Self.origin(Self.receiver, x: Self.width - Self.receiver.size.width) }
 
-  private var photo: some View {
-    Group {
-      if let sourceID {
-        AssetThumbnail(sourceID: sourceID, size: Self.tile)
+  // All three nodes render the same delivered bitmap in the same rectangular
+  // clip. A square thumbnail followed by a narrower frame clips its corners.
+  private var screenPhoto: some View {
+    ZStack {
+      Rectangle().fill(DuckRole.groupedSurface)
+      if let sourceID, let sample = BackupEnvironment.sampleThumbnail?(sourceID) {
+        sample.resizable().scaledToFill()
+      } else if let thumbnail {
+        #if os(macOS)
+        Image(nsImage: thumbnail).resizable().scaledToFill()
+        #else
+        Image(uiImage: thumbnail).resizable().scaledToFill()
+        #endif
       } else {
-        RoundedRectangle(cornerRadius: DuckRadius.control).fill(DuckRole.groupedSurface)
-          .overlay(Image(systemName: "photo").font(.title3).foregroundStyle(.secondary))
+        Image(systemName: "photo").font(.title3).foregroundStyle(.secondary)
       }
     }
-    .clipShape(RoundedRectangle(cornerRadius: DuckRadius.control))
-    .shadow(color: .black.opacity(progress > 0 && progress < 1 ? 0.18 : 0), radius: 8, y: 4) // design-exception: lift only while the tile is in flight
+    .frame(width: Self.screen.width, height: Self.screen.height)
+    // Between the two openings' radii; each bezel masks the rest at rest.
+    .clipShape(RoundedRectangle(cornerRadius: (Self.sender.radius + Self.receiver.radius) / 2))
+  }
+  private var photo: some View {
+    screenPhoto
+      .shadow(color: .black.opacity(progress > 0 && progress < 1 ? 0.18 : 0), radius: 8, y: 4) // design-exception: lift only while the tile is in flight
   }
 
-  private func device(_ symbol: String) -> some View {
-    RoundedRectangle(cornerRadius: DuckRadius.control)
-      .fill(DuckRole.groupedSurface)
-      .overlay {
-        if let sourceID {
-          AssetThumbnail(sourceID: sourceID, size: Self.device.height, cornerRadius: DuckRadius.control)
-            .frame(width: Self.device.width - DuckSpacing.small, height: Self.device.height - DuckSpacing.large)
-            .clipped().opacity(symbol == "iphone" || arrived ? 1 : 0)
-        }
+  /// The photo sits under the artwork, whose opaque bezel and camera cut-outs
+  /// mask it exactly.
+  private func device(_ art: DeviceArt, showsPhoto: Bool) -> some View {
+    ZStack(alignment: .topLeading) {
+      // An empty screen reads as a phone that is off, in both appearances.
+      RoundedRectangle(cornerRadius: art.radius).fill(DuckMedia.scrim)
+        .frame(width: art.screen.width, height: art.screen.height)
+        .offset(x: art.screen.minX, y: art.screen.minY)
+      if sourceID != nil {
+        screenPhoto.opacity(showsPhoto ? 1 : 0)
+          .animation(reduceMotion || previewReduceMotion ? .easeInOut(duration: 0.12) : nil, value: arrived)
+          .offset(x: art.screen.midX - Self.screen.width / 2, y: art.screen.midY - Self.screen.height / 2)
       }
-      .overlay(alignment: .top) {
-        Group {
-          if symbol == "iphone" {
-            Capsule().fill(DuckRole.separator)
-              .frame(width: DuckSpacing.large, height: DuckSpacing.xSmall)
-          } else {
-            Circle().fill(DuckRole.separator)
-              .frame(width: DuckSpacing.xxSmall, height: DuckSpacing.xxSmall)
-          }
-        }.padding(.top, DuckSpacing.xxSmall)
-      }
-      .frame(width: Self.device.width, height: Self.device.height)
+      Image(art.asset).resizable().interpolation(.high)
+        .frame(width: art.size.width, height: art.size.height)
+    }
+    .frame(width: art.size.width, height: art.size.height, alignment: .topLeading)
   }
 
   private func fly() {
     guard !arrived else { return }
     if reduceMotion || previewReduceMotion {
-      progress = 1; arrived = true; onArrive(); return
+      var instant = Transaction(); instant.disablesAnimations = true
+      withTransaction(instant) { progress = 1 }
+      withAnimation(.easeInOut(duration: 0.12)) { arrived = true }
+      onArrive(); return
     }
+    var instant = Transaction(); instant.disablesAnimations = true
+    withTransaction(instant) { flying = true }
     // Brief hold so the eye finds the tile before it moves.
     withAnimation(.timingCurve(0.3, 0, 0.2, 1, duration: 0.75).delay(0.15)) { progress = 1 } completion: {
       withAnimation(.spring(duration: 0.32, bounce: 0)) { arrived = true }
@@ -136,7 +186,7 @@ struct FirstPhotoFlight: View {
   }
 }
 
-/// Moves the tile along an upward arc from `start` to `end`, scaling it down.
+/// Moves the complete screen tile along an upward arc between exact screen frames.
 private struct Flight: GeometryEffect {
   var progress: CGFloat
   let start: CGPoint

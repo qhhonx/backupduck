@@ -17,6 +17,8 @@ import UserNotifications
     BackupEnvironment.usesCamera = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
+    BackupEnvironment.onboardingSamples = { [CatalogLibraryAsset(0), CatalogLibraryAsset(1)] }
+    BackupEnvironment.albumSamples = { _ in CatalogLibraryFixture(count: 120).fetch(filter: .all, view: .all) }
     // The catalog never asks for photo access; scenarios behave as if it was granted.
     BackupEnvironment.requestPhotoAccess = { true }
     BackupEnvironment.libraryCount = { 12_384 }
@@ -132,6 +134,7 @@ private struct ScenarioStage: View {
   let scenario: Scenario
   @State private var run: UUID? = UUID()
   @State private var info = false
+  @AppStorage("duckAppearance") private var savedAppearance = "system"
   @State private var scheme: ColorScheme?
   @State private var textSize: DynamicTypeSize?
   init(scenario: Scenario) {
@@ -148,6 +151,8 @@ private struct ScenarioStage: View {
   var body: some View {
     Group { if let run { ScenarioRun(scenario: scenario).id(run) } else { DuckRole.background.ignoresSafeArea() } }
       .preferredColorScheme(scheme)
+      .background(IOSAppearanceBridge(appearance: scheme.map { $0 == .dark ? "dark" : "light" } ?? savedAppearance).frame(width: 0, height: 0))
+      .onChange(of: savedAppearance) { _, _ in scheme = nil }
       .environment(\.duckStepMarkReducedTransparency, ProcessInfo.processInfo.arguments.contains("-reduce-transparency"))
       .environment(\.duckFirstPhotoReducedMotion, ProcessInfo.processInfo.arguments.contains("-reduce-motion"))
       .transformEnvironment(\.dynamicTypeSize) { if let textSize { $0 = textSize } }
@@ -228,6 +233,11 @@ private struct ScenarioRun: View {
     BackupEnvironment.activeNotifier = { notifier }
     let made = scenario.makeModel(core: CatalogApp.core, credentials: CatalogApp.credentials)
     let library = PhotoLibraryModel()
+    if scenario.step == "largeLibrary" {
+      let fixture = CatalogLibraryFixture(count: 55_000)
+      library.installSyntheticAssets(fixture.fetch(filter: .all, view: .all))
+      library.syntheticFetch = { filter, view in fixture.fetch(filter: filter, view: view) }
+    }
     if scenario.step == "filterEmpty" {
       library.installSyntheticAssets(CatalogAssetCollection([]), filter: .video, backupView: .recent)
     }
@@ -298,7 +308,7 @@ private struct ScenarioRun: View {
 
   @ViewBuilder private func page(_ item: IOSAppTab) -> some View {
     switch item {
-    case .library where scenario.library != nil:
+    case .library where scenario.library != nil || scenario.step == "largeLibrary":
       IOSLibraryPage(library: library, model: model)
         .task {
           await library.open()
@@ -306,11 +316,7 @@ private struct ScenarioRun: View {
         }
         .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
     case .backup where "\(item)" == scenario.page:
-      // With a library scenario the hub opens the library's backup views (design/library.md).
-      IOSHub(model: model, records: scenario.records, notification: $hubNotification, showLibrary: scenario.library == nil ? nil : { view in
-        tab = .library
-        Task { await library.changeBackupView(view) }
-      })
+      IOSHub(model: model, records: scenario.records, notification: $hubNotification)
       .sheet(isPresented: $showingLiveHelp) { LivePhotoHelpSheet() }
       .task(id: model.pairing?.receiverID) {
         if scenario.step == "liveHelp" { showingLiveHelp = true }

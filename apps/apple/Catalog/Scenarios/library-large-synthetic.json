@@ -1,0 +1,13 @@
+{
+  "id": "library.large-synthetic",
+  "page": "library",
+  "step": "largeLibrary",
+  "title": "Library: 55,000 in-memory assets",
+  "extends": "base-paired",
+  "ios_only": true,
+  "expect": [
+    "Filter changes prepare complete membership off the main thread and adopt content and labels together.",
+    "A new view opens at the newest edge; returning restores that view\u2019s anchor.",
+    "No PhotoKit library access or mutation."
+  ]
+}

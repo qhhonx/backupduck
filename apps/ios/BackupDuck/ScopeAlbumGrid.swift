@@ -215,12 +215,17 @@ struct ScopeAlbumBrowser: View {
   @StateObject private var library: PhotoLibraryModel
   @ObservedObject private var store: BackupScopeStore
   @ObservedObject private var model = BackupModel.shared
+  @StateObject private var backupAction = SelectionBackupAction()
   @State private var preview: IOSPreviewItem?
   @Environment(\.dismiss) private var dismiss
   @MainActor init(album: ScopeAlbum, store: BackupScopeStore? = nil) {
     self.album = album
     self.store = store ?? .shared
-    _library = StateObject(wrappedValue: PhotoLibraryModel(collection: album.id))
+    let library = PhotoLibraryModel(collection: album.id)
+    if !BackupEnvironment.usesPhotoLibrary, let samples = BackupEnvironment.albumSamples {
+      library.installSyntheticAssets(samples(album.id))
+    }
+    _library = StateObject(wrappedValue: library)
   }
   var body: some View {
     content.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -229,8 +234,8 @@ struct ScopeAlbumBrowser: View {
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           let chosen = store.rule.choosesAlbum(album.id)
-          Button { store.save(store.rule.toggling(album: album.id, name: album.name)) } label: {
-            Label(chosen ? "scope_album_deselect" : "scope_album_choose", systemImage: chosen ? "checkmark.circle.fill" : "circle")
+          Button(chosen ? "scope_album_deselect" : "scope_album_choose") {
+            store.save(store.rule.toggling(album: album.id, name: album.name))
           }
           .accessibilityAddTraits(chosen ? .isSelected : [])
           .accessibilityIdentifier("backup.scope.album_browser.choose")
@@ -239,7 +244,7 @@ struct ScopeAlbumBrowser: View {
       .background(IOSPreviewPresentation(item: preview, library: library) { preview = nil }.frame(width: 0, height: 0))
       .task {
         if BackupEnvironment.usesPhotoLibrary { await library.open() }
-        else { library.applyAuthorization(.denied) }
+        else if library.fetch == nil { library.applyAuthorization(.denied) }
       }
       .onDisappear { library.thumbnails.clear() }
   }
@@ -260,18 +265,14 @@ struct ScopeAlbumBrowser: View {
           Task { await library.open(requestPermission: true) }
         })
     case nil:
-      IOSLibraryGrid(library: library,
-        preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")",
-        queueRevision: model.queueRevision, receiverID: model.pairing?.receiverID,
-        backupModel: model, selectionEnabled: false, browseOnly: true,
-        onPreview: { index, frame in
-          guard let asset = library.asset(at: index) else { return }
-          var transaction = Transaction(); transaction.disablesAnimations = true
-          withTransaction(transaction) {
-            preview = IOSPreviewItem(asset: asset, frame: frame,
-              poster: library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for: asset))
-          }
-        }).accessibilityIdentifier("backup.scope.album_browser").duckLibraryViewport()
+      IOSCalendarLibrary(library: library, model: model, onPreview: { asset, frame in
+        var transaction = Transaction(); transaction.disablesAnimations = true
+        withTransaction(transaction) {
+          preview = IOSPreviewItem(asset: asset, frame: frame,
+            poster: library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for: asset))
+        }
+      }, backupAction: backupAction, browseOnly: true)
+        .accessibilityIdentifier("backup.scope.album_browser")
     }
   }
 }

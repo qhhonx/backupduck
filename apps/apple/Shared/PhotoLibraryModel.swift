@@ -109,6 +109,11 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   @Published var selection: Set<String> = []
   @Published var message: String?
   private(set) var fetch: PHFetchResult<PHAsset>?
+  private(set) var membership: LibraryMembership?
+  /// Catalog fixtures use the same asynchronous preparation and atomic adoption.
+  var syntheticFetch: (@Sendable (LibraryFilter, LibraryBackupView) async -> PHFetchResult<PHAsset>?)?
+  private(set) var viewGeneration = 0
+  var viewWillChange: (() -> Void)?
   private var presentation = LibraryPresentationIndex()
   private var loadingPage = false
   private var cancelMetadata: (() -> Void)?
@@ -136,6 +141,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     precondition(!BackupEnvironment.usesPhotoLibrary)
     precondition((0..<assets.count).allSatisfy { assets.object(at: $0) is any PreviewSample })
     fetch = assets
+    membership = LibraryMembership(assets)
     presentation = LibraryPresentationIndex()
     presentation.load(assets, targetRows: assets.count)
     total = assets.count; loaded = presentation.rows.count
@@ -204,7 +210,12 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     case .needsYou, .recent:
       guard let receiver else { return PHFetchResult<PHAsset>() }
       guard let found = await taskSources(receiver: receiver, view: view) else { return nil }
-      ids = found
+      let wanted = Set(found)
+      var matched: [String] = []
+      fetch.enumerateObjects { asset, _, _ in
+        if wanted.contains(asset.localIdentifier) { matched.append(asset.localIdentifier) }
+      }
+      ids = matched
     }
     // Same membership and order as the library fetch, so the grid's date groups hold.
     let options = photoLibraryFetchOptions(for: filter)
@@ -220,7 +231,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     let since = Int64((Date().timeIntervalSince1970 - LibraryBackupView.recentWindow) * 1000)
     var sources: [String] = []
     var after: (Int64, Int64)?
-    for _ in 0..<50 {
+    while !Task.isCancelled {
       var query: [String: Any] = ["op": "backup_tasks", "receiver_id": receiver, "sort": "activity", "descending": true,
         "state": view == .needsYou ? "attention" : "all"]
       if let after { query["after"] = after.0; query["after_value"] = after.1 }
@@ -282,6 +293,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       requestGeneration += 1
       cancelMetadata?(); cancelMetadata = nil
       fetch = nil
+      membership = nil
       presentation = LibraryPresentationIndex()
       groups.removeAll(); groupOrder.removeAll()
       loadingPage = false
@@ -301,34 +313,30 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   }
   func changeBackupView(_ next: LibraryBackupView) async {
     guard requestedBackupView != next else { return }
+    viewWillChange?()
     requestedBackupView = next
     selection.removeAll()
-    scrollOffset = .zero
-    scrollAnchorID = nil
-    scrollAnchorInset = 0
-    scrollResetGeneration += 1
     await reload(resetWindow: true)
   }
   func resetFilters() async {
-    requestedBackupView = .all; backupView = .all
-    requestedFilter = .all; filter = .all
+    viewWillChange?()
+    requestedBackupView = .all
+    requestedFilter = .all
     selection.removeAll()
     scrollOffset = .zero; scrollAnchorID = nil; scrollAnchorInset = 0
     scrollResetGeneration += 1
+    if !BackupEnvironment.usesPhotoLibrary && syntheticFetch == nil { backupView = .all; filter = .all }
     await reload(resetWindow: true)
   }
   func changeFilter(_ next: LibraryFilter) async {
     guard requestedFilter != next else { return }
+    viewWillChange?()
     requestedFilter = next
     selection.removeAll()
-    scrollOffset = .zero
-    scrollAnchorID = nil
-    scrollAnchorInset = 0
-    scrollResetGeneration += 1
     await reload(resetWindow: true)
   }
   func reload(resetWindow: Bool = false) async {
-    guard BackupEnvironment.usesPhotoLibrary, authorized else { return }
+    guard (BackupEnvironment.usesPhotoLibrary || syntheticFetch != nil), authorized else { return }
     LaunchTrace.mark("library reload start")
     requestGeneration += 1
     cancelMetadata?(); cancelMetadata = nil
@@ -343,9 +351,15 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     let selected = selection
     let collection = collectionID
     let early = collection == nil && selectedView == .all ? Self.takeEarlyFetch(for: selectedFilter) : nil
+    let syntheticFetch = syntheticFetch
     let work = Task.detached(priority: .userInitiated) {
       var fetch: PHFetchResult<PHAsset>
-      if let (early, token) = await early?.value {
+      if let syntheticFetch {
+        guard let prepared = await syntheticFetch(selectedFilter, selectedView) else {
+          return (PHFetchResult<PHAsset>(), LibraryPresentationIndex(), Set<String>(), false, LibraryMembership(PHFetchResult<PHAsset>()))
+        }
+        fetch = prepared
+      } else if let (early, token) = await early?.value {
         fetch = early
         // The model's observer is registered by now: a change before that was
         // not delivered to it, so an advanced token means fetching again.
@@ -354,9 +368,9 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
           fetch = Self.fetchAssets(selectedFilter)
         }
       } else { fetch = Self.fetchAssets(selectedFilter, collection: collection) }
-      if selectedView != .all {
+      if syntheticFetch == nil, selectedView != .all {
         guard let narrowed = await Self.narrow(fetch, to: selectedView, filter: selectedFilter, receiver: receiver) else {
-          return (fetch, LibraryPresentationIndex(), Set<String>(), false)
+          return (fetch, LibraryPresentationIndex(), Set<String>(), false, LibraryMembership(PHFetchResult<PHAsset>()))
         }
         fetch = narrowed
       }
@@ -364,7 +378,8 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
       index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
-      return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys), true)
+      let membership = LibraryMembership(fetch)
+      return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys), true, membership)
     }
     cancelMetadata = { work.cancel() }
     let result = await work.value
@@ -380,6 +395,9 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       await reload(resetWindow: true)
       return
     }
+    let viewChanged = backupView != selectedView || filter != selectedFilter
+    membership = result.4
+    if viewChanged { viewGeneration += 1; scrollResetGeneration += 1 }
     backupView = selectedView
     fetch = result.0
     presentation = result.1
@@ -510,7 +528,16 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     return resolved
   }
   private nonisolated static func rawIndex(of token: String?, in fetch: PHFetchResult<PHAsset>) -> Int? {
-    guard BackupEnvironment.usesPhotoLibrary, let token else { return nil }
+    guard let token else { return nil }
+    if !BackupEnvironment.usesPhotoLibrary {
+      var position: Int?
+      fetch.enumerateObjects { asset, index, stop in
+        if asset.localIdentifier == token || asset.burstIdentifier.map({ "burst:" + $0 }) == token {
+          position = index; stop.pointee = true
+        }
+      }
+      return position
+    }
     let assets: PHFetchResult<PHAsset>
     if token.hasPrefix("burst:") {
       assets = PHAsset.fetchAssets(withBurstIdentifier: String(token.dropFirst(6)), options: photoLibraryFetchOptions())

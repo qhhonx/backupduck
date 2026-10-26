@@ -204,12 +204,20 @@ struct BackupScopeEditor: View {
     #endif
   }
 
+  #if os(macOS)
+  @State private var searchPresented = false
+  #endif
   private var searchableContent: some View {
     Group {
       // Search only where there is a list to search; the window toolbar on the Mac.
       if showsAlbumSearch {
         #if os(macOS)
-        scopeContent.searchable(text: $search, placement: .toolbar, prompt: Text("scope_search_albums"))
+        // The same collapsed toolbar search as the Mac grids.
+        scopeContent.toolbar {
+          ToolbarItem(placement: .primaryAction) {
+            MacGridSearch(text: $search, presented: $searchPresented, prompt: "scope_search_albums")
+          }
+        }
         #else
         scopeContent.searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("scope_search_albums"))
         #endif
@@ -301,46 +309,57 @@ struct BackupScopeEditor: View {
     let chosen = store.rule.usesSpecifiedAlbums ? store.rule.albums : []
     let visible = model.albums.filter { (!$0.system || chosen.contains($0.id)) && matches($0.name) }
     #if os(iOS)
-    return List {
-      Section {
-        albumSelection
-      }
-      Section {
-        if visible.isEmpty && !model.loading {
-          if !search.isEmpty { ContentUnavailableView.search(text: search) }
-          else {
-            ContentUnavailableView {
-              Label("scope_albums_empty", systemImage: "rectangle.stack")
-            } description: { Text("scope_summary_note") } actions: {
-              Button("retry_task") { Task { await loadAlbums() } }.buttonStyle(.bordered)
+    return GeometryReader { geometry in
+      ScrollView {
+        VStack(alignment: .leading, spacing: DuckSpacing.large) {
+          VStack(alignment: .leading, spacing: DuckSpacing.small) {
+            DuckPreferenceGroup {
+              Toggle("scope_all_albums", isOn: allAlbums)
+                .toggleStyle(DuckPreferenceToggleStyle())
+                .accessibilityIdentifier("backup.scope.all_albums")
+            }
+            Text(selectionSummary).font(.footnote).foregroundStyle(DuckRole.secondaryText)
+              .padding(.horizontal, DuckSpacing.medium)
+              .accessibilityIdentifier("backup.scope.album_count")
+          }
+          if visible.isEmpty && !model.loading {
+            if !search.isEmpty { ContentUnavailableView.search(text: search) }
+            else {
+              ContentUnavailableView {
+                Label("scope_albums_empty", systemImage: "rectangle.stack")
+              } description: { Text("scope_summary_note") } actions: {
+                Button("retry_task") { Task { await loadAlbums() } }.buttonStyle(.bordered)
+              }
             }
           }
-        }
-        ForEach(visible) { album in
-          ScopeChoiceRow(title: album.name, subtitle: albumItemCount(album.count),
-            showsCover: true, cover: album.cover, selected: chosen.contains(album.id)) { selectAlbum(album) }
-            .contextMenu {
-              Button("scope_album_view") { view(album) }
-              Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+          LazyVGrid(columns: geometry.size.width < 600
+            ? Array(repeating: GridItem(.flexible(), spacing: DuckSpacing.medium), count: 2)
+            : [GridItem(.adaptive(minimum: 132, maximum: 200), spacing: DuckSpacing.medium)],
+            alignment: .leading, spacing: DuckSpacing.large) {
+            ForEach(visible) { album in
+              ScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) })
+                .contextMenu {
+                  Button("scope_album_view") { view(album) }
+                  Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
+                }
+                .accessibilityAction(named: Text("scope_album_view")) { view(album) }
             }
-            .accessibilityAction(named: Text("scope_album_view")) { view(album) }
-            .accessibilityIdentifier("backup.scope.album." + album.id)
-        }
-      }
-      if !model.loading && !missing.isEmpty {
-        Section("scope_album_unavailable") {
-          ForEach(missing.sorted().filter { matches(store.rule.albumNames[$0] ?? NSLocalizedString("scope_album_unavailable", comment: "")) }, id: \.self) { id in
-            let name = store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable", comment: "")
-            ScopeChoiceRow(title: name, subtitle: NSLocalizedString("scope_album_unavailable", comment: ""),
-                showsCover: true, selected: true) {
-                var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
-              }.accessibilityIdentifier("backup.scope.album." + id)
           }
-        }
-      }
+          if !model.loading && !missing.isEmpty {
+            Text("scope_album_unavailable").font(.footnote).foregroundStyle(DuckRole.secondaryText)
+            DuckPreferenceGroup {
+              ForEach(missing.sorted().filter { matches(store.rule.albumNames[$0] ?? NSLocalizedString("scope_album_unavailable", comment: "")) }, id: \.self) { id in
+                ScopeChoiceRow(title: store.rule.albumNames[id] ?? NSLocalizedString("scope_album_unavailable", comment: ""),
+                  subtitle: NSLocalizedString("scope_album_unavailable", comment: ""), showsCover: true, selected: true) {
+                    var next = store.rule; next.albums.remove(id); next.albumNames.removeValue(forKey: id); store.save(next)
+                  }.accessibilityIdentifier("backup.scope.album." + id)
+              }
+            }
+          }
+        }.padding(DuckSpacing.medium)
+      }.accessibilityIdentifier("backup.scope.choices")
+        .overlay { if model.loading { ProgressView("library_loading") } }
     }
-    .scopeChoiceList()
-    .overlay { if model.loading { ProgressView("library_loading") } }
     #else
     return ScrollView {
       VStack(alignment: .leading, spacing: DuckSpacing.large) {
@@ -348,7 +367,7 @@ struct BackupScopeEditor: View {
         if visible.isEmpty && !model.loading { ContentUnavailableView.search(text: search) }
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 132, maximum: 200), spacing: DuckSpacing.medium)], alignment: .leading, spacing: DuckSpacing.large) {
           ForEach(visible) { album in
-            MacScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) })
+            ScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) })
               .contextMenu {
                 Button("scope_album_view") { view(album) }
                 Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
@@ -501,9 +520,8 @@ func albumItemCount(_ count: Int) -> String {
   String(format: NSLocalizedString(count == 1 ? "scope_album_item" : "scope_album_items",comment: ""),count.formatted())
 }
 
-#if os(macOS)
 /// Album choices use covers as the complete keyboard- and pointer-operable target.
-private struct MacScopeAlbumCard: View {
+struct ScopeAlbumCard: View {
   let album: ScopeAlbum
   let selected: Bool
   var action: () -> Void
@@ -530,4 +548,3 @@ private struct MacScopeAlbumCard: View {
       .accessibilityIdentifier("backup.scope.album." + album.id)
   }
 }
-#endif

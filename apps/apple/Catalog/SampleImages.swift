@@ -267,3 +267,45 @@ final class CatalogAssetCollection: PHFetchResult<PHAsset>, @unchecked Sendable 
     for index in indexes { block(assets[index], index, &stop); if stop.boolValue { break } }
   }
 }
+
+/// Deterministic in-memory media for large-library and album review. The
+/// fixture never creates, deletes or requests access to PhotoKit assets.
+final class CatalogLibraryAsset: PHAsset, PreviewSample, @unchecked Sendable {
+  let number: Int
+  init(_ number: Int) { self.number = number; super.init() }
+  override var localIdentifier: String { "catalog-library-\(number)" }
+  override var creationDate: Date? { Date(timeIntervalSince1970: 1_793_000_000 - Double(number) * 3600) }
+  override var modificationDate: Date? { creationDate }
+  override var mediaType: PHAssetMediaType { number % 5 == 1 ? .video : .image }
+  override var mediaSubtypes: PHAssetMediaSubtype { [] }
+  override var burstIdentifier: String? { nil }
+  override var representsBurst: Bool { false }
+  override var duration: TimeInterval { mediaType == .video ? 83 : 0 }
+  override var pixelWidth: Int { 480 }
+  override var pixelHeight: Int { 480 }
+  override var location: CLLocation? { nil }
+  var previewFilename: String { mediaType == .video ? "Example.mov" : "Example.jpg" }
+  var previewMetadata: [(String, String)] { [] }
+  var previewImage: LibraryImage? {
+    guard let cg = SampleImages.cgImage(for: "catalog-cover-\(number % 32)", maxPixelSize: 480) else { return nil }
+    #if os(iOS)
+    return UIImage(cgImage: cg)
+    #else
+    return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+    #endif
+  }
+}
+
+struct CatalogLibraryFixture: Sendable {
+  let assets: [PHAsset]
+  init(count: Int) { assets = (0..<count).map(CatalogLibraryAsset.init) }
+  func fetch(filter: LibraryFilter, view: LibraryBackupView) -> PHFetchResult<PHAsset> {
+    CatalogAssetCollection(assets.enumerated().compactMap { index, asset in
+      let mediaMatches = filter == .all || filter == .video && asset.mediaType == .video
+        || filter == .photo && asset.mediaType == .image
+      let viewMatches = view == .all || view == .notBackedUp && index % 7 == 0
+        || view == .needsYou && index < 4 || view == .recent && index < 2
+      return mediaMatches && viewMatches ? asset : nil
+    })
+  }
+}

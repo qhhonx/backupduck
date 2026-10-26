@@ -522,29 +522,41 @@ struct IOSOnboarding: View {
 
 }
 
-/// The four most recent photos of the library, as one rounded strip. In the
-/// design catalog, which never reads the library, sample pictures stand in.
-private struct OnboardingLibraryStrip: View {
-  @State private var sources: [String] = []
+/// The most recent accessible media, including video posters and the same
+/// duration mark as the library. PhotoKit scopes both access modes itself.
+struct OnboardingLibraryStrip: View {
+  @State private var assets: [PHAsset] = []
   var body: some View {
     GeometryReader { geometry in
-      let gap: CGFloat = 3
-      let side = (geometry.size.width - gap * 3) / 4
+      let gap: CGFloat = DuckSpacing.xxSmall
+      let count = max(1, min(4, assets.count))
+      let side = (geometry.size.width - gap * CGFloat(count - 1)) / CGFloat(count)
       HStack(spacing: gap) {
-        ForEach(Array(sources.prefix(4).enumerated()), id: \.offset) { _, id in
-          AssetThumbnail(sourceID: id, size: side, cornerRadius: 0)
+        ForEach(Array(assets.prefix(4).enumerated()), id: \.offset) { _, asset in
+          AssetThumbnail(sourceID: asset.localIdentifier, size: side, cornerRadius: 0)
+            .overlay(alignment: .bottomTrailing) {
+              if asset.mediaType == .video {
+                Text(videoDurationLabel(asset.duration)).font(.caption.weight(.semibold)).monospacedDigit()
+                  .foregroundStyle(DuckMedia.onMedia).shadow(color: DuckMedia.shadow, radius: 2)
+                  .padding(DuckSpacing.xSmall)
+              }
+            }
+            .accessibilityIdentifier("onboarding.sample." + asset.localIdentifier)
         }
       }
     }
-    .aspectRatio(4, contentMode: .fit)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .aspectRatio(CGFloat(max(1, min(4, assets.count))), contentMode: .fit)
+    .clipped().clipShape(RoundedRectangle(cornerRadius: DuckRadius.cardCompact))
     .task {
-      guard BackupEnvironment.usesPhotoLibrary else { sources = (1...4).map { "onboarding-sample-\($0)" }; return }
-      let options = PHFetchOptions()
-      options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-      options.fetchLimit = 4
-      let fetch = PHAsset.fetchAssets(with: .image, options: options)
-      sources = (0..<fetch.count).map { fetch.object(at: $0).localIdentifier }
+      if let samples = BackupEnvironment.onboardingSamples { assets = Array(samples().prefix(4)); return }
+      guard BackupEnvironment.usesPhotoLibrary else { return }
+      assets = await Task.detached(priority: .userInitiated) {
+        let options = photoLibraryFetchOptions(for: .all)
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.fetchLimit = 4
+        let fetch = PHAsset.fetchAssets(with: options)
+        return fetch.objects(at: IndexSet(integersIn: 0..<fetch.count))
+      }.value
     }
   }
 }
