@@ -1309,6 +1309,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   var index: Int = 0, verticalKind = 0, startInfo: CGFloat = 0
   private var lastLayoutBounds = CGRect.null, lastToolbarFrame = CGRect.null
   private var lastLayoutInsets = UIEdgeInsets.zero
+  private var stripRevision = -1, stripCount = -1
   var pendingAsset: PHAsset?
   var mediaClipping: [(UIView,Bool)] = []
   weak var review: CalendarSelectedController?
@@ -1429,6 +1430,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     session.$current.receive(on: DispatchQueue.main).sink { [weak self] model in self?.currentChanged(model) }.store(in: &cancellables)
     session.$collectionRevision.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in
       guard let self else { return }; self.currentChanged(self.session.current)
+    }.store(in: &cancellables)
+    session.$paging.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] _ in
+      self?.updateStatus()
     }.store(in: &cancellables)
     session.$zoomed.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] zoomed in
       guard let self else { return }
@@ -1561,8 +1565,16 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     setSourceHidden(true)
     index = session.index(of: model.asset) ?? index
     if pageAssets.count != 3 || pageAssets[1].localIdentifier != model.asset.localIdentifier { installPages() }
-    if !strip.isDragging && !strip.isDecelerating { strip.reloadData(); centerStrip() }
-    else { for path in strip.indexPathsForVisibleItems { if let cell = strip.cellForItem(at: path) as? PreviewStripCell { cell.setSelected(path.item == index) } } }
+    let changedVisibleIdentity = strip.indexPathsForVisibleItems.contains { path in
+      (strip.cellForItem(at: path) as? PreviewStripCell)?.identity != session.asset(at: path.item)?.localIdentifier
+    }
+    if stripRevision != session.collectionRevision || stripCount != session.count || changedVisibleIdentity {
+      stripRevision = session.collectionRevision; stripCount = session.count
+      strip.reloadData()
+    }
+    for path in strip.indexPathsForVisibleItems {
+      (strip.cellForItem(at: path) as? PreviewStripCell)?.setSelected(path.item == index)
+    }
     stripLayout.current = index
     stripLayout.aspect = CGFloat(max(1,model.asset.pixelWidth))/CGFloat(max(1,model.asset.pixelHeight))
     stripLayout.neighborAspects = Dictionary(uniqueKeysWithValues:
@@ -1593,7 +1605,8 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func updateStatus() {
     let model = session.current
     updateBackupControl()
-    loadingIndicator.update(loading: model.loading,progress: model.progress,cloud: model.cloudNeeded,failure: model.failure)
+    loadingIndicator.update(loading: model.loading,progress: model.progress,cloud: model.cloudNeeded,failure: model.failure,
+      identity: model.asset.localIdentifier, settled: !flying && !closing && !session.paging && !pager.isDragging && !pager.isDecelerating)
     previewFailure.view.isHidden = !model.failure || recordedPhoto != nil
     if model.failure || recordedPhoto != nil { loadingIndicator.isHidden = true }
     if !flying && !closing && verticalKind == 0 && infoAnimator?.isRunning != true { layoutMedia() }
@@ -2115,7 +2128,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       }) { [weak self] in
         guard let self else { return }
         surface.mask = nil; self.pages[1].flightLocked = false; self.restoreMediaClipping()
-        self.flying = false; self.pager.isScrollEnabled = !self.session.zoomed; self.layoutMedia()
+        self.flying = false; self.pager.isScrollEnabled = !self.session.zoomed; self.updateStatus()
       }
     }
   }
@@ -2182,13 +2195,17 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func configure(_ asset: PHAsset, selected: Bool, pipeline: ThumbnailPipeline) {
     setSelected(selected)
     accessibilityLabel = asset.creationDate?.formatted(date: .abbreviated,time: .shortened); accessibilityTraits = selected ? [.button,.selected] : .button
-    guard identity != asset.localIdentifier else { return }; cancel(); self.pipeline = pipeline; identity = asset.localIdentifier
-    photo.image = pipeline.poster(for: asset)
+    if identity != asset.localIdentifier {
+      cancel(); identity = asset.localIdentifier
+      photo.image = pipeline.poster(for: asset)
+    }
+    self.pipeline = pipeline
+    guard request == PHInvalidImageRequestID else { return }
     request = pipeline.request(asset,pixels: 120) { [weak self] image,_ in guard let self, self.identity == asset.localIdentifier else { return }; if let image { self.photo.image = image } }
   }
   func setSelected(_ selected: Bool) { photo.layer.borderWidth = 0; accessibilityTraits = selected ? [.button,.selected] : .button }
-  func cancel() { pipeline?.cancel(request); request = PHInvalidImageRequestID; identity = nil }
-  override func prepareForReuse() { super.prepareForReuse(); cancel(); photo.image = nil }
+  func cancel() { pipeline?.cancel(request); request = PHInvalidImageRequestID }
+  override func prepareForReuse() { super.prepareForReuse(); cancel(); identity = nil; photo.image = nil }
 }
 
 /// Stable UIKit ownership keeps asynchronous posters, Live Photos and video
@@ -2301,25 +2318,53 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
 /// One unobtrusive media-local loading owner; known progress is never invented.
 @MainActor final class MediaLoadingIndicator: UIView {
   let track = CAShapeLayer(), arc = CAShapeLayer(), symbol = UIImageView()
+  let appearance = UIView()
+  private var pendingReveal: DispatchWorkItem?
+  private var loadingIdentity: String?
+  private var eligible = false, revealed = false
   var retry: (() -> Void)?
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = DuckMedia.scrimBurstUIColor; layer.cornerRadius = 18
-    for shape in [track,arc] { shape.fillColor = UIColor.clear.cgColor; shape.lineWidth = 2; shape.lineCap = .round; layer.addSublayer(shape) }
+    appearance.backgroundColor = DuckMedia.scrimBurstUIColor; appearance.layer.cornerRadius = 18
+    appearance.alpha = 0; appearance.isUserInteractionEnabled = false; addSubview(appearance)
+    for shape in [track,arc] { shape.fillColor = UIColor.clear.cgColor; shape.lineWidth = 2; shape.lineCap = .round; appearance.layer.addSublayer(shape) }
     track.strokeColor = DuckMedia.onMediaUIColor.withAlphaComponent(0.3).cgColor; arc.strokeColor = DuckMedia.onMediaCGColor
-    symbol.tintColor = DuckMedia.onMediaUIColor; symbol.contentMode = .scaleAspectFit; addSubview(symbol)
+    symbol.tintColor = DuckMedia.onMediaUIColor; symbol.contentMode = .scaleAspectFit; appearance.addSubview(symbol)
     let tap = UITapGestureRecognizer(target: self,action: #selector(retryTapped)); addGestureRecognizer(tap)
     isAccessibilityElement = true; accessibilityIdentifier = "library.preview.loading"
+    accessibilityElementsHidden = true
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   override func layoutSubviews() {
-    super.layoutSubviews(); layer.cornerRadius = bounds.width/2
+    super.layoutSubviews(); appearance.frame = bounds; appearance.layer.cornerRadius = bounds.width/2
     let path = UIBezierPath(arcCenter: CGPoint(x: bounds.midX,y: bounds.midY),radius: max(1,bounds.width/2-7),startAngle: -.pi/2,endAngle: .pi*1.5,clockwise: true).cgPath
     track.frame = bounds; arc.frame = bounds; track.path = path; arc.path = path
     symbol.frame = bounds.insetBy(dx: 9,dy: 9)
   }
-  func update(loading: Bool, progress: Double, cloud: Bool, failure: Bool) {
-    isHidden = !loading && !cloud && !failure
+  func update(loading: Bool, progress: Double, cloud: Bool, failure: Bool, identity: String, settled: Bool) {
+    isHidden = false
+    let immediate = cloud || failure || (loading && progress > 0)
+    let nextEligible = loading && settled
+    if loadingIdentity != identity {
+      pendingReveal?.cancel(); pendingReveal = nil; revealed = false
+      appearance.layer.removeAllAnimations()
+      UIView.performWithoutAnimation { appearance.alpha = 0 }
+      accessibilityElementsHidden = true
+    } else if !nextEligible {
+      pendingReveal?.cancel(); pendingReveal = nil
+      if !immediate { setRevealed(false) }
+    }
+    loadingIdentity = identity; eligible = nextEligible
+    if immediate { pendingReveal?.cancel(); pendingReveal = nil; setRevealed(true) }
+    else if !nextEligible { setRevealed(false) }
+    else if !revealed && pendingReveal == nil {
+      let reveal = DispatchWorkItem { [weak self] in
+        guard let self, self.loadingIdentity == identity, self.eligible else { return }
+        self.pendingReveal = nil; self.setRevealed(true)
+      }
+      pendingReveal = reveal
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: reveal)
+    }
     accessibilityTraits = failure || cloud ? .button : .updatesFrequently
     accessibilityLabel = NSLocalizedString(failure ? "retry_task" : cloud ? "preview_cloud_setting" : "preview_loading",comment: "")
     isUserInteractionEnabled = cloud || failure
@@ -2334,7 +2379,15 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       }
     } else { arc.removeAnimation(forKey: "loading.rotation") }
   }
-  @objc func retryTapped() { retry?() }
+  private func setRevealed(_ visible: Bool) {
+    guard revealed != visible else { return }; revealed = visible
+    accessibilityElementsHidden = !visible
+    UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+      self.appearance.alpha = visible ? 1 : 0
+    }
+  }
+  deinit { pendingReveal?.cancel() }
+  @objc func retryTapped() { if revealed { retry?() } }
 }
 @MainActor final class MediaZoomScroll: UIScrollView {
   let media = UIView(), photo = UIImageView(), live = PHLivePhotoView()

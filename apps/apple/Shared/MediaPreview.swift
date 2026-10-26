@@ -72,12 +72,33 @@ extension PreviewSample {
       let fullAspect: (LibraryImage) -> Bool = {
         abs(log(($0.size.width / max(1, $0.size.height)) / mediaAspect)) < 0.02
       }
+      #if os(iOS)
+      // Once the full composition is visible, a late cropped cover cannot
+      // replace it, even when that cover has a larger nominal pixel edge.
+      if fullAspect(current), !fullAspect(incoming) { return }
+      #endif
       if fullAspect(incoming), !fullAspect(current) {
         image = incoming; return
       }
       guard edge(incoming) >= edge(current) else { return }
     }
     image = incoming
+  }
+  private func preparePoster(_ incoming: LibraryImage, expected: UUID,
+    completion: (@MainActor (Bool) -> Void)? = nil) {
+    #if os(iOS)
+    // UIKit prepares the bitmap away from the main thread. Keep the displayed
+    // pixels until preparation finishes, and reject obsolete decode callbacks.
+    incoming.prepareForDisplay { [weak self] prepared in
+      Task { @MainActor in
+        guard let self, self.generation == expected else { return }
+        if let prepared { self.adoptPoster(prepared) }
+        completion?(prepared != nil)
+      }
+    }
+    #else
+    adoptPoster(incoming); completion?(true)
+    #endif
   }
   var kind: String {
     asset.burstIdentifier != nil ? "burst" : asset.mediaType == .video ? "video"
@@ -132,7 +153,7 @@ extension PreviewSample {
       contentMode: .aspectFit, options: local) { [weak self] value, _ in
       Task { @MainActor in
         guard let self, self.generation == expected, let value else { return }
-        self.adoptPoster(value)
+        self.preparePoster(value, expected: expected)
       }
     })
     let size = CGSize(width: min(4096, max(1600, pixels)), height: min(4096, max(1600, pixels)))
@@ -140,12 +161,14 @@ extension PreviewSample {
       contentMode: .aspectFit, options: options) { [weak self] value, info in
       Task { @MainActor in
         guard let self, self.generation == expected else { return }
-        if let value { self.adoptPoster(value) }
         if info?[PHImageResultIsInCloudKey] as? Bool == true { self.cloudPoster = true }
-        guard info?[PHImageResultIsDegradedKey] as? Bool != true else { return }
-        if self.asset.mediaType != .video && !self.asset.mediaSubtypes.contains(.photoLive) {
-          self.finish(value != nil, info: info)
-        }
+        let final = info?[PHImageResultIsDegradedKey] as? Bool != true
+          && self.asset.mediaType != .video && !self.asset.mediaSubtypes.contains(.photoLive)
+        if let value {
+          self.preparePoster(value, expected: expected) { [weak self] available in
+            if final { self?.finish(available, info: info) }
+          }
+        } else if final { self.finish(false, info: info) }
       }
     })
     if asset.mediaType == .video {
@@ -334,7 +357,17 @@ extension PreviewSample {
       if reviewAssets == nil { _ = await library.previewNeighbor(of: asset, direction: 1) }
       if count != previousCount { collectionRevision &+= 1 }
       guard current.asset.localIdentifier == asset.localIdentifier else { return }
+      #if os(iOS)
+      let neighbours = ([-2, -1, 0, 1, 2]).compactMap { offset in
+        index(of: asset).flatMap { self.asset(at: $0 + offset) }
+      }
+      // Prepare two local neighbours in each direction without widening the
+      // visible page's network request or creating another transfer queue.
+      for neighbour in neighbours where neighbour.localIdentifier != asset.localIdentifier { _ = model(for: neighbour) }
+      let keep = Set(neighbours.map(\.localIdentifier))
+      #else
       let keep = Set([asset, adjacent(to: asset, direction: -1), adjacent(to: asset, direction: 1)].compactMap { $0?.localIdentifier })
+      #endif
       for id in Array(models.keys) where !keep.contains(id) { models.removeValue(forKey: id)?.cancel() }
     }
   }

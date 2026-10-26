@@ -114,7 +114,10 @@ browsing. State is not an action: the backup state is a quiet mark on Info
 (none when normal), and its details and Back Up / Retry are in the panel. One tap on the photo hides the
 bars and filmstrip and turns the background black; another tap restores them.
 Opening and closing fly the photo from and back into its tile while the grid
-stays still. Long press on a tile opens the system context menu with the whole
+stays still. On iPhone, rendition preparation and delayed media-local loading
+feedback retain the displayed pixels and viewport. Paging retains filmstrip
+cells for unchanged items; loading feedback overlays the media without adding
+space. Long press on a tile opens the system context menu with the whole
 photo at its own aspect ratio as the preview; selection starts from Select.
 
 One photo has one viewer and one information layout on each platform: date and

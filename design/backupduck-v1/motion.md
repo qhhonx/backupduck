@@ -185,3 +185,17 @@ interpolate through each other. Complete cell decorations scale in their own
 reference coordinates. Settlement aligns the stage's gap, pitch and focal point
 with the destination collection before transferring retained pixels and removing
 the stage. Native collections remain the settled browsing and selection owner.
+
+On iPhone, a detail bitmap is prepared for display before publication. Keep the
+best available full-aspect rendition while a larger request, decode, retry or
+cancel completes; late cropped covers and smaller renditions cannot replace it.
+The adjacent two items in each direction are prepared locally, with bounded
+model retention and unchanged network ownership for the visible page.
+
+Ordinary detail loading feedback waits until the current page has settled for
+600 ms, then fades in place over 200 ms; completion fades it out over 200 ms.
+Paging or changing asset cancels the pending reveal. Download byte progress and
+failure recovery retain their existing meaning. The loading surface never
+changes the image frame or contributes layout space. Filmstrip paging updates
+focus and selection on retained cells; only collection membership changes reload
+the strip. Offscreen request cancellation keeps an unchanged thumbnail's pixels.
