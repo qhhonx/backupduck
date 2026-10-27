@@ -132,7 +132,7 @@ private enum MacCatalogLaunch {
       }
     }
     if MacCatalogLaunch.value("-snapshot-mode") != "manual" { Self.capture() }
-    if #available(macOS 15.0, *), let path = MacCatalogLaunch.value("-record") {
+    if let path = MacCatalogLaunch.value("-record") {
       Task { @MainActor in
         do {
           for _ in 0..<20 {
@@ -657,8 +657,6 @@ private struct MacScenarioInfo: View {
 }
 
 /// Captures the catalog's composited window, including title bar and materials.
-/// macOS 14.0–14.3 uses the older view-cache fallback; its sidebar materials
-/// are incomplete and must be judged in the live window.
 enum MacWindowSnapshot {
   @MainActor static func write(to url: URL) async throws {
     let viewer = MacCatalogLaunch.value("-photo-info") == nil ? nil : NSApp.windows.first {
@@ -679,30 +677,19 @@ enum MacWindowSnapshot {
       "bundle": Bundle.main.bundleIdentifier ?? "", "windowNumber": window.windowNumber]
     try JSONSerialization.data(withJSONObject: activation, options: [.prettyPrinted, .sortedKeys])
       .write(to: url.deletingPathExtension().appendingPathExtension("activation.json"))
-    let bitmap: NSBitmapImageRep
-    if #available(macOS 14.4, *) {
-      // Restrict capture to this process; no screen-recording consent is needed.
-      let content = try await SCShareableContent.currentProcess
-      guard let capturedWindow = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else {
-        throw SnapshotError("The catalog window is not available for capture.")
-      }
-      let filter = SCContentFilter(desktopIndependentWindow: capturedWindow)
-      let configuration = SCStreamConfiguration()
-      configuration.width = Int((filter.contentRect.width * CGFloat(filter.pointPixelScale)).rounded())
-      configuration.height = Int((filter.contentRect.height * CGFloat(filter.pointPixelScale)).rounded())
-      configuration.ignoreShadowsSingleWindow = true
-      configuration.showsCursor = false
-      let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-      bitmap = NSBitmapImageRep(cgImage: image)
-    } else {
-      fputs("Catalog snapshot: macOS before 14.4 cannot capture sidebar materials.\n", stderr)
-      guard let view = window.contentView?.superview ?? window.contentView,
-        let cached = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-        throw SnapshotError("The catalog window could not be rendered.")
-      }
-      view.cacheDisplay(in: view.bounds, to: cached)
-      bitmap = cached
+    // Restrict capture to this process; no screen-recording consent is needed.
+    let content = try await SCShareableContent.currentProcess
+    guard let capturedWindow = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else {
+      throw SnapshotError("The catalog window is not available for capture.")
     }
+    let filter = SCContentFilter(desktopIndependentWindow: capturedWindow)
+    let configuration = SCStreamConfiguration()
+    configuration.width = Int((filter.contentRect.width * CGFloat(filter.pointPixelScale)).rounded())
+    configuration.height = Int((filter.contentRect.height * CGFloat(filter.pointPixelScale)).rounded())
+    configuration.ignoreShadowsSingleWindow = true
+    configuration.showsCursor = false
+    let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+    let bitmap = NSBitmapImageRep(cgImage: image)
     guard let png = bitmap.representation(using: .png, properties: [:]) else {
       throw SnapshotError("The catalog image could not be encoded as PNG.")
     }
@@ -772,7 +759,6 @@ enum MacWindowSnapshot {
 
 /// Captures only this Catalog window. The stream requests every 60 Hz frame;
 /// media timestamps are retained for cadence and pixel-change verification.
-@available(macOS 15.0, *)
 @MainActor private final class MacCatalogRecording: NSObject, SCRecordingOutputDelegate {
   private var completion: CheckedContinuation<Void, Error>?
   private static var active: MacCatalogRecording?

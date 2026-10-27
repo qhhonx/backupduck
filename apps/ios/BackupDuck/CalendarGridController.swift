@@ -1555,7 +1555,6 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
     beganCompact = false
     previous?.tabBarController?(tabBarController, didSelect: viewController)
   }
-  @available(iOS 18.0, *)
   func tabBarController(_ tabBarController: UITabBarController, shouldSelectTab tab: UITab) -> Bool
   {
     beganCompact = owner?.usesNativeMinimization == true
@@ -1565,7 +1564,6 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
         previous?.tabBarController?(tabBarController, shouldSelect: $0)
       } ?? true
   }
-  @available(iOS 18.0, *)
   func tabBarController(
     _ tabBarController: UITabBarController, didSelectTab selectedTab: UITab, previousTab: UITab?
   ) {
@@ -2066,7 +2064,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       nativeBarObserver?.stop()
       contentOwner?.setContentScrollView(nil, for: .bottom)
     }
-    if #available(iOS 18.0, *) { tabOwner?.setTabBarHidden(false, animated: false) }
+    tabOwner?.setTabBarHidden(false, animated: false)
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
@@ -4139,10 +4137,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     if selectionControls.superview !== view { view.addSubview(selectionControls) }
     if dock.superview !== periodSurface.contentView { periodSurface.contentView.addSubview(dock) }
     let hide = next != .navigation
-    if #available(iOS 18.0, *), let tabs = tabBarController, tabs.isTabBarHidden != hide {
+    if let tabs = tabBarController, tabs.isTabBarHidden != hide {
       tabs.setTabBarHidden(hide, animated: !UIAccessibility.isReduceMotionEnabled)
-    } else if #unavailable(iOS 18.0) {
-      tabBarController?.tabBar.isHidden = hide
     }
     guard next != chrome else { return }
     let previousChrome = chromeMotion

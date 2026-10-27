@@ -49,7 +49,7 @@ xcodegen generate --spec apps/ios/project.yml
 open apps/ios/BackupDuck.xcodeproj
 ```
 
-Select your own signing team in Xcode and run on your iPhone or iPad (iOS 17+).
+Select your own signing team in Xcode and run on your iPhone or iPad (iOS 18+).
 Do not commit team IDs, provisioning profiles or signing credentials. Personal
 Team installations require periodic renewal. There is no in-app updater for iOS.
 

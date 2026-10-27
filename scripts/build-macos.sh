@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-export MACOSX_DEPLOYMENT_TARGET=14.0
+export MACOSX_DEPLOYMENT_TARGET=15.0
 # Stripping host proc-macro dylibs during a release build can produce a
 # malformed Mach-O LINKEDIT on macOS. Strip the final application below.
 export CARGO_PROFILE_RELEASE_STRIP=none

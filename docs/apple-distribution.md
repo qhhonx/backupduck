@@ -135,7 +135,7 @@ for this workflow. Superseded checks on the same branch are cancelled.
 Mac checks and direct-download publishing use the same explicit `macos-26`
 runner family so release builds do not silently use an older SDK than checks.
 Both Mac jobs print the selected Xcode, Swift and SDK versions. Runtime
-availability checks still retain macOS 14 support; APIs introduced with the
+availability checks retain macOS 15 support; APIs introduced with the
 macOS 26 SDK also need a compiler guard when supporting Xcode 16 builds.
 
 - iOS: `scripts/test-ios-ci.sh` builds the shared `BackupDuck` scheme and runs

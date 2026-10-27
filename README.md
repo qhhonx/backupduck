@@ -43,8 +43,8 @@ receipt and Google Photos cloud backup are separate states. iOS background work 
 system-scheduled. Experimental Google Photos cleanup may need attention when its
 interface changes. See [validation and limits](docs/native-validation.md).
 
-Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
-iOS 17+ is available through TestFlight or source builds; see [installation](docs/installation.md). App Store distribution is not available.
+Mac requires Apple Silicon and macOS 15+. Android requires arm64 and Android 10+.
+iOS 18+ is available through TestFlight or source builds; see [installation](docs/installation.md). App Store distribution is not available.
 Windows, NAS and hosted receivers are not shipped. Native hosts own platform media,
 UI and background execution; the Rust core owns transfer and durable state.
 

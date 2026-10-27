@@ -18,7 +18,7 @@ Path('build/mac-layout-check/LayoutCheck.app/Contents/Info.plist').write_bytes(p
 PY
 native_library="${BACKUPDUCK_LAYOUT_NATIVE_LIBRARY:-target/aarch64-apple-darwin/release/libbackupduck_native.a}"
 if [[ -z "${BACKUPDUCK_LAYOUT_NATIVE_LIBRARY:-}" ]]; then
-  MACOSX_DEPLOYMENT_TARGET=14.0 cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source -j 2
+  MACOSX_DEPLOYMENT_TARGET=15.0 cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source -j 2
 fi
 if [[ ! -d build/dependencies/sparkle/Sparkle.framework ]]; then ./scripts/fetch-sparkle.sh; fi
 mkdir -p "$app/Contents/Frameworks"

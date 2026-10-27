@@ -345,7 +345,7 @@ private struct DuckFeedbackMenuButton: UIViewRepresentable {
       context.coordinator.opened = true
       DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak button] in
         guard let button, button.window != nil else { return }
-        if #available(iOS 17.4, *) { button.performPrimaryAction() }
+        button.performPrimaryAction()
       }
     }
   }

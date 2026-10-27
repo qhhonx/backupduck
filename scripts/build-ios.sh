@@ -5,11 +5,11 @@ cargo fetch --locked
 python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
 platform="${1:-simulator}"
 case "$platform" in
- simulator) target=aarch64-apple-ios-sim; sdk=iphonesimulator; swift_target=arm64-apple-ios17.0-simulator;;
- device) target=aarch64-apple-ios; sdk=iphoneos; swift_target=arm64-apple-ios17.0;;
+ simulator) target=aarch64-apple-ios-sim; sdk=iphonesimulator; swift_target=arm64-apple-ios18.0-simulator;;
+ device) target=aarch64-apple-ios; sdk=iphoneos; swift_target=arm64-apple-ios18.0;;
  *) echo 'Usage: build-ios.sh [simulator|device]' >&2; exit 1;;
 esac
-export IPHONEOS_DEPLOYMENT_TARGET=17.0
+export IPHONEOS_DEPLOYMENT_TARGET=18.0
 CARGO_PROFILE_RELEASE_STRIP=none cargo build --locked --release -p backupduck-native --no-default-features --target "$target"
 app="build/ios/$platform/BackupDuck.app"
 mkdir -p "$app"

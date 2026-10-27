@@ -5,7 +5,7 @@ settings:
   base:
     SWIFT_VERSION: '5.0'
     ARCHS: arm64
-    MACOSX_DEPLOYMENT_TARGET: '14.0'
+    MACOSX_DEPLOYMENT_TARGET: '15.0'
     ENABLE_USER_SCRIPT_SANDBOXING: NO
   configs:
     Release:
@@ -42,7 +42,7 @@ targetTemplates:
           export CARGO_PROFILE_RELEASE_STRIP=none
           cd "$SRCROOT/../.."
           cargo fetch --locked
-          export MACOSX_DEPLOYMENT_TARGET=14.0
+          export MACOSX_DEPLOYMENT_TARGET=15.0
           case "$TARGET_NAME" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac
           cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
           cp target/aarch64-apple-darwin/release/libbackupduck_native.a "$BUILT_PRODUCTS_DIR/"

@@ -2,8 +2,9 @@
 
 This is the implementation contract for motion on iPhone, iPad and Mac.
 [Motion](backupduck-v1/motion.md) owns timings and choreography; this document
-owns *how* those motions are built. Deployment targets are iOS 17 and macOS 14;
-newer APIs need an availability check and a fallback that looks the same.
+owns *how* those motions are built. Deployment targets are iOS 18 and macOS 15,
+so the SwiftUI-animation bridges below are available everywhere; newer APIs
+need an availability check and a fallback that looks the same.
 
 ## 1. The rule
 
@@ -55,10 +56,11 @@ loop is not acceptable, even when it looks the same in a recording.
   completion of the perceptual duration.
 - `UIView.animate(_ animation: Animation)` (iOS 18) accepts SwiftUI
   animations. Use `.interactiveSpring` on each gesture change and `.spring`
-  on release, and velocity is carried automatically. On iOS 17, set the
-  tracked value directly during the gesture. On release, use
-  `UIViewPropertyAnimator(duration:timingParameters: UISpringTimingParameters(dampingRatio:initialVelocity:))`,
-  with the release velocity divided by the remaining distance.
+  on release, and velocity is carried automatically. This is the default
+  pattern for every gesture handoff. `UIViewPropertyAnimator` with
+  `UISpringTimingParameters(dampingRatio:initialVelocity:)` remains for
+  scrubbable motion, with the release velocity divided by the remaining
+  distance.
 - `UIView.transition(with:duration:options: .transitionCrossDissolve)`
   crossfades a content swap in place. Use it for image resolution changes,
   icon state changes and label text changes.
@@ -89,7 +91,6 @@ loop is not acceptable, even when it looks the same in a recording.
   interactive and its dismissal can be dragged.
   - The closure runs again when zooming out. Look up the source view from a
     stable identifier, not a captured cell.
-  - iOS 17 needs a custom transition with the same look.
 - Custom transitions use `UIViewControllerAnimatedTransitioning`.
   `interruptibleAnimator(using:)` returns one `UIViewPropertyAnimator` for the
   whole transition. `UIPercentDrivenInteractiveTransition` (or a custom
@@ -163,8 +164,9 @@ loop is not acceptable, even when it looks the same in a recording.
     `allowsImplicitAnimation`.
   - Nested groups keep their own duration.
 - `NSAnimationContext.animate(_ animation: Animation, changes:)` (macOS 15)
-  accepts SwiftUI springs, including gesture retargeting. On macOS 14, use
-  `CASpringAnimation` on the layer.
+  accepts SwiftUI springs, including gesture retargeting. It is the default
+  for gesture handoffs on Mac; `CASpringAnimation` remains for layer-only
+  motion.
 - Layer-backed views animate through Core Animation exactly as on iOS; the
   Core Animation section above applies. Prefer `updateLayer` and
   `.onSetNeedsDisplay` redraw so animations do not redraw content.
