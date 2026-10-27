@@ -1154,7 +1154,23 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   navigation.mediaTransition = transition
   viewer.loadViewIfNeeded(); session.start()
   viewer.stage.alpha = 1; viewer.backdrop.alpha = 1
-  presenter.present(navigation, animated: true)
+  // Wait at most five frames for the full-aspect rendition (photo or video
+  // poster) before presenting, so the flight never widens a square crop and
+  // nothing in the grid changes while the transition is on screen.
+  func present(_ waited: Int) {
+    viewer.view.frame = presenter.view.window?.bounds ?? viewer.view.frame
+    viewer.view.layoutIfNeeded()
+    if waited < 5, viewer.pages.count == 3, !viewer.pages[1].scroll.showsFullAspect {
+      viewer.pages[1].refresh()
+      if !viewer.pages[1].scroll.showsFullAspect {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { present(waited + 1) }
+        return
+      }
+    }
+    guard presenter.presentedViewController == nil, presenter.view.window != nil else { return }
+    presenter.present(navigation, animated: true)
+  }
+  present(0)
 }
 
 /// The viewer's presentation, built from the UIKit transition API as the
@@ -1188,10 +1204,13 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     guard let navigation = context.viewController(forKey: .from), let viewer = viewer(navigation) else {
       context.completeTransition(true); return
     }
+    let destination = viewer.returnFrame()
     viewer.setSourceHidden(true)
-    let cover = context.viewController(forKey: .to)?.view.snapshotView(afterScreenUpdates: true)
+    let grid = context.viewController(forKey: .to)?.view
+    grid?.layoutIfNeeded()
+    let cover = grid?.snapshotView(afterScreenUpdates: true)
     if let cover { cover.alpha = 0; container.addSubview(cover) }
-    blank(viewer.returnFrame(), in: cover, container: container)
+    blank(destination, in: cover, container: container)
     var flyer: UIView?, clip: UIView?, geometry: MediaFlightGeometry?
     let surface = viewer.mediaSurface()
     if let surface, let snapshot = surface.snapshotView(afterScreenUpdates: false) {
@@ -1201,7 +1220,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       let mask = UIView(frame: snapshot.bounds); mask.backgroundColor = DuckMedia.backgroundUIColor; snapshot.mask = mask
       container.addSubview(snapshot)
       surface.alpha = 0
-      if let destination = viewer.returnFrame(), viewer.infoHeight == 0 {
+      if let destination, viewer.infoHeight == 0 {
         geometry = MediaFlightGeometry(bounds: snapshot.bounds, fitted: base, thumbnail: container.convert(destination, from: nil))
       }
       flyer = snapshot; clip = mask
@@ -1277,36 +1296,20 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     container.addSubview(snapshot)
     return snapshot
   }
-  private var cover: UIView?
-  private func open(_ context: UIViewControllerContextTransitioning, waited: Int = 0) {
+  private func open(_ context: UIViewControllerContextTransitioning) {
     let container = context.containerView
     guard let navigation = context.viewController(forKey: .to), let viewer = viewer(navigation) else {
       context.completeTransition(true); return
     }
-    if waited == 0 {
-      // The grid snapshot covers the page from its first frame, so the
-      // viewer never shows before the flight starts.
-      viewer.setSourceHidden(true)
-      let cover = context.viewController(forKey: .from)?.view.snapshotView(afterScreenUpdates: true)
-      self.cover = cover
-      let target = context.finalFrame(for: navigation)
-      navigation.view.frame = target; container.addSubview(navigation.view)
-      if let cover { container.addSubview(cover) }
-      blank(viewer.item.frame, in: cover, container: container)
-      navigation.view.isUserInteractionEnabled = false
-      navigation.view.layoutIfNeeded(); viewer.layoutMedia()
-    }
-    // Wait at most five frames for the full-aspect rendition, so the widening
-    // crop never reveals empty sides beside a centre-cropped thumbnail.
-    if waited < 5, viewer.pages.count == 3, !viewer.pages[1].scroll.showsFullAspect,
-      viewer.session.current.asset.mediaType != .video {
-      viewer.pages[1].refresh()
-      if !viewer.pages[1].scroll.showsFullAspect {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { self.open(context, waited: waited + 1) }
-        return
-      }
-    }
-    let cover = self.cover; self.cover = nil
+    // The grid as it is now, before anything changes; the tapped slot is
+    // blanked in the snapshot, and the live tile hides beneath the cover.
+    let cover = context.viewController(forKey: .from)?.view.snapshotView(afterScreenUpdates: false)
+    navigation.view.frame = context.finalFrame(for: navigation)
+    container.addSubview(navigation.view)
+    navigation.view.isUserInteractionEnabled = false
+    navigation.view.layoutIfNeeded(); viewer.layoutMedia()
+    if let cover { container.addSubview(cover) }
+    blank(viewer.item.frame, in: cover, container: container)
     let reduce = UIAccessibility.isReduceMotionEnabled
     let surface = viewer.mediaSurface()
     var flight: (view: UIView, clip: UIView)?
@@ -1319,7 +1322,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       flight = (snapshot, clip)
       surface.alpha = 0
     }
-    if let flight { container.bringSubviewToFront(flight.view) }
+    viewer.setSourceHidden(true)
     let animation = reduce ? UIViewPropertyAnimator(duration: 0.2, curve: .easeInOut) : animator()
     animation.addAnimations {
       cover?.alpha = 0
@@ -1339,13 +1342,18 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     guard let navigation = context.viewController(forKey: .from), let viewer = viewer(navigation) else {
       context.completeTransition(true); return
     }
+    // The grid settles its return position before it is captured, hidden
+    // behind the opaque viewer, so the photo lands on a definite slot.
+    let destination = viewer.returnFrame()
     viewer.setSourceHidden(true)
-    let cover = context.viewController(forKey: .to)?.view.snapshotView(afterScreenUpdates: true)
+    let grid = context.viewController(forKey: .to)?.view
+    grid?.layoutIfNeeded()
+    let cover = grid?.snapshotView(afterScreenUpdates: true)
     if let cover { cover.alpha = 0; container.addSubview(cover) }
-    blank(viewer.returnFrame(), in: cover, container: container)
+    blank(destination, in: cover, container: container)
     let reduce = UIAccessibility.isReduceMotionEnabled
     var flight: (view: UIView, clip: UIView, geometry: MediaFlightGeometry)?
-    if !reduce, let surface = viewer.mediaSurface(), let destination = viewer.returnFrame(), viewer.infoHeight == 0,
+    if !reduce, let surface = viewer.mediaSurface(), let destination, viewer.infoHeight == 0,
       let snapshot = surface.snapshotView(afterScreenUpdates: false) {
       let held = surface.transform
       surface.transform = .identity
@@ -2405,6 +2413,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   /// The presentation transition has landed the photo on its fitted frame.
   func transitionDidOpen() {
     pager.isScrollEnabled = !session.zoomed; updateStatus()
+    // As in the system library, the grid behind the viewer scrolls the photo
+    // fully into view now, so the way back always has a definite target.
+    UIView.performWithoutAnimation { _ = returnFrame() }
   }
   /// A cancelled drag-to-dismiss returned the viewer to its open state.
   func transitionDidCancelClose() {

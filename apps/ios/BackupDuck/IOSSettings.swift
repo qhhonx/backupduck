@@ -131,11 +131,16 @@ struct IOSSettings: View {
   private var footer: some View {
     HStack(spacing: DuckSpacing.xSmall) {
       Button("settings_diagnostics") { diagnostics = true }
+        .padding(.vertical, DuckSpacing.small).contentShape(Rectangle())
       Text(verbatim: "·").foregroundStyle(.secondary)
       Button("settings_advanced") { advanced = true }
+        .padding(.vertical, DuckSpacing.small).contentShape(Rectangle())
     }.font(.footnote)
     .frame(maxWidth: .infinity)
-    .padding(.top, 24)
+    // Clear of the floating tab bar at the end of the scroll, with full-height
+    // touch targets for the two quiet links.
+    .padding(.top, DuckSpacing.small)
+    .padding(.bottom, DuckSpacing.xLarge)
   }
 
   private var languageName: String {

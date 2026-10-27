@@ -524,8 +524,14 @@ final class CalendarGridCell: UICollectionViewCell {
     player.isMuted = true
     videoLayer.player = player
     videoLayer.videoGravity = .resizeAspectFill
+    // The poster is rarely the video's first frame; the video stays clear
+    // until it has pixels and then dissolves over the poster instead of
+    // cutting to a different frame.
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    videoLayer.opacity = 0
     image.layer.addSublayer(videoLayer)
     videoLayer.frame = image.bounds
+    CATransaction.commit()
     videoLoop = NotificationCenter.default.addObserver(
       forName: .AVPlayerItemDidPlayToEndTime,
       object: item, queue: .main
@@ -538,6 +544,15 @@ final class CalendarGridCell: UICollectionViewCell {
       Task { @MainActor in
         if layer.isReadyForDisplay, self?.videoLayer.player != nil {
           self?.accessibilityValue = NSLocalizedString("calendar_muted_video", comment: "")
+          if layer.opacity == 0 {
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0; fade.duration = 0.3
+            fade.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            layer.opacity = 1
+            CATransaction.commit()
+            layer.add(fade, forKey: "posterDissolve")
+          }
         }
       }
     }
@@ -1721,9 +1736,19 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
   ) -> Bool {
     beganCompact = owner?.usesNativeMinimization == true
       ? owner?.nativeBarRecentlyCompact == true : owner?.chrome == .browsing
+    if reselectsLatest(tabBarController.selectedViewController === viewController) { return false }
     let allowed =
       previous?.tabBarController?(tabBarController, shouldSelect: viewController) ?? true
     return allowed
+  }
+  /// The system's reselection scrolls a tab's content to its top, which is the
+  /// oldest edge of this bottom-anchored grid. An expanded Library tab tapped
+  /// again goes to the newest edge instead, as Photos does; a compact tap only
+  /// expands navigation.
+  private func reselectsLatest(_ reselected: Bool) -> Bool {
+    guard reselected, !beganCompact, let owner, owner.active else { return false }
+    owner.returnToLatest()
+    return true
   }
   func tabBarController(
     _ tabBarController: UITabBarController, didSelect viewController: UIViewController
@@ -1737,6 +1762,7 @@ final class CalendarTabReselection: NSObject, UITabBarControllerDelegate {
   {
     beganCompact = owner?.usesNativeMinimization == true
       ? owner?.nativeBarRecentlyCompact == true : owner?.chrome == .browsing
+    if reselectsLatest(tabBarController.selectedTab === tab) { return false }
     return previous?.tabBarController?(tabBarController, shouldSelectTab: tab)
       ?? tab.viewController.flatMap {
         previous?.tabBarController?(tabBarController, shouldSelect: $0)
@@ -2095,6 +2121,11 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     dock.selectedSegmentIndex = 2
     dock.accessibilityIdentifier = "library.view_mode"
     dock.addTarget(self, action: #selector(levelChosen), for: .valueChanged)
+    // Switching levels keeps the focused photo; tapping the level already
+    // shown goes to its newest edge, as Photos does.
+    let retap = UITapGestureRecognizer(target: self, action: #selector(levelRetapped(_:)))
+    retap.cancelsTouchesInView = false
+    dock.addGestureRecognizer(retap)
     if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
       periodSurface.effect = UIGlassEffect(style: .regular)
     } else {
@@ -3123,11 +3154,19 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       CGPoint(x: 0, y: clampedOffset(.greatestFiniteMagnitude)), animated: false)
     updateChrome()
   }
+  private var levelChosenAt: CFTimeInterval = 0
   @objc func levelChosen() {
+    levelChosenAt = CACurrentMediaTime()
     let i =
       focusedAsset().flatMap { id in assets.firstIndex(where: { $0.id == id }) }
       ?? max(0, assets.count - 1)
     changeLevel(CalendarGridLevel(rawValue: dock.selectedSegmentIndex) ?? .all, asset: i, from: nil)
+  }
+  @objc func levelRetapped(_ gesture: UITapGestureRecognizer) {
+    let width = dock.bounds.width / CGFloat(max(1, dock.numberOfSegments))
+    let index = Int(gesture.location(in: dock).x / max(1, width))
+    guard index == dock.selectedSegmentIndex, CACurrentMediaTime() - levelChosenAt > 0.3, !changing else { return }
+    returnToLatest()
   }
   func changeLevel(_ next: CalendarGridLevel, asset: Int, from: IndexPath?) {
     guard !assets.isEmpty, level != next else { return }

@@ -470,8 +470,10 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   /// Calendar covers can address older assets outside the incremental row
   /// window. Expand metadata only; no thumbnail download or backup is started.
   func preparePreviewWindow(containing token: String) async -> PHAsset? {
-    guard let fetch, let raw = Self.rawIndex(of: token, in: fetch) else { return nil }
+    // A tapped tile is already presented: answer at once, without asking
+    // PhotoKit where it sits in the whole library.
     if let index = index(of: token), index+1 < loaded || !hasMoreRows { return asset(at:index) }
+    guard let fetch, let raw = Self.rawIndex(of: token, in: fetch) else { return nil }
     guard !loading else { return nil }
     requestGeneration &+= 1;cancelMetadata?();cancelMetadata=nil;loadingPage=false
     let expected=requestGeneration, current=presentation
