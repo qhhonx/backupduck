@@ -2199,12 +2199,24 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
   func refreshMenu() {
     filterItem?.image = UIImage(systemName: filterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
     filterItem?.tintColor = filterActive ? UIColor(DuckRole.accent) : nil
-    filterItem?.menu = displayMenu()
-    let backup = UIAction(title: NSLocalizedString("calendar_backup_action", comment: ""),
-      image: UIImage(systemName: "arrow.up"), attributes: canBackup && !selected.isEmpty ? [] : .disabled) { [weak self] _ in
-      self?.backUpSelected()
+    // Each menu is assigned once and builds its items when it opens. Library
+    // updates arrive while a menu can be on screen, and replacing a presented
+    // menu redraws it, which could expand a submenu nobody tapped.
+    if filterItem?.menu == nil {
+      filterItem?.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] done in
+        done(self?.displayMenu().children ?? [])
+      }])
     }
-    moreItem?.menu = UIMenu(children: [backup, displayMenu()])
+    if moreItem?.menu == nil {
+      moreItem?.menu = UIMenu(children: [UIDeferredMenuElement.uncached { [weak self] done in
+        guard let self else { done([]); return }
+        let backup = UIAction(title: NSLocalizedString("calendar_backup_action", comment: ""),
+          image: UIImage(systemName: "arrow.up"), attributes: self.canBackup && !self.selected.isEmpty ? [] : .disabled) { [weak self] _ in
+          self?.backUpSelected()
+        }
+        done([backup, self.displayMenu()])
+      }])
+    }
   }
   func updateHeader(animated: Bool) {
     guard headerSelecting != selecting else { return }
@@ -4701,8 +4713,9 @@ final class CalendarSelectedController: UIViewController, UICollectionViewDataSo
     view.addSubview(grid)
     browseItem.accessibilityIdentifier = "calendar.selected_browse"
     browseItem.accessibilityLabel = NSLocalizedString("library_browse_selected", comment: "")
-    navigationItem.leftBarButtonItems = [UIBarButtonItem(
-      barButtonSystemItem: .cancel, target: self, action: #selector(done)), browseItem]
+    // Done is the sheet's only dismissal, as in the system library; a second
+    // Cancel would close the same live selection.
+    navigationItem.leftBarButtonItem = browseItem
     navigationItem.rightBarButtonItem = UIBarButtonItem(
       barButtonSystemItem: .done, target: self, action: #selector(done))
     navigationItem.rightBarButtonItem?.accessibilityIdentifier = "calendar.selected_done"

@@ -46,9 +46,12 @@ just the selected photos, for selections that span far apart in the library.
 The page answers one question: are these the photos I mean to back up?
 
 - A standard system sheet (system corner radius and grabber, large detent),
-  titled with the selected count, a system cancellation-role dismissal leading
-  and confirmation-role Done trailing. The existing browse button remains next
-  to the leading dismissal and browses selected photos one at a time in the viewer.
+  titled with the selected count, with the browse button leading and
+  confirmation-role Done trailing. Done is the only dismissal: the selection is
+  live, so a second Cancel would close the same state. Browse shows selected
+  photos one at a time in the viewer; each page carries its own selection mark
+  in the photo's trailing corner and pages with it, and loading progress takes
+  the photo's leading corner.
 - The selected photos in the library's grid density, each with its selection
   mark. Tapping a photo deselects it in place (it stays, unmarked, until the
   sheet closes, so a mistaken tap is undone with another tap). Long press opens

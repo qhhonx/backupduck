@@ -103,6 +103,8 @@ struct IOSOnboarding: View {
   @State private var landed = false
   /// The title follows the flight, so it never claims the photo landed before the user sees it land.
   @State private var announced = false
+  /// The first item being prepared, kept until its transfer job exists.
+  @State private var preparingFirst: String?
   @Environment(\.openURL) private var openURL
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -174,6 +176,9 @@ struct IOSOnboarding: View {
       }.presentationDetents([.medium, .large])
     }
     .onAppear { if step == .first { checkLanded() } }
+    .onChange(of: model.importingSourceID, initial: true) { _, id in
+      if step == .first, preparingFirst == nil, firstJob == nil, let id { preparingFirst = id }
+    }
     .task(id: progress.record?.firstPhotoStarted) {
       guard step == .first, let started = progress.record?.firstPhotoStarted else { return }
       let remaining = max(0, 20 - Date().timeIntervalSince(started))
@@ -261,7 +266,9 @@ struct IOSOnboarding: View {
         Text(showsArrival ? "onboarding_first_title" : "onboarding_first_heading")
           .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
         FirstPhotoFlight(
-          sourceID: firstJob?.asset.source_id,
+          // A video becomes a transfer job only after its original is
+          // exported; until then the item being prepared is the first photo.
+          sourceID: firstJob?.asset.source_id ?? preparingFirst,
           senderName: "iPhone",
           receiverName: "Pixel",
           landed: landed
@@ -525,38 +532,61 @@ struct IOSOnboarding: View {
 /// The most recent accessible media, including video posters and the same
 /// duration mark as the library. PhotoKit scopes both access modes itself.
 struct OnboardingLibraryStrip: View {
-  @State private var assets: [PHAsset] = []
+  @StateObject private var samples = OnboardingLibrarySamples()
   var body: some View {
-    GeometryReader { geometry in
-      let gap: CGFloat = DuckSpacing.xxSmall
-      let count = max(1, min(4, assets.count))
-      let side = (geometry.size.width - gap * CGFloat(count - 1)) / CGFloat(count)
-      HStack(spacing: gap) {
-        ForEach(Array(assets.prefix(4).enumerated()), id: \.offset) { _, asset in
-          AssetThumbnail(sourceID: asset.localIdentifier, size: side, cornerRadius: 0)
-            .overlay(alignment: .bottomTrailing) {
-              if asset.mediaType == .video {
-                Text(videoDurationLabel(asset.duration)).font(.caption.weight(.semibold)).monospacedDigit()
-                  .foregroundStyle(DuckMedia.onMedia).shadow(color: DuckMedia.shadow, radius: 2)
-                  .padding(DuckSpacing.xSmall)
+    let assets = samples.assets
+    // Up to four of the newest allowed items, newest first, as square tiles
+    // in one row. Nothing is drawn until the library has something to show.
+    if !assets.isEmpty {
+      GeometryReader { geometry in
+        let gap: CGFloat = DuckSpacing.xxSmall
+        let count = assets.count
+        let side = (geometry.size.width - gap * CGFloat(count - 1)) / CGFloat(count)
+        HStack(spacing: gap) {
+          ForEach(assets, id: \.localIdentifier) { asset in
+            AssetThumbnail(sourceID: asset.localIdentifier, size: side, cornerRadius: 0)
+              .overlay(alignment: .bottomTrailing) {
+                if asset.mediaType == .video {
+                  Text(videoDurationLabel(asset.duration)).font(.caption.weight(.semibold)).monospacedDigit()
+                    .foregroundStyle(DuckMedia.onMedia).shadow(color: DuckMedia.shadow, radius: 2)
+                    .padding(DuckSpacing.xSmall)
+                }
               }
-            }
-            .accessibilityIdentifier("onboarding.sample." + asset.localIdentifier)
+              .accessibilityIdentifier("onboarding.sample." + asset.localIdentifier)
+          }
         }
       }
+      .aspectRatio(CGFloat(assets.count), contentMode: .fit)
+      .clipped().clipShape(RoundedRectangle(cornerRadius: DuckRadius.cardCompact))
     }
-    .aspectRatio(CGFloat(max(1, min(4, assets.count))), contentMode: .fit)
-    .clipped().clipShape(RoundedRectangle(cornerRadius: DuckRadius.cardCompact))
-    .task {
-      if let samples = BackupEnvironment.onboardingSamples { assets = Array(samples().prefix(4)); return }
-      guard BackupEnvironment.usesPhotoLibrary else { return }
-      assets = await Task.detached(priority: .userInitiated) {
+  }
+}
+
+/// The newest allowed items. A limited selection can finish after access is
+/// reported, so the samples reload whenever the library changes.
+@MainActor final class OnboardingLibrarySamples: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
+  @Published private(set) var assets: [PHAsset] = []
+  override init() {
+    super.init()
+    if let samples = BackupEnvironment.onboardingSamples { assets = Array(samples().prefix(4)); return }
+    guard BackupEnvironment.usesPhotoLibrary else { return }
+    PHPhotoLibrary.shared().register(self)
+    reload()
+  }
+  deinit { PHPhotoLibrary.shared().unregisterChangeObserver(self) }
+  nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
+    Task { @MainActor in self.reload() }
+  }
+  private func reload() {
+    Task {
+      let fetched = await Task.detached(priority: .userInitiated) {
         let options = photoLibraryFetchOptions(for: .all)
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         options.fetchLimit = 4
         let fetch = PHAsset.fetchAssets(with: options)
         return fetch.objects(at: IndexSet(integersIn: 0..<fetch.count))
       }.value
+      if fetched.map(\.localIdentifier) != assets.map(\.localIdentifier) { assets = fetched }
     }
   }
 }

@@ -1567,7 +1567,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   var mediaClipping: [(UIView,Bool)] = []
   weak var review: CalendarSelectedController?
   let selectionButton = UIButton(type: .system), clearSelection = UIButton(type: .system)
-  let selectionBadge = UIImageView()
+  /// One alpha for the review toggle and the selection marks on every page.
+  var selectionAlpha: CGFloat = 0 {
+    didSet { selectionButton.alpha = selectionAlpha; pages.forEach { $0.selectionMark.alpha = selectionAlpha } }
+  }
   var completeReview = false
   var pageStride: CGFloat { stage.bounds.width + 40 }
   var dragOrigin = CGPoint.zero, dragCenter = CGPoint.zero
@@ -1606,7 +1609,6 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
         if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
         review.setSelection(ids); self.updateReviewSelection()
       },for: .touchUpInside)
-      DuckMediaSelection.configure(selectionBadge); selectionButton.addSubview(selectionBadge)
       view.addSubview(selectionButton)
       clearSelection.setTitle(NSLocalizedString("library_deselect_all",comment: ""),for: .normal)
       clearSelection.accessibilityIdentifier = "calendar.selected_preview_clear"
@@ -1764,8 +1766,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     pages.forEach { $0.view.layoutIfNeeded() }
     let media = imageRect()
     selectionButton.frame = CGRect(x: media.maxX-44,y: media.maxY-44,width: 44,height: 44)
-    selectionBadge.frame = CGRect(x: 10.5,y: 10.5,width: DuckMediaSelection.size,height: DuckMediaSelection.size)
-    selectionButton.alpha = chrome && !flying && infoHeight == 0 ? 1 : 0
+    selectionAlpha = chrome && !flying && infoHeight == 0 ? 1 : 0
     let infoFade = max(0,1-infoFraction*3)
     let chromeAlpha: CGFloat = chrome && !flying ? 1 : 0
     header.alpha = chromeAlpha * infoFade
@@ -1779,9 +1780,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     titleToggleTarget.accessibilityHint = NSLocalizedString("preview_hide_info", comment: "")
     header.isUserInteractionEnabled = chrome && !flying && infoFade > 0
     navigationController?.toolbar.isUserInteractionEnabled = chrome && !flying
-    let loadingX: CGFloat = max(6,min(b.width-42,media.maxX-42))
-    let selectionReserve: CGFloat = review == nil ? 0 : 44
-    let loadingY: CGFloat = max(view.safeAreaInsets.top+6,min(footer.frame.minY-42,media.maxY-42-selectionReserve))
+    // A reviewed selection keeps its mark in the photo's trailing corner, so
+    // loading progress takes the leading corner instead of stacking above it.
+    let loadingX: CGFloat = review == nil ? max(6,min(b.width-42,media.maxX-42)) : max(6,min(b.width-42,media.minX+6))
+    let loadingY: CGFloat = max(view.safeAreaInsets.top+6,min(footer.frame.minY-42,media.maxY-42))
     loadingIndicator.frame = CGRect(x: loadingX,y: loadingY,width: 36,height: 36)
     let failureSize = previewFailure.sizeThatFits(in: CGSize(width: max(1, b.width - 2 * DuckSpacing.large), height: b.height))
     previewFailure.view.frame = CGRect(x: (b.width - failureSize.width) / 2,
@@ -1807,7 +1809,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let asset = session.current.asset
     pageAssets = [session.adjacent(to: asset,direction: -1) ?? asset,asset,session.adjacent(to: asset,direction: 1) ?? asset]
     pages = pageAssets.enumerated().map { slot,asset in makePage(asset,cache: slot == 1 || asset.localIdentifier != session.current.asset.localIdentifier) }
-    for page in pages { addChild(page); pager.addSubview(page.view); page.didMove(toParent: self) }
+    for page in pages { addChild(page); pager.addSubview(page.view); page.didMove(toParent: self); page.selectionMark.alpha = selectionAlpha }
     let keep = Set(pageAssets.map(\.localIdentifier))
     for id in Array(pageCache.keys) where !keep.contains(id) { pageCache.removeValue(forKey: id) }
     pager.isScrollEnabled = !session.zoomed && !flying && !closing; layoutMedia(); suppress = false
@@ -1842,10 +1844,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func updateReviewSelection() {
     guard let review else { return }
     let selected = review.selected.contains(reviewID(session.current.asset))
-    selectionBadge.isHidden = !selected
-    selectionButton.setImage(selected ? nil : UIImage(systemName: "circle"),for: .normal)
-    selectionButton.tintColor = DuckRole.accentUIColor
-    selectionButton.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 23),forImageIn: .normal)
+    for (page,asset) in zip(pages,pageAssets) { page.reviewSelected = review.selected.contains(reviewID(asset)) }
     selectionButton.accessibilityLabel = NSLocalizedString(selected ? "library_deselect_item" : "library_select_item",comment: "")
     selectionButton.accessibilityTraits = selected ? [.button,.selected] : .button
     clearSelection.isEnabled = !review.selected.isEmpty
@@ -1967,7 +1966,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       if verticalKind == 1, usesTransition, let transition = (navigationController as? MediaViewerNavigationController)?.mediaTransition {
         // The drag drives the dismissal transition itself; the grid shows
         // through it in proportion to the drag.
-        closing = true; pager.isScrollEnabled = false; selectionButton.alpha = 0
+        closing = true; pager.isScrollEnabled = false; selectionAlpha = 0
         let frame = imageRect()
         transition.beginInteractive(origin: gesture.location(in: view), center: CGPoint(x: frame.midX, y: frame.midY))
         presentingViewController?.dismiss(animated: true)
@@ -1984,7 +1983,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
         (navigationController as? MediaViewerNavigationController)?.mediaTransition?.updateInteractive(point)
       } else if verticalKind == 1 {
         mediaSurface()?.transform = MediaFlightGeometry.drag(origin: dragOrigin,center: dragCenter,translation: point)
-        backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha; navigationController?.toolbar.alpha = header.alpha; selectionButton.alpha = header.alpha; loadingIndicator.alpha = header.alpha
+        backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha; navigationController?.toolbar.alpha = header.alpha; selectionAlpha = header.alpha; loadingIndicator.alpha = header.alpha
       } else { if !chrome { setChrome(true, animated: false) }; ensureInformation(); infoHeight = max(0,min(view.bounds.height*0.7,startInfo-point.y)); layoutMedia() }
     case .ended, .cancelled, .failed:
       if verticalKind == 3 {
@@ -2419,7 +2418,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   }
   /// A cancelled drag-to-dismiss returned the viewer to its open state.
   func transitionDidCancelClose() {
-    closing = false; selectionButton.alpha = chrome && infoHeight == 0 ? 1 : 0
+    closing = false; selectionAlpha = chrome && infoHeight == 0 ? 1 : 0
     pager.isScrollEnabled = !session.zoomed
   }
   /// The dismissal transition has returned the photo to its tile.
@@ -2444,13 +2443,13 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func dismissViewer(velocity: CGFloat = 0) {
     guard !flying && !closing else { return }; closing = true; pager.isScrollEnabled = false
     if usesTransition {
-      selectionButton.alpha = 0; closingVelocity = velocity
+      selectionAlpha = 0; closingVelocity = velocity
       presentingViewController?.dismiss(animated: true)
       return
     }
     let destination = returnFrame()
     setSourceHidden(true)
-    selectionButton.alpha = 0
+    selectionAlpha = 0
     if let surface = mediaSurface(), let destination, infoHeight == 0 {
       unclipMedia(); pages[1].flightLocked = true
       let held = surface.transform
@@ -2512,6 +2511,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   private var allowVideo = false
   var videoReady = false
   var surface: UIView { scroll.media }
+  /// A reviewed selection's mark belongs to its photo and pages with it; the
+  /// viewer's toggle above the current page takes the taps.
+  let selectionMark = UIImageView()
+  var reviewSelected: Bool? { didSet { updateSelectionMark() } }
   var flightLocked = false {
     didSet { scroll.flightLocked = flightLocked; updateVideoVisibility() }
   }
@@ -2530,6 +2533,8 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     scroll.photo.accessibilityIdentifier = "library.preview.photo"
     scroll.photo.accessibilityValue = model.asset.localIdentifier; scroll.photo.accessibilityTraits = .image
     view.addSubview(scroll)
+    selectionMark.isUserInteractionEnabled = false; selectionMark.alpha = 0
+    view.addSubview(selectionMark); updateSelectionMark()
     let double = UITapGestureRecognizer(target: self,action: #selector(doubleTap(_:))); double.numberOfTapsRequired = 2
     let single = UITapGestureRecognizer(target: self,action: #selector(singleTap(_:))); single.delegate = self
     if model.asset.mediaType != .video { single.require(toFail: double) }
@@ -2559,6 +2564,19 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     super.viewDidLayoutSubviews()
     scroll.frame = view.bounds; scroll.setNeedsLayout(); scroll.layoutIfNeeded()
     if model.asset.mediaType == .video { video.viewIfLoaded?.frame = scroll.media.bounds }
+    placeSelectionMark()
+  }
+  private func placeSelectionMark() {
+    let media = scroll.media.convert(scroll.media.bounds,to: view), side = DuckMediaSelection.size
+    selectionMark.frame = CGRect(x: media.maxX-22-side/2,y: media.maxY-22-side/2,width: side,height: side)
+  }
+  private func updateSelectionMark() {
+    selectionMark.isHidden = reviewSelected == nil
+    if reviewSelected == true { DuckMediaSelection.configure(selectionMark); return }
+    selectionMark.image = UIImage(systemName: "circle",withConfiguration: UIImage.SymbolConfiguration(pointSize: 23))
+    selectionMark.tintColor = DuckRole.accentUIColor
+    selectionMark.backgroundColor = .clear; selectionMark.layer.cornerRadius = 0
+    selectionMark.contentMode = .center
   }
   func refresh() {
     guard isViewLoaded else { return }
@@ -2580,7 +2598,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func viewForZooming(in scrollView: UIScrollView) -> UIView? { scroll.media }
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
     let zoomed = scroll.zoomScale > 1.01
-    scroll.panGestureRecognizer.isEnabled = zoomed; scroll.centerMedia(); zoomChanged(zoomed)
+    scroll.panGestureRecognizer.isEnabled = zoomed; scroll.centerMedia(); zoomChanged(zoomed); placeSelectionMark()
   }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
     var node = touch.view

@@ -201,7 +201,9 @@ interruptions finish at the committed density. These are visible-motion
 approximations, not claims about private framework parameters. Panning is
 suspended while pinching; translating fingers cannot drag a canvas.
 
-The focused visible calendar cover may play a muted looping video. Years rotate
+The focused visible calendar cover may play a muted looping video. The poster
+is rarely the first frame, so the video dissolves over it once it has pixels
+instead of cutting to a different frame. Years rotate
 among actual month representatives with a crossfade after idle time. The period
 identity stays unchanged; tapping uses the currently displayed asset. Only one
 cover player/request runs, stops on scroll/background/navigation/reuse, and honors
