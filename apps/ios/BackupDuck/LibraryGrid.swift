@@ -1200,6 +1200,20 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   private var interaction: (context: UIViewControllerContextTransitioning, viewer: NativeMediaViewer,
     surface: UIView?, flyer: UIView?, clip: UIView?, cover: UIView?, geometry: MediaFlightGeometry?)?
   private static let duration: TimeInterval = 0.36
+  /// The whole screen as it was when the viewer opened. A grid in a sheet
+  /// does not fill the screen, and what surrounds it does not change while
+  /// the viewer is open.
+  private var screen: UIView?
+  /// The grid as it is now, at its own place on screen, over the screen as it
+  /// was when the viewer opened.
+  private func gridCover(_ grid: UIView?, in container: UIView) -> UIView? {
+    guard let grid, let cover = grid.snapshotView(afterScreenUpdates: true) else { return nil }
+    cover.frame = container.convert(grid.bounds, from: grid)
+    guard let screen, cover.frame.integral != container.bounds.integral else { return cover }
+    let stack = UIView(frame: container.bounds)
+    screen.frame = stack.bounds; stack.addSubview(screen); stack.addSubview(cover)
+    return stack
+  }
   func animationController(forPresented presented: UIViewController, presenting: UIViewController, source: UIViewController) -> UIViewControllerAnimatedTransitioning? {
     self.presenting = true; return self
   }
@@ -1223,7 +1237,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     viewer.setSourceHidden(true)
     let grid = context.viewController(forKey: .to)?.view
     grid?.layoutIfNeeded()
-    let cover = grid?.snapshotView(afterScreenUpdates: true)
+    let cover = gridCover(grid, in: container)
     if let cover { cover.alpha = 0; container.addSubview(cover) }
     blank(destination, in: cover, container: container)
     var flyer: UIView?, clip: UIView?, geometry: MediaFlightGeometry?
@@ -1304,12 +1318,17 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let timing = UISpringTimingParameters(dampingRatio: 0.94, initialVelocity: CGVector(dx: 0, dy: min(4, abs(velocity) / 800)))
     return UIViewPropertyAnimator(duration: Self.duration, timingParameters: timing)
   }
-  /// The photo's pixels at its current place, cropped like the flight.
-  private func flyer(of surface: UIView, in container: UIView) -> UIView? {
-    guard let snapshot = surface.snapshotView(afterScreenUpdates: true) else { return nil }
-    snapshot.isUserInteractionEnabled = false
-    container.addSubview(snapshot)
-    return snapshot
+  /// The picture that flies in: the viewer's displayed rendition, or the
+  /// grid's thumbnail. A snapshot of the not yet drawn viewer could come out
+  /// empty and show as a white flash, so no snapshot is taken.
+  private func flyer(for viewer: NativeMediaViewer, in container: UIView) -> UIView? {
+    let shown = viewer.pages.count == 3 ? viewer.pages[1].scroll.photo.image : nil
+    guard let image = shown ?? viewer.item.poster else { return nil }
+    let flyer = UIImageView(image: image)
+    flyer.contentMode = .scaleAspectFill; flyer.clipsToBounds = true
+    flyer.isUserInteractionEnabled = false
+    container.addSubview(flyer)
+    return flyer
   }
   private func open(_ context: UIViewControllerContextTransitioning) {
     let container = context.containerView
@@ -1319,7 +1338,11 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     // The grid as it is now, before anything changes. Its tapped tile stays
     // in place and fades with the grid while the copy flies, as in Photos;
     // only the way back leaves the landing slot empty until the photo arrives.
-    let cover = context.viewController(forKey: .from)?.view.snapshotView(afterScreenUpdates: false)
+    let source = context.viewController(forKey: .from)?.view
+    screen = source?.window?.snapshotView(afterScreenUpdates: false)
+    let cover = screen.map { screen -> UIView in
+      let copy = UIView(frame: container.bounds); screen.frame = copy.bounds; copy.addSubview(screen); return copy
+    }
     navigation.view.frame = context.finalFrame(for: navigation)
     container.addSubview(navigation.view)
     navigation.view.isUserInteractionEnabled = false
@@ -1328,7 +1351,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let reduce = UIAccessibility.isReduceMotionEnabled
     let surface = viewer.mediaSurface()
     var flight: (view: UIView, clip: UIView)?
-    if !reduce, let surface, surface.bounds.width > 0, let snapshot = flyer(of: surface, in: container) {
+    if !reduce, let surface, surface.bounds.width > 0, let snapshot = flyer(for: viewer, in: container) {
       let base = surface.convert(surface.bounds, to: container)
       let geometry = MediaFlightGeometry(bounds: surface.bounds, fitted: base, thumbnail: container.convert(viewer.item.frame, from: nil))
       snapshot.bounds = CGRect(origin: .zero, size: base.size); snapshot.center = CGPoint(x: base.midX, y: base.midY)
@@ -1363,7 +1386,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     viewer.setSourceHidden(true)
     let grid = context.viewController(forKey: .to)?.view
     grid?.layoutIfNeeded()
-    let cover = grid?.snapshotView(afterScreenUpdates: true)
+    let cover = gridCover(grid, in: container)
     if let cover { cover.alpha = 0; container.addSubview(cover) }
     blank(destination, in: cover, container: container)
     let reduce = UIAccessibility.isReduceMotionEnabled
@@ -1834,7 +1857,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   }
   func currentChanged(_ model: MediaPreviewModel) {
     guard !closing, model === session.current else { return }
-    if pager.isDragging || pager.isDecelerating { pendingAsset = model.asset; return }
+    if !catchingUp, pager.isDragging || pager.isDecelerating { pendingAsset = model.asset; return }
     setSourceHidden(true)
     index = session.index(of: model.asset) ?? index
     if pageAssets.count != 3 || pageAssets[1].localIdentifier != model.asset.localIdentifier { installPages() }
@@ -1924,11 +1947,28 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) { if scrollView === pager { settle(scrollView) } }
   func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
     guard scrollView === strip || scrollView === pager else { return }
-    guard scrollView === strip else { return }
+    if scrollView === pager { catchDecelerating(); return }
     let oldCenter = stripLayout.center(index), oldOffset = strip.contentOffset.x
     stripLayout.focus = nil
     stripLayout.expansion = 0; stripLayout.invalidateLayout(); strip.layoutIfNeeded()
     suppress = true; strip.contentOffset.x = oldOffset+stripLayout.center(index)-oldCenter; suppress = false
+  }
+  /// A new swipe while the last one still glides adopts the page it was
+  /// gliding to first, keeping the remaining offset, so swipes chain like
+  /// the system viewer instead of hitting the edge of the three pages.
+  private var catchingUp = false
+  private func catchDecelerating() {
+    guard pager.isDecelerating else { return }
+    let width = max(1, pager.bounds.width)
+    let shift = Int(round(pager.contentOffset.x / width)) - 1
+    guard shift != 0, let asset = session.asset(at: index + shift) else { return }
+    let residual = pager.contentOffset.x - CGFloat(1 + shift) * width
+    pager.setContentOffset(pager.contentOffset, animated: false)
+    UIView.performWithoutAnimation {
+      session.activate(asset); pendingAsset = nil
+      catchingUp = true; currentChanged(session.current); catchingUp = false
+      suppress = true; pager.contentOffset.x = width + residual; suppress = false
+    }
   }
   func settle(_ scrollView: UIScrollView) {
     stripLayout.focus = nil
@@ -2036,7 +2076,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     host.safeAreaRegions = []
     addChild(host); information.addSubview(host.view); host.view.backgroundColor = .clear; host.didMove(toParent: self); informationHost = host
   }
+  private var informationRevision = 0
   func refreshInformation() {
+    informationRevision &+= 1
     informationHost?.rootView = informationContent
   }
   private var informationContent: AnyView {
@@ -2052,7 +2094,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       })
     }
     return AnyView(ScrollView {
-      PhotoMetadataPanel(preview: session.current, backupInfo: { [weak self] fields in
+      PhotoMetadataPanel(preview: session.current, revision: informationRevision, backupInfo: { [weak self] fields in
         guard let self else { return AnyView(EmptyView()) }
         return AnyView(PhotoInformationLayout(takenAt: self.session.current.asset.creationDate, job: self.observedJob,
           receiverName: self.observedJob.flatMap { self.backupModel.receiverDeviceName(for: $0) } ?? self.backupModel.peerDevice?.name ?? "Pixel",
@@ -2097,7 +2139,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   }
   func toggleChrome() {
     guard !flying && !closing else { return }
-    if infoHeight > 0 { setInfo(false) }
+    // With the information open, a tap on the photo only closes it; the
+    // immersive view is reached from the photo alone.
+    if infoHeight > 0 { setInfo(false); return }
     setChrome(!chrome)
   }
   func setChrome(_ visible: Bool, animated: Bool = true) {
@@ -2325,12 +2369,21 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
         image: UIImage(systemName: actionKey == "retry_task" ? "arrow.clockwise" : "arrow.up"),
         attributes: backupAction.busy || retryingBackup ? .disabled : []) { [weak self] _ in self?.requestBackup() })
     }
-    let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: actions))
-    more.accessibilityLabel = NSLocalizedString("photo_viewer_more", comment: "")
-    more.accessibilityIdentifier = "library.preview.more"
-    more.isHidden = !chrome
-    navigationItem.rightBarButtonItem = more
+    moreActions = actions
+    // The item and its menu are made once and build their actions when they
+    // open; replacing a presented menu would dismiss it.
+    if moreItem == nil {
+      let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [
+        UIDeferredMenuElement.uncached { [weak self] done in done(self?.moreActions ?? []) }]))
+      more.accessibilityLabel = NSLocalizedString("photo_viewer_more", comment: "")
+      more.accessibilityIdentifier = "library.preview.more"
+      moreItem = more
+    }
+    moreItem?.isHidden = !chrome
+    if navigationItem.rightBarButtonItem !== moreItem { navigationItem.rightBarButtonItem = moreItem }
   }
+  private var moreItem: UIBarButtonItem?
+  private var moreActions: [UIMenuElement] = []
   private func viewerTitleFont(_ style: UIFont.TextStyle, weight: UIFont.Weight) -> UIFont {
     let descriptor = UIFont.preferredFont(forTextStyle: style).fontDescriptor
       .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
@@ -2678,7 +2731,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   func update(loading: Bool, progress: Double, cloud: Bool, failure: Bool, identity: String, settled: Bool) {
     isHidden = false
     let immediate = cloud || failure || (loading && progress > 0)
-    let nextEligible = loading && settled
+    // Local renditions replace the poster without a ring; only a download
+    // with real progress, an iCloud choice or a failure shows here.
+    let nextEligible = loading && settled && progress > 0
     if loadingIdentity != identity {
       pendingReveal?.cancel(); pendingReveal = nil; revealed = false
       appearance.layer.removeAllAnimations()

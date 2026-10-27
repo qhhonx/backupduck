@@ -333,15 +333,15 @@ struct BackupScopeEditor: View {
             }
           }
           LazyVGrid(columns: geometry.size.width < 600
-            ? Array(repeating: GridItem(.flexible(), spacing: DuckSpacing.medium), count: 2)
+            ? Array(repeating: GridItem(.flexible(), spacing: DuckSpacing.small), count: 3)
             : [GridItem(.adaptive(minimum: 132, maximum: 200), spacing: DuckSpacing.medium)],
-            alignment: .leading, spacing: DuckSpacing.large) {
+            alignment: .leading, spacing: DuckSpacing.medium) {
             ForEach(visible) { album in
-              ScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) })
-                .contextMenu {
+              // The menu lifts the cover alone, not its caption.
+              ScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) }, menu: {
                   Button("scope_album_view") { view(album) }
                   Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
-                }
+                })
                 .accessibilityAction(named: Text("scope_album_view")) { view(album) }
             }
           }
@@ -367,11 +367,10 @@ struct BackupScopeEditor: View {
         if visible.isEmpty && !model.loading { ContentUnavailableView.search(text: search) }
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 132, maximum: 200), spacing: DuckSpacing.medium)], alignment: .leading, spacing: DuckSpacing.large) {
           ForEach(visible) { album in
-            ScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) })
-              .contextMenu {
+            ScopeAlbumCard(album: album, selected: chosen.contains(album.id), action: { selectAlbum(album) }, menu: {
                 Button("scope_album_view") { view(album) }
                 Button(chosen.contains(album.id) ? "scope_album_deselect" : "scope_album_choose") { selectAlbum(album) }
-              }
+              })
               .accessibilityAction(named: Text("scope_album_view")) { view(album) }
           }
         }
@@ -521,10 +520,11 @@ func albumItemCount(_ count: Int) -> String {
 }
 
 /// Album choices use covers as the complete keyboard- and pointer-operable target.
-struct ScopeAlbumCard: View {
+struct ScopeAlbumCard<Menu: View>: View {
   let album: ScopeAlbum
   let selected: Bool
   var action: () -> Void
+  @ViewBuilder var menu: () -> Menu
   var body: some View {
     Button(action: action) {
       VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
@@ -532,11 +532,19 @@ struct ScopeAlbumCard: View {
           ReadOnlyMediaThumbnail(asset: album.cover, width: proxy.size.width, height: proxy.size.width)
             .overlay(alignment: .bottomTrailing) {
               if selected {
+                #if os(iOS)
+                DuckMediaSelectionMark()
+                #else
                 Image(systemName: "checkmark.circle.fill").symbolRenderingMode(.palette)
                   .foregroundStyle(Color.white, DuckRole.accent).font(.title3) // design-exception: selection check over a photo
                   .padding(DuckSpacing.xSmall)
+                #endif
               }
             }
+            #if os(iOS)
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: DuckRadius.cardCompact))
+            #endif
+            .contextMenu { menu() }
         }.aspectRatio(1, contentMode: .fit)
         Text(verbatim: album.name).font(.body).lineLimit(2)
         Text(verbatim: albumItemCount(album.count)).font(.callout).foregroundStyle(.secondary)

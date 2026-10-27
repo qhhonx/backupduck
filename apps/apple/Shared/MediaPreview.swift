@@ -417,6 +417,9 @@ struct BurstPreviewControls: View {
 }
 struct PhotoMetadataPanel: View {
   @ObservedObject var preview: MediaPreviewModel
+  /// Changes whenever the backup facts behind `backupInfo` change, so the
+  /// panel redraws; a new closure alone does not count as a change.
+  var revision = 0
   var backupInfo: (([(String, String)]) -> AnyView)? = nil
   var body: some View {
     VStack(alignment: .leading, spacing: DuckSpacing.small) {

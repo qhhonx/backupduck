@@ -233,9 +233,14 @@ struct ScopeAlbumBrowser: View {
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           let chosen = store.rule.choosesAlbum(album.id)
-          Button(chosen ? "scope_album_deselect" : "scope_album_choose") {
+          // One selection control, as on a photo: an empty circle that fills
+          // with the check when the album is backed up.
+          Button {
             store.save(store.rule.toggling(album: album.id, name: album.name))
+          } label: {
+            Image(systemName: chosen ? "checkmark.circle.fill" : "circle")
           }
+          .accessibilityLabel(Text(LocalizedStringKey(chosen ? "scope_album_deselect" : "scope_album_choose")))
           .accessibilityAddTraits(chosen ? .isSelected : [])
           .accessibilityIdentifier("backup.scope.album_browser.choose")
         }

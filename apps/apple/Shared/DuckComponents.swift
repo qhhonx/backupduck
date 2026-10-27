@@ -381,6 +381,18 @@ extension View {
 
 #if os(iOS)
 /// Shared image-choice treatment for gallery, album covers and selected review.
+/// The photo grid's selection mark, for SwiftUI tiles.
+struct DuckMediaSelectionMark: View {
+  var body: some View {
+    Image(systemName: "checkmark.circle.fill").resizable()
+      .foregroundStyle(DuckRole.accent)
+      .background(Circle().fill(DuckMedia.onMedia).padding(1))
+      .frame(width: DuckMediaSelection.size, height: DuckMediaSelection.size)
+      .padding(DuckMediaSelection.inset)
+      .accessibilityHidden(true)
+  }
+}
+
 @MainActor enum DuckMediaSelection {
   static let size: CGFloat = 23
   static let inset: CGFloat = 6

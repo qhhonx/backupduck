@@ -94,7 +94,8 @@ struct FirstPhotoFlight: View {
   /// among them: a photo older than the visible window counts as the newest.
   private var senderItems: [String?] {
     var ids: [String?] = library.assets.map(\.localIdentifier)
-    if !ids.contains(sourceID) { ids.insert(sourceID, at: 0) }
+    // Before the sent photo is known, the grid shows only real photos.
+    if sourceID != nil || ids.isEmpty, !ids.contains(sourceID) { ids.insert(sourceID, at: 0) }
     return ids
   }
   private var senderSlots: [(id: String?, frame: CGRect)] {
