@@ -278,11 +278,6 @@ struct DuckFeedbackMenu: View {
   @Environment(\.duckFeedbackPreview) private var preview
   @Environment(\.openURL) private var openURL
   @State private var email = false
-  #if os(macOS)
-  private let rowInset: CGFloat = 0
-  #else
-  private let rowInset = DuckSpacing.medium
-  #endif
   var body: some View {
     Group {
       if content.feedbackEmail == nil {
@@ -294,11 +289,14 @@ struct DuckFeedbackMenu: View {
           .accessibilityHidden(true)
           .overlay {
             DuckFeedbackMenuButton(preview: preview, join: { openURL(TesterFeedback.group) }, email: { email = true })
-              .padding(.horizontal, -rowInset)
           }
       }
     }
-    .listRowInsets(EdgeInsets(top: 0, leading: rowInset, bottom: 0, trailing: rowInset))
+    #if os(macOS)
+    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+    #endif
+    // On iPhone the system row insets and height, as on every other settings
+    // row, so the icon tile lines up with the rows above and below.
     .sheet(isPresented: $email) {
       if let recipient = content.feedbackEmail { DuckFeedbackDiagnosticsSheet(recipient: recipient) }
     }
@@ -318,7 +316,11 @@ struct DuckFeedbackMenu: View {
       }
     }
     .foregroundStyle(.primary)
+    #if os(macOS)
     .frame(maxWidth: .infinity, minHeight: DuckPreferenceMetrics.rowHeight)
+    #else
+    .frame(maxWidth: .infinity)
+    #endif
     .contentShape(Rectangle())
   }
 }

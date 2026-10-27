@@ -73,7 +73,11 @@ import SwiftUI
             } actions: {
               Button("retry_task") { Task { await model.open() } }.duckPrimaryButton()
             }
-          } else { DuckLoadingState("hub_opening") }
+          } else {
+            // The library's subtitle says it is loading once the tabs appear;
+            // the brief engine open shows only the background.
+            Color.clear
+          }
         }
       }
         .onChange(of: model.ready, initial: true) { _, ready in

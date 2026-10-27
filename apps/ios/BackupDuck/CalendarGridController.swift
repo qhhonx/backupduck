@@ -455,10 +455,11 @@ final class CalendarTileDecorations: UIView {
     super.layoutSubviews()
     placeholder.frame = CGRect(x: bounds.midX - 16, y: bounds.midY - 16, width: 32, height: 32)
     check.frame = DuckMediaSelection.frame(in: bounds)
-    let durationRight = check.isHidden ? bounds.width - 6 : check.frame.minX - 6
-    let durationWidth = min(49, max(1, durationRight - 6))
-    duration.frame = CGRect(x: durationRight - durationWidth, y: bounds.height - 24, width: durationWidth, height: 18)
-    duration.isHidden = duration.text == nil || bounds.width < 80
+    // As in Photos, a selected tile's mark takes the corner and its duration
+    // hides until the tile is deselected.
+    let durationWidth = min(49, max(1, bounds.width - 12))
+    duration.frame = CGRect(x: bounds.width - 6 - durationWidth, y: bounds.height - 24, width: durationWidth, height: 18)
+    duration.isHidden = duration.text == nil || bounds.width < 80 || !check.isHidden
     stateMark.frame = CGRect(x: bounds.width - 26, y: 6, width: 20, height: 20)
     stateMark.isHidden = stateMark.image == nil || bounds.width < 80
     liveMark.frame = CGRect(x: 6, y: 6, width: 20, height: 20)
@@ -468,6 +469,7 @@ final class CalendarTileDecorations: UIView {
     // Use the shared selection contract for both the badge and photo opacity.
     DuckMediaSelection.apply(selected, enabled: enabled, badge: check, image: Self.opacityProbe)
     imageOpacity = Float(Self.opacityProbe.alpha)
+    setNeedsLayout()
   }
   private static let opacityProbe = UIImageView()
   func backupState(_ state: String?, visible: Bool) {

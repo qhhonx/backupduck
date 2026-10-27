@@ -1301,15 +1301,15 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     guard let navigation = context.viewController(forKey: .to), let viewer = viewer(navigation) else {
       context.completeTransition(true); return
     }
-    // The grid as it is now, before anything changes; the tapped slot is
-    // blanked in the snapshot, and the live tile hides beneath the cover.
+    // The grid as it is now, before anything changes. Its tapped tile stays
+    // in place and fades with the grid while the copy flies, as in Photos;
+    // only the way back leaves the landing slot empty until the photo arrives.
     let cover = context.viewController(forKey: .from)?.view.snapshotView(afterScreenUpdates: false)
     navigation.view.frame = context.finalFrame(for: navigation)
     container.addSubview(navigation.view)
     navigation.view.isUserInteractionEnabled = false
     navigation.view.layoutIfNeeded(); viewer.layoutMedia()
     if let cover { container.addSubview(cover) }
-    blank(viewer.item.frame, in: cover, container: container)
     let reduce = UIAccessibility.isReduceMotionEnabled
     let surface = viewer.mediaSurface()
     var flight: (view: UIView, clip: UIView)?
@@ -2143,8 +2143,11 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     let asset = session.current.asset
     let receiver = currentBackupReceiver
     let revision = PhotoLibraryModel.revision(asset)
-    let stateRevision = "\(backupModel.queueRevision)|\(backupModel.pendingImports)"
-    let key = "\(asset.localIdentifier)|\(revision)|\(receiver ?? "")|\(backupModel.queueRevision)|\(backupModel.pendingImports)"
+    // Receipt and saving into the Pixel's Photos are observations of their
+    // own; either one changes this photo's facts without a queue change.
+    let observed = "\(backupModel.queueRevision)|\(backupModel.pendingImports)|\(backupModel.summary.received)|\(backupModel.summary.published)"
+    let stateRevision = observed
+    let key = "\(asset.localIdentifier)|\(revision)|\(receiver ?? "")|\(observed)"
     guard force || key != backupFactsKey else { return }
     let sameSource = backupFactsKey.hasPrefix("\(asset.localIdentifier)|\(revision)|\(receiver ?? "")|")
     backupFactsKey = key; backupFactsTask?.cancel()
@@ -2267,10 +2270,14 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     updateTitle()
     updateMoreMenu(actionKey: actionKey)
     backupActionKey = actionKey
-    // Only acknowledged partial media bytes from the core establish progress.
+    // Progress follows the same live transfer bytes as the task list, falling
+    // back to the bytes the core has acknowledged.
     let progress: Double? = observedJob.flatMap { job in
-      guard stateKey == "photo_viewer_backing_up", job.state == "running",
-        job.confirmedBytes > 0, job.confirmedBytes < job.totalBytes else { return nil }
+      guard stateKey == "photo_viewer_backing_up", job.state == "running", job.totalBytes > 0 else { return nil }
+      if let live = backupModel.transferProgress[job.id]?.activeFraction(confirmed: job.confirmedBytes, total: job.totalBytes) {
+        return live
+      }
+      guard job.confirmedBytes > 0, job.confirmedBytes < job.totalBytes else { return nil }
       return Double(job.confirmedBytes) / Double(job.totalBytes)
     }
     infoButton.setState(stateKey, progress: progress)
@@ -2681,8 +2688,12 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     isUserInteractionEnabled = cloud || failure
     let determinate = progress > 0 && progress <= 1
     accessibilityValue = loading && determinate ? "\(Int(progress*100))%" : nil
-    track.isHidden = !loading; arc.isHidden = !loading; symbol.isHidden = loading
-    symbol.image = UIImage(systemName: failure ? "exclamationmark.arrow.circlepath" : "icloud.and.arrow.down")
+    // A finished load fades out what it showed; it never swaps in the cloud
+    // symbol on its way out.
+    if loading || cloud || failure {
+      track.isHidden = !loading; arc.isHidden = !loading; symbol.isHidden = loading
+      symbol.image = UIImage(systemName: failure ? "exclamationmark.arrow.circlepath" : "icloud.and.arrow.down")
+    }
     CATransaction.begin(); CATransaction.setDisableActions(true); arc.strokeEnd = determinate ? CGFloat(progress) : 0.22; CATransaction.commit()
     if loading && !determinate && !UIAccessibility.isReduceMotionEnabled {
       if arc.animation(forKey: "loading.rotation") == nil {
