@@ -74,6 +74,9 @@ import Photos
     XCTAssertNil(try preparation("network")?.cause)
     XCTAssertEqual(try preparation("source_unavailable")?.cause, .originalUnavailable)
     XCTAssertEqual(try preparation("internal")?.cause, .notSent)
+    // Retry reaches a photo that has no transfer yet through its preparation.
+    XCTAssertEqual(try preparation("source_unavailable")?.preparationRequest, "one")
+    XCTAssertFalse(BackupModel.sourceRemoved("folder-file-1"), "Only Photos identifiers can be judged deleted")
   }
 
   func testEmptyBackupViewsAreNotPhotoAccessFailuresAndResetBothFilters() async {
@@ -82,7 +85,7 @@ import Photos
     defer { BackupEnvironment.usesPhotoLibrary = original }
     for access in [PHAuthorizationStatus.authorized, .limited] {
       let library = PhotoLibraryModel()
-      library.installSyntheticAssets(EmptyPreparationTestAssets(), filter: .video, backupView: .needsYou, access: access)
+      library.installSyntheticAssets(EmptyPreparationTestAssets(), filter: .video, backupView: .notBackedUp, access: access)
       guard case .filterEmpty? = library.placeholder else { XCTFail("Expected filter results placeholder"); continue }
       library.selection = ["selected"]
       await library.resetFilters()

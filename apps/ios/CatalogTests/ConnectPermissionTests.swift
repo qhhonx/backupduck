@@ -231,7 +231,7 @@ import Photos
     }
   }
 
-  func testNeedsYouCountAgreesAcrossHubHistoryAndLibraryMembership() async throws {
+  func testNeedsYouCountAgreesAcrossHubAndHistory() async throws {
     var legacy = SenderSummary()
     legacy.failed = 1; legacy.publication_failed = 1; legacy.preparation_failed = 1
     XCTAssertEqual(legacy.count(for: "attention"), 3, "Legacy summaries still include preparation failures")
@@ -256,11 +256,11 @@ import Photos
       core.setValue(["items": items, "summary": summary], for: "backup_tasks")
       await model.open()
       let history = BackupHistoryModel(); await history.reload(receiver: "catalog-pixel", state: "attention")
-      let librarySources = await PhotoLibraryModel.taskSources(receiver: "catalog-pixel", view: .needsYou)
+      // The hub summary arrives from the model's own asynchronous refresh.
+      for _ in 0..<100 where model.summary.count(for: "attention") != 3 { try await Task.sleep(for: .milliseconds(20)) }
       XCTAssertEqual(model.summary.count(for: "attention"), 3)
       XCTAssertEqual(history.total, 3); XCTAssertEqual(history.attention.count, 3)
       XCTAssertTrue(history.attention.allSatisfy { $0.mark == .needsYou })
-      XCTAssertEqual(Set(librarySources ?? []), Set(sources))
     }
   }
 
@@ -274,16 +274,17 @@ import Photos
       try? await Task.sleep(for: .milliseconds(50))
       return fixture.fetch(filter: filter, view: view)
     }
-    let change = Task { await library.changeBackupView(.recent) }
+    let change = Task { await library.changeBackupView(.notBackedUp) }
     await Task.yield()
     XCTAssertEqual(library.backupView, .all); XCTAssertEqual(library.total, 55_000)
     await change.value
-    XCTAssertEqual(library.backupView, .recent); XCTAssertEqual(library.total, 2)
-    XCTAssertEqual(library.membership?.rows.count, 2)
-    XCTAssertEqual(library.membership?.rows.map(\.id), ["catalog-library-1", "catalog-library-0"])
+    let remaining = fixture.fetch(filter: .all, view: .notBackedUp)
+    XCTAssertEqual(library.backupView, .notBackedUp); XCTAssertEqual(library.total, remaining.count)
+    XCTAssertEqual(library.membership?.rows.count, remaining.count)
+    XCTAssertEqual(Set(library.membership?.rows.map(\.id) ?? []), Set((0..<remaining.count).map { remaining.object(at: $0).localIdentifier }))
     await library.changeFilter(.video)
-    XCTAssertEqual(library.filter, .video); XCTAssertEqual(library.total, 1)
-    XCTAssertEqual(library.membership?.rows.first?.videoDuration, "1:23")
+    XCTAssertEqual(library.filter, .video)
+    XCTAssertEqual(library.total, fixture.fetch(filter: .video, view: .notBackedUp).count)
   }
 
   func testNativeFilterReplacementRestoresRetainedAnchor() throws {

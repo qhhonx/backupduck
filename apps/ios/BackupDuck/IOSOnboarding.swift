@@ -532,7 +532,7 @@ struct IOSOnboarding: View {
 /// The most recent accessible media, including video posters and the same
 /// duration mark as the library. PhotoKit scopes both access modes itself.
 struct OnboardingLibraryStrip: View {
-  @StateObject private var samples = OnboardingLibrarySamples()
+  @StateObject private var samples = OnboardingLibrarySamples(limit: 4)
   var body: some View {
     let assets = samples.assets
     // Up to four of the newest allowed items, newest first, as square tiles
@@ -558,35 +558,6 @@ struct OnboardingLibraryStrip: View {
       }
       .aspectRatio(CGFloat(assets.count), contentMode: .fit)
       .clipped().clipShape(RoundedRectangle(cornerRadius: DuckRadius.cardCompact))
-    }
-  }
-}
-
-/// The newest allowed items. A limited selection can finish after access is
-/// reported, so the samples reload whenever the library changes.
-@MainActor final class OnboardingLibrarySamples: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
-  @Published private(set) var assets: [PHAsset] = []
-  override init() {
-    super.init()
-    if let samples = BackupEnvironment.onboardingSamples { assets = Array(samples().prefix(4)); return }
-    guard BackupEnvironment.usesPhotoLibrary else { return }
-    PHPhotoLibrary.shared().register(self)
-    reload()
-  }
-  deinit { PHPhotoLibrary.shared().unregisterChangeObserver(self) }
-  nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
-    Task { @MainActor in self.reload() }
-  }
-  private func reload() {
-    Task {
-      let fetched = await Task.detached(priority: .userInitiated) {
-        let options = photoLibraryFetchOptions(for: .all)
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        options.fetchLimit = 4
-        let fetch = PHAsset.fetchAssets(with: options)
-        return fetch.objects(at: IndexSet(integersIn: 0..<fetch.count))
-      }.value
-      if fetched.map(\.localIdentifier) != assets.map(\.localIdentifier) { assets = fetched }
     }
   }
 }

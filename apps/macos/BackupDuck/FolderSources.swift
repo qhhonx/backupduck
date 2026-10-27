@@ -681,12 +681,12 @@ struct FolderSummary: Decodable, Equatable {
     if let previewRows {
       let matches = previewRows.filter { photo in
         (id == nil || photo.folder_id == id) && (search.isEmpty || photo.relative.localizedCaseInsensitiveContains(search)) &&
-        (filter == .all || filter == .notBackedUp && photo.backup == "not_backed_up" || filter == .needsYou && photo.backup == "needs_you" || filter == .recent && photo.backup == "saved")
+        (filter == .all || filter == .notBackedUp && photo.backup == "not_backed_up")
       }.sorted { $0.capture_ms > $1.capture_ms }
       return FolderPhotoPage(rows: Array(matches.dropFirst(offset).prefix(100)), has_more: matches.count > offset + 100)
     }
     var command: [String: Any] = ["action": "browse", "receiver": backup.pairing?.receiverID ?? "", "offset": offset, "search": search,
-      "filter": filter == .notBackedUp ? "not_backed_up" : filter == .needsYou ? "needs_you" : filter.rawValue]
+      "filter": filter == .notBackedUp ? "not_backed_up" : filter.rawValue]
     if let id { command["source"] = id }
     return try JSONDecoder().decode(FolderPhotoPage.self, from: await call(command))
   }

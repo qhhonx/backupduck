@@ -799,8 +799,6 @@
 "library_view_section" = "Backup";
 "library_view_all" = "All Photos";
 "library_view_notBackedUp" = "Not Backed Up";
-"library_view_needsYou" = "Needs You";
-"library_view_recent" = "Recently Backed Up";
 "library_view_failed" = "Backup details aren't available right now, so all photos are shown.";
 "mac_connect_title" = "Scan this code with your Pixel";
 "mac_connect_step_open" = "On the Pixel, open BackupDuck and tap Connect a Device (also in Settings › Connected Devices).";

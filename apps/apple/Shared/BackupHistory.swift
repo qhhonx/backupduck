@@ -15,19 +15,22 @@ struct HistoryPhoto: Identifiable, Equatable {
   let source: String
   let job: BackupJob?
   let preparationError: String?
+  /// The preparation request to retry when there is no transfer yet.
+  let preparationRequest: String?
 
   init?(_ item: BackupTaskItem) {
     id = item.id; cursor = item.cursor; sortValue = item.sort_value
     if let job = item.job {
-      self.job = job; source = job.asset.source_id; preparationError = nil
+      self.job = job; source = job.asset.source_id; preparationError = nil; preparationRequest = nil
     } else if let preparation = item.preparation {
       job = nil; source = preparation.source; preparationError = preparation.error_code
+      preparationRequest = preparation.id
     } else { return nil }
   }
 
   init(job: BackupJob) {
     id = "job-\(job.id)"; cursor = job.id; sortValue = job.sortValue
-    source = job.asset.source_id; self.job = job; preparationError = nil
+    source = job.asset.source_id; self.job = job; preparationError = nil; preparationRequest = nil
   }
 
   enum Mark: Equatable { case saved, sending, saving, needsYou }
@@ -377,7 +380,12 @@ struct BackupHistoryView: View {
     Button("records_try_again") {
       retrying = cause
       Task {
-        for photo in photos { if let job = photo.job { _ = await model.retry(job.id) } }
+        // Photos still being prepared have no transfer yet; their preparation
+        // runs again, and one deleted since then leaves the list.
+        for photo in photos {
+          if let job = photo.job { _ = await model.retry(job.id) }
+          else if let request = photo.preparationRequest { _ = await model.retryPreparation(request) }
+        }
         retrying = nil
         await reload()
       }

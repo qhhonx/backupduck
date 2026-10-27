@@ -799,8 +799,6 @@
 "library_view_section" = "备份";
 "library_view_all" = "全部照片";
 "library_view_notBackedUp" = "未备份";
-"library_view_needsYou" = "需要你处理";
-"library_view_recent" = "最近备份";
 "library_view_failed" = "暂时读不到备份情况，先显示全部照片。";
 "mac_connect_title" = "用 Pixel 扫这个码";
 "mac_connect_step_open" = "在 Pixel 打开备份鸭，点“连接设备”。";

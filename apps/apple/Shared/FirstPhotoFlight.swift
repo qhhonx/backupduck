@@ -32,6 +32,7 @@ struct FirstPhotoFlight: View {
   @State private var flying = false
   @State private var thumbnail: LibraryImage?
   @State private var thumbnailRequest = PHInvalidImageRequestID
+  @StateObject private var library = OnboardingLibrarySamples(limit: FirstPhotoFlight.gridLimit)
   private static let thumbnails = ThumbnailPipeline()
 
   /// Device artwork with its transparent screen opening, measured as fractions
@@ -55,23 +56,57 @@ struct FirstPhotoFlight: View {
   // Sized so both screen openings are the same height; the photo then fits both.
   private static let receiver = DeviceArt(asset: "DevicePixel", aspect: 534 / 1152, height: 138.13,
     screen: CGRect(x: 0.05431, y: 0.02691, width: 0.89139, height: 0.94010), radius: 0.06554)
-  private static let screen = sender.screen.size
   private static let stageHeight = max(sender.size.height, receiver.size.height)
 
+  // Both screens show a Photos library the way the library grid does: three
+  // columns, oldest first. A library that fits starts under the status bar
+  // with any partial row last; a longer one is scrolled to its newest photos
+  // at the bottom. The Pixel starts as an empty Photos page, because its
+  // contents are not known here, and the photo lands in its first slot.
+  private static let gridColumns = 3
+  private static let gridGap: CGFloat = 1
+  private static func side(_ art: DeviceArt) -> CGFloat {
+    (art.screen.width - gridGap * CGFloat(gridColumns - 1)) / CGFloat(gridColumns)
+  }
+  /// The status bar's share of an iPhone screen's height.
+  private static func statusInset(_ art: DeviceArt) -> CGFloat { art.screen.height * 0.07 }
+  static let gridLimit = gridColumns * Int(ceil(sender.screen.height / (side(sender) + gridGap)))
+  /// The frame of item `index` (0 is the oldest) among `total`, in screen coordinates.
+  private static func slot(_ index: Int, of total: Int, in art: DeviceArt) -> CGRect {
+    let side = side(art), pitch = side + gridGap
+    let rows = (max(total, 1) + gridColumns - 1) / gridColumns
+    let height = CGFloat(rows) * pitch - gridGap
+    let top = height <= art.screen.height - statusInset(art) ? statusInset(art) : art.screen.height - height
+    return CGRect(x: CGFloat(index % gridColumns) * pitch, y: top + CGFloat(index / gridColumns) * pitch,
+      width: side, height: side)
+  }
+  /// The sender's visible items, newest first; nil is the photo being sent
+  /// when it has no identity (no photo library). The sent photo is always
+  /// among them: a photo older than the visible window counts as the newest.
+  private var senderItems: [String?] {
+    var ids: [String?] = library.assets.map(\.localIdentifier)
+    if !ids.contains(sourceID) { ids.insert(sourceID, at: 0) }
+    return ids
+  }
+  private var senderSlots: [(id: String?, frame: CGRect)] {
+    let items = senderItems, total = max(library.total, items.count)
+    return items.enumerated().compactMap { offset, id in
+      let frame = Self.slot(total - 1 - offset, of: total, in: Self.sender)
+      return frame.maxY > 0 ? (id, frame) : nil
+    }
+  }
   var body: some View {
     VStack(spacing: DuckSpacing.small) {
       ZStack(alignment: .topLeading) {
         HStack(spacing: 0) {
-          device(Self.sender, showsPhoto: true)
+          device(Self.sender)
           Spacer(minLength: 0)
-          device(Self.receiver, showsPhoto: arrived)
+          device(Self.receiver)
         }
         .frame(width: Self.width, height: Self.stageHeight)
         photo
-          .frame(width: Self.screen.width, height: Self.screen.height)
-          .modifier(Flight(progress: progress, start: start, end: end, endScale: 1))
-          // The tile lifts off the sender only when the flight starts, so the
-          // sender's Dynamic Island stays visible while the photo rests there.
+          .modifier(Flight(progress: progress, start: start, end: end))
+          // The copy exists only while it moves; the slots show the photo at rest.
           .opacity(!flying || arrived || reduceMotion || previewReduceMotion ? 0 : 1)
           .animation(nil, value: arrived)
         Image(systemName: "checkmark.circle.fill")
@@ -105,7 +140,7 @@ struct FirstPhotoFlight: View {
       thumbnail = nil
       guard BackupEnvironment.usesPhotoLibrary, let sourceID,
         let asset = PHAsset.fetchAssets(withLocalIdentifiers: [sourceID], options: photoLibraryFetchOptions()).firstObject else { return }
-      thumbnailRequest = Self.thumbnails.request(asset, pixels: Self.screen.height * 3) { image, _ in
+      thumbnailRequest = Self.thumbnails.request(asset, pixels: Self.side(Self.sender) * 3) { image, _ in
         if let image { thumbnail = image }
       }
     }
@@ -114,18 +149,24 @@ struct FirstPhotoFlight: View {
     .onChange(of: landed) { _, value in if value { fly() } }
   }
 
-  // Tile positions are top-leading offsets inside the stage: each device is
-  // vertically centred, and the tile is centred on its screen opening.
-  private static func origin(_ art: DeviceArt, x: CGFloat) -> CGPoint {
-    CGPoint(x: x + art.screen.midX - screen.width / 2,
-      y: (stageHeight - art.size.height) / 2 + art.screen.midY - screen.height / 2)
+  private static func screenOrigin(_ art: DeviceArt, x: CGFloat) -> CGPoint {
+    CGPoint(x: x + art.screen.minX, y: (stageHeight - art.size.height) / 2 + art.screen.minY)
   }
-  private var start: CGPoint { Self.origin(Self.sender, x: 0) }
-  private var end: CGPoint { Self.origin(Self.receiver, x: Self.width - Self.receiver.size.width) }
+  /// The copy leaves the sent photo's slot in the iPhone grid…
+  private var start: CGRect {
+    let origin = Self.screenOrigin(Self.sender, x: 0)
+    let frame = senderSlots.first { $0.id == sourceID }?.frame ?? Self.slot(0, of: 1, in: Self.sender)
+    return frame.offsetBy(dx: origin.x, dy: origin.y)
+  }
+  /// …and lands in the first slot of the Pixel's library.
+  private var end: CGRect {
+    let origin = Self.screenOrigin(Self.receiver, x: Self.width - Self.receiver.size.width)
+    return Self.slot(0, of: 1, in: Self.receiver).offsetBy(dx: origin.x, dy: origin.y)
+  }
 
-  // All three nodes render the same delivered bitmap in the same rectangular
-  // clip. A square thumbnail followed by a narrower frame clips its corners.
-  private var screenPhoto: some View {
+  // The sent photo's slot, the moving copy and the landed tile render the
+  // same delivered bitmap with the same fill crop.
+  private var photoFill: some View {
     ZStack {
       Rectangle().fill(DuckRole.groupedSurface)
       if let sourceID, let sample = BackupEnvironment.sampleThumbnail?(sourceID) {
@@ -137,35 +178,53 @@ struct FirstPhotoFlight: View {
         Image(uiImage: thumbnail).resizable().scaledToFill()
         #endif
       } else {
-        Image(systemName: "photo").font(.title3).foregroundStyle(.secondary)
+        Image(systemName: "photo").font(.caption2).foregroundStyle(.secondary)
       }
     }
-    .frame(width: Self.screen.width, height: Self.screen.height)
-    // Between the two openings' radii; each bezel masks the rest at rest.
-    .clipShape(RoundedRectangle(cornerRadius: (Self.sender.radius + Self.receiver.radius) / 2))
   }
   private var photo: some View {
-    screenPhoto
-      .shadow(color: .black.opacity(progress > 0 && progress < 1 ? 0.18 : 0), radius: 8, y: 4) // design-exception: lift only while the tile is in flight
+    photoFill
+      .shadow(color: .black.opacity(progress > 0 && progress < 1 ? 0.18 : 0), radius: 4, y: 2) // design-exception: lift only while the tile is in flight
   }
 
-  /// The photo sits under the artwork, whose opaque bezel and camera cut-outs
+  /// A lit screen with its library; the artwork's bezel and camera cut-outs
   /// mask it exactly.
-  private func device(_ art: DeviceArt, showsPhoto: Bool) -> some View {
+  private func device(_ art: DeviceArt) -> some View {
     ZStack(alignment: .topLeading) {
-      // An empty screen reads as a phone that is off, in both appearances.
-      RoundedRectangle(cornerRadius: art.radius).fill(DuckMedia.scrim)
-        .frame(width: art.screen.width, height: art.screen.height)
+      screenContent(art)
+        .frame(width: art.screen.width, height: art.screen.height, alignment: .topLeading)
+        .background(DuckRole.background)
+        .clipShape(RoundedRectangle(cornerRadius: art.radius))
         .offset(x: art.screen.minX, y: art.screen.minY)
-      if sourceID != nil {
-        screenPhoto.opacity(showsPhoto ? 1 : 0)
-          .animation(reduceMotion || previewReduceMotion ? .easeInOut(duration: 0.12) : nil, value: arrived)
-          .offset(x: art.screen.midX - Self.screen.width / 2, y: art.screen.midY - Self.screen.height / 2)
-      }
       Image(art.asset).resizable().interpolation(.high)
         .frame(width: art.size.width, height: art.size.height)
     }
     .frame(width: art.size.width, height: art.size.height, alignment: .topLeading)
+  }
+
+  /// The sender keeps the sent photo in its slot: a backup copies it, so a
+  /// copy is what flies. The Pixel shows it once it has landed.
+  @ViewBuilder private func screenContent(_ art: DeviceArt) -> some View {
+    let side = Self.side(art)
+    ZStack(alignment: .topLeading) {
+      if art.asset == Self.sender.asset {
+        ForEach(Array(senderSlots.enumerated()), id: \.offset) { _, slot in
+          Group {
+            if slot.id == sourceID { photoFill } else if let id = slot.id {
+              AssetThumbnail(sourceID: id, size: side, cornerRadius: 0)
+            }
+          }
+          .frame(width: side, height: side).clipped()
+          .offset(x: slot.frame.minX, y: slot.frame.minY)
+        }
+      } else {
+        let frame = Self.slot(0, of: 1, in: art)
+        photoFill.frame(width: side, height: side).clipped()
+          .offset(x: frame.minX, y: frame.minY)
+          .opacity(arrived ? 1 : 0)
+          .animation(reduceMotion || previewReduceMotion ? .easeInOut(duration: 0.12) : nil, value: arrived)
+      }
+    }
   }
 
   private func fly() {
@@ -186,25 +245,61 @@ struct FirstPhotoFlight: View {
   }
 }
 
-/// Moves the complete screen tile along an upward arc between exact screen frames.
-private struct Flight: GeometryEffect {
+/// Moves the photo along an upward arc from its slot on the iPhone to its slot
+/// on the Pixel, filling the frame it passes.
+private struct Flight: ViewModifier, Animatable {
   var progress: CGFloat
-  let start: CGPoint
-  let end: CGPoint
-  let endScale: CGFloat
+  let start: CGRect
+  let end: CGRect
   var animatableData: CGFloat {
     get { progress }
     set { progress = newValue }
   }
-  func effectValue(size: CGSize) -> ProjectionTransform {
-    let t = progress
-    let control = CGPoint(x: (start.x + end.x) / 2, y: min(start.y, end.y) - 64)
-    let u = 1 - t
-    let x = u * u * start.x + 2 * u * t * control.x + t * t * end.x
-    let y = u * u * start.y + 2 * u * t * control.y + t * t * end.y
-    let scale = 1 + (endScale - 1) * t
-    let transform = CGAffineTransform(translationX: x + size.width * (1 - scale) / 2, y: y + size.height * (1 - scale) / 2)
-      .scaledBy(x: scale, y: scale)
-    return ProjectionTransform(transform)
+  func body(content: Content) -> some View {
+    let t = progress, u = 1 - t
+    let control = CGPoint(x: (start.midX + end.midX) / 2, y: min(start.midY, end.midY) - 64)
+    let center = CGPoint(x: u * u * start.midX + 2 * u * t * control.x + t * t * end.midX,
+      y: u * u * start.midY + 2 * u * t * control.y + t * t * end.midY)
+    let size = CGSize(width: start.width + (end.width - start.width) * t,
+      height: start.height + (end.height - start.height) * t)
+    content
+      .frame(width: size.width, height: size.height).clipped()
+      .offset(x: center.x - size.width / 2, y: center.y - size.height / 2)
+  }
+}
+
+/// The newest allowed items and the library's size. A limited selection can
+/// finish after access is reported, so the samples reload whenever the
+/// library changes.
+@MainActor final class OnboardingLibrarySamples: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
+  @Published private(set) var assets: [PHAsset] = []
+  @Published private(set) var total = 0
+  private let limit: Int
+  init(limit: Int) {
+    self.limit = limit
+    super.init()
+    if let samples = BackupEnvironment.onboardingSamples {
+      let all = samples(); assets = Array(all.prefix(limit)); total = all.count; return
+    }
+    guard BackupEnvironment.usesPhotoLibrary else { return }
+    PHPhotoLibrary.shared().register(self)
+    reload()
+  }
+  deinit { PHPhotoLibrary.shared().unregisterChangeObserver(self) }
+  nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
+    Task { @MainActor in self.reload() }
+  }
+  private func reload() {
+    let limit = limit
+    Task {
+      let (fetched, count) = await Task.detached(priority: .userInitiated) {
+        let options = photoLibraryFetchOptions(for: .all)
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let fetch = PHAsset.fetchAssets(with: options)
+        return (fetch.objects(at: IndexSet(integersIn: 0..<min(limit, fetch.count))), fetch.count)
+      }.value
+      if fetched.map(\.localIdentifier) != assets.map(\.localIdentifier) { assets = fetched }
+      if total != count { total = count }
+    }
   }
 }

@@ -17,7 +17,10 @@ import UserNotifications
     BackupEnvironment.usesCamera = false
     BackupEnvironment.usesPhotoLibrary = false
     BackupEnvironment.sampleThumbnail = SampleImages.image(for:)
-    BackupEnvironment.onboardingSamples = { [CatalogLibraryAsset(0), CatalogLibraryAsset(1)] }
+    // -onboarding-samples N sizes the first-run library for layout review.
+    let requested = UserDefaults.standard.integer(forKey: "onboarding-samples")
+    let samples = requested > 0 ? requested : 14
+    BackupEnvironment.onboardingSamples = { (0..<samples).map(CatalogLibraryAsset.init) }
     BackupEnvironment.albumSamples = { _ in CatalogLibraryFixture(count: 120).fetch(filter: .all, view: .all) }
     // The catalog never asks for photo access; scenarios behave as if it was granted.
     BackupEnvironment.requestPhotoAccess = { true }
@@ -239,7 +242,7 @@ private struct ScenarioRun: View {
       library.syntheticFetch = { filter, view in fixture.fetch(filter: filter, view: view) }
     }
     if scenario.step == "filterEmpty" {
-      library.installSyntheticAssets(CatalogAssetCollection([]), filter: .video, backupView: .recent)
+      library.installSyntheticAssets(CatalogAssetCollection([]), filter: .video, backupView: .notBackedUp)
     }
     _library = StateObject(wrappedValue: library)
     BackupEnvironment.activeModel = { made }

@@ -58,20 +58,19 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 
 /// Backup views of the library (design/library.md): the same grid, narrowed by
 /// what the core knows about each photo. Not backed up is a view, never a mark.
+/// The library's own backup question: everything, or what is still to back
+/// up. Recently backed up and Needs You belong to History (design/records.md),
+/// which counts them from the same core records.
 enum LibraryBackupView: String, CaseIterable, Identifiable {
-  case all, notBackedUp, needsYou, recent
+  case all, notBackedUp
   var id: String { rawValue }
   var title: String { "library_view_" + rawValue }
   var symbol: String {
     switch self {
     case .all: "photo.on.rectangle"
     case .notBackedUp: "icloud.slash"
-    case .needsYou: "exclamationmark.circle"
-    case .recent: "clock.arrow.circlepath"
     }
   }
-  /// How far back Recently backed up looks.
-  static let recentWindow: TimeInterval = 7 * 24 * 3600
 }
 
 @MainActor final class PhotoLibraryModel: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
@@ -190,65 +189,22 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   nonisolated static func narrow(_ fetch: PHFetchResult<PHAsset>, to view: LibraryBackupView,
     filter: LibraryFilter, receiver: String?) async -> PHFetchResult<PHAsset>? {
     guard BackupEnvironment.usesPhotoLibrary else { return nil }
-    let ids: [String]
-    switch view {
-    case .all:
-      return fetch
-    case .notBackedUp:
-      var received: Set<String> = []
-      if let receiver {
-        guard let data = try? await Bridge.call(["op": "received_sources", "receiver_id": receiver]),
-          let list = try? JSONDecoder().decode([String].self, from: data) else { return nil }
-        received = Set(list)
-      }
-      var remaining: [String] = []
-      remaining.reserveCapacity(fetch.count)
-      fetch.enumerateObjects { asset, _, _ in
-        if !received.contains(asset.localIdentifier) { remaining.append(asset.localIdentifier) }
-      }
-      ids = remaining
-    case .needsYou, .recent:
-      guard let receiver else { return PHFetchResult<PHAsset>() }
-      guard let found = await taskSources(receiver: receiver, view: view) else { return nil }
-      let wanted = Set(found)
-      var matched: [String] = []
-      fetch.enumerateObjects { asset, _, _ in
-        if wanted.contains(asset.localIdentifier) { matched.append(asset.localIdentifier) }
-      }
-      ids = matched
+    guard view == .notBackedUp else { return fetch }
+    var received: Set<String> = []
+    if let receiver {
+      guard let data = try? await Bridge.call(["op": "received_sources", "receiver_id": receiver]),
+        let list = try? JSONDecoder().decode([String].self, from: data) else { return nil }
+      received = Set(list)
+    }
+    var remaining: [String] = []
+    remaining.reserveCapacity(fetch.count)
+    fetch.enumerateObjects { asset, _, _ in
+      if !received.contains(asset.localIdentifier) { remaining.append(asset.localIdentifier) }
     }
     // Same membership and order as the library fetch, so the grid's date groups hold.
     let options = photoLibraryFetchOptions(for: filter)
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-    return PHAsset.fetchAssets(withLocalIdentifiers: ids, options: options)
-  }
-
-  private struct TaskPage: Decodable { let items: [BackupTaskItem] }
-
-  /// Library sources of the core's attention items, or of items received in
-  /// the recent window, newest change first.
-  nonisolated static func taskSources(receiver: String, view: LibraryBackupView) async -> [String]? {
-    let since = Int64((Date().timeIntervalSince1970 - LibraryBackupView.recentWindow) * 1000)
-    var sources: [String] = []
-    var after: (Int64, Int64)?
-    while !Task.isCancelled {
-      var query: [String: Any] = ["op": "backup_tasks", "receiver_id": receiver, "sort": "activity", "descending": true,
-        "state": view == .needsYou ? "attention" : "all"]
-      if let after { query["after"] = after.0; query["after_value"] = after.1 }
-      guard let data = try? await Bridge.call(query), let page = try? JSONDecoder().decode(TaskPage.self, from: data) else { return nil }
-      for item in page.items {
-        if view == .recent {
-          guard let job = item.job, (item.sort_value ?? 0) >= since else { continue }
-          if job.state == "received" { sources.append(job.asset.source_id) }
-        } else {
-          sources.append(item.job?.asset.source_id ?? item.preparation?.source ?? "")
-        }
-      }
-      guard page.items.count == 200, let last = page.items.last else { break }
-      if view == .recent, (last.sort_value ?? 0) < since { break }
-      after = (last.cursor, last.sort_value ?? 0)
-    }
-    return sources.filter { !$0.isEmpty }
+    return PHAsset.fetchAssets(withLocalIdentifiers: remaining, options: options)
   }
 
   /// Sorted fetch for a filter; identical for the launch prewarm and reloads.

@@ -1702,7 +1702,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
         if recordedPhoto?.job?.state == "received" && recordedPhoto?.job?.processing == "complete" {
           Text("library_deleted_saved_note")
         }
-      }.onTapGesture { [weak self] in self?.toggleChrome() }))
+      }))
+      // The explanation takes no touches, so a tap anywhere on the page
+      // toggles the chrome as it does over a photo.
+      host.view.isUserInteractionEnabled = false
       addChild(host); stage.addSubview(host.view); host.view.backgroundColor = .clear; host.didMove(toParent: self)
       unavailableHost = host
     }
@@ -2093,6 +2096,8 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     navigationController?.setToolbarHidden(!visible || !hasBackupAction, animated: false)
     let changes = {
       self.backdrop.backgroundColor = visible ? .systemBackground : .init(DuckViewerSurface.immersive)
+      // The explanation stays legible on the immersive surface.
+      self.unavailableHost?.overrideUserInterfaceStyle = visible ? .unspecified : .dark
       self.layoutMedia(); self.setNeedsStatusBarAppearanceUpdate()
     }
     guard animated else { changes(); return }

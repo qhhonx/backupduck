@@ -304,7 +304,6 @@ struct CatalogLibraryFixture: Sendable {
       let mediaMatches = filter == .all || filter == .video && asset.mediaType == .video
         || filter == .photo && asset.mediaType == .image
       let viewMatches = view == .all || view == .notBackedUp && index % 7 == 0
-        || view == .needsYou && index < 4 || view == .recent && index < 2
       return mediaMatches && viewMatches ? asset : nil
     })
   }

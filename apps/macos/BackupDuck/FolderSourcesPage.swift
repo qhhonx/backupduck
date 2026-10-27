@@ -137,7 +137,7 @@ struct FolderSourcesPage: View {
   }
   private var subtitle: String {
     if browser.loading { return NSLocalizedString("folders_counting", comment: "") }
-    if !browser.search.isEmpty || browser.filter == .recent {
+    if !browser.search.isEmpty {
       let scope = NSLocalizedString(browser.search.isEmpty ? browser.filter.title : "folders_search_results", comment: "")
       // Grouped sections contain only bounded cover samples, never a total.
       guard browser.resultKey == browser.key,
@@ -151,7 +151,7 @@ struct FolderSourcesPage: View {
       return NSLocalizedString("folders_counting", comment: "")
     }
     let count = folders.sources.compactMap { folders.facts[$0.id] }.reduce(FolderMediaCounts()) { result, facts in
-      result + facts.media(browser.filter == .notBackedUp ? "not_backed_up" : browser.filter == .needsYou ? "needs_you" : "supported")
+      result + facts.media(browser.filter == .notBackedUp ? "not_backed_up" : "supported")
     }
     if browser.filter != .all {
       return String(format: NSLocalizedString("folders_scope_count", comment: ""), NSLocalizedString(browser.filter.title, comment: ""), folderMediaCount(count))

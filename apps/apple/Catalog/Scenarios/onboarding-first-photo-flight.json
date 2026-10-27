@@ -14,7 +14,7 @@
             "receiver_id": "catalog-pixel",
             "asset": {
               "kind": "photo",
-              "source_id": "onboarding-sample-1",
+              "source_id": "catalog-library-0",
               "revision": "1",
               "resources": [
                 {
@@ -36,7 +36,7 @@
             "receiver_id": "catalog-pixel",
             "asset": {
               "kind": "photo",
-              "source_id": "onboarding-sample-1",
+              "source_id": "catalog-library-0",
               "revision": "1",
               "resources": [
                 {

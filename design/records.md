@@ -44,13 +44,19 @@ What BackupDuck takes:
 On iPhone the hub pushes this page inside the Backup tab's NavigationStack.
 Backup History opens `all`, the Needs You card's View action opens `attention`,
 and the earlier-photos card opens `saved`. The system push/back transition
-retains the Backup tab. The Photos tab keeps its own independent backup views.
-Hub attention, History Needs You and the Photos Needs You view use the same
-core attention jobs and preparations. Waiting for an original is active;
+retains the Backup tab. Recently backed up and Needs You live only here; the
+Photos tab offers All and Not backed up. Hub attention and History Needs You
+use the same core attention jobs and preparations. Waiting for an original is active;
 preparation failures needing a person are attention. Under limited access,
 unfetchable library identifiers are ignored and their source-unavailable
-preparations are dismissed on the next observation. Full-access failures stay
-actionable.
+preparations are dismissed on the next observation. Under full access, a photo
+deleted before it was backed up closes its preparation through the core (a
+`source_removed` diagnostics event), because nothing is left to send; it leaves
+Needs You and the timeline. Other full-access failures stay actionable, and Try
+again prepares a photo without a transfer again rather than doing nothing. A
+backed-up photo deleted from this device stays in the timeline as a quiet record
+without a cover; its viewer explains the deletion and toggles chrome on a tap
+anywhere.
 
 
 1. **Needs you** (only when something does): one card per cause, in this order:

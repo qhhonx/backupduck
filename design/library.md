@@ -26,9 +26,11 @@ twice, with two scroll positions, two sets of gestures and two places to look.
   saving, needs you. Photos outside the backup are not marked (owner decision, October
   18): on a new install that would mark most of the library. They are found
   through the Not backed up view.
-- **Views, not pages.** The grid's existing menu gains views: All photos, Not
-  backed up, Needs you, Recently backed up (ordered by backup time). Each view
-  keeps its own scroll and date anchor, as report 07 asks.
+- **Views, not pages.** The grid's existing menu offers two views: All photos
+  and Not backed up, the library's own question. Recently backed up and Needs
+  you belong to History (`records.md`), which counts them from the same core
+  records, so the two places never disagree (owner decision, October 27 2026).
+  Each view keeps its own scroll and date anchor, as report 07 asks.
 - **The photo's detail answers the backup question.** The viewer's info shows
   the facts from `records.md` (sent to the Pixel, in the Pixel's Photos), next
   to the date and source.
@@ -86,10 +88,7 @@ The page answers one question: are these the photos I mean to back up?
    thumbnails:
    - All photos: today's fetch.
    - Not backed up: the type-filtered fetch minus `received_sources`.
-   - Needs you: the attention items from `backup_tasks`.
-   - Recently backed up: items saved in the last seven days, from
-     `backup_tasks` ordered by latest change, shown in the grid's date groups.
-3. **UI.** The library's existing menu gets a Backup section with the four
+3. **UI.** The library's existing menu gets a Backup section with the two
    views. iPhone hub actions retain the Backup tab and push History with the
    corresponding task filter; they do not change the Photos view.
 4. **Catalog.** Library scenarios run on the iOS Simulator against a synthetic

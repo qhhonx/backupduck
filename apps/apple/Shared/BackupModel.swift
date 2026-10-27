@@ -664,6 +664,49 @@ enum OriginalPreparationFailure {
     let waiting = BackgroundTransfer.shared.waitingForNetwork
     if waitingForNetwork != waiting { waitingForNetwork = waiting }
   }
+  /// Whether a library photo is known to be deleted, rather than outside a
+  /// limited selection, hidden or temporarily unavailable. Only full access
+  /// can tell, and only Photos identifiers are checked.
+  nonisolated static func sourceRemoved(_ id: String) -> Bool {
+    guard BackupEnvironment.usesPhotoLibrary, PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized,
+      id.range(of: #"^[0-9A-Fa-f-]{36}/L0/\d{3}$"#, options: .regularExpression) != nil else { return false }
+    let options = PHFetchOptions()
+    options.includeHiddenAssets = true; options.includeAllBurstAssets = true
+    options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
+    return PHAsset.fetchAssets(withLocalIdentifiers: [id], options: options).count == 0
+  }
+  private func closeRemovedSource(_ request: String, receiver: String) async {
+    _ = try? await Bridge.call(["op": "record_event", "receiver": false, "code": "source_removed",
+      "context": [String: Any]()])
+    _ = try? await Bridge.call(["op": "source_result", "receiver_id": receiver, "source": request,
+      "complete": true])
+  }
+  /// Closes earlier preparations whose photo has since been deleted, so Needs
+  /// You lists only what the person can still act on.
+  func closeRemovedSources() async {
+    guard BackupEnvironment.usesPhotoLibrary, photoAccess == .full, let receiver = pairing?.receiverID,
+      let data = try? await Bridge.call(["op": "backup_tasks", "receiver_id": receiver, "state": "attention"]),
+      let page = try? JSONDecoder().decode(AttentionPage.self, from: data) else { return }
+    let waiting = page.items.compactMap(\.preparation).filter { $0.error_code == "source_unavailable" }
+    guard !waiting.isEmpty else { return }
+    let removed = await Task.detached(priority: .utility) {
+      waiting.filter { Self.sourceRemoved($0.source) }
+    }.value
+    guard !removed.isEmpty, pairing?.receiverID == receiver else { return }
+    for item in removed { await closeRemovedSource(item.id, receiver: receiver) }
+    await refresh()
+  }
+  private struct AttentionPage: Decodable { let items: [BackupTaskItem] }
+  /// Prepares a source again after its preparation failed.
+  @discardableResult func retryPreparation(_ request: String) async -> Bool {
+    guard let receiver = pairing?.receiverID else { return false }
+    do {
+      _ = try await Bridge.call(["op": "retry_source", "receiver_id": receiver, "source": request])
+      await processPendingImports()
+      await refresh()
+      return true
+    } catch { message = error.localizedDescription; return false }
+  }
   @discardableResult func retry(_ id: Int64) async -> Bool {
     do {
       _ = try await Bridge.call(["op": "retry", "id": id])
@@ -818,17 +861,25 @@ enum OriginalPreparationFailure {
     do { try await scheduleBurstSiblings(of: assets, receiver: target.receiverID) }
     catch { message = error.localizedDescription; return false }
     if assets.count != identifiers.count {
-      succeeded = false
-      message = Bridge.Failure(code: "source_unavailable").localizedDescription
-      preparationFailure = message
       let found = Set((0..<assets.count).map { assets.object(at: $0).localIdentifier })
+      var unavailable = false
       for missing in identifiers where !found.contains(missing) {
+        let request = preparation?.request_id ?? missing
+        // A photo deleted before it was backed up has nothing left to send:
+        // its preparation closes instead of waiting in Needs You.
+        if Self.sourceRemoved(missing) { await closeRemovedSource(request, receiver: target.receiverID); continue }
+        unavailable = true
         _ = try? await Bridge.call([
-          "op": "source_result", "receiver_id": target.receiverID, "source": preparation?.request_id ?? missing,
+          "op": "source_result", "receiver_id": target.receiverID, "source": request,
           "complete": false, "error": "source_unavailable",
         ])
       }
-      preparationReason = "source_unavailable"
+      if unavailable {
+        succeeded = false
+        message = Bridge.Failure(code: "source_unavailable").localizedDescription
+        preparationFailure = message
+        preparationReason = "source_unavailable"
+      }
     }
     for index in 0..<assets.count {
       guard !Task.isCancelled, pairing?.receiverID == target.receiverID else { return false }
@@ -1023,6 +1074,7 @@ enum OriginalPreparationFailure {
   private var orderingPendingSources = false
   func processPendingImports() async {
     guard BackupEnvironment.usesPhotoLibrary, ready, !importing, !orderingPendingSources, let pairing else { return }
+    await closeRemovedSources()
     orderingPendingSources = true
     defer { orderingPendingSources = false }
     do {
