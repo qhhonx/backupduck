@@ -1037,11 +1037,7 @@ struct IOSPreviewItem: Identifiable {
   let poster = selectedIndex.flatMap { (review.grid.cellForItem(at: IndexPath(item: $0,section: 0)) as? CalendarGridCell)?.image.image }
   let item = IOSPreviewItem(asset: asset,frame: frame,poster: poster ?? library.thumbnails.poster(for: asset))
   let session = MediaPreviewSession(asset: asset, library: library, poster: item.poster, reviewAssets: assets)
-  let viewer = MediaViewerNavigationController(rootViewController: NativeMediaViewer(item: item, session: session, review: review) { [weak review] in
-    review?.dismiss(animated: false)
-  })
-  viewer.modalPresentationStyle = .overFullScreen; viewer.modalPresentationCapturesStatusBarAppearance = true
-  review.present(viewer,animated: false)
+  presentMediaViewer(NativeMediaViewer(item: item, session: session, review: review) {}, from: review, poster: item.poster)
 }
 
 struct IOSPreviewPresentation: UIViewControllerRepresentable {
@@ -1058,12 +1054,8 @@ struct IOSPreviewPresentation: UIViewControllerRepresentable {
       guard host.view.window != nil, host.presentedViewController == nil, coordinator.active == nil else { return }
       coordinator.active = item.id
       let session = MediaPreviewSession(asset: item.asset, library: library, poster: item.poster, reviewAssets: collection)
-      let viewer = MediaViewerNavigationController(rootViewController: NativeMediaViewer(item: item, session: session) {
-        host.dismiss(animated: false) { coordinator.active = nil; close() }
-      })
-      viewer.modalPresentationStyle = .overFullScreen
-      viewer.modalPresentationCapturesStatusBarAppearance = true
-      host.present(viewer, animated: false)
+      presentMediaViewer(NativeMediaViewer(item: item, session: session) { coordinator.active = nil; close() },
+        from: host, poster: item.poster)
     }
   }
   final class Coordinator { var active: String? }
@@ -1073,6 +1065,19 @@ struct IOSRecordedPhotoViewer: UIViewControllerRepresentable {
   let model: BackupModel
   let close: () -> Void
   func makeUIViewController(context: Context) -> UINavigationController { makeViewer() }
+  /// The recorded viewer for the shared transition, flying from and back to
+  /// its history tile.
+  func makeNativeViewer(frame: @escaping (String) -> CGRect?) -> NativeMediaViewer {
+    let asset = RecordedPhotoAsset(photo: photo)
+    let library = PhotoLibraryModel()
+    library.previewFrame = frame
+    let session = MediaPreviewSession(asset: asset, library: library, reviewAssets: [asset])
+    let viewer = NativeMediaViewer(item: IOSPreviewItem(asset: asset, frame: frame(photo.source) ?? .zero, poster: nil),
+      session: session, close: close)
+    viewer.backupModel = model
+    viewer.recordedPhoto = photo
+    return viewer
+  }
   func makeViewer() -> UINavigationController {
     let asset = RecordedPhotoAsset(photo: photo)
     let session = MediaPreviewSession(asset: asset, library: PhotoLibraryModel(), reviewAssets: [asset])
@@ -1096,6 +1101,8 @@ struct IOSRecordedPhotoViewer: UIViewControllerRepresentable {
 struct IOSRecordedPhotoPresentation: UIViewControllerRepresentable {
   let photo: HistoryPhoto?
   let model: BackupModel
+  /// The tile frame of a source, for the flight out and back.
+  var frame: (String) -> CGRect? = { _ in nil }
   let close: () -> Void
   func makeCoordinator() -> Coordinator { Coordinator() }
   func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
@@ -1106,11 +1113,9 @@ struct IOSRecordedPhotoPresentation: UIViewControllerRepresentable {
       guard host.view.window != nil, host.presentedViewController == nil, !coordinator.active else { return }
       coordinator.active = true
       let viewer = IOSRecordedPhotoViewer(photo: photo, model: model) {
-        host.dismiss(animated: false) { coordinator.active = false; close() }
-      }.makeViewer()
-      viewer.modalPresentationStyle = .overFullScreen
-      viewer.modalPresentationCapturesStatusBarAppearance = true
-      host.present(viewer, animated: false)
+        coordinator.active = false; close()
+      }.makeNativeViewer(frame: frame)
+      presentMediaViewer(viewer, from: host, poster: nil)
     }
   }
   final class Coordinator { var active = false }
@@ -1143,7 +1148,14 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   guard presenter.presentedViewController == nil else { return }
   let item = IOSPreviewItem(asset: asset, frame: frame, poster: poster)
   let session = MediaPreviewSession(asset: asset, library: library, poster: poster)
-  let viewer = NativeMediaViewer(item: item, session: session) {}
+  presentMediaViewer(NativeMediaViewer(item: item, session: session) {}, from: presenter, poster: poster)
+}
+
+/// Every grid opens the viewer the same way: presented full screen with
+/// `MediaViewerTransition` from the controller that owns the tapped tile, and
+/// closed by the same transition back to the tile.
+@MainActor func presentMediaViewer(_ viewer: NativeMediaViewer, from presenter: UIViewController, poster: UIImage?) {
+  guard presenter.presentedViewController == nil else { return }
   viewer.usesTransition = true
   viewer.flying = false
   let navigation = MediaViewerNavigationController(rootViewController: viewer)
@@ -1152,20 +1164,23 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   let transition = MediaViewerTransition()
   navigation.transitioningDelegate = transition
   navigation.mediaTransition = transition
-  viewer.loadViewIfNeeded(); session.start()
+  viewer.loadViewIfNeeded(); viewer.session.start()
   viewer.stage.alpha = 1; viewer.backdrop.alpha = 1
   // Wait at most five frames for the full-aspect rendition (photo or video
-  // poster) before presenting, so the flight never widens a square crop and
-  // nothing in the grid changes while the transition is on screen.
+  // poster), or a little longer while there is no picture at all, so the
+  // flight never shows an empty frame; then fly whatever picture there is.
   func present(_ waited: Int) {
     viewer.view.frame = presenter.view.window?.bounds ?? viewer.view.frame
     viewer.view.layoutIfNeeded()
-    if waited < 5, viewer.pages.count == 3, !viewer.pages[1].scroll.showsFullAspect {
-      viewer.pages[1].refresh()
-      if !viewer.pages[1].scroll.showsFullAspect {
+    if viewer.pages.count == 3 {
+      let page = viewer.pages[1]
+      if !page.scroll.showsFullAspect { page.refresh() }
+      let pictured = page.scroll.photo.image != nil
+      if !page.scroll.showsFullAspect, waited < 5 || (!pictured && waited < 20) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { present(waited + 1) }
         return
       }
+      if !pictured, let poster { page.scroll.display(poster) }
     }
     guard presenter.presentedViewController == nil, presenter.view.window != nil else { return }
     presenter.present(navigation, animated: true)
@@ -2436,7 +2451,8 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   /// The dismissal transition has returned the photo to its tile.
   func transitionDidClose() {
     guard !finished else { return }; finished = true
-    releasePreviewSource(); closeViewer()
+    releasePreviewSource()
+    if completeReview, let review { review.done() } else { closeViewer() }
   }
   func finishClosing() {
     guard !finished else { return }; finished = true

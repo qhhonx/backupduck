@@ -839,7 +839,7 @@ struct BackupPhotoPresentation: ViewModifier {
   let model: BackupModel
   func body(content: Content) -> some View {
     #if os(iOS)
-    content.background(IOSRecordedPhotoPresentation(photo: router.fallback, model: model) { router.fallback = nil })
+    content.background(IOSRecordedPhotoPresentation(photo: router.fallback, model: model, frame: { router.frames[$0] }) { router.fallback = nil })
       .background(IOSPreviewPresentation(item: router.preview, library: router.library, collection: router.assets) { router.preview = nil })
     #else
     content.sheet(item: $router.fallback) { PhotoBackupDetail(photo: $0, model: model) }
