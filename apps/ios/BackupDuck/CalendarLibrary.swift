@@ -9,7 +9,6 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject var model: BackupModel
   @ObservedObject var policy = PreviewNetworkPolicy.shared
-  let onPreview: (PHAsset, CGRect) -> Void
   @ObservedObject var backupAction: SelectionBackupAction
   var browseOnly = false
   var selectionChanged: (Bool) -> Void = { _ in }
@@ -103,7 +102,10 @@ struct IOSCalendarLibrary: UIViewControllerRepresentable {
         else { return }
         c.previewOrigin = prepared.localIdentifier
         c.previewPoster = poster
-        c.parent.onPreview(prepared, frame)
+        guard let grid = c.controller else { return }
+        presentLibraryViewer(prepared, frame: frame,
+          poster: c.parent.library.previewPoster?(prepared.localIdentifier) ?? c.parent.library.thumbnails.poster(for: prepared),
+          library: c.parent.library, from: grid)
       }
     }
     grid.photoMenu = { [weak c] item in

@@ -216,7 +216,6 @@ struct ScopeAlbumBrowser: View {
   @ObservedObject private var store: BackupScopeStore
   @ObservedObject private var model = BackupModel.shared
   @StateObject private var backupAction = SelectionBackupAction()
-  @State private var preview: IOSPreviewItem?
   @Environment(\.dismiss) private var dismiss
   @MainActor init(album: ScopeAlbum, store: BackupScopeStore? = nil) {
     self.album = album
@@ -241,7 +240,6 @@ struct ScopeAlbumBrowser: View {
           .accessibilityIdentifier("backup.scope.album_browser.choose")
         }
       }
-      .background(IOSPreviewPresentation(item: preview, library: library) { preview = nil }.frame(width: 0, height: 0))
       .task {
         if BackupEnvironment.usesPhotoLibrary { await library.open() }
         else if library.fetch == nil { library.applyAuthorization(.denied) }
@@ -265,13 +263,7 @@ struct ScopeAlbumBrowser: View {
           Task { await library.open(requestPermission: true) }
         })
     case nil:
-      IOSCalendarLibrary(library: library, model: model, onPreview: { asset, frame in
-        var transaction = Transaction(); transaction.disablesAnimations = true
-        withTransaction(transaction) {
-          preview = IOSPreviewItem(asset: asset, frame: frame,
-            poster: library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for: asset))
-        }
-      }, backupAction: backupAction, browseOnly: true)
+      IOSCalendarLibrary(library: library, model: model, backupAction: backupAction, browseOnly: true)
         .accessibilityIdentifier("backup.scope.album_browser")
     }
   }

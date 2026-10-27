@@ -26,7 +26,9 @@ view, never through a SwiftUI state change and a later run-loop turn.
 Existing SwiftUI shells on main surfaces are migration debt. Move them when
 the surface is next touched:
 - the iPhone root tab view;
-- the hidden-host viewer presentation;
+- the remaining viewer presentations that are not yet `MediaViewerTransition`:
+  the iPad library's hidden SwiftUI host, recorded History photos and selection
+  review. The iPhone library and the album browser present directly.
 - the Mac viewer toolbar.
 
 ## 2. The rule for animation
@@ -219,9 +221,7 @@ loop is not acceptable, even when it looks the same in a recording.
 | Motion | Mechanism now | Target mechanism | Status |
 |---|---|---|---|
 | Photos-tab period capsule | KVO on the bar's morph target; `UIView.animate` spring materializes glass | — | Conforms |
-| iPhone viewer open/close media flight | `UIViewPropertyAnimator` | — | Conforms |
-| iPhone viewer chrome (bars, strip, background) during open/close | Appears after the flight lands | Staggered windows on the flight's animator (`addAnimations(delayFactor:)` or keyframes inside it). Bars hide and show through their own APIs, and glass through `effect`. | Open |
-| iPhone viewer drag to dismiss | Per-gesture tracking; release spring with velocity | Chrome follows the drag per gesture event and returns on the same spring | Partly conforms |
+| iPhone library viewer present, dismiss and drag to dismiss | Custom present transition (`UIViewControllerAnimatedTransitioning` and `UIViewControllerInteractiveTransitioning`): a grid snapshot crossfades above the opaque viewer page, and a media snapshot flies on one `UIViewPropertyAnimator` spring; the drag updates per gesture event | — | Conforms |
 | iPhone grid pinch zoom (Photos tab) | Display-link stage: per-frame settle spring and crossfade | Per-gesture-event tracking. On release, a system spring (`UIViewPropertyAnimator` with initial velocity, or `CASpringAnimation` on the stage layers) carries pitch, focus and face opacity. Probe the interactive collection-layout transition as an alternative. | Open; settled look must not change |
 | Mac grid zoom (Library, Folders, History) | Display-link settle and crossfade | Magnify events tracked per event; release goes to a Core Animation spring | Open |
 | Mac level and viewer flights | One Core Animation group (bounds, position, cornerRadius, opacity keyframes); a moved destination is absorbed by an additive animation | — | Conforms |

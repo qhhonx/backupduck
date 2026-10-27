@@ -809,7 +809,6 @@ private struct IOSCalendarLibraryPage: View {
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject var model: BackupModel
   @StateObject private var backupAction = SelectionBackupAction()
-  @State private var preview: IOSPreviewItem?
   @State private var selecting = false
   var body: some View {
     Group {
@@ -844,7 +843,6 @@ private struct IOSCalendarLibraryPage: View {
       .task { await library.open() }
       .onAppear { library.refreshVisiblePreviews() }
       .onDisappear { library.thumbnails.clear() }
-      .background(IOSPreviewPresentation(item:preview,library:library) { preview=nil }.frame(width:0,height:0))
   }
   private var isFilterEmpty: Bool {
     if case .filterEmpty? = library.placeholder { return true }
@@ -855,10 +853,7 @@ private struct IOSCalendarLibraryPage: View {
     return false
   }
   private var calendar: some View {
-    IOSCalendarLibrary(library:library,model:model,onPreview:{ asset,frame in
-      var transaction=Transaction();transaction.disablesAnimations=true
-      withTransaction(transaction) { preview=IOSPreviewItem(asset:asset,frame:frame,poster:library.previewPoster?(asset.localIdentifier) ?? library.thumbnails.poster(for:asset)) }
-    }, backupAction: backupAction, selectionChanged: { selecting = $0 }).ignoresSafeArea(.container)
+    IOSCalendarLibrary(library:library,model:model, backupAction: backupAction, selectionChanged: { selecting = $0 }).ignoresSafeArea(.container)
       .toolbarColorScheme(library.placeholder == nil && library.loaded > 0 ? .dark : nil, for: .navigationBar)
   }
 
@@ -1140,7 +1135,253 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   var previewMetadata: [(String, String)] { PhotoInformationLayout.fileFields(for: photo.job) }
 }
 
+/// Presents the library viewer from the controller that owns the tapped tile,
+/// with `MediaViewerTransition`. No SwiftUI state sits between the tap and
+/// the presentation.
+@MainActor func presentLibraryViewer(_ asset: PHAsset, frame: CGRect, poster: UIImage?,
+  library: PhotoLibraryModel, from presenter: UIViewController) {
+  guard presenter.presentedViewController == nil else { return }
+  let item = IOSPreviewItem(asset: asset, frame: frame, poster: poster)
+  let session = MediaPreviewSession(asset: asset, library: library, poster: poster)
+  let viewer = NativeMediaViewer(item: item, session: session) {}
+  viewer.usesTransition = true
+  viewer.flying = false
+  let navigation = MediaViewerNavigationController(rootViewController: viewer)
+  navigation.modalPresentationStyle = .overFullScreen
+  navigation.modalPresentationCapturesStatusBarAppearance = true
+  let transition = MediaViewerTransition()
+  navigation.transitioningDelegate = transition
+  navigation.mediaTransition = transition
+  viewer.loadViewIfNeeded(); session.start()
+  viewer.stage.alpha = 1; viewer.backdrop.alpha = 1
+  presenter.present(navigation, animated: true)
+}
+
+/// The viewer's presentation, built from the UIKit transition API as the
+/// system photo library behaves: the viewer page stays full screen and opaque
+/// under a snapshot of the grid that crossfades away (or back), while only the
+/// photo flies between its tile and its fitted frame, above both, on one
+/// property animator. The live media takes over at identical pixels.
+@MainActor final class MediaViewerTransition: NSObject, UIViewControllerTransitioningDelegate, UIViewControllerAnimatedTransitioning, UIViewControllerInteractiveTransitioning {
+  private var presenting = true
+  /// Set by a drag-to-dismiss before it asks for the dismissal.
+  private var drag: (origin: CGPoint, center: CGPoint)?
+  private var interaction: (context: UIViewControllerContextTransitioning, viewer: NativeMediaViewer,
+    surface: UIView?, flyer: UIView?, clip: UIView?, cover: UIView?, geometry: MediaFlightGeometry?)?
+  private static let duration: TimeInterval = 0.36
+  func animationController(forPresented presented: UIViewController, presenting: UIViewController, source: UIViewController) -> UIViewControllerAnimatedTransitioning? {
+    self.presenting = true; return self
+  }
+  func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? {
+    presenting = false; return self
+  }
+  func interactionControllerForDismissal(using animator: UIViewControllerAnimatedTransitioning) -> UIViewControllerInteractiveTransitioning? {
+    drag == nil ? nil : self
+  }
+  nonisolated func transitionDuration(using context: UIViewControllerContextTransitioning?) -> TimeInterval { Self.duration }
+  func beginInteractive(origin: CGPoint, center: CGPoint) { drag = (origin, center) }
+  nonisolated func startInteractiveTransition(_ context: UIViewControllerContextTransitioning) {
+    MainActor.assumeIsolated { startDrag(context) }
+  }
+  private func startDrag(_ context: UIViewControllerContextTransitioning) {
+    let container = context.containerView
+    guard let navigation = context.viewController(forKey: .from), let viewer = viewer(navigation) else {
+      context.completeTransition(true); return
+    }
+    viewer.setSourceHidden(true)
+    let cover = context.viewController(forKey: .to)?.view.snapshotView(afterScreenUpdates: true)
+    if let cover { cover.alpha = 0; container.addSubview(cover) }
+    blank(viewer.returnFrame(), in: cover, container: container)
+    var flyer: UIView?, clip: UIView?, geometry: MediaFlightGeometry?
+    let surface = viewer.mediaSurface()
+    if let surface, let snapshot = surface.snapshotView(afterScreenUpdates: false) {
+      let base = surface.convert(surface.bounds, to: container)
+      snapshot.isUserInteractionEnabled = false
+      snapshot.bounds = CGRect(origin: .zero, size: base.size); snapshot.center = CGPoint(x: base.midX, y: base.midY)
+      let mask = UIView(frame: snapshot.bounds); mask.backgroundColor = DuckMedia.backgroundUIColor; snapshot.mask = mask
+      container.addSubview(snapshot)
+      surface.alpha = 0
+      if let destination = viewer.returnFrame(), viewer.infoHeight == 0 {
+        geometry = MediaFlightGeometry(bounds: snapshot.bounds, fitted: base, thumbnail: container.convert(destination, from: nil))
+      }
+      flyer = snapshot; clip = mask
+    }
+    interaction = (context, viewer, surface, flyer, clip, cover, geometry)
+  }
+  /// Follows the finger: the photo moves and shrinks with the drag, and the
+  /// grid shows through in proportion to the distance.
+  func updateInteractive(_ translation: CGPoint) {
+    guard let interaction, let drag else { return }
+    let progress = min(1, max(0, translation.y / 240))
+    interaction.flyer?.transform = MediaFlightGeometry.drag(origin: drag.origin, center: drag.center, translation: translation)
+    interaction.cover?.alpha = progress
+    interaction.context.updateInteractiveTransition(progress)
+  }
+  /// Release carries the finger's velocity into one spring, to the tile or back.
+  func endInteractive(commit: Bool, velocity: CGFloat) {
+    guard let interaction else { return }
+    self.interaction = nil; drag = nil
+    let animation = animator(velocity: velocity)
+    animation.addAnimations {
+      if commit {
+        interaction.cover?.alpha = 1
+        if let geometry = interaction.geometry {
+          interaction.flyer?.transform = geometry.transform; interaction.clip?.frame = geometry.crop
+        } else { interaction.flyer?.alpha = 0 }
+      } else {
+        interaction.cover?.alpha = 0; interaction.flyer?.transform = .identity
+      }
+    }
+    animation.addCompletion { _ in
+      let context = interaction.context
+      if commit {
+        context.finishInteractiveTransition()
+        UIView.performWithoutAnimation {
+          context.viewController(forKey: .from)?.view.removeFromSuperview()
+          interaction.viewer.transitionDidClose()
+          interaction.flyer?.removeFromSuperview(); interaction.cover?.removeFromSuperview()
+        }
+        context.completeTransition(true)
+      } else {
+        interaction.surface?.alpha = 1
+        interaction.flyer?.removeFromSuperview(); interaction.cover?.removeFromSuperview()
+        context.cancelInteractiveTransition()
+        context.completeTransition(false)
+        interaction.viewer.transitionDidCancelClose()
+      }
+    }
+    animation.startAnimation()
+  }
+  nonisolated func animateTransition(using context: UIViewControllerContextTransitioning) {
+    MainActor.assumeIsolated { presenting ? open(context) : close(context) }
+  }
+  /// The grid snapshot can be taken before the hidden tile is committed; its
+  /// slot is blanked so the flying photo is never shown twice.
+  private func blank(_ frame: CGRect?, in cover: UIView?, container: UIView) {
+    guard let frame, let cover else { return }
+    let slot = UIView(frame: cover.convert(container.convert(frame, from: nil), from: container))
+    slot.backgroundColor = .systemBackground
+    cover.addSubview(slot)
+  }
+  private func viewer(_ controller: UIViewController?) -> NativeMediaViewer? {
+    (controller as? UINavigationController)?.viewControllers.first as? NativeMediaViewer
+  }
+  private func animator(velocity: CGFloat = 0) -> UIViewPropertyAnimator {
+    let timing = UISpringTimingParameters(dampingRatio: 0.94, initialVelocity: CGVector(dx: 0, dy: min(4, abs(velocity) / 800)))
+    return UIViewPropertyAnimator(duration: Self.duration, timingParameters: timing)
+  }
+  /// The photo's pixels at its current place, cropped like the flight.
+  private func flyer(of surface: UIView, in container: UIView) -> UIView? {
+    guard let snapshot = surface.snapshotView(afterScreenUpdates: true) else { return nil }
+    snapshot.isUserInteractionEnabled = false
+    container.addSubview(snapshot)
+    return snapshot
+  }
+  private var cover: UIView?
+  private func open(_ context: UIViewControllerContextTransitioning, waited: Int = 0) {
+    let container = context.containerView
+    guard let navigation = context.viewController(forKey: .to), let viewer = viewer(navigation) else {
+      context.completeTransition(true); return
+    }
+    if waited == 0 {
+      // The grid snapshot covers the page from its first frame, so the
+      // viewer never shows before the flight starts.
+      viewer.setSourceHidden(true)
+      let cover = context.viewController(forKey: .from)?.view.snapshotView(afterScreenUpdates: true)
+      self.cover = cover
+      let target = context.finalFrame(for: navigation)
+      navigation.view.frame = target; container.addSubview(navigation.view)
+      if let cover { container.addSubview(cover) }
+      blank(viewer.item.frame, in: cover, container: container)
+      navigation.view.isUserInteractionEnabled = false
+      navigation.view.layoutIfNeeded(); viewer.layoutMedia()
+    }
+    // Wait at most five frames for the full-aspect rendition, so the widening
+    // crop never reveals empty sides beside a centre-cropped thumbnail.
+    if waited < 5, viewer.pages.count == 3, !viewer.pages[1].scroll.showsFullAspect,
+      viewer.session.current.asset.mediaType != .video {
+      viewer.pages[1].refresh()
+      if !viewer.pages[1].scroll.showsFullAspect {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { self.open(context, waited: waited + 1) }
+        return
+      }
+    }
+    let cover = self.cover; self.cover = nil
+    let reduce = UIAccessibility.isReduceMotionEnabled
+    let surface = viewer.mediaSurface()
+    var flight: (view: UIView, clip: UIView)?
+    if !reduce, let surface, surface.bounds.width > 0, let snapshot = flyer(of: surface, in: container) {
+      let base = surface.convert(surface.bounds, to: container)
+      let geometry = MediaFlightGeometry(bounds: surface.bounds, fitted: base, thumbnail: container.convert(viewer.item.frame, from: nil))
+      snapshot.bounds = CGRect(origin: .zero, size: base.size); snapshot.center = CGPoint(x: base.midX, y: base.midY)
+      let clip = UIView(frame: geometry.crop); clip.backgroundColor = DuckMedia.backgroundUIColor; snapshot.mask = clip
+      snapshot.transform = geometry.transform
+      flight = (snapshot, clip)
+      surface.alpha = 0
+    }
+    if let flight { container.bringSubviewToFront(flight.view) }
+    let animation = reduce ? UIViewPropertyAnimator(duration: 0.2, curve: .easeInOut) : animator()
+    animation.addAnimations {
+      cover?.alpha = 0
+      if let flight { flight.view.transform = .identity; flight.clip.frame = flight.view.bounds }
+    }
+    animation.addCompletion { _ in
+      surface?.alpha = 1
+      flight?.view.removeFromSuperview(); cover?.removeFromSuperview()
+      navigation.view.isUserInteractionEnabled = true
+      context.completeTransition(true)
+      viewer.transitionDidOpen()
+    }
+    animation.startAnimation()
+  }
+  private func close(_ context: UIViewControllerContextTransitioning) {
+    let container = context.containerView
+    guard let navigation = context.viewController(forKey: .from), let viewer = viewer(navigation) else {
+      context.completeTransition(true); return
+    }
+    viewer.setSourceHidden(true)
+    let cover = context.viewController(forKey: .to)?.view.snapshotView(afterScreenUpdates: true)
+    if let cover { cover.alpha = 0; container.addSubview(cover) }
+    blank(viewer.returnFrame(), in: cover, container: container)
+    let reduce = UIAccessibility.isReduceMotionEnabled
+    var flight: (view: UIView, clip: UIView, geometry: MediaFlightGeometry)?
+    if !reduce, let surface = viewer.mediaSurface(), let destination = viewer.returnFrame(), viewer.infoHeight == 0,
+      let snapshot = surface.snapshotView(afterScreenUpdates: false) {
+      let held = surface.transform
+      surface.transform = .identity
+      let base = surface.convert(surface.bounds, to: container), size = surface.bounds.size
+      surface.transform = held
+      let geometry = MediaFlightGeometry(bounds: CGRect(origin: .zero, size: size), fitted: base,
+        thumbnail: container.convert(destination, from: nil))
+      snapshot.isUserInteractionEnabled = false
+      snapshot.bounds = CGRect(origin: .zero, size: size); snapshot.center = CGPoint(x: base.midX, y: base.midY)
+      snapshot.transform = held
+      let clip = UIView(frame: snapshot.bounds); clip.backgroundColor = DuckMedia.backgroundUIColor; snapshot.mask = clip
+      container.addSubview(snapshot)
+      surface.alpha = 0
+      flight = (snapshot, clip, geometry)
+    }
+    let animation = reduce ? UIViewPropertyAnimator(duration: 0.2, curve: .easeInOut) : animator(velocity: viewer.closingVelocity)
+    animation.addAnimations {
+      cover?.alpha = 1
+      if let flight { flight.view.transform = flight.geometry.transform; flight.clip.frame = flight.geometry.crop }
+    }
+    animation.addCompletion { _ in
+      // Restore the tile and remove the flight in one nonanimated commit.
+      UIView.performWithoutAnimation {
+        navigation.view.removeFromSuperview()
+        viewer.transitionDidClose()
+        flight?.view.removeFromSuperview(); cover?.removeFromSuperview()
+      }
+      context.completeTransition(true)
+    }
+    animation.startAnimation()
+  }
+}
+
 @MainActor final class MediaViewerNavigationController: UINavigationController {
+  /// Retained here: `transitioningDelegate` is weak.
+  var mediaTransition: MediaViewerTransition?
   override var childForStatusBarStyle: UIViewController? { topViewController }
   override var childForStatusBarHidden: UIViewController? { topViewController }
   override func viewDidLoad() {
@@ -1261,6 +1502,10 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
 /// Gesture progress is direct; controllers are recycled only after a page settles.
 @MainActor final class NativeMediaViewer: UIViewController, UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate, UIGestureRecognizerDelegate {
   private var finished = false
+  /// Opened and closed by `MediaViewerTransition`: the presentation owns the
+  /// flight and the crossfade with the grid; the viewer only shows its page.
+  var usesTransition = false
+  var closingVelocity: CGFloat = 0
   let item: IOSPreviewItem, session: MediaPreviewSession, closeViewer: () -> Void
   let backdrop = UIView(), stage = UIView(), pager = UIScrollView(), footer = UIView()
   var header: UIView { navigationController?.navigationBar ?? view }
@@ -1711,7 +1956,15 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     case .began:
       animator?.stopAnimation(true); interruptInformation()
       startInfo = infoHeight; verticalKind = infoHeight > 0 || velocity.y < 0 ? 2 : 1
-      if verticalKind == 1 {
+      if verticalKind == 1, usesTransition, let transition = (navigationController as? MediaViewerNavigationController)?.mediaTransition {
+        // The drag drives the dismissal transition itself; the grid shows
+        // through it in proportion to the drag.
+        closing = true; pager.isScrollEnabled = false; selectionButton.alpha = 0
+        let frame = imageRect()
+        transition.beginInteractive(origin: gesture.location(in: view), center: CGPoint(x: frame.midX, y: frame.midY))
+        presentingViewController?.dismiss(animated: true)
+        verticalKind = 3
+      } else if verticalKind == 1 {
         _ = returnFrame()
         setSourceHidden(true)
         unclipMedia(); pages[1].flightLocked = true
@@ -1719,12 +1972,17 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
         let frame = imageRect(); dragCenter = CGPoint(x: frame.midX,y: frame.midY)
       }
     case .changed:
-      if verticalKind == 1 {
+      if verticalKind == 3 {
+        (navigationController as? MediaViewerNavigationController)?.mediaTransition?.updateInteractive(point)
+      } else if verticalKind == 1 {
         mediaSurface()?.transform = MediaFlightGeometry.drag(origin: dragOrigin,center: dragCenter,translation: point)
         backdrop.alpha = max(0,1-max(0,point.y)/320); header.alpha = max(0,1-point.y/100); footer.alpha = header.alpha; navigationController?.toolbar.alpha = header.alpha; selectionButton.alpha = header.alpha; loadingIndicator.alpha = header.alpha
       } else { if !chrome { setChrome(true, animated: false) }; ensureInformation(); infoHeight = max(0,min(view.bounds.height*0.7,startInfo-point.y)); layoutMedia() }
     case .ended, .cancelled, .failed:
-      if verticalKind == 1 {
+      if verticalKind == 3 {
+        let commit = gesture.state == .ended && (point.y > 12 && velocity.y > -120)
+        (navigationController as? MediaViewerNavigationController)?.mediaTransition?.endInteractive(commit: commit, velocity: velocity.y)
+      } else if verticalKind == 1 {
         if gesture.state == .ended && (point.y > 12 && velocity.y > -120) { dismissViewer(velocity: velocity.y) }
         else { animate(changes: { self.mediaSurface()?.transform = .identity; self.backdrop.alpha = 1; self.layoutMedia() }) { self.pages[1].flightLocked = false; self.restoreMediaClipping() } }
       } else {
@@ -2132,7 +2390,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       }
     }
   }
-  private func setSourceHidden(_ hidden: Bool) {
+  func setSourceHidden(_ hidden: Bool) {
     if let review { review.setPreviewHidden(hidden ? reviewID(session.current.asset) : nil) }
     else { session.library.previewVisibility?(hidden ? session.current.asset.localIdentifier : nil) }
   }
@@ -2140,9 +2398,23 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     setSourceHidden(false)
     session.stop(); backupFactsTask?.cancel()
   }
-  private func returnFrame() -> CGRect? {
+  func returnFrame() -> CGRect? {
     if let review { return review.previewFrame(reviewID(session.current.asset)) }
     return session.library.previewFrame?(session.current.asset.localIdentifier)
+  }
+  /// The presentation transition has landed the photo on its fitted frame.
+  func transitionDidOpen() {
+    pager.isScrollEnabled = !session.zoomed; updateStatus()
+  }
+  /// A cancelled drag-to-dismiss returned the viewer to its open state.
+  func transitionDidCancelClose() {
+    closing = false; selectionButton.alpha = chrome && infoHeight == 0 ? 1 : 0
+    pager.isScrollEnabled = !session.zoomed
+  }
+  /// The dismissal transition has returned the photo to its tile.
+  func transitionDidClose() {
+    guard !finished else { return }; finished = true
+    releasePreviewSource(); closeViewer()
   }
   func finishClosing() {
     guard !finished else { return }; finished = true
@@ -2160,6 +2432,11 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
   }
   func dismissViewer(velocity: CGFloat = 0) {
     guard !flying && !closing else { return }; closing = true; pager.isScrollEnabled = false
+    if usesTransition {
+      selectionButton.alpha = 0; closingVelocity = velocity
+      presentingViewController?.dismiss(animated: true)
+      return
+    }
     let destination = returnFrame()
     setSourceHidden(true)
     selectionButton.alpha = 0

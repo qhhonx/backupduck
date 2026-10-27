@@ -85,10 +85,20 @@ sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stay
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
 
-Phone media dismissal moves the fitted media node, not its letterboxed page.
-The player stays attached through drag and return flight. A deliberate downward
-drag commits above 12 pt unless reversed; a failed/cancelled gesture restores
-the node. Paging updates the settled controller and centre offset atomically.
+The library viewer is presented full screen by a UIKit custom transition
+(`MediaViewerTransition`), as the system photo library presents its viewer.
+The viewer page is opaque and stays put. A snapshot of the grid above it
+crossfades out on opening and back in on closing. Only the photo flies: a
+snapshot of the fitted media moves between its tile and its fitted frame, with
+one uniform transform and crop on the same property animator, and the live
+media takes over at identical pixels. Bars, filmstrip and background therefore
+change during the flight, and nothing appears after the photo lands. A
+downward drag drives the same dismissal transition interactively: the photo
+follows the finger and shrinks, the grid shows through in proportion to the
+distance (240 pt for full), and release carries the finger's velocity into one
+spring, to the tile or back. The player stays attached to its page. A
+deliberate downward drag commits above 12 pt unless reversed; a cancelled
+gesture restores the open viewer. Paging updates the settled controller and centre offset atomically.
 Filmstrip geometry compacts for dragging and expands the settled item over
 250 ms, with immediate adoption under Reduce Motion.
 
