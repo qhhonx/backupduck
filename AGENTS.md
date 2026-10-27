@@ -18,6 +18,8 @@ Read `design/README.md`, `design/platform-expression.md`,
 `design/visual-language.md`, `design/interaction.md`, `design/ui-content-rules.md`
 `design/backupduck-v1/motion.md` and `design/apple-motion-apis.md` before UI work.
 Motion uses system animation APIs only; app code never draws animation frames.
+BackupDuck is UIKit/AppKit first: grids, the viewer, transitions and their gestures
+and bars are native UIKit/AppKit; SwiftUI is for supporting pages only.
 The redesign plan and its current step are in `design/redesign-roadmap.md`.
 Existing HTML prototypes are frozen historical references; do not create or
 maintain new ones. Use current component contracts, `motion.md` and the validated

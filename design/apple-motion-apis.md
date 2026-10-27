@@ -6,7 +6,30 @@ owns *how* those motions are built. Deployment targets are iOS 18 and macOS 15,
 so the SwiftUI-animation bridges below are available everywhere; newer APIs
 need an availability check and a fallback that looks the same.
 
-## 1. The rule
+## 1. Frameworks: UIKit and AppKit first
+
+BackupDuck is a photo library. Its main surfaces depend on motion,
+performance and direct manipulation, so they are built with UIKit and AppKit
+end to end: library and folder grids, the photo viewer, the transitions
+between them, their gestures, and the bars and toolbars inside those flows.
+These frameworks offer the complete, long-optimised animation and
+interaction APIs: collection views, interactive and interruptible
+transitions, property animators and Core Animation.
+
+SwiftUI is for supporting pages: settings, forms, onboarding text, sheets of
+facts and other content without frame-level motion. A SwiftUI page may sit
+inside a UIKit or AppKit container. The reverse must not happen: SwiftUI
+state must never drive a main-surface motion. A tap that starts a transition
+presents directly from the UIKit or AppKit controller that owns the source
+view, never through a SwiftUI state change and a later run-loop turn.
+
+Existing SwiftUI shells on main surfaces are migration debt. Move them when
+the surface is next touched:
+- the iPhone root tab view;
+- the hidden-host viewer presentation;
+- the Mac viewer toolbar.
+
+## 2. The rule for animation
 
 Animation pixels come from the system's animation engines: UIKit and AppKit
 view animation, Core Animation, and SwiftUI. These run on the render server,
@@ -27,7 +50,7 @@ retarget smoothly, carry velocity and respect accessibility settings.
   while drag-selecting, and benchmarks that never ship. Each one names its
   reason in a comment.
 
-## 2. How to study a reference interaction
+## 3. How to study a reference interaction
 
 Frame-by-frame recordings of a system app are for *learning*, not copying.
 For each interaction, write down:
@@ -43,7 +66,7 @@ Then choose the system mechanism below that produces that behaviour, and
 implement it with that mechanism. Matching a curve frame by frame in our own
 loop is not acceptable, even when it looks the same in a recording.
 
-## 3. iOS and iPadOS
+## 4. iOS and iPadOS
 
 ### View animation
 
@@ -156,7 +179,7 @@ loop is not acceptable, even when it looks the same in a recording.
   UIKit views with `context.animate { }` (iOS 18), so SwiftUI and UIKit move
   together.
 
-## 4. macOS
+## 5. macOS
 
 - `NSAnimationContext.runAnimationGroup { context in ... }` with
   `view.animator()` animates frames, alpha and layer-backed properties.
@@ -175,7 +198,7 @@ loop is not acceptable, even when it looks the same in a recording.
 - Magnification and scroll gestures arrive as events. Track them per event,
   then hand off to a spring.
 
-## 5. Human Interface Guidelines: motion
+## 6. Human Interface Guidelines: motion
 
 - Motion must have a purpose: it conveys status, gives feedback or explains
   where something went. Never add it for decoration, and avoid extra motion
@@ -191,7 +214,7 @@ loop is not acceptable, even when it looks the same in a recording.
 - System components already adapt their motion to the input method and to
   accessibility settings. Custom motion must not fight them.
 
-## 6. BackupDuck motions and their mechanisms
+## 7. BackupDuck motions and their mechanisms
 
 | Motion | Mechanism now | Target mechanism | Status |
 |---|---|---|---|
