@@ -201,7 +201,7 @@ loop is not acceptable, even when it looks the same in a recording.
 | iPhone viewer drag to dismiss | Per-gesture tracking; release spring with velocity | Chrome follows the drag per gesture event and returns on the same spring | Partly conforms |
 | iPhone grid pinch zoom (Photos tab) | Display-link stage: per-frame settle spring and crossfade | Per-gesture-event tracking. On release, a system spring (`UIViewPropertyAnimator` with initial velocity, or `CASpringAnimation` on the stage layers) carries pitch, focus and face opacity. Probe the interactive collection-layout transition as an alternative. | Open; settled look must not change |
 | Mac grid zoom (Library, Folders, History) | Display-link settle and crossfade | Magnify events tracked per event; release goes to a Core Animation spring | Open |
-| Mac viewer open/close flight | `MacFlightDriver` sets layer frames per frame | Core Animation group (bounds, position, cornerRadius, contentsRect) retargeted to the current tile | Open |
+| Mac level and viewer flights | One Core Animation group (bounds, position, cornerRadius, opacity keyframes); a moved destination is absorbed by an additive animation | — | Conforms |
 | iPad timeline mode morph | Display-link `transitionProgress` | `setCollectionViewLayout(_:animated:)` or an interactive transition finished by the system | Open |
 | Drag-select edge autoscroll | Display link while the finger is held | — | Allowed exception |
 | Scroll benchmarks | Display link behind a launch argument | Test-only; must not ship | Test hook |

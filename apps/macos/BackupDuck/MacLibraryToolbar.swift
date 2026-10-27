@@ -256,14 +256,16 @@ struct MacCoverFlightSource {
 
 /// The matched photo flies between levels on a Core Animation layer above the
 /// window content. It never touches SwiftUI state, so the flight cannot cause
-/// a view update in the middle of the level transition.
+/// a view update in the middle of the level transition. The render server runs
+/// the whole flight; app code only describes it.
 @MainActor enum MacCoverFlight {
   private static var current: MacFlightDriver?
   /// Flies the focus from its rectangle on the old level to its rectangle on
   /// the new one, clipped to the content area so it never passes over the
-  /// toolbar. The destination is re-read on every frame: the level being
-  /// revealed may still settle its scroll position, and a flight aimed at a
-  /// stale rectangle lands beside the photo and then jumps.
+  /// toolbar. The level being revealed may still settle its scroll position
+  /// after the first layout pass, so the destination is read again after that
+  /// pass and halfway through; a moved destination is absorbed by an additive
+  /// animation instead of a jump at landing.
   static func fly(from source: MacCoverFlightSource, to target: @escaping () -> MacCoverFlightSource?,
     duration: CFTimeInterval = 0.3) {
     guard let window = source.window, let frame = window.contentView?.superview, let first = target() else { return }
@@ -276,62 +278,108 @@ struct MacCoverFlightSource {
 @MainActor private final class MacFlightDriver: NSObject {
   private let host: MacFlightHost
   private let front = CALayer(), back = CALayer()
-  private let source: MacCoverFlightSource
   private let target: () -> MacCoverFlightSource?
-  private var last: MacCoverFlightSource
-  private let start = CACurrentMediaTime()
+  private var landing: CGRect
+  private let begin: CFTimeInterval
   private let duration: CFTimeInterval
-  private let crossfade: Bool
-  private var link: CADisplayLink?
+  private var finished = false
+  /// Quartic ease-out: fast departure, long soft arrival.
+  private static let curve = CAMediaTimingFunction(controlPoints: 0.25, 1, 0.5, 1)
+  /// After landing the destination shows the same pixels underneath; the
+  /// flight hands over during this share of the duration.
+  private static let handover = 0.3
   init(source: MacCoverFlightSource, target: @escaping () -> MacCoverFlightSource?, first: MacCoverFlightSource,
     frame: NSView, window: NSWindow, duration: CFTimeInterval) {
-    self.source = source; self.target = target; last = first; self.duration = duration
-    crossfade = first.assetID != source.assetID && first.image != nil
+    self.target = target; self.duration = duration
+    let crossfade = first.assetID != source.assetID && first.image != nil
     host = MacFlightHost(frame: frame.convert(first.clip, from: nil))
+    landing = .zero
+    begin = CACurrentMediaTime()
     super.init()
     host.wantsLayer = true
     host.layer?.masksToBounds = true
     frame.addSubview(host, positioned: .above, relativeTo: nil)
+    let start = host.convert(source.rect, from: nil), end = host.convert(first.rect, from: nil)
+    landing = end
     for (layer, image) in [(back, crossfade ? first.image : nil), (front, source.image ?? first.image)] {
       layer.contents = image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
       layer.contentsGravity = .resizeAspectFill; layer.masksToBounds = true
       layer.contentsScale = window.backingScaleFactor
-      layer.actions = ["bounds": NSNull(), "position": NSNull(), "cornerRadius": NSNull(), "opacity": NSNull(), "frame": NSNull()]
       host.layer?.addSublayer(layer)
     }
-    back.opacity = 0
-    step(0)
-    let link = host.displayLink(target: self, selector: #selector(tick(_:)))
-    link.add(to: .main, forMode: .common)
-    self.link = link
-  }
-  @objc private func tick(_ link: CADisplayLink) {
-    let t = (CACurrentMediaTime() - start) / duration
-    if let next = target() { last = next }
-    if t >= 1.35 { finish(); return }
-    step(t)
-  }
-  private func step(_ t: Double) {
-    let x = min(1, max(0, t))
-    let p = CGFloat(1 - pow(1 - x, 4))
-    let a = host.convert(source.rect, from: nil), b = host.convert(last.rect, from: nil)
-    let rect = CGRect(x: a.minX + (b.minX - a.minX) * p, y: a.minY + (b.minY - a.minY) * p,
-      width: a.width + (b.width - a.width) * p, height: a.height + (b.height - a.height) * p)
-    let radius = source.radius + (last.radius - source.radius) * p
-    // After landing the destination shows the same pixels underneath; the
-    // flight hands over in the last few frames.
-    let handover = Float(max(0, min(1, (t - 1) / 0.3)))
+    let total = duration * (1 + Self.handover), landed = NSNumber(value: 1 / (1 + Self.handover))
     CATransaction.begin(); CATransaction.setDisableActions(true)
-    for layer in [front, back] { layer.frame = rect; layer.cornerRadius = radius }
-    if crossfade {
-      front.opacity = Float(1 - min(1, x / 0.8)); back.opacity = (1 - handover) * Float(min(1, x / 0.5))
-    } else {
-      front.opacity = 1 - handover
+    CATransaction.setCompletionBlock { [weak self] in self?.finish() }
+    for layer in [front, back] {
+      // Model values are the destination; the animations run from the source.
+      layer.bounds = CGRect(origin: .zero, size: end.size)
+      layer.position = CGPoint(x: end.midX, y: end.midY)
+      layer.cornerRadius = first.radius
+      layer.opacity = 0
+      let motion = CAAnimationGroup()
+      motion.animations = [
+        Self.basic("bounds.size", from: NSValue(size: start.size), to: NSValue(size: end.size)),
+        Self.basic("position", from: NSValue(point: CGPoint(x: start.midX, y: start.midY)),
+          to: NSValue(point: CGPoint(x: end.midX, y: end.midY))),
+        Self.basic("cornerRadius", from: NSNumber(value: Double(source.radius)), to: NSNumber(value: Double(first.radius))),
+      ]
+      motion.duration = duration
+      motion.timingFunction = Self.curve
+      layer.add(motion, forKey: "flight")
+      let fade = CAKeyframeAnimation(keyPath: "opacity")
+      fade.duration = total
+      fade.calculationMode = .linear
+      if layer === front {
+        // The departing pixels give way to the destination's own pixels.
+        fade.values = crossfade ? [1, 0, 0] : [1, 1, 0]
+        fade.keyTimes = crossfade ? [0, NSNumber(value: 0.8 / (1 + Self.handover)), 1] : [0, landed, 1]
+      } else {
+        fade.values = crossfade ? [0, 1, 1, 0] : [0, 0]
+        fade.keyTimes = crossfade ? [0, NSNumber(value: 0.5 / (1 + Self.handover)), landed, 1] : [0, 1]
+      }
+      layer.add(fade, forKey: "fade")
+    }
+    CATransaction.commit()
+    DispatchQueue.main.async { [weak self] in self?.retarget() }
+    DispatchQueue.main.asyncAfter(deadline: .now() + duration * 0.5) { [weak self] in self?.retarget() }
+  }
+  private static func basic(_ key: String, from: Any, to: Any) -> CABasicAnimation {
+    let animation = CABasicAnimation(keyPath: key)
+    animation.fromValue = from; animation.toValue = to
+    return animation
+  }
+  /// Moves the landing to the destination's current rectangle. The running
+  /// flight still ends at the old rectangle, so an additive animation grows
+  /// the old-to-new offset from zero over the remaining flight: the photo bends
+  /// towards the new rectangle and lands on the new model values, without a jump.
+  private func retarget() {
+    guard !finished, let next = target() else { return }
+    let end = host.convert(next.rect, from: nil)
+    let dx = end.midX - landing.midX, dy = end.midY - landing.midY
+    let dw = end.width - landing.width, dh = end.height - landing.height
+    guard abs(dx) > 0.25 || abs(dy) > 0.25 || abs(dw) > 0.25 || abs(dh) > 0.25 else { return }
+    landing = end
+    let remaining = duration - (CACurrentMediaTime() - begin)
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    for layer in [front, back] {
+      layer.bounds = CGRect(origin: .zero, size: end.size)
+      layer.position = CGPoint(x: end.midX, y: end.midY)
+      guard remaining > 0.016 else { continue }
+      let correction = CAAnimationGroup()
+      correction.animations = [
+        Self.basic("bounds.size", from: NSValue(size: .zero), to: NSValue(size: CGSize(width: dw, height: dh))),
+        Self.basic("position", from: NSValue(point: .zero), to: NSValue(point: CGPoint(x: dx, y: dy))),
+      ]
+      correction.animations?.forEach { ($0 as? CAPropertyAnimation)?.isAdditive = true }
+      correction.duration = remaining
+      correction.timingFunction = Self.curve
+      layer.add(correction, forKey: "retarget-\(CACurrentMediaTime())")
     }
     CATransaction.commit()
   }
   func finish() {
-    link?.invalidate(); link = nil
+    guard !finished else { return }
+    finished = true
     host.removeFromSuperview()
     MacCoverFlight.ended(self)
   }
