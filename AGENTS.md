@@ -16,7 +16,8 @@ See `docs/architecture.md` and `docs/sender-host-contract.md`.
 
 Read `design/README.md`, `design/platform-expression.md`,
 `design/visual-language.md`, `design/interaction.md`, `design/ui-content-rules.md`
-and `design/backupduck-v1/motion.md` before UI work.
+`design/backupduck-v1/motion.md` and `design/apple-motion-apis.md` before UI work.
+Motion uses system animation APIs only; app code never draws animation frames.
 The redesign plan and its current step are in `design/redesign-roadmap.md`.
 Existing HTML prototypes are frozen historical references; do not create or
 maintain new ones. Use current component contracts, `motion.md` and the validated

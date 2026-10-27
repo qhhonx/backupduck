@@ -17,6 +17,8 @@ behaves; there are no HTML references to maintain.
   preference density, feedback, parallel supporting text and durable submission.
 - [Motion](backupduck-v1/motion.md): timing, stable progress geometry and
   accessibility fallbacks.
+- [Apple motion APIs](apple-motion-apis.md): which system animation API
+  builds each motion; app code never draws animation frames.
 - [Tokens](backupduck-v1/tokens.json): source for generated platform colors, text
   styles, spacing, radius and motion; see [foundations](backupduck-v1/README.md).
 - [Iteration checks](iteration-checklist.md): checks required for UI changes.
