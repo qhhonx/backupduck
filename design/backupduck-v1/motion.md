@@ -75,11 +75,12 @@ spatial animation. Native bottom-bar minimization remains system-owned. The peri
 48 pt tall and centred between the compact native icon and its mirror
 position, 12 pt from each. Outgoing native labels must
 be invisible before period labels appear; expansion applies the same rule in
-reverse. UIKit keeps outgoing labels opaque in its hierarchy until the whole
-morph ends, so the entrance starts when the compact icon's presentation reaches
-its destination frame (within 2 pt): the capsule rises 14 pt into place while
-its glass materializes (0.3 s spring, no bounce; Reduce Motion: 0.2 s, no rise).
-Expansion removes it at once, before the expanding platter can pass beneath it. Navigation actions retain native
+reverse. The bar's morph event (KVO, see `design/iphone-calendar-grid.md`)
+starts the entrance 130 ms later, once the platter has formed its circle: the
+capsule rises 14 pt into place while its glass materializes (0.3 s spring, no
+bounce; Reduce Motion: 0.2 s, no rise). Expansion dematerializes it within
+80 ms, before the expanding platter can pass beneath it. Nothing samples
+presentation frames. Navigation actions retain native
 sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
