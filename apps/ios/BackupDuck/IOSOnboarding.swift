@@ -269,6 +269,7 @@ struct IOSOnboarding: View {
           // A video becomes a transfer job only after its original is
           // exported; until then the item being prepared is the first photo.
           sourceID: firstJob?.asset.source_id ?? preparingFirst,
+          saved: savedSources,
           senderName: "iPhone",
           receiverName: "Pixel",
           landed: landed
@@ -410,6 +411,12 @@ struct IOSOnboarding: View {
   private var firstJob: BackupJob? {
     model.jobs.filter { $0.receiverID == nil || $0.receiverID == progress.record?.receiver }
       .min { $0.id < $1.id }
+  }
+  /// Photos the Pixel has saved to its Photos for this receiver, in send order.
+  private var savedSources: [String] {
+    model.jobs.filter { ($0.receiverID == nil || $0.receiverID == progress.record?.receiver)
+      && $0.state == "received" && $0.processing == "complete" }
+      .sorted { $0.id < $1.id }.map(\.asset.source_id)
   }
   private func checkLanded() {
     guard step == .first, !landed, model.ready,

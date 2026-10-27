@@ -1,0 +1,502 @@
+{
+  "id": "onboarding.first-photo-stream",
+  "page": "onboarding",
+  "step": "first",
+  "ios_only": true,
+  "extends": "onboarding.first",
+  "title": "First photo, then later saved photos flying one at a time",
+  "core": {
+    "jobs": [
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-0",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0001.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "running",
+            "confirmed_bytes": 0,
+            "error_code": null
+          }
+        ]
+      },
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-0",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0001.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          }
+        ]
+      },
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-0",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0001.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 2,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-1",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0002.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 3,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-2",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0003.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          }
+        ]
+      },
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-0",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0001.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 2,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-1",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0002.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 3,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-2",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0003.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 4,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-3",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0004.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          }
+        ]
+      },
+      {
+        "value": [
+          {
+            "id": 1,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-0",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0001.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 2,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-1",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0002.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 3,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-2",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0003.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 4,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-3",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0004.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 5,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-4",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0005.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 6,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-5",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0006.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 7,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-6",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0007.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 8,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-7",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0008.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 9,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-8",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0009.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          },
+          {
+            "id": 10,
+            "receiver_id": "catalog-pixel",
+            "asset": {
+              "kind": "photo",
+              "source_id": "catalog-library-30",
+              "revision": "1",
+              "resources": [
+                {
+                  "filename": "IMG_0010.JPG",
+                  "size": 3400000
+                }
+              ]
+            },
+            "state": "received",
+            "confirmed_bytes": 3400000,
+            "error_code": null,
+            "processing": "complete"
+          }
+        ]
+      }
+    ],
+    "sender_revision": [
+      {
+        "value": 1
+      },
+      {
+        "value": 1
+      },
+      {
+        "value": 2
+      },
+      {
+        "value": 3,
+        "delay": 3
+      },
+      {
+        "value": 4,
+        "delay": 2
+      },
+      {
+        "value": 5,
+        "delay": 1
+      }
+    ],
+    "backup_summary": [
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 10,
+          "received": 0,
+          "published": 0,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 10,
+          "running": 1,
+          "paused": 0,
+          "confirmed_bytes": 0
+        }
+      },
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 10,
+          "received": 1,
+          "published": 1,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 9,
+          "running": 1,
+          "paused": 0,
+          "confirmed_bytes": 3400000
+        },
+        "delay": 2
+      },
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 10,
+          "received": 3,
+          "published": 3,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 7,
+          "running": 1,
+          "paused": 0,
+          "confirmed_bytes": 10200000
+        }
+      },
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 10,
+          "received": 4,
+          "published": 4,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 6,
+          "running": 1,
+          "paused": 0,
+          "confirmed_bytes": 13600000
+        }
+      },
+      {
+        "value": {
+          "waiting_reason": null,
+          "next_retry_at": null,
+          "total": 10,
+          "received": 10,
+          "published": 10,
+          "publication_failed": 0,
+          "waiting": 0,
+          "failed": 0,
+          "queued": 0,
+          "running": 0,
+          "paused": 0,
+          "confirmed_bytes": 34000000
+        }
+      }
+    ]
+  },
+  "expect": [
+    "The first photo flies from its iPhone slot to the Pixel's first slot, then each later saved photo flies to the next slot, one at a time with a short pause.",
+    "Photos saved while a copy is in flight appear in place; a photo older than the visible iPhone grid enters from the top of the iPhone screen. Nothing moves without a saved photo."
+  ]
+}
