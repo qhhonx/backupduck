@@ -107,18 +107,18 @@ final class CalendarGridTests: XCTestCase {
 
   @MainActor func testMediaRingHasOneLoadingOwnerAndOnlyRealProgress() {
     let ring = MediaLoadingIndicator(frame: CGRect(x: 0,y: 0,width: 36,height: 36))
-    ring.layoutIfNeeded(); ring.update(loading: true,progress: 0,cloud: false,failure: false)
+    ring.layoutIfNeeded(); ring.update(loading: true,progress: 0,cloud: false,failure: false,identity: "photo",settled: true)
     XCTAssertFalse(ring.isHidden); XCTAssertNil(ring.accessibilityValue)
     XCTAssertFalse(ring.isUserInteractionEnabled)
-    ring.update(loading: true,progress: 0.62,cloud: false,failure: false)
+    ring.update(loading: true,progress: 0.62,cloud: false,failure: false,identity: "photo",settled: true)
     XCTAssertEqual(ring.arc.strokeEnd,0.62,accuracy: 0.001)
     XCTAssertEqual(ring.accessibilityValue,"62%")
     XCTAssertNil(ring.arc.animation(forKey: "loading.rotation"))
-    ring.update(loading: false,progress: 0,cloud: false,failure: true)
+    ring.update(loading: false,progress: 0,cloud: false,failure: true,identity: "photo",settled: true)
     XCTAssertFalse(ring.isHidden); XCTAssertTrue(ring.isUserInteractionEnabled)
     XCTAssertTrue(ring.arc.isHidden); XCTAssertFalse(ring.symbol.isHidden)
-    ring.update(loading: false,progress: 1,cloud: false,failure: false)
-    XCTAssertTrue(ring.isHidden)
+    ring.update(loading: false,progress: 1,cloud: false,failure: false,identity: "photo",settled: true)
+    XCTAssertTrue(ring.accessibilityElementsHidden, "A finished load hides the ring without removing its slot")
   }
 
   @MainActor func testNativePageExistsBeforeImageArrivalAndKeepsFlightPose() throws {
@@ -629,7 +629,9 @@ final class CalendarGridTests: XCTestCase {
     XCTAssertGreaterThan(weight, 0.1); XCTAssertLessThan(weight, 0.9)
     stage.show(5, animated: true, at: 10.6)
     XCTAssertEqual(face.opacity, weight, accuracy: 0.0001)
-    XCTAssertEqual(face.container.opacity, alpha, accuracy: 0.0001, "Reversal never reorders the blended layers")
+    let fade = try XCTUnwrap(face.container.animation(forKey: "fade") as? CAKeyframeAnimation)
+    XCTAssertEqual((fade.values?.first as? NSNumber)?.floatValue ?? -1, alpha, accuracy: 0.0001,
+      "Reversal continues from the blended composite and never reorders the layers")
     let pitch = stage.pitch
     stage.advance(to: 10.9)
     XCTAssertLessThan(face.opacity, weight, "The fade continues with no new finger input")

@@ -70,6 +70,18 @@ the newest boundary constrains shrinking content during the gesture. Release
 preserves the preview target and settles on a critically damped spring
 (omega 12.5, fitted to Photos release recordings), finishing any remaining blend
 within the settle, and adopts the native collection only when it ends.
+Fingers drive the stage per gesture event; nothing runs a frame loop. The
+crossfade is handed to Core Animation as keyframes of its own curve at each
+event (a density change, a reversal, a release, or the first tile pixels
+after a held fade), and the settle is one `CASpringAnimation` per density
+layer (same stiffness, damping and release velocity) over a layout made once
+at the target pose. A library that fits on one screen at three columns zooms
+about its top-left corner at every density, with no leading empty slot, so no
+density appears around the fingers and then travels to the top. During a
+pinch the content top follows the header actually shown: dense overviews
+have no interval line to make room for. The header's legibility backdrop and
+light title appear only while photos actually lie behind the header, and
+fade in or out over 250 ms.
 Cancellation restores the initial density; Reduce Motion adopts state without
 spatial animation. Native bottom-bar minimization remains system-owned. The period capsule is
 48 pt tall and centred between the compact native icon and its mirror

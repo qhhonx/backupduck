@@ -1066,11 +1066,14 @@ final class CalendarZoomStage: UIView {
     var columns = 5
     var assetAspect: CGFloat?
     var cloud = false
+    /// Pixels arriving are the event that can start a held crossfade.
+    var onDisplay: (() -> Void)?
     func display(_ image: UIImage?, cloud: Bool = false) {
       presentedImage = calendarPreferredImage(presentedImage, image, aspect: assetAspect)
       self.cloud = cloud
       photo.contents = presentedImage?.cgImage
       decorations?.thumbnail(hasImage: presentedImage != nil, cloud: cloud)
+      onDisplay?()
     }
     override init() {
       super.init()
@@ -1118,8 +1121,14 @@ final class CalendarZoomStage: UIView {
   var pitch: CGFloat
   var focus: CGPoint
   private var pool: [Tile] = []
-  private var link: CADisplayLink?
   private var laidOut: (CGFloat, CGPoint, CGFloat)?
+  /// A second pose whose viewport is also materialized, so a settle animated
+  /// by Core Animation never reveals a tile that was not laid out.
+  private var extraPose: (pitch: CGFloat, focus: CGPoint)?
+  /// Pending deadline for a crossfade held while its pixels load.
+  private var blendWait: DispatchWorkItem?
+  private var blendGeneration = 0, settleGeneration = 0
+  private var settleAnimated = false
   var focalFraction = CGPoint(x: 0.5, y: 0.5)
   /// Scoped to construction of one face; every displayed tile then owns its pixels.
   var seedTiles: [String: CalendarTilePresentation] = [:]
@@ -1189,20 +1198,17 @@ final class CalendarZoomStage: UIView {
   }
   required init?(coder: NSCoder) { fatalError() }
   var settling: Bool { settle != nil }
-  func start() {
-    guard link == nil else { return }
-    let display = CADisplayLink(target: self, selector: #selector(tick))
-    display.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
-    display.add(to: .main, forMode: .common)
-    link = display
-  }
+  /// Ends any settle in place. Core Animation owns all autonomous motion here:
+  /// the stage itself never runs a frame loop.
   func pause() {
-    link?.invalidate(); link = nil
+    if settleAnimated { endSettleAnimation() }
     settle = nil
   }
   func stop() {
     pause()
+    blendWait?.cancel(); blendWait = nil; blendGeneration += 1
     blend = nil
+    for face in faces.values { face.container.removeAnimation(forKey: "fade") }
     for face in faces.values { discard(face) }
     faces = [:]; faceOrder = []
   }
@@ -1239,7 +1245,11 @@ final class CalendarZoomStage: UIView {
     advanceBlend(to: now)
     if !animated {
       shownColumns = columns; blend = nil
-      for face in faces.values { face.opacity = face.columns == columns ? 1 : 0 }
+      blendWait?.cancel(); blendWait = nil; blendGeneration += 1
+      for face in faces.values {
+        face.container.removeAnimation(forKey: "fade")
+        face.opacity = face.columns == columns ? 1 : 0
+      }
       applyOpacities(); prune()
       return
     }
@@ -1256,6 +1266,7 @@ final class CalendarZoomStage: UIView {
     let remaining = larger == nil ? 1 - from[columns, default: 0] : abs(end - phase)
     blend = Blend(from: from, target: columns, larger: larger, phase: phase,
       start: now, requested: now, duration: max(0.001, full * Double(remaining)))
+    renderBlend(at: now)
   }
   private func advanceBlend(to now: CFTimeInterval) {
     guard var b = blend else { return }
@@ -1264,6 +1275,13 @@ final class CalendarZoomStage: UIView {
       return
     }
     let t = min(1, max(0, CGFloat((now - b.start) / b.duration)))
+    for (columns, weight) in weights(b, at: t) { faces[columns]?.opacity = weight }
+    if t >= 1 { blend = nil }
+    applyOpacities()
+  }
+  /// The photo mixture at blend progress `t`; a pure function of the blend.
+  private func weights(_ b: Blend, at t: CGFloat) -> [Int: CGFloat] {
+    var result: [Int: CGFloat] = [:]
     if let larger = b.larger {
       let end: CGFloat = larger == b.target ? 1 : 0
       let phase = b.phase + (end - b.phase) * t
@@ -1271,29 +1289,80 @@ final class CalendarZoomStage: UIView {
         .allSatisfy { $0 <= 5 }
       let weight = curved ? phase * phase : phase
       for face in faces.values {
-        if face.columns == larger { face.opacity = weight }
+        if face.columns == larger { result[face.columns] = weight }
         else if face.columns == b.target || b.from[face.columns, default: 0] > 0.0001 {
-          face.opacity = 1 - weight
-        } else { face.opacity = 0 }
+          result[face.columns] = 1 - weight
+        } else { result[face.columns] = 0 }
       }
     } else {
       // A fast gesture can reach a third density before the previous pair has
       // finished. Preserve its current composite as the outgoing mixture.
       for face in faces.values {
-        face.opacity = b.from[face.columns, default: 0] * (1 - t)
+        result[face.columns] = b.from[face.columns, default: 0] * (1 - t)
           + (face.columns == b.target ? t : 0)
       }
     }
-    if t >= 1 { blend = nil }
-    applyOpacities()
+    return result
+  }
+  /// Layer opacities that composite the given weights in the stable layer order.
+  private func layerOpacities(_ weights: [Int: CGFloat]) -> [Int: Float] {
+    var result: [Int: Float] = [:], above: CGFloat = 0
+    for count in faceOrder.reversed() {
+      let weight = weights[count, default: 0]
+      result[count] = Float(min(1, max(0, weight / max(0.000001, 1 - above))))
+      above += weight
+    }
+    return result
   }
   private func applyOpacities() {
-    var above: CGFloat = 0
-    for count in faceOrder.reversed() {
-      guard let face = faces[count] else { continue }
-      face.container.opacity = Float(min(1, max(0, face.opacity / max(0.000001, 1 - above))))
-      above += face.opacity
+    for (count, opacity) in layerOpacities(faces.mapValues(\.opacity)) { faces[count]?.container.opacity = opacity }
+  }
+  /// Hands the rest of the crossfade to Core Animation: the blend's own curve,
+  /// described as keyframes at this event, from the current composite to the
+  /// end. A crossfade waiting for pixels holds its composite until a tile
+  /// displays or the bound expires.
+  private func renderBlend(at now: CFTimeInterval = CACurrentMediaTime()) {
+    blendWait?.cancel(); blendWait = nil
+    blendGeneration += 1
+    let generation = blendGeneration
+    advanceBlend(to: now)
+    for face in faces.values { face.container.removeAnimation(forKey: "fade") }
+    guard let b = blend else { prune(); finishSettleIfReady(); return }
+    if let target = faces[b.target], loaded(target) < 0.8, now - b.requested < Self.pixelWait {
+      let item = DispatchWorkItem { [weak self] in self?.renderBlend() }
+      blendWait = item
+      DispatchQueue.main.asyncAfter(deadline: .now() + (Self.pixelWait - (now - b.requested)), execute: item)
+      return
     }
+    let t0 = min(1, max(0, CGFloat((now - b.start) / b.duration)))
+    let remaining = max(0.001, (1 - Double(t0)) * b.duration)
+    let samples = 24
+    var values: [Int: [NSNumber]] = [:]
+    for k in 0...samples {
+      let t = t0 + (1 - t0) * CGFloat(k) / CGFloat(samples)
+      for (count, opacity) in layerOpacities(weights(b, at: t)) { values[count, default: []].append(NSNumber(value: opacity)) }
+    }
+    CATransaction.begin()
+    CATransaction.setCompletionBlock { [weak self] in self?.blendDidFinish(generation) }
+    for face in faces.values {
+      guard let track = values[face.columns], let last = track.last else { continue }
+      let fade = CAKeyframeAnimation(keyPath: "opacity")
+      fade.values = track; fade.duration = remaining; fade.calculationMode = .linear
+      face.container.opacity = last.floatValue
+      face.container.add(fade, forKey: "fade")
+    }
+    CATransaction.commit()
+  }
+  private func blendDidFinish(_ generation: Int) {
+    guard generation == blendGeneration, let b = blend else { return }
+    advanceBlend(to: max(CACurrentMediaTime(), b.start + b.duration))
+    prune()
+    finishSettleIfReady()
+  }
+  /// A tile displayed: a crossfade held for pixels may start now.
+  private func tileDisplayed() {
+    guard blendWait != nil, let b = blend, let target = faces[b.target], loaded(target) >= 0.8 else { return }
+    renderBlend()
   }
   /// Moves the shared focus to a new screen point without moving any pixels.
   func reanchor(_ point: CGPoint) {
@@ -1312,12 +1381,13 @@ final class CalendarZoomStage: UIView {
     guard var b = blend else { return }
     let t = min(1, max(0, (now - b.start) / b.duration))
     let remaining = (1 - t) * b.duration
-    guard remaining > limit else { b.requested = now - Self.pixelWait; blend = b; return }
+    guard remaining > limit else { b.requested = now - Self.pixelWait; blend = b; renderBlend(at: now); return }
     let duration = b.duration * limit / remaining
     b.duration = duration
     b.start = now - t * duration
     b.requested = now - Self.pixelWait
     blend = b
+    renderBlend(at: now)
   }
   func setSettle(pitch target: CGFloat, focus targetFocus: CGPoint, velocity: CGFloat,
     done: @escaping () -> Void) {
@@ -1325,36 +1395,139 @@ final class CalendarZoomStage: UIView {
     let limit = abs(target - pitch) * Self.settleOmega
     settle = (CACurrentMediaTime(), pitch, focus, max(-limit, min(limit, velocity)), target,
       targetFocus, done)
+    renderSettle()
+  }
+  /// The settle's pose at elapsed time `t`: the critically damped spring that
+  /// Core Animation also runs, with the same stiffness, damping and velocity.
+  private static func pose(_ s: (start: CFTimeInterval, pitch: CGFloat, focus: CGPoint, velocity: CGFloat,
+    targetPitch: CGFloat, targetFocus: CGPoint, done: () -> Void), at t: CGFloat) -> (CGFloat, CGPoint) {
+    let w = settleOmega
+    func spring(_ x0: CGFloat, _ target: CGFloat, _ v0: CGFloat) -> CGFloat {
+      target + (x0 - target + (v0 + w * (x0 - target)) * t) * exp(-w * t)
+    }
+    return (spring(s.pitch, s.targetPitch, s.velocity),
+      CGPoint(x: spring(s.focus.x, s.targetFocus.x, 0), y: spring(s.focus.y, s.targetFocus.y, 0)))
+  }
+  /// Lays every face out once at the target pose, covering the release pose
+  /// too, and lets Core Animation spring each face from the release pose. Each
+  /// face is the target layout scaled about the target focus, which is exactly
+  /// the per-pose layout: the lattice and its gaps scale together.
+  private func renderSettle() {
+    guard let s = settle else { return }
+    settleGeneration += 1
+    let generation = settleGeneration
+    var duration: CGFloat = 0.1
+    while duration < 2 {
+      let (p, f) = Self.pose(s, at: duration)
+      if abs(p - s.targetPitch) < 0.05, hypot(f.x - s.targetFocus.x, f.y - s.targetFocus.y) < 0.25 { break }
+      duration += 1.0 / 120
+    }
+    extraPose = (s.pitch, s.focus)
+    pitch = s.targetPitch; focus = s.targetFocus
+    laidOut = nil; layoutAll()
+    extraPose = nil
+    settleAnimated = true
+    let stiffness = Self.settleOmega * Self.settleOmega, damping = 2 * Self.settleOmega
+    func spring(_ key: String, from: Any, to: Any, velocity: CGFloat) -> CASpringAnimation {
+      let animation = CASpringAnimation(keyPath: key)
+      animation.mass = 1; animation.stiffness = stiffness; animation.damping = damping
+      animation.initialVelocity = velocity
+      animation.fromValue = from; animation.toValue = to
+      animation.duration = CFTimeInterval(duration)
+      return animation
+    }
+    let travel = s.targetPitch - s.pitch
+    let velocity = abs(travel) > 0.0001 ? s.velocity / travel : 0
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    CATransaction.setCompletionBlock { [weak self] in self?.settleDidFinish(generation) }
+    for face in faces.values {
+      let grouped = face.columns >= 10 && displayedGap == 0
+      // Scale about the point that stays at the focus: the target focus in
+      // screen coordinates, or the face's own focus in mosaic coordinates.
+      let anchor = grouped ? face.focus : s.targetFocus
+      let base: CGFloat = grouped ? face.pitch : s.targetPitch
+      face.content.anchorPoint = CGPoint(x: anchor.x / max(1, face.content.bounds.width),
+        y: anchor.y / max(1, face.content.bounds.height))
+      face.content.position = s.targetFocus
+      face.content.setAffineTransform(CGAffineTransform(scaleX: s.targetPitch / base, y: s.targetPitch / base))
+      face.content.add(spring("position", from: NSValue(cgPoint: s.focus), to: NSValue(cgPoint: s.targetFocus), velocity: 0), forKey: "settle.position")
+      face.content.add(spring("transform.scale", from: s.pitch / base, to: s.targetPitch / base, velocity: velocity), forKey: "settle.scale")
+      // Period pills keep reading size; they follow their section's row.
+      if face.columns >= 10 {
+        for (i, pill) in face.pills where face.geometry.headings.indices.contains(i) {
+          let heading = face.geometry.headings[i].1
+          var track: [NSValue] = []
+          for k in 0...24 {
+            let (p, f) = Self.pose(s, at: duration * CGFloat(k) / 24)
+            let y = f.y + (heading.minY - face.focus.y) * p / face.pitch
+            track.append(NSValue(cgPoint: CGPoint(x: pill.position.x, y: y + pill.bounds.height * pill.anchorPoint.y)))
+          }
+          let move = CAKeyframeAnimation(keyPath: "position")
+          move.values = track; move.duration = CFTimeInterval(duration)
+          pill.add(move, forKey: "settle.pill")
+        }
+      }
+    }
+    CATransaction.commit()
+  }
+  /// Removes the settle animations and returns every face to its per-pose
+  /// geometry at the stage's current pitch and focus.
+  private func endSettleAnimation() {
+    settleAnimated = false
+    settleGeneration += 1
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    for face in faces.values {
+      face.content.removeAnimation(forKey: "settle.position")
+      face.content.removeAnimation(forKey: "settle.scale")
+      face.pills.values.forEach { $0.removeAnimation(forKey: "settle.pill") }
+      face.content.anchorPoint = .zero
+      face.content.setAffineTransform(.identity); face.content.position = .zero
+      face.denseCoverage = nil
+    }
+    laidOut = nil; layoutAll()
+    CATransaction.commit()
+  }
+  private var settleLanded = false
+  private func settleDidFinish(_ generation: Int) {
+    guard generation == settleGeneration, settle != nil else { return }
+    settleLanded = true
+    finishSettleIfReady()
+  }
+  /// The collection is adopted only once both the settle and the crossfade end.
+  private func finishSettleIfReady() {
+    guard settleLanded, blend == nil, let s = settle else { return }
+    settleLanded = false
+    endSettleAnimation()
+    settle = nil
+    s.done()
   }
   /// Stops an in-flight settle at its current pose, for an interrupting gesture.
-  func freeze() { settle = nil }
+  func freeze() {
+    guard let s = settle else { return }
+    let (p, f) = Self.pose(s, at: CGFloat(CACurrentMediaTime() - s.start))
+    settle = nil; settleLanded = false
+    pitch = p; focus = f
+    endSettleAnimation()
+  }
   /// Fraction of a face's visible tiles that already show pixels.
   func loaded(_ face: Face) -> CGFloat {
     guard !face.tiles.isEmpty else { return 1 }
     return CGFloat(face.tiles.values.reduce(0) { $0 + ($1.photo.contents == nil ? 0 : 1) }) / CGFloat(face.tiles.count)
   }
-  @objc private func tick() { advance(to: CACurrentMediaTime()) }
-  /// Also permits deterministic checks of held and interrupted transitions.
+  /// Evaluates the model at `now` without waiting for Core Animation, for
+  /// deterministic checks of held, interrupted and settling transitions.
   func advance(to now: CFTimeInterval) {
     advanceBlend(to: now)
-    let fading = blend != nil
     prune()
     if let s = settle {
-      let t = CGFloat(now - s.start), w = Self.settleOmega
-      func spring(_ x0: CGFloat, _ target: CGFloat, _ v0: CGFloat) -> CGFloat {
-        target + (x0 - target + (v0 + w * (x0 - target)) * t) * exp(-w * t)
+      let t = CGFloat(now - s.start)
+      let (p, f) = Self.pose(s, at: t)
+      if t > 0.1, abs(p - s.targetPitch) < 0.05, hypot(f.x - s.targetFocus.x, f.y - s.targetFocus.y) < 0.25 {
+        settleLanded = true
+        finishSettleIfReady()
       }
-      pitch = spring(s.pitch, s.targetPitch, s.velocity)
-      focus = CGPoint(x: spring(s.focus.x, s.targetFocus.x, 0), y: spring(s.focus.y, s.targetFocus.y, 0))
-      if t > 0.1, abs(pitch - s.targetPitch) < 0.05, hypot(focus.x - s.targetFocus.x, focus.y - s.targetFocus.y) < 0.25,
-        !fading
-      {
-        pitch = s.targetPitch; focus = s.targetFocus
-        layoutAll()
-        settle = nil
-        s.done()
-        return
-      }
+      return
     }
     layoutAll()
   }
@@ -1372,9 +1545,13 @@ final class CalendarZoomStage: UIView {
     let gap = displayedGap
     let delta = gap - CalendarGridGeometry.gap(columns: face.columns) * scale
     let correction = CGPoint(x: focalFraction.x * delta, y: focalFraction.y * delta)
-    let visible = CGRect(
-      x: face.focus.x - focus.x / scale, y: face.focus.y - focus.y / scale,
-      width: bounds.width / scale, height: bounds.height / scale).insetBy(dx: -4 / scale, dy: -4 / scale)
+    func viewport(_ pitch: CGFloat, _ focus: CGPoint) -> CGRect {
+      let scale = pitch / max(0.01, face.pitch)
+      return CGRect(x: face.focus.x - focus.x / scale, y: face.focus.y - focus.y / scale,
+        width: bounds.width / scale, height: bounds.height / scale).insetBy(dx: -4 / scale, dy: -4 / scale)
+    }
+    var visible = viewport(pitch, focus)
+    if let extraPose { visible = visible.union(viewport(extraPose.pitch, extraPose.focus)) }
     var keep = Set<TileKey>()
     let range = face.geometry.visible(in: visible)
     let side = face.geometry.tiles.first?.frame.width ?? face.pitch
@@ -1500,6 +1677,7 @@ final class CalendarZoomStage: UIView {
   }
   private func makeTile() -> Tile {
     let tile = Tile()
+    tile.onDisplay = { [weak self] in self?.tileDisplayed() }
     tile.actions = tileActions
     tile.photo.actions = tileActions
     tile.backgroundColor = DuckRole.mediaPlaceholderUIColor.cgColor
@@ -2153,20 +2331,34 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     } else {
       content = layout.geometry.height
     }
-    return content + grid.adjustedContentInset.top + grid.adjustedContentInset.bottom > grid.bounds.height
+    guard content + grid.adjustedContentInset.top + grid.adjustedContentInset.bottom > grid.bounds.height else { return false }
+    // Only photos actually under the header count: content resting at its top
+    // edge (a few large photos in one column) leaves the canvas behind it.
+    return !hasPosition || grid.contentOffset.y + grid.adjustedContentInset.top > 1
   }
   private var headerOverPhotos: Bool?
   func updateMediaHeader() {
     let hasMedia = photosBehindHeader
     // This runs from layout, including while scrolling: refresh the status bar only on a change.
+    let changed = headerOverPhotos != nil && headerOverPhotos != hasMedia
     if headerOverPhotos != hasMedia {
       headerOverPhotos = hasMedia
       navigationController?.setNeedsStatusBarAppearanceUpdate()
       view.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
     }
-    titleLabel.textColor = hasMedia ? DuckMedia.onMediaUIColor : DuckRole.primaryTextUIColor
-    subtitleLabel.textColor = hasMedia ? DuckMedia.onMediaSecondaryUIColor : DuckRole.secondaryTextUIColor
-    headerBackdrop.isHidden = !hasMedia || navigationController?.isNavigationBarHidden == true
+    // Photos arriving under the header (a zoom into larger tiles) fade the
+    // legibility backdrop and the title colour in, never in one frame.
+    let apply = {
+      self.titleLabel.textColor = hasMedia ? DuckMedia.onMediaUIColor : DuckRole.primaryTextUIColor
+      self.subtitleLabel.textColor = hasMedia ? DuckMedia.onMediaSecondaryUIColor : DuckRole.secondaryTextUIColor
+      self.headerBackdrop.alpha = hasMedia ? 1 : 0
+    }
+    headerBackdrop.isHidden = navigationController?.isNavigationBarHidden == true
+    if changed, view.window != nil, !UIAccessibility.isReduceMotionEnabled {
+      UIView.transition(with: titleLabel, duration: 0.25, options: [.transitionCrossDissolve, .beginFromCurrentState], animations: nil)
+      UIView.transition(with: subtitleLabel, duration: 0.25, options: [.transitionCrossDissolve, .beginFromCurrentState], animations: nil)
+      UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut], animations: apply)
+    } else { UIView.performWithoutAnimation(apply) }
     navigationController?.navigationBar.overrideUserInterfaceStyle = hasMedia ? .dark : .unspecified
     navigationController?.navigationBar.tintColor = hasMedia ? DuckMedia.onMediaUIColor : DuckRole.accentUIColor
   }
@@ -3352,6 +3544,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     /// Stop index chosen at the last release, while its settle is running.
     var target: Int?
     var finalOffset: CGFloat = 0
+    /// Content shorter than the viewport zooms about its top edge.
+    var pinTop = false
   }
   /// Fitted to Photos: about 13% of the touch-down finger distance, at least 20 pt.
   func pinchDeadZone(_ distance: CGFloat) -> CGFloat { max(20, distance * 0.13) }
@@ -3407,7 +3601,8 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     guard let stage else { return nil }
     if let face = stage.faces[count] { return face }
     let leading: Int
-    if let existing = pinchTrack.faceLeadingSlots[count] { leading = existing } else {
+    if pinchTrack.pinTop { leading = 0 }
+    else if let existing = pinchTrack.faceLeadingSlots[count] { leading = existing } else {
       let side = CalendarGridGeometry.side(width: width, columns: count)
       let column = min(count - 1, max(0,
         Int(round((stage.focus.x - side * pinchTrack.fraction.x) / stopPitch(count)))))
@@ -3415,22 +3610,22 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       pinchTrack.faceLeadingSlots[count] = leading
     }
     let g = allGeometry(count, leading: leading)
-    let focus = stageFocus(g, asset: pinchTrack.asset, fraction: pinchTrack.fraction)
+    var focus = stageFocus(g, asset: pinchTrack.asset, fraction: pinchTrack.fraction)
+    if pinchTrack.pinTop { focus = .zero }
     let scale = stage.pitch / stopPitch(count)
     let area = CGRect(x: focus.x - stage.focus.x / scale - stage.bounds.width / scale,
       y: focus.y - stage.focus.y / scale, width: stage.bounds.width * 3 / scale,
       height: stage.bounds.height / scale)
     prefetchAssets(g.visible(in: area).prefix(5000).map { assets[g.tiles[$0].asset].id })
-    return stage.addFace(
-      columns: count, geometry: g, focus: stageFocus(g, asset: pinchTrack.asset, fraction: pinchTrack.fraction),
-      pitch: stopPitch(count), opacity: 0)
+    return stage.addFace(columns: count, geometry: g, focus: focus, pitch: stopPitch(count), opacity: 0)
   }
   func beginStage(point: CGPoint?, item: Int?, distance: CGFloat?) {
     if let stage, stage.settling {
       // Interrupt the settle in place: re-anchor on the new fingers without
       // moving pixels, starting from the density adopted at the last release.
       stage.freeze()
-      let screen = point.map { CGPoint(x: $0.x, y: $0.y - grid.contentOffset.y) } ?? stage.focus
+      var screen = point.map { CGPoint(x: $0.x, y: $0.y - grid.contentOffset.y) } ?? stage.focus
+      if pinchTrack.pinTop { screen = stage.focus }
       stage.reanchor(screen)
       if let face = stage.faces[stage.shownColumns] {
         let g = face.geometry
@@ -3470,6 +3665,15 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     stopCoverPlayback()
     captureAnchor(item: item, point: point)
     guard let anchor, layout.geometry.tiles.indices.contains(anchor) else { return }
+    // A grid shorter than the viewport rests under the top inset at every
+    // density, starting at its first slot. Zoom it about its top-left corner,
+    // so no density appears around the fingers and then travels into place,
+    // and no leading empty slot opens in its first row.
+    // A library that fits on one screen at three columns is "a few photos" at
+    // every density, including a one-column view taller than the screen.
+    let insets = gridInsets(showsInterval: true)
+    let pinTop = level == .all && allGeometry(3, leading: 0).height <= grid.bounds.height - insets.top - insets.bottom
+    if pinTop { anchorPoint = CGPoint(x: 0, y: -grid.contentOffset.y); anchorFraction = .zero }
     let tile = layout.geometry.tiles[anchor]
     let count = columns
     pinchTrack = PinchTrack(
@@ -3480,6 +3684,7 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       boundaryDistance: (layout.geometry.height - anchorPoint.y - grid.contentOffset.y) / stopPitch(count),
       topDistance: (anchorPoint.y + grid.contentOffset.y) / stopPitch(count),
       headerColumns: count, faceLeadingSlots: [count: leadingSlots])
+    pinchTrack.pinTop = pinTop
     let created = CalendarZoomStage(
       frame: grid.frame, columns: count, pitch: stopPitch(count), focus: anchorPoint,
       displayScale: traitCollection.displayScale)
@@ -3522,7 +3727,6 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
       columns: count, geometry: layout.geometry,
       focus: CGPoint(x: anchorPoint.x, y: anchorPoint.y + grid.contentOffset.y), pitch: stopPitch(count),
       opacity: 1)
-    created.start()
     grid.panGestureRecognizer.isEnabled = false
     grid.accessibilityElementsHidden = true
     grid.alpha = 0
@@ -3549,11 +3753,14 @@ final class CalendarGridController: UIViewController, UICollectionViewDataSource
     // Apply the content boundary on every held pose. The focal point stays put
     // in history; shrinking into the newest edge changes the effective pivot
     // to that edge before a gap can open below the content.
-    let bottom = stage.bounds.height - gridInsets(showsInterval: true).bottom
+    // Insets follow the header actually shown: dense overviews have no
+    // interval line, so their content top must not drop to make room for one.
+    let headerInsets = gridInsets(showsInterval: pinchTrack.headerColumns <= 5)
+    let bottom = stage.bounds.height - headerInsets.bottom
     let renderedBottom = pinchTrack.startFocus.y + pinchTrack.boundaryDistance * pitch
     // Content shorter than the viewport stays pinned under the top inset
     // instead of sinking to the bottom edge and jumping back on release.
-    let top = gridInsets(showsInterval: true).top
+    let top = headerInsets.top
     let renderedTop = pinchTrack.startFocus.y - pinchTrack.topDistance * pitch
     var shift = max(0, bottom - renderedBottom)
     if renderedTop + shift > top { shift = top - renderedTop }
