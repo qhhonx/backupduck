@@ -1,7 +1,11 @@
-BackupDuck 0.4.1 lets you look inside an album before choosing it for backup.
+BackupDuck 0.5.0 is a redesign of the whole app. It needs iOS 18 or later. Update the Pixel receiver to 0.5.0 as well.
 
-Go to Backup > More settings > Specified albums. Tap a cover: it is chosen or deselected, as before. Long-press a cover and choose View Photos: the album opens in the library grid. Scroll, pinch and open photos; the circle at the top right chooses or deselects this album. Go back: the list should be at the same place, with your search and choices unchanged. Viewing an album never changes what is backed up. Try light and dark appearance and a large album.
-
-Removing the last specified album leaves nothing in scope; turn All albums on to back up the whole library again.
+Please try:
+- First run: pair with the Pixel, choose what to back up, then start or pause earlier photos on the Backup tab.
+- Photos tab: open photos from the library, Backup History and the selection review; drag down to close; swipe through many photos; check Info.
+- Select photos and back them up; the review sheet should show your selection.
+- Lock the phone during a backup to see the Live Activity.
+- Settings > Auto Backup: choose albums and media types.
+- Light and dark appearance, and larger text.
 
 Questions and feedback: Settings > Feedback group opens the Telegram tester group. Include the app version, device model, steps and error message. Do not include private photos or pairing codes.

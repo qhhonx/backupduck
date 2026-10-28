@@ -1,3 +1,57 @@
+# 0.5.0 — build 89
+
+A redesigned BackupDuck on iPhone, iPad, Mac and Pixel
+
+All three apps
+
+- Rebuild every page for ordinary users on one set of components, colours and
+  text styles, with system navigation, toolbars and sheets. Pages state what is
+  happening, the next action and its consequence once, in plain words.
+- First run on each device walks through pairing and choosing what to back up,
+  and earlier photos are offered as a separate, pausable step.
+- Help is organised by task and by problem. Diagnostics exports one report to
+  send; technical details stay there.
+- Review the Chinese and English copy together.
+
+iPhone and iPad
+
+- Photos, Backup and Settings tabs. The Backup tab shows the current state, the
+  earlier-photos card and what needs you.
+- Open any photo grid in one viewer through one transition, with drag to close,
+  continuous paging and a photo's backup facts in Info.
+- Backup History holds the recently backed-up and needs-you views.
+- Review a selection in a system sheet before backing it up.
+- A Live Activity shows backup progress, and a notification says when the
+  earlier photos are all backed up or when the Pixel needs you.
+- Album and media type choices are searchable system lists.
+
+Mac
+
+- Photo Library, Folders and Backup History share one native grid with system
+  zoom animations, steady headers and in-place mark updates.
+- Folders are rebuilt around their photos, with media-specific coverage.
+- The photo viewer and toolbars follow the system layout. Backup status is
+  available from the menu bar.
+
+Pixel receiver
+
+- Received photos are ordered by latest change, open in a paging viewer with a
+  details sheet, and carry video, Live Photo and burst marks. Videos play, and
+  photos removed from the Pixel stay browsable with a note that they left it.
+- Automatic Google Photos clean-up moves into Storage. Setup returns from
+  Accessibility settings by itself and recognises the current Google Photos
+  free-up page. It remains experimental: receipt and gallery publication do not
+  prove Google Photos cloud upload or a successful clean-up.
+
+Requirements: iOS 18 or later and macOS 15 or later (previously iOS 17 and
+macOS 14). Android requirements are unchanged.
+
+Release metadata: version 0.5.0, build 89. Application identities, signing and
+update feeds are unchanged from 0.4.1; the iPhone app adds a Live Activity
+extension (`app.backupduck.LiveActivity`). See
+[upgrade compatibility](upgrading.md). TestFlight availability is separate from
+the Mac and Android release.
+
 # 0.4.1 — build 88
 
 Backup scope albums (iPhone, iPad and Mac)
