@@ -67,13 +67,12 @@ pub fn classify(s: &Snapshot) -> Observation {
     let prefix = |id, labels: &[&str]| {
         one(id).is_some_and(|n| labels.iter().any(|p| n.text.trim().starts_with(p)))
     };
-    let confirmation = prefix(
-        "safetyTip",
-        &[
-            "These items have been safely backed up",
-            "这些内容已按照您选择的画质安全备份。",
-        ],
-    ) && prefix("free_up_button", &["Free up ", "释放 "])
+    // Google Photos rewords this tip between releases ("have been" became
+    // "are already"); the stable fact is that the items are safely backed up.
+    let confirmation = one("safetyTip").is_some_and(|n| {
+        let text = n.text.trim();
+        text.contains("safely backed up") || text.contains("安全备份")
+    }) && prefix("free_up_button", &["Free up ", "释放 "])
         && one("free_up_button")
             .is_some_and(|n| n.actionable && n.text.chars().any(|c| c.is_ascii_digit()));
     let completed = prefix(
@@ -177,6 +176,16 @@ mod tests {
     #[test]
     fn recognized_pages_are_observations_only() {
         assert_eq!(classify(&confirmation()), Observation::Confirmation);
+        // Google Photos 7.97 wording.
+        let mut reworded = confirmation();
+        for node in &mut reworded.nodes {
+            if node.id.ends_with("/safetyTip") {
+                node.text =
+                    "These items are already safely backed up in your chosen quality. Learn more"
+                        .into();
+            }
+        }
+        assert_eq!(classify(&reworded), Observation::Confirmation);
         for (entries, expected) in [
             (
                 vec![

@@ -145,6 +145,10 @@ class PhotosProbeService : AccessibilityService() {
                             // Binding also verifies the whole navigation path. It stops
                             // before release and never turns automatic cleanup on.
                             cleanup.account = candidateAccount
+                            // The setup finishes here, whether or not its page is
+                            // still open: the user already asked for this.
+                            if (cleanup.enableAfterBinding) cleanup.enabled = true
+                            cleanup.enableAfterBinding = false; cleanup.journey = ""
                             cleanup.report("bound"); updateOperation("bound", false)
                             performGlobalAction(GLOBAL_ACTION_BACK)
                             return@withLock
@@ -192,7 +196,8 @@ class PhotosProbeService : AccessibilityService() {
                     if (photosIsForeground) runCatching {
                         startActivity(Intent(this@PhotosProbeService, MainActivity::class.java)
                             .putExtra("cleanup-return", true)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                            // Back to the existing page, not a second copy of the app.
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
                     }
                 }
             }

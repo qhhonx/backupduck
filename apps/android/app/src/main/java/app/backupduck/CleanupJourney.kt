@@ -186,7 +186,9 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
                 LinearLayout.LayoutParams(-1, -2).apply { topMargin = activity.token(R.dimen.duck_space_small) })
             progress.body.addView(activity.lookButton(activity.getString(R.string.auto_cleanup_stop), LookButton.TEXT) { stop() })
             progress.setOnDismissListener {
-                if (!finishingSheet) {
+                // Only the person's own dismissal stops the setup; a sheet torn
+                // down with its page or Activity leaves the binding running.
+                if (!finishingSheet && !activity.isFinishing && page.fragment?.isRemoving != true && page.isShowing) {
                     facts.journey = ""; facts.enableAfterBinding = false; operations.stop(); facts.report("stopped"); changed()
                 }
                 sheet = null; sheetKind = ""
@@ -202,7 +204,10 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
     fun close() {
         observation.cancel()
         val restoringAccess = facts.journey == "access" && !activity.isFinishing && page.fragment?.isRemoving != true
-        if (!activity.isChangingConfigurations && !restoringAccess && facts.journey.isNotEmpty()) {
+        // A running binding is bounded and finishes the setup itself; leaving
+        // the page must not cancel it or overwrite its result.
+        val binding = facts.journey == "binding" && (running || awaitingService)
+        if (!activity.isChangingConfigurations && !restoringAccess && !binding && facts.journey.isNotEmpty()) {
             facts.journey = ""; facts.enableAfterBinding = false; operations.stop(); facts.report("interrupted")
         }
         closeSheet()
