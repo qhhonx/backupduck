@@ -55,7 +55,11 @@ fn preview_with(
         if metadata.is_file() && metadata.len() > 0 && metadata.len() <= MAX_JPEG_BYTES {
             // Touch on access for least-recently-used eviction. Cache files are
             // private, disposable; source timestamps and bytes are untouched.
-            File::open(&path)?.set_times(fs::FileTimes::new().set_modified(SystemTime::now()))?;
+            // Windows needs write access to change file times.
+            fs::OpenOptions::new()
+                .write(true)
+                .open(&path)?
+                .set_times(fs::FileTimes::new().set_modified(SystemTime::now()))?;
             return Ok(
                 json!({"status":"available","path":path,"cache_hit":true,"max_edge":LONG_EDGE}),
             );

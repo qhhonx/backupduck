@@ -1,6 +1,8 @@
 use super::*;
 use std::cell::Cell;
 
+static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 struct Fixture {
     base: PathBuf,
     root: PathBuf,
@@ -10,8 +12,9 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let base = std::env::temp_dir().join(format!(
-            "backupduck-preview-{}-{}",
+            "backupduck-preview-{}-{}-{}",
             std::process::id(),
+            SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()

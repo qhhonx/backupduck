@@ -42,7 +42,7 @@ struct FolderSourcesPage: View {
             }.font(.callout).padding(DuckSpacing.small)
           }
           if browser.loading { ProgressView("folders_counting").frame(maxWidth: .infinity, maxHeight: .infinity) }
-          else if browser.sections.allSatisfy({ $0.photos.isEmpty }) && (!browser.search.isEmpty || browser.filter != .all || browser.type != .all) {
+          else if filteredEmpty {
             MacGridFilterEmpty { browser.filter = .all; browser.type = .all; browser.search = "" }
           } else {
             MacFolderGrid(folders: folders, browser: browser, navigation: navigation, columns: browser.columns, resize: { browser.columns = $0 }, settings: settings, stop: { stopping = $0 })
@@ -124,6 +124,10 @@ struct FolderSourcesPage: View {
   /// Empty and unavailable pages show only their title (A10): there is nothing to
   /// view, filter or search, and the empty state offers Add Folder itself.
   private var hidesBrowsing: Bool { folders.loadFailed || folders.sources.isEmpty }
+  private var filteredEmpty: Bool {
+    let narrowed = !browser.search.isEmpty || browser.filter != .all || browser.type != .all
+    return narrowed && browser.sections.allSatisfy { $0.photos.isEmpty }
+  }
   private var viewPicker: some View {
     Picker("folders_show", selection: $browser.byFolder) {
       Text("folders_by_folder").tag(true)

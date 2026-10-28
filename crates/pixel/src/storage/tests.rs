@@ -2,12 +2,14 @@ use super::*;
 use backupduck_core::*;
 use backupduck_store::{retention::GalleryCopy, Receiver};
 
+static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 struct Temp(std::path::PathBuf);
 impl Temp {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "backupduck-storage-parts-{}-{}",
+            "backupduck-storage-parts-{}-{}-{}",
             std::process::id(),
+            SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
