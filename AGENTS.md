@@ -69,13 +69,38 @@ Reference research, design decisions, plans, review records, agent notes and
 handoff state live in ignored local storage, `build/internal-docs/`. Public
 `design/` states current rules, principles and contracts only: no status lines,
 approvals, dates, decision history, process narratives or version labels. When
-`build/internal-docs/agent-notes.md` exists, read it before design work and keep
-it current when you stop. Do not
+`build/internal-docs/codex-context.md` or `build/internal-docs/agent-notes.md`
+exists, read it before starting work (local environment, test devices, issue
+tracking and current state) and keep the notes current when you stop. Do not
 name reference products in tracked files; state rules and reasons in
 BackupDuck's own terms. `scripts/audit-public.py` also applies the local term
 list when it exists.
 
 ## Verification
+
+Before each commit, run the `Checks` commands (`.github/workflows/ci.yml`) for
+the areas you changed and read each command's own exit status; never judge a
+check through a truncated pipe:
+
+- Rust: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets
+  --locked -- -D warnings`, `cargo test --workspace --locked`, and the
+  `folder-source` clippy and test commands for folder or native changes.
+- Design and copy: `python3 scripts/export-design-tokens.py --check` and
+  `python3 scripts/check-design-literals.py`.
+- Every commit: `python3 scripts/audit-public.py --staged --documentation`.
+
+Gradle does not rebuild the Rust core: after a Rust change, run
+`scripts/build-android.sh` before building or installing the Android app, or the
+APK keeps the previous `libbackupduck_native.so`. Test temporary directories are
+unique per test (process ID plus a sequence), because tests run in parallel.
+
+Copy changes update English and Simplified Chinese together and follow
+`design/copy-glossary.zh.md` and `design/ui-content-rules.md`. TestFlight
+testing notes exist in both `en-US` and `zh-Hans` for iOS and Mac.
+
+Work on a branch with one fix or feature per commit. Commit messages state what
+changed and why, never review or acceptance narratives. Do not push, merge, tag
+or publish without explicit authorization.
 
 Follow `design/iteration-checklist.md`. Run affected builds and existing checks,
 then inspect active native windows for light/dark, narrow layouts, large text,
