@@ -1,7 +1,7 @@
 <resources>
     <string name="duck_exporting_report">Exporting report…</string>
-    <string name="duck_export_report_failure">The report could not be written. Choose a location and retry.</string>
+    <string name="duck_export_report_failure">The report couldn’t be written. Choose a location and retry.</string>
     <string name="duck_stop_service_intro">Stop LAN receiving? New sending requests and browser management will disconnect. Received originals and records remain; existing gallery processing continues.</string>
-    <string name="duck_update_signature">The update signing identity differs. Do not uninstall or clear storage; retain originals and records.</string>
-    <string name="duck_update_development">This validation app is updated separately. A production package cannot replace it.</string>
+    <string name="duck_update_signature">The update signing identity differs. Don’t uninstall or clear storage; retain originals and records.</string>
+    <string name="duck_update_development">This validation app is updated separately. A production package can’t replace it.</string>
 </resources>

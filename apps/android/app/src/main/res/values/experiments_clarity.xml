@@ -3,7 +3,7 @@
     <string name="discovery_available">New feature to explore</string>
     <string name="discovery_entry_label">%1$s, new feature to explore</string>
     <string name="cleanup_result_checking_result">Opening the previous cleanup result…</string>
-    <string name="cleanup_result_manual_review_required">The previous cleanup result could not be confirmed automatically. Check Google Photos, then return and choose “I checked the result”. Cleanup will not be repeated.</string>
+    <string name="cleanup_result_manual_review_required">The previous cleanup result couldn’t be confirmed automatically. Check Google Photos, then return and choose “I checked the result”. Cleanup will not be repeated.</string>
     <string name="attention_required">Needs your attention</string>
     <string name="attention_entry_label">%1$s, needs your attention</string>
 </resources>

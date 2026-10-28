@@ -38,7 +38,7 @@
     <string name="help_recovery_title">照片没有存入相册</string>
     <string name="recovery_wifi">连接同一 Wi‑Fi，确认两台设备可以互相访问，备份鸭会自动重试。</string>
     <string name="recovery_network_action">打开 Wi-Fi 设置</string>
-    <string name="recovery_address">接收端网络地址已变化，正在当前网络重新连接；已有数据仍保留。</string>
+    <string name="recovery_address">这台 Pixel 的网络地址变了，正在重新连接；已有数据仍保留。</string>
     <string name="recovery_system_limit">Android 已停止后台接收。请返回本应用后再次开始接收。</string>
     <string name="recovery_space">接收文件或生成相册副本需要更多空间，请检查可用容量和保留限制。</string>
     <string name="recovery_general">接收或相册处理遇到了问题。请查看恢复步骤；持续发生时可导出诊断。</string>
@@ -92,7 +92,7 @@
     <string name="notification_cooling">等 Pixel 降温</string>
     <string name="notification_cooling_body">降温后会自动继续。</string>
     <string name="notification_space">这台 Pixel 快满了</string>
-    <string name="notification_space_body">有空间后会继续接收。打开备份鸭看看怎么腾出空间。</string>
+    <string name="notification_space_body">有空间后会继续接收。打开备份鸭看看怎么释放空间。</string>
     <string name="notification_attention">有照片需要你处理</string>
     <string name="notification_attention_body">在备份鸭的“照片”里查看原因和办法。</string>
     <string name="pref_section_general">通用</string>
@@ -132,7 +132,7 @@
     <string name="onb_gphotos_body">照片会存进这台 Pixel 的相册。打开 Google 相册的备份，它们才会上传到云端。</string>
     <string name="onb_gphotos_open">打开 Google 相册</string>
     <string name="onb_gphotos_done">已经开启了</string>
-    <string name="onb_space_title">腾出空间</string>
+    <string name="onb_space_title">释放空间</string>
     <string name="onb_space_smart">系统智能存储</string>
     <string name="onb_space_smart_off">未开启 · 点按去设置里打开</string>
     <string name="onb_space_auto_note">自动回收（实验）需要无障碍权限，在空间不足时操作 Google 相册释放空间。</string>
@@ -155,8 +155,8 @@
     <string name="rhub_receiving">正在接收照片</string>
     <string name="rhub_receiving_from">正在接收 %1$s 的照片</string>
     <string name="rhub_caught_up">照片都已存进相册</string>
-    <string name="rhub_caught_up_note">共 %1$s 张。Google 相册打开备份后，会从这台 Pixel 上传它们。</string>
-    <string name="rhub_caught_up_note_removed">共 %1$s 张，其中 %2$s 张已不在这台 Pixel 上。</string>
+    <string name="rhub_caught_up_note">共 %1$s 项。Google 相册打开备份后，会从这台 Pixel 上传它们。</string>
+    <string name="rhub_caught_up_note_removed">共 %1$s 项，其中 %2$s 项已不在这台 Pixel 上。</string>
     <string name="rhub_space_full">空间快满了，已暂停接收</string>
     <string name="rhub_space_full_note">Google 相册备份过的照片可以从这台 Pixel 上移除，它们仍在 Google 相册云端。有空间后会自动继续。</string>
     <string name="rhub_free_reading">剩余 %1$s</string>
@@ -173,28 +173,28 @@
     <string name="rhub_loading">正在加载…</string>
     <string name="rhub_recent">最近收到</string>
     <plurals name="rhub_remaining">
-        <item quantity="one">还剩 %d 张</item>
-        <item quantity="other">还剩 %d 张</item>
+        <item quantity="one">还剩 %d 项</item>
+        <item quantity="other">还剩 %d 项</item>
     </plurals>
     <!-- Received photos and photo detail (design/records.md), proposed design. -->
     <string name="photos_scope_summary">%1$s\n%2$s</string>
     <plurals name="photos_scope">
-        <item quantity="other">%1$s 张照片</item>
+        <item quantity="other">%1$s 项</item>
     </plurals>
     <plurals name="photos_scope_from">
-        <item quantity="other">来自 %2$s 的 %1$s 张照片</item>
+        <item quantity="other">来自 %2$s 的 %1$s 项</item>
     </plurals>
     <!-- U+2060 keeps the two-character Photos term together when this summary wraps. -->
     <string name="photos_scope_all_saved">都已存进 Pixel 相⁠册</string>
-    <string name="photos_scope_saved">%1$s 张已存进 Pixel 相⁠册</string>
-    <string name="photos_scope_removed">%1$s 张已不在这台 Pixel 上</string>
+    <string name="photos_scope_saved">%1$s 项已存进 Pixel 相⁠册</string>
+    <string name="photos_scope_removed">%1$s 项已不在这台 Pixel 上</string>
     <string name="photos_needs_you">需要你处理</string>
     <plurals name="photos_cause_live">
         <item quantity="other">%1$s 张实况照片不能原样存进 Pixel 相册</item>
     </plurals>
     <string name="photos_cause_live_note">已安全保存在 Pixel 上。</string>
     <plurals name="photos_cause_not_saved">
-        <item quantity="other">%1$s 张照片没能存进 Pixel 相册</item>
+        <item quantity="other">%1$s 项没能存进 Pixel 相册</item>
     </plurals>
     <string name="photos_cause_not_saved_note">存进相册之前，照片仍保存在 Pixel 上。</string>
     <string name="photos_view">查看</string>
@@ -277,7 +277,7 @@
     <string name="pref_storage_free">还剩 %1$s</string>
     <string name="pref_storage_cleanup_on">自动回收已开启</string>
     <string name="pref_storage_cleanup_off">自动回收未开启</string>
-    <string name="storage_automatic">腾出空间</string>
+    <string name="storage_automatic">释放空间</string>
     <string name="storage_cleanup">自动回收（实验）</string>
     <string name="storage_cleanup_note">空间不够时自动释放</string>
     <string name="storage_relay">存进相册后释放空间</string>
@@ -308,7 +308,7 @@
     <string name="onb_space_experiment">实验</string>
     <string name="onb_step_of">第 %1$d 步，共 3 步</string>
     <plurals name="rhub_received_some">
-        <item quantity="other">都已收到，%1$s 张没能存进相册</item>
+        <item quantity="other">都已收到，%1$s 项没能存进相册</item>
     </plurals>
     <plurals name="pref_status_devices">
         <item quantity="other">连着 %1$d 台设备</item>
@@ -372,9 +372,9 @@
     <string name="cleanup_waking_note">准备释放空间。如果手机锁着，请先解锁。</string>
     <plurals name="photos_scope_pending"><item quantity="other">%1$d 项正在接收或存进相册</item></plurals>
     <string name="pref_version">版本</string>
-    <string name="onb_space_smart_lead_unknown">系统智能存储会自动移除已备份到 Google 相册的照片，腾出空间。当前状态无法读取。</string>
+    <string name="onb_space_smart_lead_unknown">系统智能存储会自动移除已备份到 Google 相册的照片，释放空间。当前状态无法读取。</string>
     <string name="storage_relay_footnote">照片仍在 Pixel 相册里。</string>
-    <string name="onb_space_smart_lead">系统智能存储会自动移除已备份到 Google 相册的照片，腾出空间。</string>
+    <string name="onb_space_smart_lead">系统智能存储会自动移除已备份到 Google 相册的照片，释放空间。</string>
     <string name="receiver_pause_failed">没能暂停接收</string>
     <string name="receiver_resume_failed">没能继续接收</string>
     <string name="cleanup_waking_title">正在打开 Google 相册</string>
