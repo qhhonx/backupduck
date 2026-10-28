@@ -131,10 +131,15 @@ def main():
         mac = cargo_notices('aarch64-apple-darwin', 'backupduck-native/folder-source')
         outputs[RESOURCES / 'ThirdPartyNotices-mac.txt'] = mac
         sparkle = ROOT / 'build/dependencies/sparkle'
-        import plistlib
-        version = plistlib.loads((sparkle / 'Sparkle.framework/Resources/Info.plist').read_bytes())['CFBundleShortVersionString']
-        outputs[RESOURCES / 'ThirdPartyNotices-mac-sparkle.txt'] = mac + [dict(name='Sparkle', version=version,
-            license='Sparkle bundled third-party notices', texts=[(sparkle / 'LICENSE').read_text()])]
+        sparkle_info = sparkle / 'Sparkle.framework/Resources/Info.plist'
+        # The Mac App Store build never fetches Sparkle and does not ship its notices.
+        if sparkle_info.exists():
+            import plistlib
+            version = plistlib.loads(sparkle_info.read_bytes())['CFBundleShortVersionString']
+            outputs[RESOURCES / 'ThirdPartyNotices-mac-sparkle.txt'] = mac + [dict(name='Sparkle', version=version,
+                license='Sparkle bundled third-party notices', texts=[(sparkle / 'LICENSE').read_text()])]
+        elif not args.check:
+            raise SystemExit('Run scripts/fetch-sparkle.sh before regenerating the Mac notices.')
     if args.platform in ('all', 'android'):
         outputs[ROOT / 'apps/android/app/src/main/assets/third-party-notices.txt'] = (
             cargo_notices('aarch64-linux-android', '') + android_notices(args.android_input))
