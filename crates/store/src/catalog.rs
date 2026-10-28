@@ -285,6 +285,7 @@ impl Catalog {
             false,
         )
     }
+    #[allow(clippy::too_many_arguments)]
     fn page_internal(
         &self,
         before: Option<i64>,

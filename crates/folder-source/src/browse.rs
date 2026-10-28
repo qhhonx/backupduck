@@ -229,6 +229,7 @@ impl Index {
         })?;
         Ok(facts)
     }
+    #[allow(clippy::too_many_arguments)]
     pub fn browse(
         &self,
         source: Option<&str>,

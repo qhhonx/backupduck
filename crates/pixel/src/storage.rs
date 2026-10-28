@@ -30,11 +30,14 @@ fn add(total: &mut u64, bytes: u64) -> Result<()> {
 /// `root` is the native receiver root (its catalog is in `store/`). Does not
 /// open a Receiver, reconcile files, acquire its writer lock or change policy.
 pub fn breakdown(root: &Path) -> Result<StorageBreakdown> {
-    let mut result = StorageBreakdown::default();
-    result.free_bytes = match fs::metadata(root) {
+    let free_bytes = match fs::metadata(root) {
         Ok(_) => Some(fs2::available_space(root)?),
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.into()),
+    };
+    let mut result = StorageBreakdown {
+        free_bytes,
+        ..Default::default()
     };
     let store = root.join("store");
     let mut files = BTreeMap::new();

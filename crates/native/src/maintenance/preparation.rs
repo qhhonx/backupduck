@@ -268,7 +268,7 @@ mod tests {
             std::env::temp_dir().join(format!("source-backoff-{}-{}", std::process::id(), now()));
         let path = &dir;
         {
-            let m = Maintenance::open(&path).unwrap();
+            let m = Maintenance::open(path).unwrap();
             m.register_preparations(&[request("retry", "asset", 1)])
                 .unwrap();
             m.source_result_with_error("target", "retry", false, Some("network"))
@@ -297,7 +297,7 @@ mod tests {
                 backupduck_sender::LibraryTileState::Sending
             );
         }
-        let m = Maintenance::open(&path).unwrap();
+        let m = Maintenance::open(path).unwrap();
         m.conn
             .execute("UPDATE pending_sources SET retry_at=0", [])
             .unwrap();
