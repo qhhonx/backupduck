@@ -97,7 +97,7 @@ struct FolderSourcesPage: View {
       larger: { browser.columns = MacLibraryDensity.step(browser.columns, by: -1) }, canShrink: browser.columns < 9, canGrow: browser.columns > 3) : nil)
     .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
-    .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
+    .alert("selection_backup_failed_title", isPresented: backupFailed) {
       Button("settings_done") { backupAction.error = nil }
     } message: { Text(backupAction.error ?? "") }
     .task {
@@ -107,7 +107,7 @@ struct FolderSourcesPage: View {
         openInitialSheet()
       }
     }
-    .task(id: "\(folders.sources.map(\.id).joined(separator: ","))|\(browser.key)|\(folders.indexRevision)|\(backup.queueRevision)|\(folders.revision)|\(backup.pairing?.receiverID ?? "")") {
+    .task(id: reloadKey) {
       if !browser.search.isEmpty { try? await Task.sleep(for: .milliseconds(200)); if Task.isCancelled { return } }
       await folders.refreshFacts(); await browser.reload(folders)
     }
@@ -124,6 +124,16 @@ struct FolderSourcesPage: View {
   /// Empty and unavailable pages show only their title (A10): there is nothing to
   /// view, filter or search, and the empty state offers Add Folder itself.
   private var hidesBrowsing: Bool { folders.loadFailed || folders.sources.isEmpty }
+  private var backupFailed: Binding<Bool> {
+    Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })
+  }
+  /// Reloads the grid when the sources, filters, index, queue or receiver change.
+  private var reloadKey: String {
+    let sources = folders.sources.map(\.id).joined(separator: ",")
+    let receiver = backup.pairing?.receiverID ?? ""
+    return [sources, "\(browser.key)", "\(folders.indexRevision)", "\(backup.queueRevision)",
+            "\(folders.revision)", receiver].joined(separator: "|")
+  }
   private var filteredEmpty: Bool {
     let narrowed = !browser.search.isEmpty || browser.filter != .all || browser.type != .all
     return narrowed && browser.sections.allSatisfy { $0.photos.isEmpty }

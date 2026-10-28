@@ -25,7 +25,7 @@ cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
 xcrun swift -module-cache-path build/SwiftModuleCache-mac scripts/export-menu-bar-icon.swift
 cp apps/apple/Resources/DuckMenuBar.pdf "$app/Contents/Resources/"
 xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \
- -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos14.0 -parse-as-library \
+ -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos15.0 -parse-as-library \
  -debug-prefix-map "$PWD=/backupduck" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
  -import-objc-header crates/native/include/backupduck.h \
  apps/apple/Shared/*.swift apps/macos/BackupDuck/*.swift target/aarch64-apple-darwin/release/libbackupduck_native.a \
