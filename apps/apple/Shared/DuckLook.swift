@@ -325,13 +325,18 @@ struct DuckEarlierPhotosCard: View {
       return Text(String(format: NSLocalizedString("hub_earlier_saved_progress", comment: ""), published.formatted(), history.checked.formatted()))
     }
     if history.state == "scanned" { return Text("hub_earlier_waiting_confirmation") }
+    if !paused, history.checked > 0 {
+      return Text(String(format: NSLocalizedString("hub_earlier_counted", comment: ""), history.checked.formatted()))
+    }
     return Text(paused ? "hub_earlier_paused" : "hub_earlier_counting")
   }
   var body: some View {
     DuckStateCard(symbol: history.isSaved ? "checkmark.circle.fill" : "clock.arrow.circlepath",
       tone: history.isSaved ? DuckRole.saved : DuckRole.accent,
       title: Text(notStarted ? "hub_earlier_not_started" : history.isSaved ? "hub_earlier_done" : "hub_earlier"), note: history.isSaved ? nil : note,
-      progress: progress, reservesProgress: true, trailing: {
+      // Room for the bar only once there is one to show; while counting the
+      // card keeps the same height as the other state cards.
+      progress: progress, reservesProgress: history.state == "scanned" && !history.isSaved, trailing: {
         #if os(macOS)
         scanControl
         #endif

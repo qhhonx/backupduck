@@ -1186,6 +1186,7 @@
 "hub_earlier_saved_progress" = "Saved to the Pixel’s Photos: %@ of %@ items";
 
 "hub_earlier_counting" = "Counting earlier photos…";
+"hub_earlier_counted" = "Counting earlier photos: %@ so far";
 
 "hub_earlier_paused" = "Paused";
 

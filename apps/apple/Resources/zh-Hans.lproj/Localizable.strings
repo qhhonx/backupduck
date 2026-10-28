@@ -1186,6 +1186,7 @@
 "hub_earlier_saved_progress" = "已存进 Pixel 相册 %@ / %@ 项";
 
 "hub_earlier_counting" = "正在清点以前的照片…";
+"hub_earlier_counted" = "正在清点以前的照片，已清点 %@ 张";
 
 "hub_earlier_paused" = "已暂停";
 
