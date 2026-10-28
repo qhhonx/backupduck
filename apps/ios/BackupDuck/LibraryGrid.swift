@@ -1266,8 +1266,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     interaction.context.updateInteractiveTransition(progress)
   }
   /// Release carries the finger's velocity into one spring, to the tile or back.
-  func endInteractive(commit: Bool, velocity: CGFloat) {
-    guard let interaction else { return }
+  /// False when no dismissal was running, so the viewer restores itself.
+  @discardableResult func endInteractive(commit: Bool, velocity: CGFloat) -> Bool {
+    guard let interaction else { drag = nil; return false }
     self.interaction = nil; drag = nil
     let animation = animator(velocity: velocity)
     animation.addAnimations {
@@ -1299,6 +1300,7 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
       }
     }
     animation.startAnimation()
+    return true
   }
   nonisolated func animateTransition(using context: UIViewControllerContextTransitioning) {
     MainActor.assumeIsolated { presenting ? open(context) : close(context) }
@@ -2021,6 +2023,12 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     case .began:
       animator?.stopAnimation(true); interruptInformation()
       startInfo = infoHeight; verticalKind = infoHeight > 0 || velocity.y < 0 ? 2 : 1
+      // A drag while a presentation is still settling cannot dismiss; it is
+      // ignored rather than leaving the viewer waiting for a dismissal.
+      if verticalKind == 1, usesTransition, navigationController?.transitionCoordinator != nil
+        || presentingViewController?.transitionCoordinator != nil || presentedViewController != nil {
+        verticalKind = 0; return
+      }
       if verticalKind == 1, usesTransition, let transition = (navigationController as? MediaViewerNavigationController)?.mediaTransition {
         // The drag drives the dismissal transition itself; the grid shows
         // through it in proportion to the drag.
@@ -2046,7 +2054,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     case .ended, .cancelled, .failed:
       if verticalKind == 3 {
         let commit = gesture.state == .ended && (point.y > 12 && velocity.y > -120)
-        (navigationController as? MediaViewerNavigationController)?.mediaTransition?.endInteractive(commit: commit, velocity: velocity.y)
+        let running = (navigationController as? MediaViewerNavigationController)?.mediaTransition?.endInteractive(commit: commit, velocity: velocity.y) ?? false
+        // The dismissal never started: the viewer stays open and interactive.
+        if !running { transitionDidCancelClose() }
       } else if verticalKind == 1 {
         if gesture.state == .ended && (point.y > 12 && velocity.y > -120) { dismissViewer(velocity: velocity.y) }
         else { animate(changes: { self.mediaSurface()?.transform = .identity; self.backdrop.alpha = 1; self.layoutMedia() }) { self.pages[1].flightLocked = false; self.restoreMediaClipping() } }
@@ -2526,6 +2536,9 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     if usesTransition {
       selectionAlpha = 0; closingVelocity = velocity
       presentingViewController?.dismiss(animated: true)
+      // A dismissal UIKit declined (another transition was running) leaves
+      // the viewer open and usable instead of waiting for it.
+      if navigationController?.transitionCoordinator == nil, presentingViewController != nil { transitionDidCancelClose() }
       return
     }
     let destination = returnFrame()
