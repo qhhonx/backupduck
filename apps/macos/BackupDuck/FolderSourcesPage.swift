@@ -16,7 +16,34 @@ struct FolderSourcesPage: View {
   @State private var stopping: FolderSource?
   @StateObject private var navigation = MacLibraryNavigation()
   @State private var toolbarWidth: CGFloat = 1180
+  // The page is split into stages so each modifier chain type-checks on its own.
   var body: some View {
+    commands
+    .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
+    .alert("selection_backup_failed_title", isPresented: backupFailed) {
+      Button("settings_done") { backupAction.error = nil }
+    } message: { Text(backupAction.error ?? "") }
+    .task {
+      if !browser.configured {
+        browser.configured = true; browser.filter = folders.initialFilter
+        if folders.initialFilter != .all { browser.byFolder = false }
+        openInitialSheet()
+      }
+    }
+    .task(id: reloadKey) {
+      if !browser.search.isEmpty { try? await Task.sleep(for: .milliseconds(200)); if Task.isCancelled { return } }
+      await folders.refreshFacts(); await browser.reload(folders)
+    }
+    .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
+      if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup) { self.adding = nil } }
+    }
+    .background {
+      FolderStopAlert(source: $stopping, folders: folders) { source in
+        Task { _ = await folders.remove(source.id) }
+      }.frame(width: 0, height: 0)
+    }
+  }
+  private var content: some View {
     Group {
       if folders.loadFailed {
         ContentUnavailableView {
@@ -51,6 +78,9 @@ struct FolderSourcesPage: View {
         }
       }
     }
+  }
+  private var chrome: some View {
+    content
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .navigationSubtitle(viewerOpen || hidesBrowsing ? "" : subtitle)
     .background(MacToolbarWidth(width: $toolbarWidth))
@@ -91,34 +121,14 @@ struct FolderSourcesPage: View {
         ToolbarItem(placement: .primaryAction) { MacGridSearch(text: $browser.search, presented: $browser.searchExpanded) }
       }
     }
+  }
+  private var commands: some View {
+    chrome
     .focusedSceneValue(\.gridSearch, !viewerOpen && !hidesBrowsing ? MacGridSearchAction(open: beginSearch) : nil)
     .focusedSceneValue(\.historyZoom, !viewerOpen && !hidesBrowsing ? MacHistoryZoomActions(
       smaller: { browser.columns = min(9, MacLibraryDensity.step(browser.columns, by: 1)) },
       larger: { browser.columns = MacLibraryDensity.step(browser.columns, by: -1) }, canShrink: browser.columns < 9, canGrow: browser.columns > 3) : nil)
     .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
-    .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
-    .alert("selection_backup_failed_title", isPresented: backupFailed) {
-      Button("settings_done") { backupAction.error = nil }
-    } message: { Text(backupAction.error ?? "") }
-    .task {
-      if !browser.configured {
-        browser.configured = true; browser.filter = folders.initialFilter
-        if folders.initialFilter != .all { browser.byFolder = false }
-        openInitialSheet()
-      }
-    }
-    .task(id: reloadKey) {
-      if !browser.search.isEmpty { try? await Task.sleep(for: .milliseconds(200)); if Task.isCancelled { return } }
-      await folders.refreshFacts(); await browser.reload(folders)
-    }
-    .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
-      if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup) { self.adding = nil } }
-    }
-    .background {
-      FolderStopAlert(source: $stopping, folders: folders) { source in
-        Task { _ = await folders.remove(source.id) }
-      }.frame(width: 0, height: 0)
-    }
   }
   private func beginSearch() { withAnimation(.snappy(duration: 0.25)) { browser.searchExpanded = true } }
   /// Empty and unavailable pages show only their title (A10): there is nothing to
