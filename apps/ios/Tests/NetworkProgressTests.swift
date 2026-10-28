@@ -21,8 +21,13 @@ import Network
     // window captures. Keep this result-stream fixture independent of scene
     // activation and of the shared model's discovery/lifecycle workers.
     let model = BackupModel(root: root)
+    // A completed first run restores networking for saved trust; the hosted
+    // runner never ran first run, so stand in for it here.
+    let restoresNetwork = BackupEnvironment.restoresSenderNetwork
+    BackupEnvironment.restoresSenderNetwork = { true }
     model.pairing = target; model.importing = true; model.paused = true
     addTeardownBlock { @MainActor in
+      BackupEnvironment.restoresSenderNetwork = restoresNetwork
       model.stopProcessingEvents()
       _ = try? await Bridge.call(["op": "stop_receiver"])
       _ = try? await Bridge.call(["op": "pause_sender", "paused": previousPause])

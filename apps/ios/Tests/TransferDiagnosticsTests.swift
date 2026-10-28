@@ -39,10 +39,15 @@ import XCTest
     let previousPending = model.pendingImports
     let previousReason = model.preparationReason
     let receiver = "preparation-test-" + UUID().uuidString
+    // A completed first run restores networking for saved trust; the hosted
+    // runner never ran first run, so stand in for it here.
+    let restoresNetwork = BackupEnvironment.restoresSenderNetwork
+    BackupEnvironment.restoresSenderNetwork = { true }
     model.pairing = Pairing(version: 2, receiverID: receiver,
       endpoint: "https://127.0.0.1:1", certificate: "fixture", token: "fixture")
     defer {
       model.pairing = previous; model.storage = previousStorage
+      BackupEnvironment.restoresSenderNetwork = restoresNetwork
       model.pendingImports = previousPending; model.preparationReason = previousReason
       model.ready = previousReady
     }

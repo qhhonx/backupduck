@@ -94,14 +94,16 @@ final class CalendarGridTests: XCTestCase {
   }
 
 
-  @MainActor func testSelectedVideoDurationDoesNotOverlapSelectionAtOrdinaryDensities() {
+  @MainActor func testSelectionHidesVideoDurationAtOrdinaryDensities() {
     for side: CGFloat in [80, 132, 440] {
       let decorations = CalendarTileDecorations(frame: CGRect(x: 0,y: 0,width: side,height: side))
       decorations.duration.text = "1:23"
       decorations.selection(true, enabled: true)
       decorations.setNeedsLayout(); decorations.layoutIfNeeded()
+      XCTAssertTrue(decorations.duration.isHidden, "The selection mark replaces the duration")
+      decorations.selection(false, enabled: true)
+      decorations.setNeedsLayout(); decorations.layoutIfNeeded()
       XCTAssertFalse(decorations.duration.isHidden)
-      XCTAssertLessThanOrEqual(decorations.duration.frame.maxX,decorations.check.frame.minX-6)
     }
   }
 
@@ -718,9 +720,11 @@ final class CalendarGridTests: XCTestCase {
     cell.duration.text = "1:23"; cell.liveMark.image = UIImage(systemName: "livephoto")
     cell.selection(true, enabled: true); cell.layoutIfNeeded()
     XCTAssertEqual(badges.duration.text, cell.duration.text)
-    XCTAssertFalse(badges.duration.isHidden); XCTAssertFalse(badges.liveMark.isHidden)
+    XCTAssertEqual(badges.duration.isHidden, cell.duration.isHidden)
+    XCTAssertTrue(badges.duration.isHidden, "The selection mark replaces the duration")
+    XCTAssertFalse(badges.liveMark.isHidden)
     XCTAssertFalse(badges.check.isHidden)
-    for (a, b) in [(badges.duration.frame, cell.duration.frame), (badges.liveMark.frame, cell.liveMark.frame)] {
+    for (a, b) in [(badges.liveMark.frame, cell.liveMark.frame)] {
       XCTAssertEqual(a.minX, b.minX, accuracy: 0.001); XCTAssertEqual(a.minY, b.minY, accuracy: 0.001)
       XCTAssertEqual(a.width, b.width, accuracy: 0.001); XCTAssertEqual(a.height, b.height, accuracy: 0.001)
     }
