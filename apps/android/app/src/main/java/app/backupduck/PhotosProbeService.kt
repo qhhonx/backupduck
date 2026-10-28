@@ -3,6 +3,7 @@ package app.backupduck
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
 import android.content.Intent
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import android.os.SystemClock
 import android.os.PowerManager
@@ -72,7 +73,9 @@ class PhotosProbeService : AccessibilityService() {
         cleanupJob = scope.launch {
             var screenLease: PowerManager.WakeLock? = null
             try {
-                ReceiverState.mediaOperations.withLock {
+                // Binding only reads the account on Google Photos' home page;
+                // it never waits for photos being received or saved.
+                (if (bind) Mutex() else ReceiverState.mediaOperations).withLock {
                     if (!bind) withContext(Dispatchers.IO) {
                         val receiver = NativeBridge.request(JSONObject().put("op", "receiver_status")) as JSONObject
                         if (receiver.getBoolean("running")) {

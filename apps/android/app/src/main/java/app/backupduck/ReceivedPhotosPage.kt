@@ -438,6 +438,8 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             scaleType = ImageView.ScaleType.CENTER_CROP; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         private val badge = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
+        // The media kind, as the iPhone grid shows it: Live Photo, burst or video.
+        private val kindMark = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO; visibility = View.GONE }
         private var work: Job? = null
         private var signal: CancellationSignal? = null
         private var bound: String? = null
@@ -453,6 +455,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                         marginStart = activity.token(R.dimen.duck_space_xx_small)
                     })
                 addView(badge, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, activity.dp(2), activity.dp(2)) })
+                addView(kindMark, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.TOP or Gravity.END).apply { setMargins(0, activity.dp(2), activity.dp(2), 0) })
                 isFocusable = true; isClickable = true
                 val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
                 foreground = activity.getDrawable(out.resourceId)
@@ -483,7 +486,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             val next = CancellationSignal(); signal = next
             work = images.load(item, size, size, next) { bitmap ->
                 if (bound == key) {
-                    if (bitmap != null) show(bitmap) else placeholder(image)
+                    if (bitmap != null) show(bitmap) else placeholder(image, icon = unavailableIcon(item))
                 }
             }
         }
@@ -491,10 +494,17 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
         private fun show(bitmap: Bitmap) {
             image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.showPhotoBitmap(bitmap, fade = pictured)
             image.setTag(R.id.photo_transition_ready, item?.id)
-            pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true) }
+            pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true); kind(it) }
+        }
+        /// Over a photo only; an unavailable preview already shows the kind's glyph.
+        private fun kind(item: HistoryItem) {
+            val icon = kindIcon(item)
+            kindMark.visibility = if (pictured && icon != null) View.VISIBLE else View.GONE
+            if (pictured && icon != null) { kindMark.scaleType = ImageView.ScaleType.CENTER; kindMark.setImageDrawable(PhotoGlyphs.drawable(activity, icon, 16)) }
         }
         fun mark(item: HistoryItem) {
             this.item = item
+            kind(item)
             photoMark(activity, badge, item.mark, onPhoto = pictured)
             itemView.contentDescription = activity.getString(R.string.photos_tile_description, kindLabel(activity, item), stateLabel(activity, item))
         }
@@ -611,8 +621,16 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
  * backup BackupDuck cannot see.
  */
 /** Loading is a quiet neutral tile; only an unavailable preview shows the photo glyph. */
-private fun placeholder(view: ImageView, loading: Boolean = false) = with(view.context) {
-    if (loading) view.setImageDrawable(null) else view.setImageResource(R.drawable.ic_photo)
+internal fun kindIcon(item: HistoryItem): Int? = when {
+    item.kind == "video" -> R.drawable.ic_video
+    item.kind == "motion" -> R.drawable.ic_motion
+    item.burstPrimary != null -> R.drawable.ic_burst
+    else -> null
+}
+/** What stands in for a preview this Pixel cannot decode: the item's kind, never a broken photo. */
+internal fun unavailableIcon(item: HistoryItem): Int = if (item.kind == "video") R.drawable.ic_video else R.drawable.ic_photo
+private fun placeholder(view: ImageView, loading: Boolean = false, icon: Int = R.drawable.ic_photo) = with(view.context) {
+    if (loading) view.setImageDrawable(null) else view.setImageResource(icon)
     view.imageTintList = if (loading) null else ColorStateList.valueOf(getColor(R.color.duck_m3_on_surface_variant))
     view.scaleType = ImageView.ScaleType.CENTER
     val background = view.background as? GradientDrawable ?: GradientDrawable()

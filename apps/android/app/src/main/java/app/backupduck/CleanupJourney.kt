@@ -9,7 +9,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import com.google.android.material.R as M
 
 /** Shared ordinary-user actions over the existing durable preferences and bounded service. */
@@ -20,6 +22,9 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
     private var sheet: LookSheet? = null
     private var sheetKind = ""
     private var finishingSheet = false
+    /// The system connects the accessibility service a moment after it is
+    /// turned on; returning from Settings can be quicker than that.
+    private var awaitingService = false
     private val observation = activity.lifecycleScope.launch {
         activity.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             operations.state.collect { if (page.isShowing) refresh() }
@@ -62,7 +67,7 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
         refresh()
     }
     fun refresh() {
-        if (facts.journey == "binding" && !running) {
+        if (facts.journey == "binding" && !running && !awaitingService) {
             if (facts.reason == "bound" && facts.account.isNotEmpty() && ReceiverEnvironment.cleanupAccess(activity)) {
                 if (facts.enableAfterBinding) facts.enabled = true
             } else if (facts.reason in setOf("ready", "idle")) facts.report("interrupted")
@@ -123,8 +128,20 @@ internal class CleanupJourney(private val activity: MainActivity, private val pa
         startBinding()
     }
     private fun startBinding() {
-        if (running) return
+        if (running || awaitingService) return
         facts.journey = "binding"; facts.report("ready")
+        if (!operations.state.value.connected) {
+            awaitingService = true
+            activity.lifecycleScope.launch {
+                val connected = withTimeoutOrNull(10_000) { operations.state.first { it.connected } } != null
+                awaitingService = false
+                if (!connected || !operations.start(activity, true, page.route)) {
+                    facts.journey = ""; facts.enableAfterBinding = false; facts.report("disconnected")
+                }
+                refresh()
+            }
+            refresh(); return
+        }
         if (!operations.start(activity, true, page.route)) {
             facts.journey = ""; facts.enableAfterBinding = false; facts.report("disconnected")
         }

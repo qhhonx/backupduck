@@ -431,9 +431,11 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                     if (hadPreview) afterEnter(::publish) else publish()
                     hasPreview = true
                 } else if (!hasPreview && isShowing()) {
+                    // A large glyph of the item's kind at its own size; it never
+                    // scales up into a broken-image picture in the transitions.
                     preview.scaleType = ImageView.ScaleType.CENTER
-                    preview.setImageResource(R.drawable.ic_photo)
-                    preview.imageTintList = ColorStateList.valueOf(white)
+                    preview.imageTintList = null
+                    preview.setImageDrawable(PhotoGlyphs.drawable(this, unavailableIcon(item), 56))
                     preview.contentDescription = getString(R.string.photos_preview_unavailable)
                 }
                 if (!hadPreview) preview.doOnPreDraw { ready(bitmap != null) }
