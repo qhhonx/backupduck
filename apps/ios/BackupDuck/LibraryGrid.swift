@@ -1233,6 +1233,12 @@ private final class RecordedPhotoAsset: PHAsset, PreviewSample, @unchecked Senda
     guard let navigation = context.viewController(forKey: .from), let viewer = viewer(navigation) else {
       context.completeTransition(true); return
     }
+    // The finger already lifted before UIKit started the dismissal: nothing
+    // would ever end it, and its cover would swallow every touch.
+    guard drag != nil else {
+      context.cancelInteractiveTransition(); context.completeTransition(false)
+      viewer.transitionDidCancelClose(); return
+    }
     let destination = viewer.returnFrame()
     viewer.setSourceHidden(true)
     let grid = context.viewController(forKey: .to)?.view
