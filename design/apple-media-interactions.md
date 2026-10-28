@@ -1,15 +1,5 @@
 # Apple media interaction contract
 
-**Revision status:** the HTML reference and local build 53 failed interaction
-acceptance. The following describes that implementation, not an approved
-experience. See the [native revision study](native-media-preview/README.md) and
-[source-backed requirements](native-media-preview/source-study.md) before
-continuing implementation. Custom consent exceptions, button-only thumbnails, mixed
-modal coordinators and fixed calendar easing must be reconsidered together.
-
-This contract and [interactive reference](apple-media-interactions.html) refine
-the Apple library extension. Use synthetic fixtures for public references.
-
 ## Consent and settings
 
 PhotoKit may load iCloud previews automatically within system Photos access and
@@ -22,7 +12,7 @@ speculation remains local.
 Every persistent Boolean uses the shared preference row: label on the leading
 edge and a switch on the trailing edge. Never rely on the platform's automatic
 Toggle layout inside an unconstrained card. Mac and iPhone retain their existing
-48/52 pt row minima and insets.
+41/52 pt row minima and insets.
 
 Backup scope has two summary rows: media types and albums. Both open a separate
 editor; the parent never expands an unbounded album list. Type names and icons
@@ -61,7 +51,8 @@ implement.
 iPhone uses native continuous page scrolling with a narrow gap. During a drag,
 the current and adjacent media remain visible and move with the finger. A short
 drag returns to the same page; a committed drag settles before loading the next
-neighbours. Keep at most the current page and two neighbours. Do not clear the
+neighbours. Keep at most the current page and its two adjacent native pages; prepare
+two local neighbours in each direction with bounded model retention. Do not clear the
 current poster when higher quality arrives. Zoom/pan owns horizontal movement
 above fit scale. Horizontal paging must not hijack the video timeline or Live
 Photo press-to-play. Native deceleration handles paging; do not approximate it
@@ -80,7 +71,8 @@ filename/type/dimensions, camera/exposure fields and an optional map for actual
 location. Missing EXIF is omitted. Location uses existing asset metadata and
 never asks for device-location permission; the map loads when the information panel opens. Dragging the drawer down closes it;
 a downward drag on fitted media moves only the actual media rectangle and dismisses the viewer.
-The media node remains live through the return flight. Its asset aspect ratio is
+The live media remains attached to its page while a snapshot makes the return
+flight. Its asset aspect ratio is
 stable from the initial poster through high-quality replacement; hosting safe
 areas cannot change the fitted rectangle at the transition handoff. Page identity,
 neighbour rotation and the new centre offset are adopted in one update at settle.
@@ -94,9 +86,8 @@ continuously with fractional page progress, including reversal. Direct strip
 dragging uses uniform 20 pt thumbnails at a 23 pt pitch, preserving the touched
 position while compacting. Settled thumbnails are 30 pt tall; the current width
 uses the asset aspect with bounded expansion. Page commitment must preserve the
-strip's current geometry before recentering. Still/Live Photo entry and media
-return animate the live node's uniform scale and local rectangular crop on the
-same timing owner. Video entry retains a poster cover while AVKit initializes
+strip's current geometry before recentering. Entry and media return animate a flying image or snapshot's uniform scale and
+local rectangular crop on the same timing owner. Video entry retains a poster cover while AVKit initializes
 behind it; drag and return keep the player attached. Downward scaling keeps the original grabbed point under the finger;
 after downward intent is established, horizontal and reversed vertical motion
 remain continuous until commit or cancellation. Information restores readable
@@ -105,70 +96,48 @@ controls after magnification has hidden them.
 Media pages have a synchronous native surface with asset-derived fitted bounds,
 even before a poster arrives. Seed entry from the displayed source thumbnail;
 an evicted cache must not disable the flight. A grid thumbnail is a centre crop:
-inside the full-aspect surface it occupies its true centred region (aspect fit),
+inside the native page's full-aspect surface it occupies its true centred region (aspect fit),
 never a magnified fill, so the full-aspect image that replaces it only adds the
 sides. The viewer first requests the device's small full-aspect rendition
-locally (no network; it exists even for iCloud-only originals) and entry waits at
-most five frames for it. Any full-aspect image replaces a crop, because a crop
+locally without network. Entry waits up to five frames for a full-aspect
+rendition, or up to twenty frames while no picture is available. Any full-aspect image replaces a crop, because a crop
 alone leaves empty bands, worst for panoramas whose original is still downloading. Photo, Live Photo and video content
 update inside that same surface. AVKit stays below its poster until its first
-frame is ready; loading cannot replace the flying node or reset its transform.
-Freeze the fitted layout during entry, downward drag and return, then resume
-normal zoom/layout ownership when an interaction is cancelled or settles.
+frame is ready; loading cannot replace the flying snapshot or reset its transform.
+The flying image or snapshot retains its fitted geometry while loading
+continues in the attached media page.
 
-The media's lower trailing corner owns one compact ring for loading. Render
-determinate progress only when the media provider reports it; otherwise use an
-indeterminate arc (static with Reduce Motion). Keep date/time stable and omit
-parallel header loading text, spinners and linear progress. A small local cloud
-or retry symbol replaces the ring when action is required. This does not remove
+The media's lower trailing corner owns one compact loading indicator; selected
+review places it at the leading corner beside the separate selection mark.
+On iPhone, local rendition loading retains the poster without a ring; a download
+shows determinate progress only when the media provider reports it. Keep
+date/time stable and omit parallel header loading text, spinners and linear
+progress. A small local cloud symbol offers the available cloud action; a failed
+explicit download retains the poster and exposes Retry. This does not remove
 automatic PhotoKit cloud loading and system access restrictions.
 
-Information tracking moves the photo and the panel together. Choose the open
-height from the fitted photo and a bounded top viewport, then project drag
-velocity to settle or cancel. Fade chrome continuously with panel travel.
+Information tracking moves the photo and the panel together. The open height is 54% of the viewport; project drag velocity to settle or
+cancel. Fade chrome continuously with panel travel.
 Selected-item detail disables information from both upward gestures and
 accessibility actions. Its Done action uses the same prominent circular check
 treatment as selected review. Filmstrip emphasis comes from geometry alone;
 do not draw a white selection border.
 
-Mac uses a large dark media stage, keyboard/trackpad navigation, unobtrusive edge
-arrows and an information sidebar. It shares media loading and metadata, while
+Mac uses the system window background, keyboard/trackpad navigation,
+unobtrusive edge arrows and an information sidebar. It shares media loading and metadata, while
 retaining desktop window and keyboard conventions. Paging animations move the
 media; controls stay fixed. Show real loading/recovery in a bounded overlay.
 
 ## Grid density and calendar
 
-Calendar grouping and density are related but distinct. All photos is a stable
-ungrouped view; Days and Months group every actual asset without inventing
-curated summaries. At phone width, Days starts at three columns and Months at
-seven; pinching can move through three/five/seven/nine columns. Do not make
-Months merely a renamed five-column day grid.
+The [iPhone calendar grid](iphone-calendar-grid.md) defines Years, Months and
+All, independent density stops, focal anchoring, reversal, release and native
+adoption. The [Mac Photos library](library.md#7-mac-photos-library) defines the
+Mac cover hierarchy and independent All Photos size. Both retain stable asset
+identity, bounded virtualized media work and immediate anchored adoption under
+Reduce Motion.
 
-Anchor a density change to the asset under the pinch midpoint, including its
-relative location within the tile. Interpolate tile geometry and content offset
-together on every gesture frame. Keep the anchor at its relative horizontal and vertical position while the
-fingers move. A transient horizontal translation preserves that focus; release
-restores the column edges while preserving the vertical scroll context. Content
-boundaries limit the vertical anchor. Keep assets by stable ID, suppress tiny media
-badges, and refresh high-quality targets after settling. Date headings fade
-between grouping modes; they must not abruptly shift the entire viewport.
-
-Gesture progress is linear in the finger's scale. On release, settle to the
-nearest density over 320 ms with a normalized critically damped response
-(1 - (1 + 7t) exp(-7t)). Cancellation settles over 300 ms; menu changes use
-420 ms. These are BackupDuck's reproducible parameters, not a claim to know
-proprietary Apple/Google curves from recordings. Mac layout changes retain
-the anchor principle and use the same shared release spring; trackpad magnification also updates while moving.
-Reduce Motion replaces spatial interpolation with immediate anchored adoption.
-
-## Acceptance
-
-Inspect start/middle/end frames, reversal and cancellation, not just final text.
-Check horizontal paging before and after zoom, portrait/landscape media, video
-controls, cloud availability/retry, metadata expansion, large album lists,
-Mac row edges, dates at grouping boundaries and mid-library pinch anchors.
-Use both legacy and current iOS native windows and a real Mac window. Tests and
-reference screenshots do not prove real iCloud availability or physical gestures.
+## Media and settings requirements
 
 Single-column photo cells request uncropped renditions. Their aspect-fill crop and
 viewer return flight must represent the same part of the asset; do not substitute
@@ -192,15 +161,17 @@ Progressive detail callbacks cannot replace sharper source pixels with a smaller
 rendition. Unavailable backup controls absorb their toolbar touch region, even
 when native transparent navigation would otherwise pass taps to the grid.
 Information values wrap fully; accessibility sizes place values below their keys.
-The map has a Capture Location heading and a pin with no duplicate visible title.
+The map uses a Capture Location accessibility label and a pin with no duplicate
+visible title.
 
 ### Explicit viewer downloads
 
 Opening or paging to one asset explicitly permits PhotoKit network access for
 that asset's display image, video or Live Photo. Keep the available poster on
 screen while the existing small media progress indicator reports downloading;
-replace it when the display media arrives. Adjacent-page posters and grid
-thumbnails remain local-only. A failed download retains the poster and shows
+replace it when the display media arrives. Adjacent-page posters remain
+local-only; visible grid thumbnails follow the bounded automatic preview
+network policy. A failed download retains the poster and shows
 `library_preview_icloud_failed` with Retry on both Apple hosts.
 
 An authorized library with no matches for its media filter or backup view uses

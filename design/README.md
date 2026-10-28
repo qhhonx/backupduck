@@ -1,9 +1,9 @@
 # Design system and interface contracts
 
 BackupDuck uses a shared visual language with native platform controls. This
-folder holds the redesign's principles, contracts and design tokens. The native
+folder holds the product's principles, contracts and design tokens. The native
 apps and their design catalogs are the reference for how a page looks and
-behaves; there are no HTML references to maintain.
+behaves. Design process, decisions and history are not part of the public source.
 
 ## Principles and standards
 
@@ -15,18 +15,18 @@ behaves; there are no HTML references to maintain.
 - [Visual standard](visual-language.md) and [interaction standard](interaction.md).
 - [Component and content rules](ui-content-rules.md): layout ownership,
   preference density, feedback, parallel supporting text and durable submission.
-- [Motion](backupduck-v1/motion.md): timing, stable progress geometry and
+- [Motion](foundations/motion.md): timing, stable progress geometry and
   accessibility fallbacks.
 - [Apple motion APIs](apple-motion-apis.md): which system animation API
   builds each motion; app code never draws animation frames.
-- [Tokens](backupduck-v1/tokens.json): source for generated platform colors, text
-  styles, spacing, radius and motion; see [foundations](backupduck-v1/README.md).
+- [Tokens](foundations/tokens.json): source for generated platform colors, text
+  styles, spacing, radius and motion; see [foundations](foundations/README.md).
 - [Iteration checks](iteration-checklist.md): checks required for UI changes.
 
 ## Product and page contracts
 
-- [Product brief](product-brief.md), [feature triage](feature-triage.md),
-  [navigation](navigation.md) and [main flows](flows.md).
+- [Product brief](product-brief.md), [navigation](navigation.md),
+  [main flows](flows.md) and [website](website.md).
 - [Library and backup history](library.md), [records and photo detail](records.md),
   [Apple media interactions](apple-media-interactions.md) and the
   [iPhone calendar grid](iphone-calendar-grid.md).
@@ -35,10 +35,6 @@ behaves; there are no HTML references to maintain.
 - [Apple notifications](apple-notifications.md) and
   [Live Activity](apple-live-activity.md).
 - [Copy glossary (zh-Hans)](copy-glossary.zh.md).
-
-Progress and status: [redesign roadmap](redesign-roadmap.md) (current step and
-open decisions) and [page register](page-register.md) (redesigned or legacy, per
-page). Check a page's status in the register before touching it.
 
 ## Platforms
 
@@ -61,11 +57,6 @@ contract in one change. Compare native windows with the contract, and with the
 system app for anything the system also does, using the same synthetic data and
 state. Generated screenshots are evidence for their scope only, not a substitute
 for physical-device behavior; see [validation](../docs/native-validation.md).
-
-The `*-v1.2` folders and every HTML prototype in this folder are frozen history
-from before the redesign. Do not take design direction from them; where a
-current contract still links into one (the Mac library section of
-`macos-v1.2/specification.md`), that section is the contract until it moves.
 
 Public documentation explains reproducible behavior and contribution requirements.
 Personal acceptance notes, device-installation logs and development handoffs do

@@ -1,8 +1,7 @@
 # Mac Folders
 
-Status: structure approved by the owner on October 21, 2026 (F0–F9). Built from
-`platform-expression.md`, `interaction.md` and the Mac window of the October 19
-canvas. Capabilities and limits are in `../docs/folder-backup.md`.
+Rules F0–F9 follow `platform-expression.md` and `interaction.md`.
+Capabilities and limits are in `../docs/folder-backup.md`.
 
 ## The person's question
 
@@ -52,7 +51,7 @@ complete results; a paged search never presents its loaded count as a total.
 Trailing groups keep this order, with native shared capsule backgrounds:
 
 1. A shared Zoom Out / Zoom In capsule. Folders uses the Photo Library's grid
-   engine and density levels (`library.md` §8).
+   engine and density levels (`library.md` §5).
 2. A **By Folder | All Photos** segmented capsule, replaced by a pop-up at
    narrow window widths or while search is expanded. Each view retains its own
    scroll position and selection (I6).
@@ -96,7 +95,7 @@ Mac or in the Pixel's Photos.
 **One folder:** a header with its icon, name, location and state; Show in
 Finder; File Rules (with "most people don't need this"); Stop Backing Up This
 Folder… There are no concurrency, cache or scan-interval settings
-(`feature-triage.md`).
+(`settings.md`).
 
 **File Rules** (Advanced): a sheet with two token fields, "Skip these" and "Only
 back up these (empty means everything)", with example placeholders such as
@@ -150,7 +149,7 @@ library viewers reuse the same edge-revealed previous/next controls.
 ## Shared grid updates
 
 The native collection engine is shared with Photo Library and Backup History
-(`library.md` §8). Source adapters supply stable file identities, sections,
+(`library.md` §5). Source adapters supply stable file identities, sections,
 images and marks. Membership inserts, removals and moves use diffable updates;
 state changes configure visible cells in place without reloading the grid.
 A committed filter membership replaces the grid once under a 0.2-second

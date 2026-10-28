@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-The 0.3.0 UI baseline covers the iPhone/iPad sender, macOS sender and Android
+The current UI covers the iPhone/iPad sender, macOS sender and Android
 receiver. Android and Windows sender hosts remain separate, unfinished work.
 Do not expand a focused change into those platforms without an explicit scope.
 
@@ -16,26 +16,22 @@ See `docs/architecture.md` and `docs/sender-host-contract.md`.
 
 Read `design/README.md`, `design/platform-expression.md`,
 `design/visual-language.md`, `design/interaction.md`, `design/ui-content-rules.md`
-`design/backupduck-v1/motion.md` and `design/apple-motion-apis.md` before UI work.
+`design/foundations/motion.md` and `design/apple-motion-apis.md` before UI work.
 Motion uses system animation APIs only; app code never draws animation frames.
 BackupDuck is UIKit/AppKit first: grids, the viewer, transitions and their gestures
 and bars are native UIKit/AppKit; SwiftUI is for supporting pages only.
-The redesign plan and its current step are in `design/redesign-roadmap.md`.
-Existing HTML prototypes are frozen historical references; do not create or
-maintain new ones. Use current component contracts, `motion.md` and the validated
-native implementation when a prototype differs, and never revert the
-implementation to match it.
+The contracts in `design/` and the native apps are the reference; do not
+create HTML prototypes.
 
-- Redesign before refinement (`design/constitution.md`). Check a page's status
-  in `design/page-register.md` before touching it. Legacy pages get defect
-  fixes only; anything else starts with a redesign for ordinary users, never by
-  porting or rewording the old page. Name redesigned versus legacy in reviews.
+- Follow `design/constitution.md`. A change to a page's structure starts from
+  its contract and updates the contract in the same change; never port or
+  reword an older page instead of designing for ordinary users.
 - Reuse shared components. Components own inner padding and alignment; pages
   own section spacing. Store justified density differences in platform metrics.
 - Apple preference rows use 52 pt on iPhone and 41 pt on Mac (visual standard
   V7), growing for wrapped or accessibility text. Check group edges and complete page compositions.
 - Colors, semantic text styles, spacing, radius and motion come from
-  `design/backupduck-v1/tokens.json`. Run `python3 scripts/export-design-tokens.py`
+  `design/foundations/tokens.json`. Run `python3 scripts/export-design-tokens.py`
   after edits and `--check` to verify; do not edit generated files by hand. New
   code uses the role tokens (`DuckRole`, `duck_role_*`), not the legacy palette.
   `python3 scripts/check-design-literals.py` rejects new literal colors and text
@@ -69,9 +65,12 @@ rewrite. Component refinements update components and contracts in one change. In
 
 ## Local design notes
 
-Reference research, agent notes and handoff state live in ignored local storage,
-`build/internal-docs/`. When `build/internal-docs/agent-notes.md` exists, read
-it before design or redesign work and keep it current when you stop. Do not
+Reference research, design decisions, plans, review records, agent notes and
+handoff state live in ignored local storage, `build/internal-docs/`. Public
+`design/` states current rules, principles and contracts only: no status lines,
+approvals, dates, decision history, process narratives or version labels. When
+`build/internal-docs/agent-notes.md` exists, read it before design work and keep
+it current when you stop. Do not
 name reference products in tracked files; state rules and reasons in
 BackupDuck's own terms. `scripts/audit-public.py` also applies the local term
 list when it exists.
@@ -87,8 +86,8 @@ Physical release acceptance must use the production app identity, release build
 and expected release signing certificate. Verify these before installation.
 Validation packages supplement tests and do not replace production acceptance.
 
-Use synthetic data for repeatable fixtures. Record prototype checks, native
-checks and physical-device observations separately. State uncovered behavior
+Use synthetic data for repeatable fixtures. Record native checks and physical-device
+observations separately. State uncovered behavior
 honestly. Preserve application data during updates; never uninstall or clear data
 without explicit authorization. Re-identify the target device before installation.
 
@@ -106,8 +105,9 @@ ownership, not only final labels. Endpoint assertions do not prove motion qualit
 
 Follow `docs/public-source-policy.md`. Contributor documents and code comments
 use English. Keep product localization and explicitly labeled translated user
-guides. Personal acceptance narratives, chat attachments, installation logs,
-private machine details and agent handoffs are local-only.
+guides. Personal acceptance narratives, design decisions and process, chat
+attachments, installation logs, private machine details and agent handoffs are
+local-only.
 
 Run `python3 scripts/audit-public.py --documentation` before preparing source,
 then `--staged --documentation` against the entire candidate index. Ignore rules

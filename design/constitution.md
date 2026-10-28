@@ -1,10 +1,5 @@
 # BackupDuck design constitution
 
-Status: draft 2 for review. It records decisions from the October 2026 design
-review. Until it is adopted, the existing contracts in `ui-content-rules.md`,
-`backupduck-v1/specification.md` and `backupduck-v1/motion.md` remain in force.
-Once adopted, this document replaces their overlapping guidance.
-
 This document describes what good BackupDuck design is and how design work is
 done. Component contracts describe how individual parts behave.
 
@@ -15,10 +10,6 @@ done. Component contracts describe how individual parts behave.
   meaning. Code that contradicts a contract is a bug, not a new rule.
 - **The design catalog** provides repeatable review scenarios built from the
   production components.
-
-The maintained HTML prototypes are retired. Disposable explorations (sketches,
-HTML, generated images) may be used during a discussion. They are deleted once
-a decision is made and are never cited as a specification.
 
 ## Principles
 
@@ -56,10 +47,10 @@ builds with 60 fps recordings on old devices. Record the system app's behavior
 for the same interaction first.
 
 **P9. Design from the long-term target.** Decisions start from the intended
-platform set and product, not from what the current code happens to do. Legacy
-structure that no longer fits is removed rather than preserved. This version is
-rewritten for ordinary users; the earlier apps are an inventory of capabilities,
-never a design to port. § Redesign before refinement makes this a gate.
+platform set and product, not from what the current code happens to do.
+Structure that no longer fits is removed rather than preserved. Existing
+capabilities are an inventory, never a design to port. § Redesign before
+refinement makes this a gate.
 
 ## Layers
 
@@ -110,7 +101,7 @@ in illustration and brand marks:
 - **Accent** means "interactive or in progress". It is derived from wing blue
   per platform, with light, dark and increased-contrast variants. Apple uses it
   as the tint. Android generates a fixed Material 3 scheme from it; wallpaper
-  dynamic color is not used for now. Web defines its own light and dark pair.
+  dynamic color is not used. Web defines its own light and dark pair.
 - **Neutral roles** (`background`, `groupedSurface`, `elevatedSurface`,
   `primaryText`, `secondaryText`, `separator`) map to system colors on Apple,
   to Material color roles on Android, and to defined pairs on Web. There is no
@@ -131,7 +122,7 @@ every platform's values. Platform code does not define colors locally.
 - Text uses semantic styles mapped to each platform's scale (Dynamic Type on
   Apple, the Material type scale on Android, a defined scale on Web). A
   hard-coded size replaced by a generated number is not a semantic style.
-- Apple status cards may trial rounded, monospaced numerals. This is a platform
+- Apple status cards may use rounded, monospaced numerals. This is a platform
   choice, not a cross-platform brand rule. Check long counts, units, Dynamic
   Type and width stability while values update.
 - Shared spacing, radius and motion tokens apply to custom-drawn surfaces.
@@ -163,19 +154,18 @@ Rules:
 
 Production:
 
-1. Build and approve a layered vector master from the icon. It fixes the body
+1. Build a layered vector master from the icon. It fixes the body
    outline, head-to-body ratio, tail, beak, eye position and the wing's
    characteristic curve.
 2. Define the allowed variations: expression, head angle, accessories, and the
-   wing's waving posture. The waving wing is a separately reviewed pose that
+   wing's waving posture. The waving wing is a pose that
    keeps the wave's recognizable features rather than the exact path.
 3. Explore poses with image models.
-4. Build each approved pose from the master and review it side by side with the
+4. Build each pose from the master and review it side by side with the
    icon by a person.
 
-The first production set is the poses with the smallest deviation from the
-master: looking at a phone (pairing), holding a photo (done), napping (waiting)
-and wearing a crown (Pro). Waving and lowered-head poses follow.
+Poses with the smallest deviation from the master are looking at a phone
+(pairing), holding a photo (done), napping (waiting) and wearing a crown (Pro).
 
 ## Information architecture
 
@@ -223,6 +213,9 @@ belongs to the platform.
 Presentations include push, sheet, popover, split pane, window and full screen.
 Any content type may use the presentation its platform expects.
 
+System permission, camera, picker, sharing and installation UI remain actual
+platform interfaces.
+
 ## Copy
 
 - Name results in the user's terms ("Saved to the Pixel's Photos"), not mechanisms.
@@ -248,9 +241,10 @@ when a clear reference exists; record the reason and go to native validation.
 
 ### Redesign before refinement
 
-Every page is either **redesigned** or **legacy**, as recorded in
-`page-register.md`. A page is redesigned only when it has gone through these
-steps and was approved in review:
+A page change starts from the user's question and a fresh structure before
+visual refinement. Defect, safety and data-loss fixes may use the existing
+structure; any other change to a page whose structure does not answer the
+user's question is Large and follows these steps:
 
 1. **The user's question.** State in one sentence what the page's user comes
    to learn or do, and what they never need to see there. For most pages this
@@ -258,40 +252,29 @@ steps and was approved in review:
    compatibility routes) it is someone troubleshooting or helping a person
    troubleshoot. A technical audience changes what the page shows, not whether
    it is designed: every page goes through these steps.
-2. **References.** Record how the system app and the reference products
-   handle the same question (§ References).
-3. **Fresh structure and copy.** Derive sections, states and words from steps 1
-   and 2 and `copy-glossary.zh.md`. The legacy page only tells which
-   capabilities exist; its layout, grouping, controls and strings are not
-   carried over because they exist.
-4. **Catalog review.** Build it from production components behind the catalog's
-   design switch, with scenarios for its key states, and review it on devices.
-   This approves the structure, flow and copy. The page's look is approved
-   separately, through the visual language (migration step 6).
+2. **References.** Record how the system app and reference products handle the
+   same question (§ References).
+3. **Fresh structure and copy.** Derive sections, states and words from the
+   user's question, references and `copy-glossary.zh.md`. Existing pages tell
+   which capabilities exist; their layout, grouping, controls and strings are
+   not carried over because they exist.
+4. **Native composition.** Build from production components in the catalog,
+   with scenarios for key states, and check the structure, flow, copy and
+   visual language on devices.
 
-Rules that follow:
-
-- **No refinement of legacy pages.** Do not polish copy, add scenarios, add
-  features or restyle a legacy page. Fix defects, safety and data-loss problems
-  only. Any other change to a legacy page is Large and starts at step 1.
-- **No legacy inside a redesigned page.** A redesigned page that opens or embeds
-  a legacy page or component (a sheet, a list row, a flow) lists it as a
-  remnant in the register. The remnant is redesigned before the page ships.
-- **Coverage is not progress.** Catalog coverage, copy sweeps and fixes are
-  scheduled against the register. Before touching any page, check its status;
-  if it is legacy, redesign it first.
-- **Say which.** Reviews, summaries and commit messages name whether a page is
-  redesigned or legacy, so porting cannot pass as redesign.
+A page's embedded pages and components (a sheet, a list row, a flow) follow the
+same rule before it ships. Catalog coverage, copy sweeps and fixes do not
+substitute for a structure that answers the user's question.
 
 ### References
 
 Record the system app and reference products doing the same task. When nothing
 matches, split the task into basic interactions (select, confirm, wait, recover,
 browse) and find each separately. If that still fails, build two switchable
-native variants and compare them on a device. Record the decision and its
+native variants and compare them on a device. Record the resulting rule and its
 reason in the contract.
 
-#### What references are for (owner, October 19, 2026)
+#### What references are for
 
 References are not skins to choose between. They teach two different layers,
 and BackupDuck digests them into its own point of view:
@@ -319,12 +302,12 @@ and BackupDuck digests them into its own point of view:
 
 Reference observations, measurements and mappings are working material. They
 are kept with the local design notes (`build/internal-docs/`, see
-`docs/public-source-policy.md`) and are not named in public files.
+[public-source policy](../docs/public-source-policy.md)) and are not named in public files.
 
 ### Design catalog
 
 The catalog is a debug-only and separately buildable review target in each
-native app, and a static page for Web.
+native app.
 
 - It renders the **same production pages and components**. It replaces data
   providers and action executors with scenario drivers. It never reimplements
@@ -335,8 +318,6 @@ native app, and a static page for Web.
   return and recover.
 - The catalog runs in Release configuration so motion and old-device performance
   can be judged.
-- Existing native interaction workbenches (grid, media) remain for complex
-  gesture research.
 
 **The catalog is complete when it can support a review of the whole design**:
 the full navigation skeleton, every content type, the key states of each, and a
@@ -369,31 +350,3 @@ Every catalog review and large change considers:
   what happens to reading, exporting, recovery and queued work when
   entitlements end.
 
-## Migration
-
-1. Adopt this document.
-2. Generate primaries, roles, semantic text styles, spacing and motion for Apple,
-   Android and Web from `tokens.json`, and add the enforcement check.
-3. Let the catalog supply scenario data beneath the live models: replace the
-   core, credential and system providers, and keep the production models and
-   pages. Done for the iPhone and Mac senders (`apps/apple/Catalog`) and the
-   Pixel receiver (`apps/android/app/src/catalog`).
-4. Build the design catalog to its completion gate and review it on devices.
-5. Retire the HTML prototypes. Move live contracts out of the prototype folders
-   first, then update references and tests.
-6. Set the visual language (`visual-language.md`): icons, marks, cards,
-   density, color details, illustration and motion, decided by the owner from
-   native specimens, then applied to every redesigned page. Approvals before
-   this step are structure approvals (structure, flow, copy) only.
-7. Migrate production pages to the catalog compositions. Only pages that are
-   structure-approved, carry the approved visual language and have no open
-   remnants are migrated.
-8. Build new flows (first run, Pro, memories) through the same process.
-
-## Open decisions
-
-- **D1.** Free promise and Pro scope.
-- **D2.** Rounded numerals on Apple status cards, after the trial.
-- **D3.** Whether Devices keeps its own position on each role, after the catalog
-  scenarios.
-- **D4.** Animation format, after the first animations are defined.

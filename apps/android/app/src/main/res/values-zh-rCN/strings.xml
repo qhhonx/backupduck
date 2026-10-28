@@ -176,7 +176,7 @@
         <item quantity="one">还剩 %d 项</item>
         <item quantity="other">还剩 %d 项</item>
     </plurals>
-    <!-- Received photos and photo detail (design/records.md), proposed design. -->
+    <!-- Received photos and photo detail (design/records.md). -->
     <string name="photos_scope_summary">%1$s\n%2$s</string>
     <plurals name="photos_scope">
         <item quantity="other">%1$s 项</item>
@@ -229,7 +229,7 @@
     <string name="nav_photos">照片</string>
     <string name="photos_preview_unavailable">照片预览不可用</string>
     <string name="pref_storage">存储空间</string>
-    <!-- Connect a device and Connected devices (design/pixel-connect.md), proposed design. -->
+    <!-- Connect a device and Connected devices (design/pixel-connect.md). -->
     <string name="connect_code_title">用 iPhone 上的备份鸭扫这个码</string>
     <string name="connect_code_auto">扫到后会自动连接</string>
     <string name="connect_code_note">这个码只给你自己的设备扫。</string>
@@ -267,7 +267,7 @@
     <string name="devices_stopped_note">不再接收它的新照片，已经收到的照片不受影响。</string>
     <string name="devices_stopped_ack">已停止接收 %1$s 的照片</string>
     <string name="devices_save_failed">没能保存，请再试一次。</string>
-    <!-- Shared components and the redesigned hub, settings, storage and first run (design/visual-language.md). -->
+    <!-- Shared components and the hub, settings, storage and first run (design/visual-language.md). -->
     <string name="look_see_all">查看全部</string>
     <string name="rhub_senders">发送设备</string>
     <string name="rhub_waiting_first">等第一张照片</string>

@@ -3,10 +3,6 @@
 The Chinese interface vocabulary, with each term's English counterpart. It is a
 localization reference, so Chinese examples appear inline.
 
-Status: proposed, for review. These are the product-layer words. Once they are
-approved, every platform uses them, and the current strings are migrated page
-by page with the redesign. 
-
 ## Principles
 
 - **Use the user's words, not the mechanism.** People think in photos, their
@@ -26,7 +22,7 @@ by page with the redesign.
 
 ## Terms
 
-| Current (zh / en) | What it means | Proposed zh | Proposed en | Notes |
+| Technical term (zh / en) | What it means | Interface zh | Interface en | Notes |
 | --- | --- | --- | --- | --- |
 | 原件 / original | The full-quality photo or video file, as opposed to thumbnails | 原片 | original | Matches iOS Photos (下载并保留原片). Use 原片和视频 only where video matters |
 | 原件传输 / 原件准备 | Exporting the file from the library and sending it | 传输 / 准备照片 | sending / preparing | Users see one task: sending the photo |
@@ -37,12 +33,12 @@ by page with the redesign.
 | 校验 / verified | Integrity check of a received file | not shown; 已完整收到 | not shown; received in full | Only failures mention it ("文件不完整，会重新发送") |
 | 处理 / processing (receiver) | Saving into Photos, conversion, etc. | name the step: 正在存进相册 / 存进相册失败 | saving to Photos / couldn't save to Photos | "处理失败" says nothing |
 | 扫描 / scanning (history) | Looking through the existing library | 正在查看以前的照片 | looking through earlier photos | |
-| 历史导入 / existing photos | Backing up photos from before automatic backup | 以前的照片 | earlier photos | Matches the new Auto Backup footer |
+| 历史导入 / existing photos | Backing up photos from before automatic backup | 以前的照片 | earlier photos | Matches the Auto Backup footer |
 | 队列 / queue | Items waiting to send | 等待传输 | waiting to send | |
 | 任务 / task | One item being sent or processed | 项 (counts), or the item's name | item | "3 项等待传输" |
 | 缓存 / cache | Local temporary files | 临时文件 (detail); 存储空间 (row) | temporary files; Storage | |
 | 局域网 / LAN | Same local network | 同一 Wi‑Fi | the same Wi‑Fi | Most users know the word Wi‑Fi |
-| 配对码 / pairing code | QR code a device shows so another device can connect | 连接码 | connection code | Matches the connect flow on iPhone, Mac and Pixel (October 19); "配对" is not a user word |
+| 配对码 / pairing code | QR code a device shows so another device can connect | 连接码 | connection code | Matches the connect flow on iPhone, Mac and Pixel; "配对" is not a user word |
 | 运行记录 / 日志 / 诊断 | Activity log and its retention | 诊断信息 | Diagnostics | One term, in the footer |
 | 释放空间 / free up space | Removing files that are safe elsewhere | 释放空间 | free up space | Keep; it is Android's own word |
 | 原件归档 / originals archive | Exporting received files as a zip | 导出原片 | export originals | |
@@ -51,8 +47,8 @@ by page with the redesign.
 
 ## Apple vocabulary alignment
 
-These Apple labels follow the shared chosen concepts; other platforms retain
-the same vocabulary when their corresponding controls are updated.
+These Apple labels follow the shared concepts; corresponding controls on
+other platforms use the same vocabulary.
 
 | Concept | zh-Hans | English |
 | --- | --- | --- |

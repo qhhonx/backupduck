@@ -11,7 +11,10 @@ case. Retain proper names and the capitalization of controls referenced in
 instructions. Full-sentence question headings retain sentence capitalization.
 
 Working screens show the current state, the next action, and consequences that
-change a decision. Show each current state or selection count once. Ordinary
+change a decision. Show each current state or selection count once. Counts and progress use
+monospaced digits. Keep selection count and backup actions visible outside an
+unbounded scrolling list. Secondary actions and low-frequency menus do not
+compete with primary work. Ordinary
 supporting text does not need an information banner.
 
 Keep permission requirements, account changes, deletion scope and irreversible
@@ -108,7 +111,7 @@ unseen features, and do not add a global badge for every actionable status.
 
 Root Apple navigation owns its background across all tabs. On iOS before 26,
 standard and scroll-edge tab appearances use the same opaque semantic surface;
-media grids respect the legacy tab safe area. Newer system material navigation
+media grids respect the tab safe area. Newer system material navigation
 retains native rendering. Never fix transparency by painting a single page.
 
 Components own row height, internal padding and icon alignment. Pages own the
@@ -158,7 +161,7 @@ new sheets use the complete layout so navigation owns its toolbar.
 
 ## Brand resources
 
-Use the approved `assets/AppIcon.png` as the source for launch and system marks.
+Use `assets/AppIcon.png` as the source for launch and system marks.
 System-chrome marks remove the background and derive a monochrome mask while
 preserving the original silhouette, wing and eye. Do not redraw a similar duck
 or place a scaled full-color launch tile in the menu bar. About identity headers
@@ -174,7 +177,8 @@ with `scripts/export-menu-bar-icon.swift` after changing the source.
 Confirmation dialogs save durable intent and close after successful registration.
 Downloads, original-resource export, scanning and transfer continue through the
 persistent task pipeline. Preparation, failure and retry appear on task screens.
-Submission failure preserves selection and input; submission success does not
+Cancellation preserves the parent context. Submission failure preserves
+selection and input; submission success does not
 mean original preparation or transfer has completed.
 
 Keep request identity, receiver ownership, source revision and repeat intent
@@ -191,7 +195,7 @@ Automatic background operations do not open a result page without user intent.
 
 1. Identify whether the cause is content, component composition or business state.
 2. Inspect similar uses and fix the shared component or explicit platform setting.
-3. Update contracts and affected prototypes in the same change.
+3. Update contracts and affected components in the same change.
 4. Run existing relevant checks and inspect actual native windows. Add coverage
    for new states; checking that text exists is not a visibility check.
 5. Separate build results, installation, observed behavior and physical-device
@@ -237,7 +241,9 @@ excluding items. Folder rules remain source-specific, separate from Photos album
 On iPhone, use the [calendar Grid contract](iphone-calendar-grid.md): Years,
 Months and All are a cover hierarchy, with independent All-grid density. Full
 navigation, compact calendar browsing and selected-item actions are mutually
-exclusive bottom states. Desktop now follows the [Mac library contract](macos-v1.2/specification.md#photos-library): Years/Months/All Photos is independent of size. The grouped modes below describe the retained legacy layout helper, not desktop navigation.
+exclusive bottom states. Desktop follows the [Mac library contract](library.md#7-mac-photos-library):
+Years/Months/All Photos is independent of size. The grouped layout modes below
+are separate from desktop navigation.
 
 All/Days/Months are presentation modes over the same filtered, sorted asset IDs.
 Days group by local-calendar capture day; Months group by capture month and use

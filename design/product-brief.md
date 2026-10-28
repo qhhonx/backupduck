@@ -1,9 +1,5 @@
 # Product brief
 
-Status: approved direction (October 2026). This version of BackupDuck is
-rebuilt for ordinary people and is meant to last. Nothing from the earlier
-apps is kept because it exists. Feature decisions are in `feature-triage.md`.
-
 ## In one sentence
 
 BackupDuck sends the photos on your iPhone and Mac, at full quality, straight to

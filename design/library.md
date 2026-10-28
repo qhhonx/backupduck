@@ -1,9 +1,5 @@
 # Library and backup history: one grid
 
-Status: direction approved October 18, 2026 (one grid; not-backed-up is a view, not a mark). Views are built first, marks second. Raised in the records review:
-the backup history grid and the Photos tab (and on Mac, Photo Library and
-Folders) are two grids of the same photos. This proposal makes them one.
-
 ## 1. The user's question
 
 In the Photos tab people browse their own photos. While doing so they ask "is
@@ -11,26 +7,18 @@ this one backed up?" and occasionally "which ones are not?". In backup history
 they ask the same question from the other side. Two grids answer one question
 twice, with two scroll positions, two sets of gestures and two places to look.
 
-## 2. References
-
-| Product | What it does |
-| --- | --- |
-| Google Photos | One photo grid. Photos not backed up carry a crossed-out cloud; a photo's info says "Backed up". Backup progress is in the account menu. No second grid of backed-up photos. |
-| iOS Photos with iCloud | One library. Sync state is a single line at the bottom of the library; nothing per photo. |
-
-## 3. Proposal
+## 2. Library views
 
 - **One grid per source.** The Photos tab (iPhone) and Photo Library and Folders
   (Mac) are the only photo grids. Their tiles carry the same marks as the
-  history page today: none when the photo is in the Pixel's Photos, sending,
-  saving, needs you. Photos outside the backup are not marked (owner decision, October
-  18): on a new install that would mark most of the library. They are found
+  history page: none when the photo is in the Pixel's Photos, sending,
+  saving, needs you. Photos outside the backup are not marked: on a new install that would mark most of the library. They are found
   through the Not backed up view.
 - **Views, not pages.** The grid's existing menu offers two views: All photos
   and Not backed up, the library's own question. Recently backed up and Needs
   you belong to History (`records.md`), which counts them from the same core
-  records, so the two places never disagree (owner decision, October 27 2026).
-  Each view keeps its own scroll and date anchor, as report 07 asks.
+  records, so the two places never disagree.
+  Each view keeps its own scroll and date anchor.
 - **The photo's detail answers the backup question.** The viewer's info shows
   the facts from `records.md` (sent to the Pixel, in the Pixel's Photos), next
   to the date and source.
@@ -38,8 +26,8 @@ twice, with two scroll positions, two sets of gestures and two places to look.
   earlier-photos actions push `BackupHistoryView` within the Backup tab, using
   all, attention and saved respectively. Photos backup views remain independent
   choices in the Photos menu.
-- **Pixel unchanged.** The Pixel has no library of its own; Received photos is
-  its only photo grid and stays as built.
+- **Pixel photo grid.** The Pixel has no library of its own; Received photos is
+  its only photo grid.
 
 ### Reviewing a selection (iPhone)
 
@@ -65,78 +53,39 @@ The page answers one question: are these the photos I mean to back up?
 - Closing keeps the selection. No custom buttons, floating controls or corner
   radii.
 
-## 4. Constraints
+## 3. Constraints
 
 - The library grid is the performance-critical native grid with the calendar
   and zoom gestures (`iphone-calendar-grid.md`, `apple-media-interactions.md`).
   Marks are an overlay on the existing cells; virtualization, cancellation,
-  stable IDs and gesture ownership stay as they are. Feel is re-measured on a
-  Release build with 60 fps recordings after the change.
+  stable IDs and gesture ownership stay as they are. Feel is measured on a
+  Release build with 60 fps recordings.
 - The backup state per photo comes from the core, which already answers
   `browse_sources` with a state per source for the library scope. Marks must
   never be inferred on the host.
 - The catalog cannot read real photos; Library scenarios need the synthetic
   photo source noted in the catalog README.
 
-## 5. Build plan (views first)
+## 4. Backup-view data
 
-1. **Core.** Add `received_sources`: the source identifiers this receiver has
-   received, for the whole library (receipt only, never cloud). `source_states` stays the bounded lookup
-   for the visible window (400 per call) that tile marks use.
-2. **Model.** `PhotoLibraryModel` gains a backup view next to its type filter.
-   Each view is a PhotoKit fetch over the same pipeline, sorting, paging and
-   thumbnails:
-   - All photos: today's fetch.
-   - Not backed up: the type-filtered fetch minus `received_sources`.
-3. **UI.** The library's existing menu gets a Backup section with the two
-   views. iPhone hub actions retain the Backup tab and push History with the
-   corresponding task filter; they do not change the Photos view.
-4. **Catalog.** Library scenarios run on the iOS Simulator against a synthetic
-   photo library (generated images added with `simctl addmedia`); the catalog
-   answers backup commands from that library's identifiers. The Mac catalog
-   keeps the library placeholder, because it would read the Mac's real photos.
-5. **Then marks.** Tile marks reuse the existing window lookup and replace the
-   legacy badges.
+- `received_sources` supplies the source identifiers this receiver has received
+  for the whole library (receipt only, never cloud). `source_states` is the
+  bounded lookup for the visible window (400 per call) that tile marks use.
+- `PhotoLibraryModel` has a backup view next to its type filter. Each view is a
+  PhotoKit fetch over the same pipeline, sorting, paging and thumbnails:
+  All photos uses the type-filtered fetch; Not backed up subtracts
+  `received_sources` from it.
+- The library's menu has a Backup section with the two views. iPhone hub actions
+  retain the Backup tab and push History with the corresponding task filter;
+  they do not change the Photos view.
+- Catalog backup commands use the synthetic photo library's identifiers.
+- The floating header's title and status bar follow whether photos lie behind
+  them, retaining readable contrast over both photos and the page surface.
 
-## 6. State (October 19, 2026)
+## 5. One grid engine and one toolbar
 
-- Built behind the design switch on iPhone and Mac: the core's
-  `received_sources`, the model's backup views, the Backup section in the
-  library menu and the view's name in the grid subtitle. iPhone hub navigation
-  now pushes History within Backup, independently of the Photos menu.
-- Checked on the iOS Simulator with a synthetic library of 240 photos: 246 in
-  All (with the Simulator's samples), 34 not backed up, 4 needing the user, 30
-  recently backed up, each in the grid's date order.
-- Defect fixed in the shared grid: with only a few photos the header kept its
-  light-on-photo text over the light canvas; it now follows whether photos lie
-  behind it, for the title and the status bar.
-- Tile marks (step 5) built on iPhone behind the design switch: no mark once
-  the Pixel has the photo, an arrow while it is on its way, an
-  exclamation when it needs the user, all white with a soft shadow over photos
-  (V5); the legacy check and ellipsis badges are gone in the proposed design.
-- Gap: the visible-window lookup (`source_states`) reports receipt, not whether
-  a received photo is already in the Pixel's Photos, so tiles have no "saving"
-  mark yet. Adding the processing observation to that lookup is a small core
-  change.
-- Mac tile marks built behind the design switch but not seen on screen: the
-  Mac catalog never reads a photo library, so they need a check on a Mac with
-  a synthetic library.
-- Not done: feel measured on a Release device recording.
-
-## 7. Open
-
-- The order of work: the Photos tab is the most-used page and the riskiest
-  change; it may be built behind the design switch in two steps (views first,
-  marks second).
-
-## 8. One grid engine and one toolbar (October 26, 2026)
-
-Owner's real-device review of the Mac: Photo Library, Folders and Backup
-History look and behave like three different grids. History redraws and
-flickers while backups progress, has no zoom animation and its header and date
-headers read differently; Folders has no zoom; search starts expanded; the
-filter menu splits "All" from the media types; the aspect button shows where it
-does nothing; the library's primary button stays "Added to Backup". Decision:
+This section governs shared grid behavior, state updates, toolbar order,
+filtering, headers and album browsing.
 
 - **One engine.** On Mac every photo grid (Photo Library, Folders, Backup
   History, and later the album picker's photo previews) is the Photo Library's
@@ -145,8 +94,7 @@ does nothing; the library's primary button stays "Added to Backup". Decision:
   date headers in the library's style, selection and marquee, the viewer with
   previous/next controls and the information panel, virtualization,
   cancellation and stable identifiers. Sources supply items, sections, marks and
-  images only. On iPhone, Backup History moves to the library's UIKit grid the
-  same way (second step).
+  images only. iPhone Backup History uses its native timeline list (`records.md`).
 - **Changes animate, state updates in place.** Inserted, removed and moved
   items animate as in the system Photos app (diffable updates keyed by stable
   identifiers). A mark or progress change updates the visible cell in place; it
@@ -154,7 +102,7 @@ does nothing; the library's primary button stays "Added to Backup". Decision:
   kept across updates.
 - **Backup History stays a page.** It remains the one place that lists backups
   from every source (photo library and folders) by latest change, with Needs
-  You at the top. It is no longer a separate grid implementation. The library's
+  You at the top. It uses the shared grid implementation. The library's
   Recently Backed Up view stays as the per-source view.
 - **One toolbar order** for every grid page, trailing side, each group only
   when it applies: Zoom Out / Zoom In; the page's view control (Library: Years,
@@ -207,7 +155,7 @@ history and selected-photo review; preserve the entry collection and return
 anchor. Paging never changes grid or durable backup order.
 
 
-## 9. iPhone filter commits and viewer direction
+## 6. iPhone filter commits and viewer direction
 
 Backup-view and media filters prepare complete immutable membership off the
 main thread, then publish content, count and active filter state together.
@@ -235,3 +183,54 @@ Toolbar zoom anchors use the clamped point on the selected photo when the
 viewport centre falls outside its rectangle. A stage entering a gapless overview
 uses that density's zero gap, including its initial pitch. These entry corrections
 do not change settled collection frames.
+
+## 7. Mac Photos library
+
+All Photos, Years and Months run oldest to newest and rest at the newest edge,
+at the bottom. Older pages appear above the oldest loaded row without moving
+the viewport; a viewport resting at the newest edge stays there. Arrow keys
+follow the visual order: Left is older, Right is newer. A level change or a
+return from the viewer centres the retained item.
+
+Years and Months are a cover hierarchy over the filtered PhotoKit fetch,
+separate from All Photos thumbnail size. A year is a portrait card with its
+year at top left. Covers use the period's own photos in date order. Missing capture dates remain unknown. Calendar cover
+membership is indexed off the main actor and does not request full-library
+thumbnails. Native reusable collections virtualize both the covers and the
+complete media grid. Clicking a year opens its months; a month cover opens its
+matching All Photos anchor. A toolbar level change retains the visible asset.
+All Photos ends at the newest edge with the actual photo and video totals;
+no sync state is shown because none is reported.
+
+The window toolbar owns the segmented level control, All Photos size buttons,
+original-aspect control and media-type filter. The window subtitle shows the visible date, yielding to one selection count;
+selected backup uses the toolbar action. Command/Shift, rubber-band and keyboard selection remain AppKit owned.
+Disabled actions do not forward clicks to media below.
+
+Single-click selects. Double-click or Space/Return opens the current photo
+inside the same window, growing from its cell. A mouse or trackpad drag pages
+sideways; dragging up shows information and dragging down hides it, then returns
+to the grid. The grid remains alive beneath the viewer, which uses the system
+window background. Escape or Back returns to the currently viewed asset,
+retaining filter and selection. The viewer uses native horizontal page tracking,
+fit/magnification, video/Live Photo playback and an information sidebar with
+complete wrapping values. There is no permanent filmstrip; Left and Right move
+through the library. Backup registers durable intent through the shared queue,
+never through browsing.
+
+All Photos has six stops: four grids (3, 4, 6 and 9 columns) and two gapless
+overview mosaics whose column counts follow the window width. Overviews draw
+pooled image layers with no cells or badges and load the whole library; a click
+steps toward the grid around that photo. Selected photos carry an accent
+outline, never a check mark.
+
+Density input begins at the tile under the pointer, tracks magnification
+linearly, retains the focal position on reversal, resists beyond the smallest
+and largest sizes, and settles to the previewed column count using `GridZoom`.
+Shrinking into the last row moves the pivot to that edge, and a new gesture
+interrupts a settle in place. A bounded native tile stage draws both densities
+on one coherent lattice, including scaled media decorations; per-item
+interpolation between wrapped rows is not allowed. The native collection adopts
+the exact final pitch and retained displayed pixels. Density never implicitly
+changes calendar level. Window resizing keeps the nearby visible asset.
+Reduce Motion adopts state immediately.

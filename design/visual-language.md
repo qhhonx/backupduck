@@ -1,10 +1,8 @@
 # Visual standard
 
-Status: approved direction (owner, October 19, 2026); details are adjusted in
-native review. Migration step 6 of `constitution.md`. The interaction standard
-is `interaction.md`; together they replace every earlier "look" proposal.
+The interaction standard is `interaction.md`.
 
-Values live in `backupduck-v1/tokens.json` and reach each platform through the
+Values live in `foundations/tokens.json` and reach each platform through the
 export script. Shared components (`apps/apple/Shared/DuckLook.swift`,
 `apps/android/.../DuckLook.kt`) draw them. A page uses components and semantic
 styles; it never defines a color, size or radius of its own. Each item below
@@ -55,7 +53,7 @@ scale on Android.
 | Section header, footer | Footnote, secondary | Caption, secondary | Label large in the accent (section header) |
 | Media marks | Caption, semibold, white with shadow | Same | Same |
 
-Counts on the hub status card may use rounded numerals (D2 trial); nowhere
+Counts on the hub status card may use rounded numerals; nowhere
 else.
 
 ## V3 Space and shape
@@ -99,9 +97,8 @@ grids use 2 pt gaps and no radius; photos inside a card take the card radius.
 
 - The duck appears in story moments only: welcome, connecting and connected,
   empty states, the first photo and milestones. At most one per screen.
-- Problems, warnings, permissions and working screens never show the duck
-  (owner default, October 19; this replaces the earlier "duck accompanies
-  problems"). Calm hubs show photos, not the duck.
+- Problems, warnings, permissions and working screens never show the duck.
+  Calm hubs show photos, not the duck.
 - The three step marks (yellow circle, blue wing, orange sparkle) carry no
   numerals; their shapes and order tell the steps apart. The welcome screen
   lists all three at full strength beside their sentences. Every later
@@ -127,17 +124,3 @@ grids use 2 pt gaps and no radius; photos inside a card take the card radius.
 Calm screens fill with content (photos, the next useful thing) rather than
 white space; working screens fit on one screen where they can.
 
-## Decisions
-
-- **October 19, 2026:** photos lead calm states; one card style with neutral
-  titles and one colored glyph; one primary capsule per screen with tinted
-  capsules inside cards and soft status pills; media marks as white glyphs with
-  a soft shadow.
-- **October 19, 2026 (canvas review):** the owner approved the overall visual
-  and interaction direction from a design canvas that showed the standards and
-  every flow on three platforms. Details are adjusted in native review. Defaults
-  taken for the open points: no duck on problem states; Mac settings rows at
-  41 pt; rounded numerals on hub counts only, as a trial.
-- **October 21, 2026:** buttons and every piece of chrome come from the system
-  (`platform-expression.md` A0, A1). The capsule look stays, drawn by the
-  system button styles rather than by BackupDuck.

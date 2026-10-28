@@ -1,8 +1,7 @@
 # Interaction standard
 
-Status: approved direction (owner, October 19, 2026); details are adjusted in
-native review. Companion to `visual-language.md`. Durations and gesture rules
-are in `backupduck-v1/motion.md`; flows are in `flows.md`. Each item has an
+Companion to `visual-language.md`. Durations and gesture rules are in
+`foundations/motion.md`; flows are in `flows.md`. Each item has an
 identifier (I1–I9) that reviews and code comments cite.
 
 ## I1 Navigation
@@ -15,7 +14,7 @@ Three positions on every platform (`navigation.md`):
 | One level down | Push | Replace the main area; History has its own sidebar row | Push |
 | Detail, explanation, chooser | Per `platform-expression.md` (A4–A8) | Same | Same |
 | One photo | Zoom from the tile into a full-screen viewer | Its own dark window | Full-screen viewer |
-| Devices | Identity header in Settings and a Settings row (D3) | Same | Same |
+| Devices | Identity header in Settings and a Settings row | Same | Same |
 
 ## I2 Page types
 
@@ -76,7 +75,7 @@ up or receiving, caught up, empty (`flows.md` § Hub rules).
 - Every thumbnail that opens a photo (library grid, hub recent photos, problem
   cards, history, folders) uses the same zoom transition from that thumbnail
   and returns to it; after paging, the return lands on the current photo's
-  thumbnail, scrolled into view. Acceptance opens the viewer from every entry.
+  thumbnail, scrolled into view. Every entry uses this viewer.
 - Hub summaries open the matching view ("Needs you" opens the Needs you view).
 - Notifications open the photo or problem they describe.
 - A narrow Mac window keeps detail and back reachable and keeps focus.

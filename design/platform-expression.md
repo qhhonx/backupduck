@@ -1,7 +1,6 @@
 # Platform expression
 
-Status: approved by the owner on October 21, 2026 (items A0–A11). Companion to
-`constitution.md` (P2), `visual-language.md` and `interaction.md`.
+Companion to `constitution.md` (P2), `visual-language.md` and `interaction.md`.
 
 This contract says which native container and control expresses each recurring
 task on each platform. A page is assembled from these answers; it does not
@@ -34,8 +33,7 @@ matter of taste.
 | --- | --- | --- |
 | Primary action: system `.borderedProminent`, large control size (the system draws the capsule). Secondary action inside a card: `.bordered`, small. Optional action under a primary: plain text button | Push buttons: the default button is `.borderedProminent` (Return activates it), others neutral `.bordered`, regular size. Inside a form or card: regular/small neutral `.bordered`, without ellipsis. Pass the accent to the system with `.accentColor`, so secondary push buttons keep their neutral fill and label; do not tint the Mac root | Material buttons: Filled for the one primary action, Tonal inside cards, Text for optional actions |
 
-The capsule look approved on October 19 is kept, but the system button styles
-produce it. BackupDuck passes the role and the accent; it does not draw shape,
+System button styles produce the capsule look. BackupDuck passes the role and the accent; it does not draw shape,
 fill, pressed state or contrast variants. A Mac guided flow puts its default
 button at the bottom trailing edge; it does not copy the iPhone's full-width
 bottom capsule.
@@ -167,23 +165,6 @@ up while sending, clock while saving, pause, filled triangle when the person
 is needed, check when done. Active states use the accent, needs-you uses the
 `attentionGlyph` role, paused uses the secondary label color. Text beside the ring
 states the count and the device.
-
-## Decisions
-
-- **October 21, 2026:** the owner approved A0–A11. On A8 the owner asked
-  whether the Mac's trailing inspector is right; it is the platform's place for
-  details of the current item, so it stays. A9 allows the Pixel snackbar for
-  undoable actions only.
-- **October 22, 2026 (owner review of the night's work):** small fixed sets
-  have no search (A6); collection rows show covers; in-viewer panels dock to
-  the bottom edge (A8); Live Activity glyph rules (A12); every page uses the
-  system background role, with no cream canvas left (V1).
-- **October 22, 2026 (D1, iPhone):** after recorded comparisons with the system
-  photo library, the viewer keeps BackupDuck's tile-to-viewer flight (it already
-  matches the system; the system zoom transition moved the grid), long press
-  opens the system context menu with a full-aspect preview, and the viewer
-  chrome follows the system photo library, including the light background and
-  tap-for-black immersion (A8). The Pixel comparison continues.
 
 ### Apple selected-photo review
 

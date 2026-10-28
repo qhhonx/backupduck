@@ -1,8 +1,8 @@
 # iPhone calendar browsing
 
-This contract supersedes the phone All/Days/Months density coupling in older
-media prototypes. Desktop calendar behavior remains separate. The focused
-[native reference](native-grid-preview/README.md) uses only generated media.
+This contract defines phone calendar browsing and independent grid density.
+Desktop calendar behavior is separate. The iOS catalog (`apps/ios/Catalog`,
+scenarios in `apps/apple/Catalog`) uses generated media for repeatable checks.
 
 ## Hierarchy and density
 
@@ -35,9 +35,9 @@ left column before a right hero in mirrored layouts. All tiles retain their
 actual day ranges; native visible lookup sorts frame positions, not day identities.
 
 Dense month and year overviews (15 and 31 columns) do not use one collection
-cell per photo: a Time Profiler capture showed UIKit cell creation and reuse for
-about two thousand cells per screen dominating the main thread while scrolling.
-They draw strips of eight rows into bitmap layers instead (level of detail), on a
+cell per photo, because creating and reusing about two thousand cells per screen
+can dominate the main thread while scrolling. They draw strips of eight rows
+into bitmap layers (level of detail), on a
 background serial queue: each strip's bitmap is filled once from cached pixels
 and each arriving thumbnail draws only its own tile; the main thread adopts at
 most one image per strip per frame. Strips abut on whole device pixels and tile
@@ -72,7 +72,7 @@ public API. Private UIKit state may be used when public API cannot express the
 behavior, after a standalone probe app has verified it on the target iOS release.
 Guard every access (`responds(to:)`, KVO registration inside an ObjC `@try`),
 keep a deterministic fallback, and re-verify on each iOS release. Selectors
-that UIKit restricts to approved apps (for example `UITabBar._isMinimized`)
+that UIKit restricts to entitled apps (for example `UITabBar._isMinimized`)
 are unusable. The bar's actual minimization state owns period controls, rather
 than collection offsets, idle timers or an accessory environment.
 A regular UITabAccessory reserves a second glass row and is unsuitable here.
@@ -103,7 +103,7 @@ must not imitate them. The app still owns selection state, wording and menus.
 A compact centered count/review control retains the app action surface while the
 tab bar is hidden for selection. Zero selection displays Select Items; only selected
 media have a check mark. Backup stays beside the filter in the native header. The app owns its readable material, count,
-presentation timing and review destination. Legacy systems retain an interruptible
+presentation timing and review destination. Systems before iOS 26 retain an interruptible
 navigation/browsing/selection fallback with readable material or solid controls.
 Semantic text and surface colors preserve the BackupDuck theme. Reduced
 transparency and motion preserve state and location.
@@ -128,8 +128,7 @@ Period-control transitions resolve visible photo IDs in both layouts. Matching
 photos move individually while the outgoing level scales away from the viewer
 (toward All) or recedes (toward Years) and the incoming level settles from the
 opposite side. Motion starts at once, at full speed, on a critically damped
-spring (stiffness 400, damping 40; about 90% complete in 0.3 s), matching
-recordings of all four Photos switches; destination pixels sharpen in place
+spring (stiffness 400, damping 40; about 90% complete in 0.3 s), across all four level changes; destination pixels sharpen in place
 rather than delaying the start. Each moving photo carries both cells'
 decorations at native size (period label, top shadow, badges): the source's fade
 out while the destination's fade in, so the last frame equals the revealed cell.
@@ -187,7 +186,7 @@ a mid-library focal point stays fixed until it reaches that constraint. The
 incoming layout may end above the viewport bottom during the photo crossfade.
 Do not move the shared focus as blend weights change to fill that space.
 Cancellation restores the initial density and offset. Release is critically
-damped (omega 12.5, fitted to Photos release recordings), bounds carried velocity
+damped (omega 12.5), bounds carried velocity
 to prevent target overshoot, finishes any remaining photo blend within the settle
 rather than holding a settled pose for a long held-gesture fade, and adopts the
 native collection beneath the stage only when motion and blending finish. Adoption transfers the exact displayed images, placeholder
@@ -221,12 +220,13 @@ obsolete work. Queue-state badges come from the existing source-state projection
 ## Checks
 
 Compare system Photos through actual original-speed simulator interaction, then
-inspect the workbench and production host separately. Check cover-to-cover and
+inspect the iOS catalog (`apps/ios/Catalog`, scenarios in `apps/apple/Catalog`)
+and production host separately. Check cover-to-cover and
 cover-to-All anchoring, menu and reversed pinch, dense grids, aspect fitting,
 period boundaries, selected-only review, range selection, old/current systems,
 light/dark and larger type. Include a genuine mid-library test: a downward drag
-moves into history from the newest resting edge. Wait for the actual settled density before asserting final coordinates: display-link
-animation is not tracked by XCTest idleness. Tests do not establish exact
+moves into history from the newest resting edge. Wait for the actual settled density before asserting final coordinates;
+XCTest idleness alone does not prove settlement. Tests do not establish exact
 proprietary animation curves or physical-device performance.
 
 ## Navigation contrast and thumbnails
@@ -238,15 +238,13 @@ an opaque canvas over media. The bottom inset follows the native safe area plus
 cells; original-aspect presentation remains a separate desktop capability.
 
 Pinch holds the two-touch focal photo and measures distance only from live
-touches. Source-timestamped recordings of Photos on the iOS 27 simulator inform
-the dead zone, preview threshold, crossfade and settle; they do not establish
-proprietary internals.
+touches. The dead zone, preview threshold, crossfade and settle are reproducible
+implementation parameters, not proprietary framework internals.
 
 Thumbnail targets use 64-pixel buckets matching cell display pixels, capped at
 1024. Requests from 353 to 460 pixels (three iPhone columns) use 352: PhotoKit
 cuts those from its stored small rendition, while slightly larger requests decode
-the original (a measured cliff reported by other PhotoKit grids; verify per
-device and release). Dense cells request 64/128-pixel images, not large photo previews. A separate
+the original (verify this rendition boundary per device and release). Dense cells request 64/128-pixel images, not large photo previews. A separate
 16 MiB, 64-pixel memory fallback permits immediate reuse across size changes;
 the normal cache retains the requested size tier. Dense transition layers retain
 their own small images rather than pinning a previously cached large bitmap in
@@ -264,7 +262,7 @@ own small renditions are faster than a JPEG round trip; they skip the disk layer
 and render-queue redraw, and use a wider bound of 96 active (24 speculative)
 requests, while larger renditions keep 24 active and four speculative.
 
-Decoded thumbnail tables follow the Fast Image Cache approach. Each table is one
+Each decoded thumbnail table is one
 memory-mapped file of fixed-size square slots holding already decoded,
 64-byte-row-aligned BGRX pixels; a hit returns a `CGImage` that points into the
 mapping, with no PhotoKit request, decode or copy. Slots are found by hashing the
@@ -281,9 +279,8 @@ renditions use the rest). At its limit a table only replaces the least recently
 used entry in a probe window, and lowering the budget below a table's usage
 starts that table over. Dense strips look tables up on their render queue and
 resolve only misses on the main thread, and nearby PhotoKit preheat skips mosaic
-tiles the overview table already holds: faulting their assets and touching
-PhotoKit's preheat table had cost about 40% of main-thread time while scrolling
-the 31-column mosaic on device. Larger cropped cells show a table entry,
+tiles the overview table already holds, avoiding asset faults and redundant
+PhotoKit preheat work on the main thread while scrolling the 31-column mosaic. Larger cropped cells show a table entry,
 upscaled, until their own rendition arrives; such soft placeholders do not
 dismiss the sharper launch cover. The launch cover is disabled
 (`usesLaunchSnapshot`): launch relies on table placeholders alone.
@@ -294,12 +291,8 @@ placeholder; app init starts the default sorted fetch on a background task with
 the library's change token, and the first reload adopts it unless the token has
 advanced by the time the model's observer is registered. Cells create their
 video layer only for a playing cover and share resolved symbols and colors.
-Measured on a physical iPhone with a large library (Release, warm): grid view
-on screen at about 155 ms, first cells with stored pixels at about 205 ms and
-first sharp disk thumbnails at about 300 ms after process start, against about
-410 ms for the first cells before. `-no-launch-prewarm` disables the early fetch
-for comparison; the first library connection itself costs about 65 ms. `-no-thumbnail-table` disables the tables for
-side-by-side measurement.
+The `-no-launch-prewarm` argument disables the early fetch for comparison;
+`-no-thumbnail-table` disables the tables for side-by-side measurement.
 Disk reads, native acquisition and display preparation share bounded admission;
 a cache hit cannot start an unbounded cover-decode burst. Pixels reach the UI
 before background writeback finishes. Native slots then become available while
@@ -340,8 +333,8 @@ hold their images, so the canvas never flashes before photos arrive. Thumbnail
 clearing removes it. Single-object PhotoKit access is slow on large device
 libraries, so resolved assets stay in a bounded cache and dense strips and pinch
 faces resolve their assets with one bulk fetch. That first slice is read with
-one bulk PhotoKit fetch: enumerating a partial range
-faulted objects individually on device (about 0.5 ms each). An opt-in launch
+one bulk PhotoKit fetch, because partial-range enumeration faults objects
+individually. An opt-in launch
 argument, `-launch-trace`, prints startup milestones for device diagnosis. The
 next launch opens at three columns after one or three, and at five after five
 columns, the dense overviews or a calendar level, as in Photos.
@@ -382,12 +375,8 @@ Dense preheating scales with visible tile count within a bounded window.
 These policies reduce repeat-load latency; no cache can guarantee that unseen
 cloud-only media already has a local rendition.
 
-References evaluated for layering and loader ownership:
-[SDWebImage Photos plugin](https://github.com/SDWebImage/SDWebImagePhotosPlugin)
-and [Nuke caching](https://kean-docs.github.io/nuke/documentation/nuke/caching/);
-the decoded tables follow [Fast Image Cache](https://github.com/path/FastImageCache).
-The app retains PhotoKit loading rather than adding a network-image pipeline.
-
+PhotoKit owns loading rather than a separate network-image pipeline. Decoded
+tables use fixed-size memory-mapped slots to avoid repeated decode work.
 
 ## Motion and cache regression tools
 

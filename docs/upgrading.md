@@ -1,13 +1,14 @@
 # Upgrade compatibility
 
-0.3.0 uses build 47, 0.4.0 uses build 87 and 0.4.1 uses build 88, with the same
-application identities, signing certificates, update keys and feeds. Discovering a release
+0.3.0 uses build 47, 0.4.0 uses build 87, 0.4.1 uses build 88 and 0.5.0 uses build 89,
+with the same application identities, signing certificates, update keys and feeds. Discovering a release
 and installing it are separate compatibility questions. Automatic checking is not unattended installation.
 
 ## Release discovery
 
 | Installed official version | macOS Check for updates | Android receiver Check for updates | iOS |
 | --- | --- | --- | --- |
+| BackupDuck 0.4.1 | Supports discovering 0.5.0 through the same signed feed on macOS 15 or later | Supports the stable 0.5.0 tag and BackupDuck metadata | No built-in updater; TestFlight controls availability |
 | BackupDuck 0.4.0 | Supports discovering 0.4.1 through the same signed feed | Supports the stable 0.4.1 tag and BackupDuck metadata | No built-in updater; TestFlight controls availability |
 | BackupDuck 0.3.0 | Supports discovering 0.4.0 through the same signed feed | Supports the stable 0.4.0 tag and BackupDuck metadata | No built-in updater; TestFlight controls availability |
 | BackupDuck 0.2.0-rc.1 / rc.2 / rc.3 | Supports discovering 0.3.0 through the retained signed feed | Supports the stable 0.3.0 tag and BackupDuck metadata; RC.1's certificate difference affects installation, not discovery | No built-in updater; TestFlight controls availability |
@@ -15,7 +16,9 @@ and installing it are separate compatibility questions. Automatic checking is no
 
 The macOS 0.1.x and 0.2.x release tags retain compatible feed keys. A valid
 signed feed and complete release metadata must advertise the higher build
-number for discovery to succeed. An informational update check verifies
+number for discovery to succeed. From 0.5.0 the Mac app requires macOS 15 and the
+iPhone app iOS 18; Sparkle reads the minimum from the app, so Macs on macOS 14
+are not offered 0.5.0 and keep 0.4.1. An informational update check verifies
 availability; it does not prove a successful installation or an in-place
 migration across application identities.
 
@@ -29,6 +32,7 @@ compatibility path; retaining the website address alone does not fix it.
 
 | Installed official version | macOS | Android receiver | iOS |
 | --- | --- | --- | --- |
+| BackupDuck 0.4.1 | Eligible for a signed Sparkle update on macOS 15 or later | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight on iOS 18 or later when the new build is available |
 | BackupDuck 0.4.0 | Eligible for a signed Sparkle update | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight when the new build is available |
 | BackupDuck 0.3.0 | Eligible for a signed Sparkle update | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight when the new build is available |
 | BackupDuck 0.2.0-rc.2 / rc.3 | Eligible for a signed Sparkle update | Eligible for the built-in update; Android asks for installation confirmation | Update through TestFlight when the new build is available |

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Export the approved duck poses and step marks to each platform.
 
-Sources: assets/illustrations/backupduck-poses-v3/svg (the poses) and the wing
-outline in assets/illustrations/duck-master/duck-master.svg (the second step
-mark). Outputs:
+Sources: SVG image sets in apps/apple/Resources/Illustrations.xcassets. Outputs:
 
 - apps/apple/Resources/Illustrations.xcassets: one vector image set per asset.
 - apps/android/app/src/main/res/drawable: one VectorDrawable per asset.
@@ -18,8 +16,6 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-POSES = ROOT / 'assets/illustrations/backupduck-poses-v3/svg'
-MASTER = ROOT / 'assets/illustrations/duck-master/duck-master.svg'
 APPLE = ROOT / 'apps/apple/Resources/Illustrations.xcassets'
 ANDROID = ROOT / 'apps/android/app/src/main/res/drawable'
 SVG = 'http://www.w3.org/2000/svg'
@@ -33,16 +29,13 @@ BRAND = {'yellow': '#FEC613', 'blue': '#1065E4', 'orange': '#FA7212'}
 
 def marks():
     """Step marks as standalone SVGs: shapes only, numbers are drawn by the app."""
-    wing = re.search(r'<path id="wing" d="([^"]+)"', MASTER.read_text()).group(1)
-    return {
-        'mark-circle': f'<svg xmlns="{SVG}" viewBox="0 0 100 100" width="100" height="100"><circle cx="50" cy="50" r="46" fill="{BRAND["yellow"]}"/></svg>',
-        'mark-wing': f'<svg xmlns="{SVG}" viewBox="195 515 590 290" width="590" height="290"><path d="{wing}" fill="{BRAND["blue"]}"/></svg>',
-        'mark-sparkle': f'<svg xmlns="{SVG}" viewBox="0 0 100 100" width="100" height="100"><path d="M50 2 Q58 42 98 50 Q58 58 50 98 Q42 58 2 50 Q42 42 50 2Z" fill="{BRAND["orange"]}"/></svg>',
-    }
+    return {name: (APPLE / f'{camel(name)}.imageset' / f'{name}.svg').read_text()
+            for name in ('mark-circle', 'mark-wing', 'mark-sparkle')}
+
 
 
 def sources():
-    out = {f'duck-{name}': (POSES / f'{stem}.svg').read_text() for stem, name in POSE_NAMES.items()}
+    out = {f'duck-{name}': (APPLE / f'{camel("duck-" + name)}.imageset' / f'duck-{name}.svg').read_text() for name in POSE_NAMES.values()}
     out.update(marks())
     return out
 

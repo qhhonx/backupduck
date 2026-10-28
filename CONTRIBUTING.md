@@ -29,10 +29,10 @@ Document intentional platform differences and unverified system behavior. Includ
 synthetic visual examples when useful; omit personal photos, credentials, device
 identifiers, machine paths and development diaries.
 
-Update reusable components, design contracts and affected prototypes together.
+Update reusable components and design contracts together.
 Public documentation uses English; localized product strings and clearly labeled
 translated user guides are retained. See [public-source policy](docs/public-source-policy.md).
 
-Android and Windows senders are unfinished and outside the 0.3.0 UI baseline.
+Android and Windows senders are unfinished and outside the current UI.
 Do not present their prototypes or experimental modules as released applications.
 Release operations require separate authorization; see [releasing](docs/releasing.md).

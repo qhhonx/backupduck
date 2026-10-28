@@ -1,11 +1,5 @@
 # Pixel: connect a device
 
-Status: proposed, for review (October 2026). Redesign of how the Pixel
-connects an iPhone or Mac and lists the devices that send to it, following
-`constitution.md` § Redesign before refinement. It replaces the legacy pairing
-sheets (`PairingUI`), the legacy device list (`DevicePanels.showPeers`) and the
-first-run code step's own copy of the code screen.
-
 ## 1. The user's question
 
 On the Pixel the user wants one thing: **"Show the code my iPhone should scan,
@@ -17,16 +11,10 @@ They never need: a choice sheet before the code, a refresh button for the code,
 receiver start-up states, certificate or token words, network addresses, or
 the words pairing, receiver or credential.
 
-## 2. References
-
-| Product | What it does for the same question |
-| --- | --- |
-| BackupDuck iPhone (`IOSConnect.swift`) | One scanner shared by first run, the hub and the device page; the same success screen ("Connected to Pixel 8 Pro") everywhere. |
-
 The Pixel shows a code for the other device to scan, as a desktop app does
 when a phone links it, and lists connected devices with their last activity.
 
-What BackupDuck takes:
+## 2. Shared connect behavior
 
 - **One connect screen** for first run, the hub's "Connect a device" and the
   device page. The code is the subject; two short steps say what to do on the
@@ -49,7 +37,7 @@ What BackupDuck takes:
 | Could not get ready | The cause (the receive problem when known, otherwise Wi‑Fi); the code returns by itself once receiving is ready | Try again |
 | Connected | The connecting duck, "Connected to Lin's iPhone", one sentence | Done (first run: Next) |
 
-Opening the screen turns receiving on if it was off, as the legacy flow did.
+Opening the screen turns receiving on if it was off.
 Receiving stays on afterwards.
 
 **Mac** (same screen, other direction): title, one sentence on where the Mac
@@ -85,8 +73,8 @@ No device yet: "No devices yet" and the Connect button.
 
 The zh-Hans copy lives in the strings files (`connect_*`).
 
-The code screen drops the numbered steps (October 19 canvas review): the title
-already says what to do, and the code is the subject.
+The code screen has no numbered steps: the title already says what to do, and
+the code is the subject.
 
 | Place | en |
 | --- | --- |
@@ -101,10 +89,9 @@ already says what to do, and the code is the subject.
 | Stop | Stop receiving from this device |
 
 The zh-Hans word for the code follows the iPhone strings
-(`connect_code_unreadable`); `copy-glossary.zh.md` still lists the older
-pairing word and should follow.
+(`connect_code_unreadable`) and `copy-glossary.zh.md`.
 
-## 5. Decisions
+## 5. Connection and device state
 
 - **A new device is the success signal.** The core records a device the same
   way when it pairs and when it sends, so the Pixel confirms a device it has
@@ -122,9 +109,3 @@ pairing word and should follow.
 - **The screen survives recreation.** A theme change or rotation reopens the
   connect screen (in the same direction) or the device page.
 
-## 6. Open
-
-- Where the redesigned Mac shows its code (the Mac has no redesigned first run
-  yet). The Mac sentence is checked against it before the copy ships.
-- Whether the device page becomes the Settings identity header's target
-  (`navigation.md` § D3).

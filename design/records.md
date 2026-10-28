@@ -1,9 +1,5 @@
 # Records and photo detail
 
-Status: proposed, for review (October 2026). Redesign of the legacy records
-list and item detail on iPhone, Mac and Pixel, following
-`constitution.md` § Redesign before refinement.
-
 ## 1. The user's question
 
 An ordinary user opens records to learn one of three things:
@@ -16,18 +12,7 @@ They never need: file names as the main label, four status filters, sort
 orders, a status glossary, task counts in the thousands, or words such as
 receipt, original, receiver, processing or task.
 
-## 2. References
-
-| Product | What it does for the same question |
-| --- | --- |
-| Google Photos (Android, iOS) | Backup state is shown on the photos themselves: a crossed-out cloud on items not backed up, "Backed up" in a photo's info. The account menu says "Backup complete" or "Backing up 23 items". No list of transfer jobs. |
-| iOS Photos with iCloud | One status line at the bottom of the library ("Syncing 120 items", "Updated just now"); no per-item job list. |
-
-Further reference notes are kept with the local design notes. The Google Photos
-and iOS Photos behavior is product knowledge and is checked on device before
-the copy ships.
-
-What BackupDuck takes:
+## 2. Information rules
 
 - **Photos, not files.** Records are a photo timeline. File names, sizes and
   formats move to the bottom of the detail.
@@ -75,7 +60,7 @@ anywhere.
    - exclamation: needs you (the same items as the cards)
    - all media marks over photos are white with a soft shadow (V5); attention
      icons in cause cards and photo facts use `attentionGlyph`
-3. On iPhone this step retains the existing timeline. On Mac the shared native grid (`library.md` §8) has Zoom, Filter and collapsed Search. Filter has Show (All, Needs You) and Type (All Types, Photos, Live Photos, Videos, Bursts), with no separate Needs You capsule. There is no sort menu or status guide. The header line states the scope:
+3. On iPhone records use a timeline. On Mac the shared native grid (`library.md` §5) has Zoom, Filter and collapsed Search. Filter has Show (All, Needs You) and Type (All Types, Photos, Live Photos, Videos, Bursts), with no separate Needs You capsule. There is no sort menu or status guide. The header line states the scope:
    "1,284 photos backed up to Pixel 8 Pro".
 
 **Photo detail** (the shared viewer on Apple platforms, a bottom panel on Pixel):
@@ -87,8 +72,7 @@ anywhere.
    - In the Pixel's Photos · today 10:43 (or Saving to Photos… / the cause)
 
    Google Photos backup is never shown per photo: it is always unknown to
-   BackupDuck, so repeating it on every detail is noise (owner review, October
-   18). The history page says it once, as a footer.
+   BackupDuck, so repeating it on every detail is noise. The history page says it once, as a footer.
 4. At most one action, only when the user can act: Try again, or the
    explanation of where the fix is.
 5. Quiet footer: file name, size, kind (photo, Live Photo, video).
@@ -116,7 +100,7 @@ English below; the zh-Hans strings (`records_*` keys in
 | Detail fact 2 | In the Pixel's Photos |
 | Detail fact 3 | Google Photos: BackupDuck can't see whether it's backed up |
 
-## 5. Decisions taken in this proposal
+## 5. Timeline rules
 
 - Records are not a second hub. Current progress stays on the hub; the
   timeline only marks tiles.
@@ -127,7 +111,7 @@ English below; the zh-Hans strings (`records_*` keys in
   appears under Today even if it was taken years ago. The detail shows when it
   was taken.
 
-## Pixel as built
+## Pixel records
 
 - **No thumbnails on Pixel problem cards.** Photos that could not be saved, and
   Live Photos that need conversion, have no copy in the Pixel's Photos, and the
@@ -150,8 +134,8 @@ English below; the zh-Hans strings (`records_*` keys in
   Google Photos, the original is there."
 - **Receipt thumbnails.** After saving to Photos, the Pixel keeps one private
   320-pixel WebP picture per photo (about 10 KB) so removed photos stay
-  browsable. Photos seen before this existed get one when first shown while
-  their copy is present. The picture is never evidence of any copy. Photos
+  browsable. Photos without a receipt picture get one when first shown while their copy
+  is present. The picture is never evidence of any copy. Photos
   removed before they had one show the type icon. Completed photo and video
   requests show the receipt picture first. When it is smaller than the requested
   pixel size, tiles up to 640 pixels in both dimensions then use the system media
@@ -171,18 +155,9 @@ English below; the zh-Hans strings (`records_*` keys in
   their position above the timeline. A refresh atomically replaces the loaded
   prefix from a new snapshot, so concurrent arrivals, retries and outcomes
   cannot duplicate or skip items in a paging pass. Expired cursors restart the
-  loaded prefix rather than mixing snapshots. Legacy records without a known
+  loaded prefix rather than mixing snapshots. Records without a known
   change time form a final unknown-date group. The arrival-ordered operation
   remains available for existing hosts.
-
-## 6. Open
-
-- Per-photo "Convert and save" for Live Photos needs a receiver capability and
-  is not part of this redesign.
-- A core command that returns a small preview of a received original, so Pixel
-  problem cards can show the photos.
-- The history grid duplicates the library grid on iPhone and Mac. `library.md`
-  proposes one grid with backup marks and views, retiring this page there.
 
 ### Apple original preparation failures
 
@@ -227,4 +202,4 @@ visible date anchor. Photo-library thumbnails use the existing media pipeline;
 folder thumbnails and originals use the file pipeline and security-scoped access.
 Previous/next retains the current mixed-source collection and the shared backup
 information inspector, including recorded information for unavailable originals.
-The iPhone history grid migration is a later step; its list remains unchanged.
+iPhone Backup History uses its native timeline list.

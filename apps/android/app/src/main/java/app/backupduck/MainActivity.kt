@@ -490,7 +490,7 @@ class MainActivity : BackupDuckActivity() {
         refresh();refreshSettings=::refresh
         currentSettingValues+=status to {refresh();status.text.toString()}
     }.apply {id=R.id.settings_scroll}
-    /** Advanced (design/feature-triage.md): format conversion, browser access, stop receiving. */
+    /** Advanced (design/settings.md): format conversion, browser access, stop receiving. */
     internal fun openAdvanced() { createAdvancedPage().show() }
     private fun createAdvancedPage(): LookPage {
         val page=LookPage(this,getString(R.string.pref_advanced_settings), "advanced")

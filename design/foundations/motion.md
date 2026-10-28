@@ -39,8 +39,7 @@ screen readers for every progress update.
 
 Inspect transfer, pause, failure, completion and offline transitions in actual
 native windows. Check long lists, narrow screens, large text and reduced motion.
-Prototype transitions are references, not proof of native execution or old-device
-frame-rate performance.
+Synthetic transitions do not prove physical-device frame-rate performance.
 
 Library density changes update stable native collection attributes and the scroll
 anchor together on every gesture frame. Gesture progress follows image scale;
@@ -54,8 +53,8 @@ not an onEnded replacement. Information opens within the same media viewport.
 See [Apple media interactions](../apple-media-interactions.md) for reversal,
 zoom ownership, scope navigation and accessibility acceptance.
 
-The focused [iPhone calendar Grid contract](../iphone-calendar-grid.md) supersedes
-the older phone coupling of calendar grouping/density and per-item interpolation.
+The [iPhone calendar Grid contract](../iphone-calendar-grid.md) defines independent
+calendar grouping and density with a shared tile lattice.
 Period controls move matching visible covers and zoom-crossfade the rest over
 about 340 ms: toward All the outgoing level expands and the incoming grid settles
 from slightly smaller; toward Years the outgoing level recedes. All-grid pinch
@@ -68,7 +67,7 @@ retarget its current mixture without resetting it. Date text follows geometric
 density independently of photo blending. A short dead zone precedes tracking;
 the newest boundary constrains shrinking content during the gesture. Release
 preserves the preview target and settles on a critically damped spring
-(omega 12.5, fitted to Photos release recordings), finishing any remaining blend
+(omega 12.5), finishing any remaining blend
 within the settle, and adopts the native collection only when it ends.
 Fingers drive the stage per gesture event; nothing runs a frame loop. The
 crossfade is handed to Core Animation as keyframes of its own curve at each
@@ -110,7 +109,7 @@ capsule rises 14 pt into place while its glass materializes (0.3 s spring, no
 bounce; Reduce Motion: 0.2 s, no rise). Expansion dematerializes it within
 80 ms, before the expanding platter can pass beneath it. Nothing samples
 presentation frames. Navigation actions retain native
-sizing. Legacy chrome uses an interruptible 300 ms transition. Media detail stays
+sizing. Chrome before iOS 26 uses an interruptible 300 ms transition. Media detail stays
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
 
@@ -218,7 +217,7 @@ Density changes use discrete column steps shared by the toolbar and pinch.
 Mac density transitions use a bounded native tile stage on one shared lattice.
 Thresholds, the density-stop rubber band, direction hysteresis, the critically
 damped release, the content-boundary pivot and settle re-anchoring come from
-`apps/apple/Shared/GridZoom.swift`, the same rules the iPhone grid validated;
+`apps/apple/Shared/GridZoom.swift`, the same rules as the iPhone grid;
 hosts must not re-derive them. Density faces crossfade at equal pitch and a new
 magnification takes over a running settle in place; wrapped collection rows never
 interpolate through each other. Complete cell decorations scale in their own

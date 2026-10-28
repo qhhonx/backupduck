@@ -14,7 +14,7 @@ regenerate unrelated screenshot matrices without a reason.
 4. Inspect component combinations: first/last rows, untitled groups, heading
    gaps, control alignment, wrapping and action areas.
 5. Check light/dark, narrow layouts, large text and long localized content.
-   During redesign iterations, check light and dark only; large text (one step
+   During UI iterations, check light and dark only; large text (one step
    above the default size: Android 1.15, iOS the first larger Dynamic Type
    size) is checked once in the release verification.
    Respect reduced motion, reduced transparency, contrast and platform fallbacks.

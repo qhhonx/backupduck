@@ -176,7 +176,7 @@
         <item quantity="one">%d to go</item>
         <item quantity="other">%d to go</item>
     </plurals>
-    <!-- Received photos and photo detail (design/records.md), proposed design. -->
+    <!-- Received photos and photo detail (design/records.md). -->
     <string name="photos_scope_summary">%1$s · %2$s</string>
     <plurals name="photos_scope">
         <item quantity="one">%1$s item</item>
@@ -232,7 +232,7 @@
     <string name="nav_photos">Photos</string>
     <string name="photos_preview_unavailable">Photo preview unavailable</string>
     <string name="pref_storage">Storage</string>
-    <!-- Connect a device and Connected devices (design/pixel-connect.md), proposed design. -->
+    <!-- Connect a device and Connected devices (design/pixel-connect.md). -->
     <string name="connect_code_title">Scan this code with BackupDuck on your iPhone</string>
     <string name="connect_code_auto">Connects by itself once scanned</string>
     <string name="connect_code_note">Only let your own devices scan this code.</string>
@@ -270,7 +270,7 @@
     <string name="devices_stopped_note">New photos from it aren’t received. Photos already on this Pixel stay.</string>
     <string name="devices_stopped_ack">Stopped receiving from %1$s</string>
     <string name="devices_save_failed">Couldn’t save. Try again.</string>
-    <!-- Shared components and the redesigned hub, settings, storage and first run (design/visual-language.md). -->
+    <!-- Shared components and the hub, settings, storage and first run (design/visual-language.md). -->
     <string name="look_see_all">See all</string>
     <string name="rhub_senders">Sending devices</string>
     <string name="rhub_waiting_first">Waiting for the first photo</string>

@@ -1,8 +1,5 @@
 # Settings
 
-Status: in effect (redesign default since step 6). The bottom of Settings and
-the About page were revised on October 22, 2026.
-
 This is the product-layer contract for Settings: what it holds, in which order
 and in which words. Each platform draws it in its own dialect (P2).
 
@@ -12,7 +9,7 @@ and in which words. Each platform draws it in its own dialect (P2).
    works with ("Backs up to Pixel 8 Pro", "Receiving · 1 phone connected").
    Edit renames the device.
 2. **Card (contextual).** At most one, only when something needs the user.
-   It says the cause and offers one action. Today the only card is "BackupDuck
+   It says the cause and offers one action. The only card is "BackupDuck
    couldn't open its data" with Retry. Photo access and Pro will use the same
    slot. While the engine is opening, values show "—" rather than guesses.
 3. **Category rows.** Short nouns with their current value. Details live one
@@ -62,7 +59,7 @@ catalog scenario, and the part appears.
 
 ## Sender (iPhone, iPad, Mac)
 
-Follows `feature-triage.md`: transfers, storage and log settings are automatic,
+Transfers, storage and log settings are automatic,
 so they have no rows.
 
 | Row | Value | Opens |
@@ -83,8 +80,8 @@ In Advanced Settings, a failed clear replaces the group's footer with one line
 in the failure tone, "Couldn't clear: <reason>". The row's own Clear Now is the
 retry; there is no second Retry button.
 
-Moved elsewhere: backing up earlier photos, pausing and keeping the screen on
-during a large batch move to the hub.
+Backing up earlier photos, pausing and keeping the screen on during a large
+batch belong to the hub.
 
 ## Receiver (Pixel)
 
@@ -196,12 +193,9 @@ Experiments page.
 - Footers under a switch say in one sentence what changes. Engineering detail
   goes to Help.
 
-## Open
-
-- Paid: no row or card until D1 is decided. It will use the card slot and a
-  row of its own.
-- Whether the Devices position becomes a row here instead of a tab is part of
-  D3 (closed October 18: it is a row).
+Paid features have no row or card while every capability is available to
+everyone (`product-brief.md`). A paid surface uses the contextual card slot and
+a row of its own.
 
 ## Apple help, vocabulary and bundled notices
 

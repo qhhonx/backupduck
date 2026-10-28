@@ -93,7 +93,6 @@ The CLI harness remains loopback-only.
 
 The [design system](design/README.md) documents semantic tokens, reusable
 components, interaction contracts and native verification requirements.
-Interactive prototypes use synthetic data and do not establish feature completion.
 Contributions follow the [public-source policy](docs/public-source-policy.md).
 
 ```sh

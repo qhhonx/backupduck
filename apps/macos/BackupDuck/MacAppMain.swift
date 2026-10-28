@@ -10,7 +10,7 @@ import SwiftUI
   @AppStorage("duckAppearance") private var appearance = "system"
   private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
   /// Starts the photo list fetch before the first window, as on iPhone. The
-  /// redesigned pages are the app (design/redesign-roadmap.md, step 6).
+  /// redesigned pages are the app.
   init() {
     BackupNotifier.shared.configure()
     PhotoLibraryModel.prewarm()

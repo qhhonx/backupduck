@@ -1,7 +1,7 @@
-// Actual local dashboard + full v1.2 prototype. Synthetic API only; never contacts a Pixel.
+// Actual local dashboard. Synthetic API only; never contacts a Pixel.
 const {chromium}=require(process.env.BACKUPDUCK_PLAYWRIGHT || 'playwright');
 const http=require('http'),fs=require('fs'),path=require('path'),assert=require('assert');
-const root=path.resolve(__dirname,'..'),out=path.join(root,'build/design-review/browser-v1.2');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'build/design-review/browser');
 fs.mkdirSync(out,{recursive:true});
 const fixtures=Array.from({length:67},(_,i)=>({id:`synthetic-${i}`,filename:`${['旅行','海边','生日','日常'][i%4]}_${String(i+1).padStart(3,'0')}.${i%3===1?'mp4':'heic'}`,kind:['motion','video','photo'][i%3],burst_primary:i%9===8?true:null,total_bytes:8540000+i*10000,confirmed_bytes:i%4===3?2150000:8540000+i*10000,receipt:i%4===3?'receiving':'received',processing:['complete','complete','failed','pending'][i%4],processing_error:i%4===2?'conversion_required':null,captured_at_ms:1790906400000-i*14400000,received_at_ms:1790934400000,published_at_ms:i%4<2?1790938400000:null,originals_released:false,senders:['演示 iPhone']}));
 let mode='normal',lastRetry=null,requests=[],historyDelay=0,retryDelay=0;
@@ -34,12 +34,11 @@ const server=http.createServer((req,res)=>{
    return json({},404);
  }
  const files={'/':'crates/native/src/dashboard/index.html','/style.css':'crates/native/src/dashboard/style.css','/tokens.css':'crates/native/src/dashboard/tokens.css','/app.js':'crates/native/src/dashboard/app.js','/duck.png':'assets/AppIcon.png'};
- const allowedDesign=u.pathname.startsWith('/design/web-v1.2/')&&!u.pathname.includes('..');
- const filename=files[u.pathname]|| (allowedDesign?u.pathname.slice(1):u.pathname==='/assets/AppIcon.png'?'assets/AppIcon.png':null);
+ const filename=files[u.pathname]|| (u.pathname==='/assets/AppIcon.png'?'assets/AppIcon.png':null);
  if(!filename){res.writeHead(404);return res.end();}
  try{res.setHeader('Content-Type',filename.endsWith('.css')?'text/css':filename.endsWith('.js')?'text/javascript':filename.endsWith('.png')?'image/png':filename.endsWith('.json')?'application/json':'text/html');res.end(fs.readFileSync(path.join(root,filename)));}catch(e){res.writeHead(404);res.end();}
 });
-const counts={prototypeStates:0,desktopThemes:0,mobileWidths:0};
+const counts={desktopThemes:0,mobileWidths:0};
 let base;
 async function login(page){await page.locator('#code').fill('0000000000');await page.locator('#login-button').click();await page.locator('#dashboard').waitFor({state:'visible'});await page.locator('#recent-items tr').first().waitFor({state:'attached'});}
 async function readyPage(browser,options={}){const context=await browser.newContext({locale:'zh-CN',viewport:{width:1360,height:920},...options});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);return {context,page,errors};}
@@ -50,19 +49,15 @@ async function toTransfers(page){await page.locator('.side-link[data-page="trans
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});base=`http://127.0.0.1:${server.address().port}`;
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
-   if(process.env.BACKUPDUCK_WEB_ICON_ONLY==='1'){
-     const iconOut=path.join(root,'build/design-review/web-v1.2-icons');fs.mkdirSync(iconOut,{recursive:true});
      for(const variant of [{locale:'zh-CN',colorScheme:'light',viewport:{width:1360,height:920},name:'desktop'},{locale:'en-US',colorScheme:'dark',viewport:{width:320,height:844},name:'english-320-dark'}]){
        const context=await browser.newContext(variant),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await login(page);await page.locator('#recent-items .file-name').first().waitFor();
-       for(const section of ['overview','transfers','settings']){await page.locator(`.side-link[data-page="${section}"]`).click();await page.locator(`[data-page-panel="${section}"]`).first().waitFor({state:'visible'});assert.equal(await page.locator('.side-link .side-icon>svg').count(),4);assert.equal(await page.locator('.side-link.active').getAttribute('data-page'),section);await noPageOverflow(page);await page.screenshot({path:path.join(iconOut,`${variant.name}-${section}.png`)});}
+       for(const section of ['overview','transfers','settings']){await page.locator(`.side-link[data-page="${section}"]`).click();await page.locator(`[data-page-panel="${section}"]`).first().waitFor({state:'visible'});assert.equal(await page.locator('.side-link .side-icon>svg').count(),4);assert.equal(await page.locator('.side-link.active').getAttribute('data-page'),section);await noPageOverflow(page);}
        await toTransfers(page);await page.locator('#items .file-name').nth(2).click();assert.equal(await page.locator('#details-close>svg').count(),1);assert.equal(await page.locator('#details-close').getAttribute('aria-label'),variant.locale==='en-US'?'Close details':'关闭详情');await page.locator('#details-close').click();assert.equal(await page.locator('#refresh').getAttribute('aria-label'),variant.locale==='en-US'?'Refresh records':'立即刷新');
        assert(await page.locator('.guide-grid .status-badge').evaluateAll(rows=>rows.every(row=>row.scrollWidth<=row.clientWidth+1)),'Status-guide labels must wrap within their column');assert.equal(await page.locator('#guide-failed .status-symbol>svg').count(),1);assert.equal(await page.locator('#guide-failed svg').getAttribute('aria-hidden'),'true');assert.equal(await page.locator('.status-badge').evaluateAll(rows=>rows.every(row=>getComputedStyle(row,'::before').content==='none')),true);assert.equal(await page.locator('.pagination button>svg').count(),4);
        await page.locator('#help-open').click();assert.equal(await page.locator('#help-close>svg').count(),1);assert.equal(await page.locator('#help-close').getAttribute('aria-label'),variant.locale==='en-US'?'Close help':'关闭帮助');assert.equal(await page.locator('#help-dialog :is(a,input,select)').count(),0);assert.equal(await page.locator('#help-dialog button').count(),1);await page.locator('#help-close').click();assert.deepEqual(errors,[]);await context.close();
      }
-     const report={scope:'production dashboard icon/nav',navigation:['overview','transfers','settings'],variants:['desktop light Chinese','320px dark English'],checks:['local SVG sidebar/status/metric/refresh/close/pagination','1.7 stroke','accessible labels','pure-reading help','no document overflow','no page errors'],data:'synthetic only',productionAlignment:'matches published complete prototype',checkedAt:new Date().toISOString()};fs.writeFileSync(path.join(iconOut,'report.json'),JSON.stringify(report,null,2)+'\n');console.log('PASS:',JSON.stringify(report));return;
-   }
    if(contractOnly){
-     const contractOut=path.join(root,'build/design-review/browser-v1.2-contract');fs.mkdirSync(contractOut,{recursive:true});
+     const contractOut=path.join(root,'build/design-review/browser-contract');fs.mkdirSync(contractOut,{recursive:true});
      const context=await browser.newContext({locale:'zh-CN',viewport:{width:1360,height:920}});
      await context.addInitScript(()=>{window.__dashboardIntervals=[];const start=window.setInterval;window.setInterval=(fn,ms,...args)=>{if(ms===8000)window.__dashboardIntervals.push(fn);return start(fn,ms,...args);};});
      const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
@@ -87,32 +82,10 @@ async function toTransfers(page){await page.locator('.side-link[data-page="trans
      await page.locator('.side-link[data-page="settings"]').click();mode='logout-error';await page.locator('#logout').click();await page.locator('#dashboard-feedback.error').waitFor();assert.equal(await page.evaluate(()=>localStorage.getItem('backupduck-dashboard-token')),'synthetic-review-token');assert(await page.locator('#dashboard').isVisible());
      mode='normal';const logout=page.waitForResponse(r=>r.url().includes('/api/logout'));await page.locator('#logout').click();assert.equal((await logout).status(),204);await page.locator('#login-panel').waitFor({state:'visible'});assert.equal(await page.evaluate(()=>localStorage.getItem('backupduck-dashboard-token')),null);
      await login(page);mode='expired';await page.evaluate(()=>window.__dashboardIntervals[0]());await page.locator('#login-panel').waitFor({state:'visible'});assert.equal(await page.locator('#items .file-name').count(),0);assert.equal(await page.evaluate(()=>localStorage.getItem('backupduck-dashboard-token')),null);assert((await page.locator('#login-message').textContent()).includes('会话'));assert.deepEqual(errors,[]);
-     mode='normal';await page.goto(`${base}/design/web-v1.2/index.html`);assert.equal(await page.locator('#catalog button').count(),12);
-     for(const entry of ['retry','retry-all']){await page.locator(`#catalog button[data-id="${entry}"]`).click();await page.locator('#scene').selectOption('retry-zero');const frame=page.frameLocator('#preview');await frame.locator(entry==='retry'?'#details-dialog':'#retry-dialog').waitFor({state:'visible'});await frame.locator(entry==='retry'?'#detail-retry':'#retry-confirm').click();await frame.locator(entry==='retry'?'#detail-message':'#retry-message').filter({hasText:'没有可重试的失败记录。'}).waitFor();await page.screenshot({path:path.join(contractOut,`prototype-${entry}-zero.png`),fullPage:true});}
+     mode='normal';
      const native=await context.newPage();await native.route('**/app.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(root,'crates/native/src/dashboard/app.js'),'utf8')}));await native.goto(base);await login(native);await native.locator('.side-link[data-page="settings"]').click();await native.locator('#logout').click();await native.locator('#login-panel').waitFor({state:'visible'});assert.equal(await native.evaluate(()=>localStorage.getItem('backupduck-dashboard-token')),null);
-     await context.close();const report={scope:'production dashboard API contract and prototype zero-count states',checks:['logout 204','logout failure retains session','login 429 preserves input','401 clears records and token','retry count0/count1 are not gallery success','missing-id no request','auto-refresh retains failed dialog and page2','filter+refresh in-flight retains requested page1','read-only help','busy retry blocks Escape/close until response'],data:'synthetic only',productionAlignment:'matches published complete prototype',checkedAt:new Date().toISOString()};fs.writeFileSync(path.join(contractOut,'report.json'),JSON.stringify(report,null,2)+'\n');console.log('PASS:',JSON.stringify(report));return;
+     await context.close();const report={scope:'production dashboard API contract',checks:['logout 204','logout failure retains session','login 429 preserves input','401 clears records and token','retry count0/count1 are not gallery success','missing-id no request','auto-refresh retains failed dialog and page2','filter+refresh in-flight retains requested page1','read-only help','busy retry blocks Escape/close until response'],data:'synthetic only',checkedAt:new Date().toISOString()};fs.writeFileSync(path.join(contractOut,'report.json'),JSON.stringify(report,null,2)+'\n');console.log('PASS:',JSON.stringify(report));return;
    }
-   // Prototype first: every documented state is rendered and actually navigable.
-   const cat=JSON.parse(fs.readFileSync(path.join(root,'design/web-v1.2/catalog.json')));
-   const proto=await readyPage(browser);const pp=proto.page;
-   for(const entry of cat){for(const scene of Object.values(entry.scenarios)){
-     const section=['filters','pagination','detail','retry','retry-all'].includes(entry.id)?'transfers':['login','session','help'].includes(entry.id)?'overview':entry.id;
-     const q=new URLSearchParams({scene});if(entry.id==='detail')q.set('overlay','detail');if(entry.id==='retry')q.set('overlay','failed');if(entry.id==='retry-all')q.set('overlay','retry-all');if(entry.id==='help')q.set('overlay','help');
-     await pp.goto(`${base}/design/web-v1.2/dashboard.html?${q}#${section}`);
-     if(['invalid','locked','login-offline'].includes(scene)){await pp.locator('#code').fill('0000000000');await pp.locator('#login-button').click();await pp.locator('#login-message.error').waitFor();}
-     else if(scene==='connecting')await pp.locator('#login-button').waitFor({state:'visible'});
-     else if(['login','expired','revoked'].includes(scene))await pp.locator('#login-panel').waitFor({state:'visible'});
-     else if(['detail','retry'].includes(entry.id))await pp.locator('#details-dialog').waitFor({state:'visible'});
-     else if(entry.id==='help')await pp.locator('#help-dialog').waitFor({state:'visible'});
-     else if(entry.id==='retry-all')await pp.locator('#retry-dialog').waitFor({state:'visible'});
-     else await pp.locator('#dashboard').waitFor({state:'visible'});
-     if(scene==='retry-pending') {
-       const dialog=entry.id==='retry'?'#details-dialog':'#retry-dialog';
-       await pp.locator(dialog+'[aria-busy="true"]').waitFor();await pp.keyboard.press('Escape');assert(await pp.locator(dialog).isVisible(),'Prototype must retain its pending-request dialog');
-     }
-     assert((await pp.locator('body').innerText()).length>150);counts.prototypeStates++;
-   }}
-   assert.deepEqual(proto.errors,[]);await proto.context.close();
    // Production UI representative real-click flow in both themes.
    for(const theme of ['light','dark']){
      mode='normal';const {context,page,errors}=await readyPage(browser,{colorScheme:theme});

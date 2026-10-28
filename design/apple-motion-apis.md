@@ -1,7 +1,7 @@
 # Apple motion: system APIs and how BackupDuck uses them
 
 This is the implementation contract for motion on iPhone, iPad and Mac.
-[Motion](backupduck-v1/motion.md) owns timings and choreography; this document
+[Motion](foundations/motion.md) owns timings and choreography; this document
 owns *how* those motions are built. Deployment targets are iOS 18 and macOS 15,
 so the SwiftUI-animation bridges below are available everywhere; newer APIs
 need an availability check and a fallback that looks the same.
@@ -23,14 +23,6 @@ state must never drive a main-surface motion. A tap that starts a transition
 presents directly from the UIKit or AppKit controller that owns the source
 view, never through a SwiftUI state change and a later run-loop turn.
 
-Existing SwiftUI shells on main surfaces are migration debt. Move them when
-the surface is next touched:
-- the iPhone root tab view;
-- the remaining viewer presentations that are not yet `MediaViewerTransition`:
-  the iPad library's hidden SwiftUI host, recorded History photos and selection
-  review. The iPhone library and the album browser present directly.
-- the Mac viewer toolbar.
-
 ## 2. The rule for animation
 
 Animation pixels come from the system's animation engines: UIKit and AppKit
@@ -48,7 +40,7 @@ retarget smoothly, carry velocity and respect accessibility settings.
   retargets the tracked value. Release always hands off to a system spring
   carrying the gesture velocity.
 - A frame loop is allowed only where no animation API can express the
-  behaviour and the owner has agreed to it. Today that means edge autoscroll
+  behaviour. The exceptions are edge autoscroll
   while drag-selecting, and benchmarks that never ship. Each one names its
   reason in a comment.
 
@@ -218,13 +210,13 @@ loop is not acceptable, even when it looks the same in a recording.
 
 ## 7. BackupDuck motions and their mechanisms
 
-| Motion | Mechanism now | Target mechanism | Status |
-|---|---|---|---|
-| Photos-tab period capsule | KVO on the bar's morph target; `UIView.animate` spring materializes glass | — | Conforms |
-| iPhone library viewer present, dismiss and drag to dismiss | Custom present transition (`UIViewControllerAnimatedTransitioning` and `UIViewControllerInteractiveTransitioning`): a grid snapshot crossfades above the opaque viewer page, and a media snapshot flies on one `UIViewPropertyAnimator` spring; the drag updates per gesture event | — | Conforms |
-| iPhone grid pinch zoom (Photos tab) | Per-gesture-event tracking; crossfade as Core Animation keyframes scheduled at events; release settle as one `CASpringAnimation` per density layer over a layout made once at the target pose | — | Conforms |
-| Mac grid zoom (Library, Folders, History) | Magnify tracked per event; composite opacity keyframes (paused between magnify events); release uses tile `CASpringAnimation` geometry for ordinary/grouped faces, a photo-only spring transform for dense faces, and native-size caption position keyframes; visible-stage animation delegates own completion | — | Conforms |
-| Mac level and viewer flights | One Core Animation group (bounds, position, cornerRadius, opacity keyframes); a moved destination is absorbed by an additive animation | — | Conforms |
-| iPad timeline mode morph | Display-link `transitionProgress` | `setCollectionViewLayout(_:animated:)` or an interactive transition finished by the system | Open |
-| Drag-select edge autoscroll | Display link while the finger is held | — | Allowed exception |
-| Scroll benchmarks | Display link behind a launch argument | Test-only; must not ship | Test hook |
+| Motion | System mechanism |
+|---|---|
+| Photos-tab period capsule | KVO on the bar's morph target; `UIView.animate` spring materializes glass |
+| iPhone library viewer present, dismiss and drag to dismiss | Custom present transition (`UIViewControllerAnimatedTransitioning` and `UIViewControllerInteractiveTransitioning`): a grid snapshot crossfades above the opaque viewer page, and a media snapshot flies on one `UIViewPropertyAnimator` spring; the drag updates per gesture event |
+| iPhone grid pinch zoom (Photos tab) | Per-gesture-event tracking; crossfade as Core Animation keyframes scheduled at events; release settle as one `CASpringAnimation` per density layer over a layout made once at the target pose |
+| Mac grid zoom (Library, Folders, History) | Magnify tracked per event; composite opacity keyframes (paused between magnify events); release uses tile `CASpringAnimation` geometry for ordinary/grouped faces, a photo-only spring transform for dense faces, and native-size caption position keyframes; visible-stage animation delegates own completion |
+| Mac level and viewer flights | One Core Animation group (bounds, position, cornerRadius, opacity keyframes); a moved destination is absorbed by an additive animation |
+| iPad timeline mode morph | `setCollectionViewLayout(_:animated:)` or an interactive transition finished by the system |
+| Drag-select edge autoscroll | Display link while the finger is held, where no animation API expresses edge autoscroll |
+| Scroll benchmarks | Display link behind a launch argument; test-only, must not ship |

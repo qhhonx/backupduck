@@ -1,11 +1,8 @@
 # Main flows
 
-Status: proposed, for review. These are the three journeys of
-`product-brief.md`: first run, every day, and when something goes wrong. They
-follow `feature-triage.md` and the interaction standards (`interaction.md`).
-
-Copy is quoted in English; the Chinese copy reviewed with the owner is in
-`flows.zh.md`. Words follow `copy-glossary.zh.md`.
+The three journeys of `product-brief.md` are first run, every day and when
+something goes wrong. They follow `interaction.md`. Copy examples are quoted
+in English; vocabulary follows `copy-glossary.zh.md`.
 
 ## Principles
 
@@ -48,19 +45,18 @@ iPhone connect contract below.
 | 3 | **Connect.** One sentence on why the camera is needed, then the scanner. On success: "Connected to Pixel 8 Pro" with the connecting duck | Scan the code on your Pixel | Mac shows its own code for the Pixel to scan instead |
 | 4 | **Photos.** "BackupDuck reads your photos and sends them straight to your Pixel, never through our servers." then the system prompt | Continue | iPhone keeps three benefits in one aligned symbol column: direct to the Pixel, no upload to BackupDuck servers, and full quality without compression. Denial stays on this step with the photo-access explanation, Open Settings and Later; Later ends first run on the hub. Returning with full or limited access advances automatically. Limited access counts only the allowed photos and retains the limited-access note |
 | 5 | **Earlier photos too?** Use the earlier-photo question with the actual accessible count as the sole page heading. Keep the step marks, new-photo subtitle, recent-media strip (up to four accessible photos and videos, with poster frames and library duration badges), background-transfer note and conditions link in the content; do not add another question heading. New-photo backup is on, explained in one line without a switch. Show an approximate size only if a supported source supplies it; do not guess. The note says: "However many there are, they can finish sending in the background. If your Pixel runs low on space, you can free up photos already backed up to Google Photos." Learn More explains storage conditions | Back Up Everything | Secondary: Only New Photos; the only decision is whether to include earlier photos |
-| 6 | **First photo lands.** The first thumbnail travels between two graphite front-view phone illustrations (Illustrations.xcassets DeviceIPhone / DevicePixel, derived artwork without logos): the iPhone has a Dynamic Island and the Pixel a centred punch-hole camera; both screen openings have the same height, each lit screen sits under its bezel, and the Pixel starts as an empty Photos page because its contents are not known here. Labels use the device kinds iPhone and Pixel above the unchanged destination labels, without generated device names. A thin shared progress bar under the devices uses only the job’s confirmed/total bytes, with Sending and the byte counts; before bytes are known, show Preparing the photo. Symmetric labels and centered title/status share one axis. The approved done duck appears on confirmed arrival, then "Your first photo is in the Pixel's Photos". Both screens show a library as the library grid does: three columns, oldest first; a library that fits starts under the status bar with any partial row last, and a longer one is scrolled to its newest photos at the bottom. A copy of the sent photo flies from its own iPhone slot into the Pixel's first slot while the original keeps its slot, because a backup copies; the sent photo is always in the iPhone grid. Both screens use one tile size, so a copy keeps its size from slot to slot. While the page stays open, every later photo the Pixel saves to its Photos flies the same way into the Pixel's next slot, one at a time with a 0.6-second pause; photos saved while a copy is in flight appear in place, so the page never falls behind the Pixel, and a photo older than the visible iPhone grid fades in from the top of the iPhone screen. Nothing moves without a saved photo: preparing and sending show only the byte progress, never a loop. Keep the existing 0.75-second curve and 0.15-second hold. One orchestrated motion; crossfade without travel under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
+| 6 | **First photo lands.** The first thumbnail travels between two graphite front-view phone illustrations (Illustrations.xcassets DeviceIPhone / DevicePixel, derived artwork without logos): the iPhone has a Dynamic Island and the Pixel a centred punch-hole camera; both screen openings have the same height, each lit screen sits under its bezel, and the Pixel starts as an empty Photos page because its contents are not known here. Labels use the device kinds iPhone and Pixel above the unchanged destination labels, without generated device names. A thin shared progress bar under the devices uses only the job’s confirmed/total bytes, with Sending and the byte counts; before bytes are known, show Preparing the photo. Symmetric labels and centered title/status share one axis. The done duck appears on confirmed arrival, then "Your first photo is in the Pixel's Photos". Both screens show a library as the library grid does: three columns, oldest first; a library that fits starts under the status bar with any partial row last, and a longer one is scrolled to its newest photos at the bottom. A copy of the sent photo flies from its own iPhone slot into the Pixel's first slot while the original keeps its slot, because a backup copies; the sent photo is always in the iPhone grid. Both screens use one tile size, so a copy keeps its size from slot to slot. While the page stays open, every later photo the Pixel saves to its Photos flies the same way into the Pixel's next slot, one at a time with a 0.6-second pause; photos saved while a copy is in flight appear in place, so the page never falls behind the Pixel, and a photo older than the visible iPhone grid fades in from the top of the iPhone screen. Nothing moves without a saved photo: preparing and sending show only the byte progress, never a loop. Keep the existing 0.75-second curve and 0.15-second hold. One orchestrated motion; crossfade without travel under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
 | 7 | **Hub.** Progress card for earlier photos, keep-screen-on switch while a large batch runs, Live Activity on the lock screen | — | First run ends here. Only New Photos skips the first-photo step and ends first run on the hub; until an earlier-photo run starts, the hub says new photos are saved (never "all photos") and offers Earlier Photos with one Back Up action, using the Auto Backup scope. |
 
-### Mac first run gap
+### Mac connection entry
 
-For 0.5.0, the empty Overview says that photos are kept on the Pixel and that
-connecting will ask for access to the Mac photo library. Connect Pixel stays the
-primary action. The complete Mac first-run flow is the first item after 0.5.0;
-this empty state does not establish wizard completion.
+The Mac has no first-run wizard. Its empty Overview says that photos are kept
+on the Pixel and that connecting will ask for access to the Mac photo library;
+Connect Pixel is the primary action.
 
 ### iPhone connect: permission and startup order
 
-The redesigned scanner answers one question: connect this iPhone to the Pixel
+The scanner answers one question: connect this iPhone to the Pixel
 whose code is being scanned. Merely entering or restoring the scanner is not
 connection intent. First run and the later Connect/Reconnect sheet use the same
 scanner and recovery states.
@@ -184,7 +180,7 @@ happening or needs the user.
 Device readings (temperature, space, battery) stay hidden while normal and
 appear as one line when they matter.
 
-### Hub rules (implemented in the catalogs, approved October 18, 2026)
+### Hub rules
 
 - One state at a time, in this order: not paired, opening, paused, problems,
   backing up or receiving, caught up, empty. Pausing is the user's choice and
@@ -230,13 +226,6 @@ the item and any notification never disagree (P3).
 - Mac settings keep a limited line width in the detail pane; the photo viewer
   opens in its own dark window.
 
-## Open
-
-- The Pixel download page (step 2) needs a stable address and a page for the
-  APK; it is outside the apps.
-- D3 is closed (October 18): Devices is the identity header and a Settings row.
-- Live Activity and Mac menu bar details are designed with the hub.
-
 ## How the Pixel keeps space free
 
 The copy in the Pixel's Photos stays on the Pixel until Google Photos has
@@ -253,7 +242,7 @@ Google Photos has backed up, so only Google's own tools can remove them safely:
    versions.
 
 BackupDuck's own copy is freed separately by "free up space after saving to
-Photos" (`feature-triage.md`).
+Photos" (`settings.md#receiver-pixel`).
 
 Pixel terminology is "Free up space" for the section, "Auto cleanup
 (experimental)" for the feature, and "Free up space" for the action. Storage

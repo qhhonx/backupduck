@@ -1,16 +1,15 @@
 # Website
 
-The official site (`site/`) is the first public face of the brand. It is
-redesigned with the apps: the same promise, words and visual language, with the
-apps' current screens as its imagery. It is a page that answers, in order, what
+The official site (`site/`) is the first public face of the brand. It shares the apps' promise, words and visual language, with their current
+screens as its imagery. It is a page that answers, in order, what
 a visitor asks: what is this, is it true for me, how do I start, is it safe.
 
 ## Principles
 
 - **One promise first.** The headline is the product's promise from
   `product-brief.md`; conditions sit right under it in small print, never hidden.
-- **Show the real apps.** Imagery is current catalog captures of the redesigned
-  iPhone, Mac and Pixel screens (synthetic data), never mock-ups of old screens.
+- **Show the real apps.** Imagery is current catalog captures of the
+  iPhone, Mac and Pixel screens (synthetic data).
 - **Same language as the apps.** Words follow `copy-glossary.zh.md`; the three
   step marks (yellow circle, blue wing, orange sparkle, no numerals) carry the
   three steps exactly as first run does; the duck appears for brand moments only.
@@ -30,7 +29,7 @@ a visitor asks: what is this, is it true for me, how do I start, is it safe.
    limits." Primary action: Download (the visitor's platform). Small print:
    "Original Pixel: unlimited Original quality. Pixel 2 to 5: unlimited Storage
    saver. The offer is Google's." The Chinese copy is the first-run welcome copy
-   (`flows.zh.md`). Image: the iPhone hub beside the Pixel receive page.
+   (`flows.md#1-first-run`). Image: the iPhone hub beside the Pixel receive page.
 3. **Three steps**, with the three marks: Install BackupDuck on a Pixel ·
    Connect the two devices · Photos back up to Google Photos. One line each, as
    in first run.
@@ -49,7 +48,3 @@ a visitor asks: what is this, is it true for me, how do I start, is it safe.
    backup on iPhone, folders and SD cards, keep another copy).
 9. **Footer**: privacy, source code, feedback group, version.
 
-## Open
-
-- Whether the hero shows a short silent loop of the first photo flying from
-  iPhone to Pixel (the first-run motion) or a still.

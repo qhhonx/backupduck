@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / 'design/literal-baseline.json'
-TOKENS = json.loads((ROOT / 'design/backupduck-v1/tokens.json').read_text())
+TOKENS = json.loads((ROOT / 'design/foundations/tokens.json').read_text())
 
 SWIFT_ROOTS = ('apps/ios/BackupDuck', 'apps/macos/BackupDuck', 'apps/apple/Shared')
 ANDROID_CODE = 'apps/android/app/src/main/java'
