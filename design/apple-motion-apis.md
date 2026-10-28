@@ -223,7 +223,7 @@ loop is not acceptable, even when it looks the same in a recording.
 | Photos-tab period capsule | KVO on the bar's morph target; `UIView.animate` spring materializes glass | — | Conforms |
 | iPhone library viewer present, dismiss and drag to dismiss | Custom present transition (`UIViewControllerAnimatedTransitioning` and `UIViewControllerInteractiveTransitioning`): a grid snapshot crossfades above the opaque viewer page, and a media snapshot flies on one `UIViewPropertyAnimator` spring; the drag updates per gesture event | — | Conforms |
 | iPhone grid pinch zoom (Photos tab) | Per-gesture-event tracking; crossfade as Core Animation keyframes scheduled at events; release settle as one `CASpringAnimation` per density layer over a layout made once at the target pose | — | Conforms |
-| Mac grid zoom (Library, Folders, History) | Display-link settle and crossfade | Magnify events tracked per event; release goes to a Core Animation spring | Open |
+| Mac grid zoom (Library, Folders, History) | Magnify tracked per event; composite opacity keyframes (paused between magnify events); release uses tile `CASpringAnimation` geometry for ordinary/grouped faces, a photo-only spring transform for dense faces, and native-size caption position keyframes; visible-stage animation delegates own completion | — | Conforms |
 | Mac level and viewer flights | One Core Animation group (bounds, position, cornerRadius, opacity keyframes); a moved destination is absorbed by an additive animation | — | Conforms |
 | iPad timeline mode morph | Display-link `transitionProgress` | `setCollectionViewLayout(_:animated:)` or an interactive transition finished by the system | Open |
 | Drag-select edge autoscroll | Display link while the finger is held | — | Allowed exception |

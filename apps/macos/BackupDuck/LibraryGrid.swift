@@ -425,7 +425,6 @@ struct MacMediaGrid: NSViewRepresentable {
     private var boundary: GridZoom.Boundary?
     private var settle: GridZoom.Settle?
     private var samples: [(CFTimeInterval, CGFloat)] = []
-    private var settleLink: CADisplayLink?
     private var settleColumns = 0
     private var finalOffset: CGFloat = 0
     /// Row count and newest-edge state when the settle's offset was chosen. The
@@ -436,7 +435,7 @@ struct MacMediaGrid: NSViewRepresentable {
     private var startOffset: CGFloat = 0
     private var reducedMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     func stopLayoutAnimation() {
-      settleLink?.invalidate(); settleLink = nil; settle = nil; animationTarget = nil; restoring = false
+      zoomStage?.freeze(); settle = nil; animationTarget = nil; restoring = false
     }
     /// A layout pass changed the document height. A viewport resting at the
     /// newest edge stays there until the person scrolls away.
@@ -621,6 +620,7 @@ struct MacMediaGrid: NSViewRepresentable {
       let stage = MacGridZoomStage(count: count,anchor: anchor,fraction: CGPoint(x: anchorFractionX,y: anchorFraction),
         columns: layout.columns,pitch: frame.width+gap(layout.columns),focus: focus)
       stage.frame = scroll.contentView.frame; stage.autoresizingMask = [.width,.height]
+      stage.densePinTop = scroll.contentInsets.top + 6
       stage.referenceSide = { [weak self] columns in (self?.naturalPitch(columns) ?? 3)-(self?.gap(columns) ?? 2) }
       stage.denseAsset = { [weak self] index in self?.asset(at: index) }
       stage.denseFact = { [weak self] index in self?.fact(at: index) }
@@ -735,13 +735,8 @@ struct MacMediaGrid: NSViewRepresentable {
       settle = GridZoom.Settle(start: now,pitch: stage.pitch,focus: stage.focus,
         velocity: GridZoom.Settle.velocity(of: samples),targetPitch: natural,
         targetFocus: CGPoint(x: focusInContent.x,y: focusInContent.y-offset))
-      settleLink?.invalidate()
-      // Frames follow the display, not a timer: a free-running timer beats
-      // against the refresh and shows as judder on every settle.
-      let link = scroll.displayLink(target: self,selector: #selector(settleTick(_:)))
-      link.add(to: .main,forMode: .common); settleLink = link
+      if let settle { stage.settle(with: settle) { [weak self] in self?.completeStage() } }
     }
-    @objc private func settleTick(_ link: CADisplayLink) { settleFrame() }
     // MARK: Scroll benchmark
     /// `-scroll-benchmark`: after each density change the grid scrolls itself
     /// towards older photos at 1500 pt/s for four seconds, driven by the display,
@@ -783,29 +778,10 @@ struct MacMediaGrid: NSViewRepresentable {
       if let h = FileHandle(forWritingAtPath: "/tmp/scroll-benchmark.log") { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!) }
       else { try? line.write(toFile: "/tmp/scroll-benchmark.log", atomically: false, encoding: .utf8) }
     }
-    private func settleFrame() {
-      guard let stage = zoomStage, let settle else { stopLayoutAnimation(); return }
-      let now = CACurrentMediaTime()
-      stage.advanceBlend(to: now)
-      let state = settle.state(at: now)
-      stage.pitch = state.pitch; stage.focus = state.focus
-      stage.render()
-      // Visually settled well before the numeric tolerance: half a point of
-      // pitch and one point of focus, or 0.6 s, whichever comes first.
-      let close = abs(state.pitch-settle.targetPitch) < 0.5
-        && hypot(state.focus.x-settle.targetFocus.x,state.focus.y-settle.targetFocus.y) < 1
-      if (close || now-settle.start > 0.6), !stage.isBlending {
-        // Hand off at the exact destination pose so the collection adopts
-        // without a sub-point shift.
-        stage.pitch = settle.targetPitch; stage.focus = settle.targetFocus
-        stage.render()
-        completeStage()
-      }
-    }
     private func completeStage() {
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout,
         let target = animationTarget else { stopLayoutAnimation(); removeZoomStage(); return }
-      settleLink?.invalidate(); settleLink = nil; settle = nil
+      settle = nil
       leading = settleLeading
       layout.requestedColumns = settleColumns
       layout.leadingSlots = leading
@@ -832,12 +808,12 @@ struct MacMediaGrid: NSViewRepresentable {
             let image = tile.displayedImage { item.retainDisplayedImage(image) }
         }
       }
-      // The native cells show first; the stage leaves only once that commit
-      // has landed, so no stale cell contents are ever visible.
       let stage = zoomStage
+      if layout.isDense, let canvas = denseCanvas { stage?.retainDensePixels(in: canvas) }
       collection.alphaValue = 1
-      // Never flush or lay out here: completion can run inside a SwiftUI update
-      // pass, and forcing a display cycle re-enters it.
+      // Keep the exact target through this update pass, then use the original
+      // main-queue handoff. A no-op layer animation is not a commit barrier:
+      // an inactive window can suspend it and strand subsequent zoom commands.
       DispatchQueue.main.async { [weak self, weak stage] in
         guard let self else { return }
         if let stage, self.zoomStage === stage { self.removeZoomStage() }
@@ -861,7 +837,7 @@ struct MacMediaGrid: NSViewRepresentable {
         if interrupted, let stage = zoomStage {
           // Take over the running settle in place: re-anchor on the new pointer
           // without moving any pixel, from the density the release had chosen.
-          settleLink?.invalidate(); settleLink = nil; settle = nil; animationTarget = nil
+          stage.freeze(); settle = nil; animationTarget = nil
           startColumns = settleColumns
           gestureLeading[settleColumns] = settleLeading
           stage.reanchor(to: CGPoint(x: location.x,y: location.y-scroll.contentView.bounds.minY))
@@ -898,7 +874,7 @@ struct MacMediaGrid: NSViewRepresentable {
           stage.ensureFace(columns,opacity: 0,leading: phase(for: columns))
           stage.show(columns,animated: !reducedMotion)
         }
-        stage.advanceBlend(to: now)
+        stage.trackBlend(at: now)
         stage.focus.y = boundary.focusY(pitch: pitch,viewportBottom: viewportHeight(),viewportTop: 0)
         if !reducedMotion { stage.render() }
       case .ended, .cancelled, .failed:
@@ -1253,6 +1229,7 @@ private final class MacMarqueeView: NSView {
   private(set) var presentationID: String?
   private let photoLayer = CALayer()
   private(set) var displayedImage: NSImage?
+  var onDisplay: (() -> Void)?
   private let media = MacBadgeLayer()
   private let status = MacBadgeLayer()
   private let cloud = MacBadgeLayer()
@@ -1487,6 +1464,7 @@ private final class MacMarqueeView: NSView {
     }
     displayedImage = image
     photoLayer.contents = image.cgImage(forProposedRect: nil,context: nil,hints: nil)
+    onDisplay?()
   }
   func setGroup(count: Int?, state: String?) {
     if count != nil {
@@ -2269,6 +2247,12 @@ struct MacCalendarGrid: NSViewRepresentable {
   private var layers: [Int: CALayer] = [:]
   private var requests: [Int: PHImageRequestID] = [:]
   private var pool: [CALayer] = []
+  var onDisplay: (() -> Void)?
+  private var zoomColumns = 1, zoomLeading = 0
+  private var zoomPin: CGFloat = 4
+  private var tileKeys: [Int: String] = [:]
+  /// Photos scale together; period text stays in the canvas at native size.
+  private let zoomPhotos = CALayer()
   private static let actions: [String: CAAction] = [
     "contents": NSNull(), "position": NSNull(), "bounds": NSNull(), "frame": NSNull(),
     "opacity": NSNull(), "hidden": NSNull(), "backgroundColor": NSNull(), "sublayers": NSNull(),
@@ -2279,6 +2263,8 @@ struct MacCalendarGrid: NSViewRepresentable {
     super.init(frame: frameRect); wantsLayer = true; layer?.masksToBounds = true
     layer?.actions = Self.actions
     layerContentsRedrawPolicy = .never
+    zoomPhotos.anchorPoint = .zero; zoomPhotos.actions = Self.actions
+    layer?.addSublayer(zoomPhotos)
   }
   // The canvas draws nothing itself; its tiles are sublayers.
   override var wantsUpdateLayer: Bool { true }
@@ -2302,6 +2288,8 @@ struct MacCalendarGrid: NSViewRepresentable {
   }
   func render(columns: Int, origin: CGPoint, pitch: CGFloat, visible: CGRect, leading: Int = 0, pinTop: CGFloat? = nil) {
     guard count > 0, columns > 0, pitch > 0.5 else { reset(); return }
+    zoomColumns = columns; zoomLeading = leading
+    zoomPin = pinTop ?? visible.minY + 4
     let scale = window?.backingScaleFactor ?? 2
     let rowStart = max(0, Int(floor((visible.minY - origin.y) / pitch)) - 1)
     let rowEnd = min((count - 1 + leading) / columns, Int(ceil((visible.maxY - origin.y) / pitch)) + 1)
@@ -2310,6 +2298,10 @@ struct MacCalendarGrid: NSViewRepresentable {
     let colEnd = min(columns - 1, Int(ceil((visible.maxX - origin.x) / pitch)) + 1)
     var keep = Set<Int>()
     CATransaction.begin(); CATransaction.setDisableActions(true)
+    // Give the photo container a real display extent before it enters the
+    // native collection. Its zero anchor keeps tile coordinates unchanged.
+    zoomPhotos.bounds = CGRect(origin: .zero, size: bounds.size)
+    zoomPhotos.position = .zero
     if colStart <= colEnd {
       for row in rowStart...rowEnd {
         let y0 = snap(origin.y + CGFloat(row) * pitch), y1 = snap(origin.y + CGFloat(row + 1) * pitch)
@@ -2322,7 +2314,7 @@ struct MacCalendarGrid: NSViewRepresentable {
           if let existing = layers[index] { layer = existing } else {
             layer = pool.popLast() ?? makeLayer()
             layer.contents = nil
-            self.layer?.addSublayer(layer)
+            zoomPhotos.addSublayer(layer)
             layers[index] = layer
           }
           layer.frame = CGRect(x: x0, y: y0, width: max(0.5, x1 - x0), height: max(0.5, y1 - y0))
@@ -2333,6 +2325,7 @@ struct MacCalendarGrid: NSViewRepresentable {
             let known = factAt?(index)
             let found = known == nil ? assetAt?(index) : nil
             guard let key = known?.key ?? found.map(MacThumbnailTables.key) else { continue }
+            tileKeys[index] = key
             let stored = MacThumbnailTables.image(key: key, pixels: pitch * scale)
             if let stored { layer.contents = stored.image }
             if stored?.sharp != true, let asset = found ?? assetAt?(index) {
@@ -2341,6 +2334,7 @@ struct MacCalendarGrid: NSViewRepresentable {
                 CATransaction.begin(); CATransaction.setDisableActions(true)
                 layer.contents = image
                 CATransaction.commit()
+                self.onDisplay?()
                 if let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
                   MacThumbnailTables.remember(asset, pixels: pitch * scale, image: cg)
                 }
@@ -2354,12 +2348,13 @@ struct MacCalendarGrid: NSViewRepresentable {
     for index in Array(layers.keys) where !keep.contains(index) {
       if let id = requests.removeValue(forKey: index) { pipeline?.cancel(id) }
       if let layer = layers.removeValue(forKey: index) {
+        tileKeys.removeValue(forKey: index)
         layer.removeFromSuperlayer(); layer.contents = nil
         if pool.count < 3000 { pool.append(layer) }
       }
     }
     renderPills(columns: columns, origin: origin, pitch: pitch, rows: rowStart...rowEnd, leading: leading,
-      pin: pinTop ?? visible.minY + 4)
+      pin: zoomPin)
     CATransaction.commit()
   }
   // MARK: Period pills
@@ -2387,7 +2382,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     Self.titles[key] = title
     return (key, title)
   }
-  private func renderPills(columns: Int, origin: CGPoint, pitch: CGFloat, rows: ClosedRange<Int>, leading: Int, pin: CGFloat) {
+  private func pillPlacements(columns: Int, origin: CGPoint, pitch: CGFloat, rows: ClosedRange<Int>, leading: Int, pin: CGFloat) -> [(y: CGFloat, key: String, title: String)] {
     let yearly = columns >= (MacLibraryDensity.overview.last ?? 40)
     func lastItem(_ row: Int) -> Int { min(count - 1, (row + 1) * columns - 1 - leading) }
     func firstItem(_ row: Int) -> Int { max(0, row * columns - leading) }
@@ -2415,6 +2410,11 @@ struct MacCalendarGrid: NSViewRepresentable {
       && start.y >= (placed.last?.y ?? -.greatestFiniteMagnitude) + 40 {
       placed.append(start)
     }
+    return placed
+  }
+  private func renderPills(columns: Int, origin: CGPoint, pitch: CGFloat, rows: ClosedRange<Int>, leading: Int, pin: CGFloat) {
+    let placed = pillPlacements(columns: columns, origin: origin, pitch: pitch, rows: rows, leading: leading, pin: pin)
+    let yearly = columns >= (MacLibraryDensity.overview.last ?? 40)
     var keep = Set<String>()
     let scale = window?.backingScaleFactor ?? 2
     for pill in placed {
@@ -2429,6 +2429,101 @@ struct MacCalendarGrid: NSViewRepresentable {
       layer.frame = CGRect(x: origin.x + 12, y: pill.y, width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
     }
     for key in Array(pills.keys) where !keep.contains(key) { pills.removeValue(forKey: key)?.removeFromSuperlayer() }
+  }
+  /// The gapless lattice scales on one photo-only layer. Quantized target
+  /// rectangles remain unchanged; period labels live outside this transform.
+  func animateZoom(_ model: GridZoom.Settle, duration: CFTimeInterval,
+    origin: (CGFloat, CGPoint) -> CGPoint) {
+    func frame(_ index: Int, _ p: CGFloat, _ f: CGPoint, snapped: Bool = true) -> CGRect {
+      let o = origin(p, f), slot = index + zoomLeading
+      let x = o.x + CGFloat(slot % zoomColumns) * p, y = o.y + CGFloat(slot / zoomColumns) * p
+      let s: (CGFloat) -> CGFloat = snapped ? snap : { $0 }
+      return CGRect(x: s(x), y: s(y), width: s(x + p) - s(x), height: s(y + p) - s(y))
+    }
+    let ratio = model.pitch / model.targetPitch
+    if let (index, tile) = layers.first {
+      let from = frame(index, model.pitch, model.focus)
+      let translation = CGPoint(x: from.minX - tile.frame.minX * ratio, y: from.minY - tile.frame.minY * ratio)
+      // Quantized natural pitches have uniform edges. A fractional gesture
+      // release can alternate tile widths; scaling those would move pixels at
+      // takeover. Keep tile springs for that nonuniform case.
+      let uniform = layers.allSatisfy { index, tile in
+        let expected = frame(index, model.pitch, model.focus), target = tile.frame
+        return abs(expected.minX - (translation.x + target.minX * ratio)) < 0.000001
+          && abs(expected.minY - (translation.y + target.minY * ratio)) < 0.000001
+          && abs(expected.width - target.width * ratio) < 0.000001
+          && abs(expected.height - target.height * ratio) < 0.000001
+      }
+      if uniform {
+        let base = frame(index, model.pitch, model.focus, snapped: false)
+        let unit = frame(index, model.pitch + 1, model.focus, snapped: false)
+        MacGridSpring.animateUniform(zoomPhotos, from: translation,
+          derivative: CGPoint(x: unit.minX - base.minX - tile.frame.minX / model.targetPitch,
+            y: unit.minY - base.minY - tile.frame.minY / model.targetPitch), model: model, duration: duration)
+      } else {
+        for (index, tile) in layers {
+          let base = frame(index, model.pitch, model.focus, snapped: false)
+          let unit = frame(index, model.pitch + 1, model.focus, snapped: false)
+          MacGridSpring.animate(tile, from: frame(index, model.pitch, model.focus), to: tile.frame,
+            derivative: CGRect(x: unit.minX - base.minX, y: unit.minY - base.minY,
+              width: unit.width - base.width, height: unit.height - base.height), model: model, duration: duration)
+        }
+      }
+    }
+    var samples: [[String: CGPoint]] = [], titles: [String: String] = [:]
+    for k in 0...72 {
+      let pose = model.state(at: model.start + duration * Double(k) / 72)
+      let o = origin(pose.pitch, pose.focus)
+      let first = max(0, Int(floor(-o.y / pose.pitch)) - 1)
+      let last = min((count - 1 + zoomLeading) / zoomColumns, Int(ceil((bounds.height - o.y) / pose.pitch)) + 1)
+      var positions: [String: CGPoint] = [:]
+      if first <= last {
+        for pill in pillPlacements(columns: zoomColumns, origin: o, pitch: pose.pitch, rows: first...last, leading: zoomLeading, pin: zoomPin) {
+          titles[pill.key] = pill.title; positions[pill.key] = CGPoint(x: o.x + 12, y: pill.y)
+        }
+      }
+      samples.append(positions)
+    }
+    let scale = window?.backingScaleFactor ?? 2
+    for (key, title) in titles {
+      guard let image = Self.pillImage(title, yearly: zoomColumns >= (MacLibraryDensity.overview.last ?? 40), scale: scale),
+        let first = samples.lazy.compactMap({ $0[key] }).first else { continue }
+      let layer: CALayer
+      if let existing = pills[key] { layer = existing }
+      else {
+        layer = CALayer(); layer.actions = Self.actions; layer.zPosition = 30
+        self.layer?.addSublayer(layer); pills[key] = layer
+      }
+      layer.contents = image; layer.contentsScale = scale
+      let size = CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
+      layer.frame = CGRect(origin: samples.last?[key] ?? first, size: size)
+      layer.opacity = samples.last?[key] == nil ? 0 : 1
+      let move = CAKeyframeAnimation(keyPath: "position")
+      move.values = samples.map { NSValue(point: CGPoint(x: ($0[key] ?? first).x + size.width * layer.anchorPoint.x,
+        y: ($0[key] ?? first).y + size.height * layer.anchorPoint.y)) }
+      move.duration = duration; move.calculationMode = .linear
+      move.beginTime = layer.convertTime(model.start, from: nil)
+      layer.add(move, forKey: "zoom.pill")
+      let visible = CAKeyframeAnimation(keyPath: "opacity")
+      visible.values = samples.map { NSNumber(value: $0[key] == nil ? 0 : 1) }
+      visible.duration = duration; visible.calculationMode = .discrete
+      visible.beginTime = layer.convertTime(model.start, from: nil)
+      layer.add(visible, forKey: "zoom.visibility")
+    }
+  }
+  /// The destination mosaic keeps already displayed pixels while its own
+  /// rendition requests finish, just as ordinary collection cells do.
+  func retainDisplayedPixels(from other: MacDenseCanvas) {
+    guard count == other.count, zoomColumns == other.zoomColumns, zoomLeading == other.zoomLeading else { return }
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    for (index, tile) in layers where tile.contents == nil {
+      if let key = tileKeys[index], other.tileKeys[index] == key { tile.contents = other.layers[index]?.contents }
+    }
+    CATransaction.commit()
+  }
+  func removeZoomAnimations() {
+    MacGridSpring.remove(from: zoomPhotos)
+    for layer in pills.values { layer.removeAnimation(forKey: "zoom.pill"); layer.removeAnimation(forKey: "zoom.visibility"); layer.opacity = 1 }
   }
   private static func pillImage(_ title: String, yearly: Bool, scale: CGFloat) -> CGImage? {
     let cacheKey = "\(yearly)|\(scale)|\(title)"
@@ -2465,7 +2560,7 @@ struct MacCalendarGrid: NSViewRepresentable {
       if let id = requests.removeValue(forKey: index) { pipeline?.cancel(id) }
       layer.removeFromSuperlayer(); layer.contents = nil
     }
-    layers.removeAll(); requests.removeAll()
+    layers.removeAll(); requests.removeAll(); tileKeys.removeAll()
     pills.values.forEach { $0.removeFromSuperlayer() }; pills.removeAll()
     CATransaction.commit()
   }
@@ -2477,6 +2572,7 @@ struct MacCalendarGrid: NSViewRepresentable {
 /// once at the reference size and scaled by the GPU through `sublayerTransform`.
 @MainActor final class MacZoomMediaTile: NSView {
   private(set) var displayedImage: NSImage?
+  var onDisplay: (() -> Void)?
   private let content = CALayer()
   private let photo = CALayer()
   private let durationLayer = CATextLayer()
@@ -2536,6 +2632,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   func show(_ image: NSImage) {
     displayedImage = image
     photo.contents = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    onDisplay?()
   }
   func cancel() { pipeline?.cancel(request); request = PHInvalidImageRequestID }
   private static func symbol(_ name: String, scale: CGFloat) -> CGImage? {
@@ -2575,6 +2672,130 @@ struct MacCalendarGrid: NSViewRepresentable {
   }
 }
 
+/// Completion belongs to a visible stage animation, rather than a transaction
+/// containing virtualized tile layers that AppKit can suspend off screen.
+@MainActor private final class MacGridAnimationEnd: NSObject, CAAnimationDelegate {
+  private let done: () -> Void
+  init(_ done: @escaping () -> Void) { self.done = done }
+  nonisolated func animationDidStop(_ anim: CAAnimation, finished flag: Bool) {
+    guard flag else { return }
+    Task { @MainActor in self.done() }
+  }
+}
+
+@MainActor enum MacGridSpring {
+  private static let geometryKeys = ["position.x", "position.y", "bounds.size.width", "bounds.size.height", "transform.scale.x", "transform.scale.y"]
+  private static func geometry(_ view: NSView) -> [(CALayer, [CGFloat])] {
+    var seen = Set<ObjectIdentifier>()
+    func layers(_ layer: CALayer) -> [(CALayer, [CGFloat])] {
+      guard seen.insert(ObjectIdentifier(layer)).inserted else { return [] }
+      return [(layer, geometryKeys.map { CGFloat((layer.value(forKeyPath: $0) as? NSNumber)?.doubleValue ?? 0) })]
+        + (layer.sublayers ?? []).flatMap(layers)
+    }
+    func visit(_ view: NSView) -> [(CALayer, [CGFloat])] {
+      // AppKit can attach a subview's backing layer at the next commit. Include
+      // it now: otherwise its photo jumps straight to the destination size
+      // while only the enclosing tile carries the release spring.
+      (view.layer.map(layers) ?? []) + view.subviews.flatMap(visit)
+    }
+    return visit(view)
+  }
+  /// Source cells have native-size marks, unlike the reference-scaled media
+  /// tiles. Measure their two layouts at release and spring geometry only;
+  /// fixed-size text and badge bounds then remain fixed throughout the move.
+  static func animate(_ view: NSView, from: CGRect, derivative: CGRect, model: GridZoom.Settle, duration: CFTimeInterval) {
+    guard let root = view.layer else { return }
+    let target = view.frame
+    func layout(at frame: CGRect) {
+      view.frame = frame; view.needsLayout = true; view.layoutSubtreeIfNeeded()
+      // NSViewController's layout notification can be deferred until AppKit's
+      // next pass. Measure the photo and native marks at this pose too, rather
+      // than measuring a child still laid out at the previous density.
+      if let source = view as? MacSourceZoomTile { source.cell.viewDidLayout() }
+    }
+    layout(at: from)
+    let initial = Dictionary(uniqueKeysWithValues: geometry(view).map { (ObjectIdentifier($0.0), $0.1) })
+    layout(at: target)
+    for (layer, end) in geometry(view) {
+      guard let start = initial[ObjectIdentifier(layer)] else { continue }
+      for (i, key) in geometryKeys.enumerated() {
+        let vertical = key == "position.y" || key == "bounds.size.height" || key == "transform.scale.y"
+        let travel = vertical ? target.height - from.height : target.width - from.width
+        let sizeSlope = vertical ? derivative.height : derivative.width
+        var slope = abs(travel) > 0.000001 ? (end[i] - start[i]) / travel * sizeSlope : 0
+        if layer === root {
+          if key == "position.x" { slope = derivative.minX + derivative.width * root.anchorPoint.x }
+          if key == "position.y" { slope = derivative.minY + derivative.height * root.anchorPoint.y }
+          if key == "bounds.size.width" { slope = derivative.width }
+          if key == "bounds.size.height" { slope = derivative.height }
+        }
+        add(to: layer, key: key, from: start[i], to: end[i], speed: slope * model.velocity, start: model.start, duration: duration)
+      }
+    }
+  }
+  private static func add(to layer: CALayer, key: String, from start: CGFloat, to end: CGFloat, speed: CGFloat, start time: CFTimeInterval, duration: CFTimeInterval) {
+    let distance = end - start
+    guard abs(distance) > 0.000001 || abs(speed) > 0.000001 else { return }
+    func spring(_ from: CGFloat, _ to: CGFloat, _ velocity: CGFloat, additive: Bool = false) -> CASpringAnimation {
+      let move = CASpringAnimation(keyPath: key)
+      move.mass = 1; move.stiffness = GridZoom.settleOmega * GridZoom.settleOmega
+      move.damping = 2 * GridZoom.settleOmega
+      move.initialVelocity = velocity; move.fromValue = from; move.toValue = to
+      move.beginTime = layer.convertTime(time, from: nil)
+      move.duration = duration; move.isAdditive = additive
+      return move
+    }
+    if abs(distance) > 0.000001 {
+      layer.add(spring(start, end, speed / distance), forKey: "zoom." + key)
+    } else {
+      // Two additive responses cancel their displacement but retain the
+      // carried velocity when focus travel cancels pitch travel at an endpoint.
+      layer.add(spring(1, 0, -speed, additive: true), forKey: "zoom." + key)
+      layer.add(spring(-1, 0, 0, additive: true), forKey: "zoom.velocity." + key)
+    }
+  }
+  static func animate(_ layer: CALayer, from: CGRect, to: CGRect, derivative d: CGRect,
+    model: GridZoom.Settle, duration: CFTimeInterval) {
+    let anchor = layer.anchorPoint
+    let values: [(String, CGFloat, CGFloat, CGFloat)] = [
+      ("position.x", layer.position.x + from.minX - to.minX + (from.width - to.width) * anchor.x,
+        layer.position.x, d.minX + d.width * anchor.x),
+      ("position.y", layer.position.y + from.minY - to.minY + (from.height - to.height) * anchor.y,
+        layer.position.y, d.minY + d.height * anchor.y),
+      ("transform.scale.x", from.width / to.width, 1, d.width / to.width),
+      ("transform.scale.y", from.height / to.height, 1, d.height / to.height),
+    ]
+    for (key, start, end, slope) in values {
+      add(to: layer, key: key, from: start, to: end, speed: slope * model.velocity, start: model.start, duration: duration)
+    }
+  }
+  /// A zero-anchor content layer maps the measured target rectangles to the
+  /// measured release rectangles. Translation includes edge quantization;
+  /// only the pitch derivative contributes release velocity.
+  static func animateUniform(_ layer: CALayer, from: CGPoint, derivative: CGPoint,
+    model: GridZoom.Settle, duration: CFTimeInterval) {
+    let ratio = model.pitch / model.targetPitch
+    for (key, from, speed) in [
+      ("position.x", from.x, derivative.x * model.velocity),
+      ("position.y", from.y, derivative.y * model.velocity),
+      ("transform.scale.x", ratio, model.velocity / model.targetPitch),
+      ("transform.scale.y", ratio, model.velocity / model.targetPitch),
+    ] {
+      add(to: layer, key: key, from: from, to: key.hasPrefix("position") ? 0 : 1,
+        speed: speed, start: model.start, duration: duration)
+    }
+  }
+  static func remove(from view: NSView) {
+    for (layer, _) in geometry(view) { remove(from: layer) }
+  }
+  static func remove(from layer: CALayer?) {
+    for key in geometryKeys {
+      layer?.removeAnimation(forKey: "zoom." + key); layer?.removeAnimation(forKey: "zoom.velocity." + key)
+    }
+    for child in layer?.sublayers ?? [] { remove(from: child) }
+  }
+}
+
 /// One coherent lattice per density. Every face places the same anchor asset at
 /// the same in-tile fraction under the shared focus, so faces align at equal
 /// pitch and wrapped rows never interpolate through each other. Faces crossfade;
@@ -2596,6 +2817,7 @@ struct MacCalendarGrid: NSViewRepresentable {
   var denseAsset: ((Int) -> PHAsset?)?
   var denseFact: ((Int) -> MacThumbnailTables.Fact?)?
   var thumbnails: ThumbnailPipeline?
+  var densePinTop: CGFloat = 6
   private func faceGap(_ columns: Int) -> CGFloat { MacLibraryDensity.isDense(columns) ? 0 : 2 }
   private final class Face: NSView {
     let columns: Int
@@ -2614,6 +2836,16 @@ struct MacCalendarGrid: NSViewRepresentable {
   private var headers: [Int: MacGridSectionHeader] = [:]
   private var order: [Int] = []
   private var blend: (from: [Int: CGFloat], target: Int, start: CFTimeInterval, duration: CFTimeInterval, requested: CFTimeInterval)?
+  private var blendWait: DispatchWorkItem?
+  private var blendGeneration = 0
+  private var blendEnd: MacGridAnimationEnd?
+  private var settling: GridZoom.Settle?
+  private var settleCompletion: (() -> Void)?
+  private var settleGeneration = 0
+  private var settleLanded = false
+  private var settleEnd: MacGridAnimationEnd?
+  private var coverage: [(pitch: CGFloat, focus: CGPoint)] = []
+  private var settleDuration: CFTimeInterval = 0
   /// Outgoing faces stay opaque until the shown face has most of its pixels,
   /// bounded so cloud-only media cannot hold a crossfade indefinitely.
   static let pixelWait: CFTimeInterval = 0.15
@@ -2656,7 +2888,8 @@ struct MacCalendarGrid: NSViewRepresentable {
     anchor = index; focus = point
     render()
   }
-  private func lattice(columns: Int,side: CGFloat) -> CGPoint {
+  private func lattice(columns: Int,side: CGFloat, pitch: CGFloat? = nil, focus: CGPoint? = nil) -> CGPoint {
+    let pitch = pitch ?? self.pitch, focus = focus ?? self.focus
     let slot = anchor+(faces[columns]?.leading ?? 0)
     return CGPoint(x: focus.x-CGFloat(slot%columns)*pitch-fraction.x*side,
       y: focus.y-CGFloat(slot/columns)*pitch-fraction.y*side)
@@ -2667,12 +2900,13 @@ struct MacCalendarGrid: NSViewRepresentable {
     guard animated else {
       shown = columns; blend = nil
       for face in faces.values { face.weight = face.columns == columns ? 1 : 0 }
-      applyWeights(); prune(); render(); return
+      renderBlend(at: now); prune(); render(); return
     }
     guard columns != shown else { return }
     shown = columns
     let from = faces.mapValues(\.weight)
     blend = (from,columns,now,max(0.05,Self.fadeDuration*Double(1-from[columns,default: 0])),now)
+    renderBlend(at: now)
   }
   /// Fraction of a face's tiles that already show pixels.
   private func loaded(_ face: Face) -> CGFloat {
@@ -2681,7 +2915,7 @@ struct MacCalendarGrid: NSViewRepresentable {
     let ready = face.tiles.values.reduce(0) { $0 + (($1.1 as? MacZoomMediaTile)?.displayedImage != nil || ($1.1 as? MacSourceZoomTile)?.cell.displayedImage != nil ? 1 : 0) }
     return CGFloat(ready) / CGFloat(face.tiles.count)
   }
-  func advanceBlend(to now: CFTimeInterval) {
+  private func advanceBlend(to now: CFTimeInterval) {
     guard var b = blend else { return }
     if let target = faces[b.target], loaded(target) < 0.8, now - b.requested < Self.pixelWait {
       // The incoming face is still blank: holding the crossfade shows pixels
@@ -2697,7 +2931,74 @@ struct MacCalendarGrid: NSViewRepresentable {
     }
     if t >= 1 { blend = nil }
     applyWeights()
-    if blend == nil { prune() }
+  }
+  private func weights(at now: CFTimeInterval) -> [Int: CGFloat] {
+    guard let b = blend else { return faces.mapValues(\.weight) }
+    let t = CGFloat(min(1, max(0, (now - b.start) / b.duration)))
+    return faces.mapValues { b.from[$0.columns, default: 0] * (1 - t) + ($0.columns == b.target ? t : 0) }
+  }
+  private func opacities(_ weights: [Int: CGFloat]) -> [Int: Float] {
+    var result: [Int: Float] = [:], above: CGFloat = 0
+    for columns in order.reversed() {
+      let weight = weights[columns, default: 0]
+      result[columns] = Float(min(1, max(0, weight / max(0.000001, 1 - above))))
+      above += weight
+    }
+    return result
+  }
+  /// Magnify retains its event-driven fade: resting fingers do not advance it.
+  /// Release hands the same composite curve to Core Animation.
+  func trackBlend(at now: CFTimeInterval) { renderBlend(at: now) }
+  private func renderBlend(at now: CFTimeInterval = CACurrentMediaTime()) {
+    if blendWait != nil, var b = blend,
+      now - b.requested >= Self.pixelWait || faces[b.target].map({ loaded($0) >= 0.8 }) == true {
+      b.start = now; blend = b
+    }
+    blendWait?.cancel(); blendWait = nil
+    blendGeneration += 1
+    blendEnd = nil
+    let generation = blendGeneration
+    advanceBlend(to: now)
+    for face in faces.values { face.layer?.removeAnimation(forKey: "zoom.fade") }
+    guard let b = blend else { prune(); finishSettleIfReady(); return }
+    if let target = faces[b.target], loaded(target) < 0.8, now - b.requested < Self.pixelWait {
+      let deadline = DispatchWorkItem { [weak self] in self?.renderBlend() }
+      blendWait = deadline
+      DispatchQueue.main.asyncAfter(deadline: .now() + Self.pixelWait - (now - b.requested), execute: deadline)
+      return
+    }
+    let running = settling != nil
+    let duration = max(0.001, b.start + b.duration - now)
+    var tracks: [Int: [NSNumber]] = [:]
+    for k in 0...48 {
+      for (columns, opacity) in opacities(weights(at: now + duration * Double(k) / 48)) {
+        tracks[columns, default: []].append(NSNumber(value: opacity))
+      }
+    }
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    if running {
+      blendEnd = MacGridAnimationEnd { [weak self] in
+        guard let self, generation == self.blendGeneration, let b = self.blend else { return }
+        self.blendEnd = nil
+        self.advanceBlend(to: max(CACurrentMediaTime(), b.start + b.duration))
+        self.prune(); self.finishSettleIfReady()
+      }
+    }
+    for (columns, face) in faces {
+      guard let values = tracks[columns], let end = values.last else { continue }
+      let fade = CAKeyframeAnimation(keyPath: "opacity")
+      fade.values = values; fade.duration = duration; fade.calculationMode = .linear
+      fade.beginTime = face.layer?.convertTime(now, from: nil) ?? now
+      if !running { fade.speed = 0 }
+      else if columns == b.target { fade.delegate = blendEnd }
+      face.alphaValue = CGFloat((running ? end : values[0]).floatValue)
+      face.layer?.add(fade, forKey: "zoom.fade")
+    }
+    CATransaction.commit()
+  }
+  private func tileDisplayed() {
+    guard blendWait != nil, let b = blend, let target = faces[b.target], loaded(target) >= 0.8 else { return }
+    renderBlend()
   }
   /// A release finishes a held crossfade with the settle instead of holding a
   /// partially blended pose for the rest of its long fade.
@@ -2705,19 +3006,15 @@ struct MacCalendarGrid: NSViewRepresentable {
     advanceBlend(to: now)
     guard var b = blend else { return }
     let t = min(1,max(0,(now-b.start)/b.duration)), remaining = (1-t)*b.duration
-    guard remaining > limit else { b.requested = now - Self.pixelWait; blend = b; return }
+    guard remaining > limit else { b.requested = now - Self.pixelWait; blend = b; renderBlend(at: now); return }
     b.duration = b.duration*limit/remaining
     b.start = now-t*b.duration
     b.requested = now - Self.pixelWait
     blend = b
+    renderBlend(at: now)
   }
   private func applyWeights() {
-    var above: CGFloat = 0
-    for columns in order.reversed() {
-      guard let face = faces[columns] else { continue }
-      face.alphaValue = min(1,max(0,face.weight/max(0.000001,1-above)))
-      above += face.weight
-    }
+    for (columns, opacity) in opacities(faces.mapValues(\.weight)) { faces[columns]?.alphaValue = CGFloat(opacity) }
   }
   private func prune() {
     guard blend == nil else { return }
@@ -2731,6 +3028,99 @@ struct MacCalendarGrid: NSViewRepresentable {
     for (_,view) in face.tiles.values { releaseTile?(view); view.removeFromSuperview() }
     face.tiles.removeAll()
   }
+  /// Layout is committed once at the destination. Each tile carries its own
+  /// spring so ordinary-grid gaps stay 2 pt rather than scaling with a face.
+  func settle(with model: GridZoom.Settle, done: @escaping () -> Void) {
+    settling = model; settleCompletion = done; settleLanded = false
+    settleGeneration += 1
+    let generation = settleGeneration
+    // Preserve the former visible-settle cutoff, evaluated once at release.
+    var duration: CFTimeInterval = 1.0 / 60
+    while duration < 0.6 {
+      let state = model.state(at: model.start + duration)
+      if abs(state.pitch - model.targetPitch) < 0.5,
+        hypot(state.focus.x - model.targetFocus.x, state.focus.y - model.targetFocus.y) < 1 { break }
+      duration += 1.0 / 60
+    }
+    if let b = blend { duration = max(duration, b.start + b.duration - model.start) }
+    settleDuration = duration
+    coverage = (0...72).map { model.state(at: model.start + duration * Double($0) / 72) }
+    pitch = model.targetPitch; focus = model.targetFocus
+    render()
+    renderBlend(at: model.start)
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    settleEnd = MacGridAnimationEnd { [weak self] in
+      guard let self, generation == self.settleGeneration, self.settling != nil else { return }
+      self.settleEnd = nil
+      self.settleLanded = true; self.finishSettleIfReady()
+    }
+    // A constant-opacity animation owns the stage's native completion clock.
+    // It changes no pixels and does not wait on off-screen tile backing layers.
+    let clock = CABasicAnimation(keyPath: "opacity")
+    clock.fromValue = 1; clock.toValue = 1; clock.duration = duration
+    clock.beginTime = layer?.convertTime(model.start, from: nil) ?? model.start
+    clock.delegate = settleEnd
+    layer?.add(clock, forKey: "zoom.settleClock")
+    for face in faces.values {
+      if let canvas = face.canvas {
+        let columns = face.columns
+        canvas.animateZoom(model, duration: duration) { [weak self] p, f in
+          self?.lattice(columns: columns, side: p, pitch: p, focus: f) ?? .zero
+        }
+        // Photos share a gapless transform; period text stays outside it.
+      }
+      for (key, (_, tile)) in face.tiles {
+        guard let from = tileFrame(face, key: key, pitch: model.pitch, focus: model.focus),
+          let unit = tileFrame(face, key: key, pitch: model.pitch + 1, focus: model.focus, snapped: false),
+          let base = tileFrame(face, key: key, pitch: model.pitch, focus: model.focus, snapped: false),
+          tile.layer != nil else { continue }
+        MacGridSpring.animate(tile, from: from, derivative: CGRect(
+          x: unit.minX - base.minX, y: unit.minY - base.minY,
+          width: unit.width - base.width, height: unit.height - base.height), model: model, duration: duration)
+      }
+    }
+    animateHeaders(model, duration: duration)
+    CATransaction.commit()
+    coverage = []
+  }
+  private func finishSettleIfReady() {
+    guard settleLanded, blend == nil, let model = settling else { return }
+    let done = settleCompletion
+    settling = nil; settleCompletion = nil; settleLanded = false
+    pitch = model.targetPitch; focus = model.targetFocus
+    removeSettleAnimations(); render()
+    done?()
+  }
+  /// Gesture interruption uses the identical analytic pose, never presentation
+  /// layer polling. Removing animations and relayout happen in one transaction.
+  func freeze(at now: CFTimeInterval = CACurrentMediaTime()) {
+    guard let model = settling else { return }
+    let state = model.state(at: now)
+    settling = nil; settleCompletion = nil; settleLanded = false
+    settleGeneration += 1
+    CATransaction.begin(); CATransaction.setDisableActions(true)
+    advanceBlend(to: now)
+    pitch = state.pitch; focus = state.focus
+    removeSettleAnimations(); renderBlend(at: now); render()
+    CATransaction.commit()
+  }
+  private func removeSettleAnimations() {
+    settleEnd = nil; layer?.removeAnimation(forKey: "zoom.settleClock")
+    for face in faces.values {
+      face.canvas?.removeZoomAnimations()
+      for (_, tile) in face.tiles.values { MacGridSpring.remove(from: tile) }
+    }
+    for header in headers.values { header.layer?.removeAnimation(forKey: "zoom.caption") }
+  }
+  /// Deterministic model advancement for hostless checks; runtime motion is CA.
+  func advance(to now: CFTimeInterval) {
+    advanceBlend(to: now)
+    prune()
+    if let model = settling {
+      if now >= model.start + settleDuration { settleLanded = true }
+      finishSettleIfReady()
+    } else { prune(); render() }
+  }
   func render() {
     CATransaction.begin(); CATransaction.setDisableActions(true)
     for face in faces.values { face.frame = bounds; populate(face) }
@@ -2740,6 +3130,38 @@ struct MacCalendarGrid: NSViewRepresentable {
   private func snap(_ value: CGFloat) -> CGFloat {
     let scale = window?.backingScaleFactor ?? 2
     return (value * scale).rounded() / scale
+  }
+  private func tileFrame(_ face: Face, key: String, pitch: CGFloat, focus: CGPoint, snapped: Bool = true) -> CGRect? {
+    let s: (CGFloat) -> CGFloat = snapped ? snap : { $0 }
+    if let geometry = groupedGeometry?(face.columns), let index = face.tiles[key]?.0,
+      geometry.items.indices.contains(index), geometry.items.indices.contains(anchor) {
+      let ratio = pitch / (max(1, referenceSide(face.columns)) + 2)
+      let a = geometry.items[anchor], rect = geometry.items[index]
+      return CGRect(x: s(focus.x + (rect.minX - a.minX - fraction.x * a.width) * ratio),
+        y: s(focus.y + (rect.minY - a.minY - fraction.y * a.height) * ratio),
+        width: max(1, s(rect.width * ratio)), height: max(1, s(rect.height * ratio)))
+    }
+    let parts = key.split(separator: ":").compactMap { Int($0) }
+    guard parts.count == 2 else { return nil }
+    let gap = faceGap(face.columns), origin = lattice(columns: face.columns, side: max(1, pitch - gap), pitch: pitch, focus: focus)
+    let x = origin.x + CGFloat(parts[1]) * pitch, y = origin.y + CGFloat(parts[0]) * pitch
+    return CGRect(x: s(x), y: s(y), width: max(1, s(x + pitch) - gap - s(x)), height: max(1, s(y + pitch) - gap - s(y)))
+  }
+  private func coverageRect(_ face: Face) -> CGRect {
+    let grouped = groupedGeometry != nil
+    let target = grouped ? focus : lattice(columns: face.columns, side: max(1, pitch - faceGap(face.columns)))
+    return coverage.reduce(bounds) { rect, pose in
+      let origin = grouped ? pose.focus : lattice(columns: face.columns, side: max(1, pose.pitch - faceGap(face.columns)), pitch: pose.pitch, focus: pose.focus)
+      let ratio = pitch / pose.pitch
+      return rect.union(CGRect(x: target.x - origin.x * ratio, y: target.y - origin.y * ratio,
+        width: bounds.width * ratio, height: bounds.height * ratio))
+    }
+  }
+  private func prepareTile(_ tile: NSView) {
+    tile.wantsLayer = true
+    let displayed: () -> Void = { [weak self] in self?.tileDisplayed() }
+    (tile as? MacZoomMediaTile)?.onDisplay = displayed
+    (tile as? MacSourceZoomTile)?.cell.onDisplay = displayed
   }
   private func populate(_ face: Face) {
     if let geometry = groupedGeometry?(face.columns) { populateGrouped(face, geometry: geometry); return }
@@ -2757,14 +3179,17 @@ struct MacCalendarGrid: NSViewRepresentable {
       canvas.pipeline = thumbnails
       canvas.assetAt = denseAsset
       canvas.factAt = denseFact
-      canvas.render(columns: columns, origin: origin, pitch: pitch, visible: bounds, leading: face.leading)
+      canvas.onDisplay = { [weak self] in self?.tileDisplayed() }
+      canvas.render(columns: columns, origin: origin, pitch: pitch, visible: coverageRect(face), leading: face.leading,
+        pinTop: bounds.minY + densePinTop)
       return
     }
     let reference = max(1,referenceSide(columns))
-    let rowStart = Int(floor(-origin.y/pitch))-1, rowEnd = Int(ceil((bounds.height-origin.y)/pitch))+1
+    let visible = coverageRect(face)
+    let rowStart = Int(floor((visible.minY-origin.y)/pitch))-1, rowEnd = Int(ceil((visible.maxY-origin.y)/pitch))+1
     // Rows extend past their resting width while scaled down; each extra slot
     // reads its chronological neighbor, so no row is stretched or blank.
-    let colStart = Int(floor(-origin.x/pitch))-1, colEnd = Int(ceil((bounds.width-origin.x)/pitch))+1
+    let colStart = Int(floor((visible.minX-origin.x)/pitch))-1, colEnd = Int(ceil((visible.maxX-origin.x)/pitch))+1
     var keep = Set<String>()
     for row in rowStart...max(rowStart,rowEnd) {
       for col in colStart...max(colStart,colEnd) {
@@ -2776,6 +3201,7 @@ struct MacCalendarGrid: NSViewRepresentable {
         else {
           if let old = face.tiles.removeValue(forKey: key) { releaseTile?(old.1); old.1.removeFromSuperview() }
           tile = makeTile?(index,reference) ?? NSView()
+          prepareTile(tile)
           face.addSubview(tile); face.tiles[key] = (index,tile)
         }
         // Edges snap to device pixels from the lattice, so every gap in a frame
@@ -2784,6 +3210,7 @@ struct MacCalendarGrid: NSViewRepresentable {
         let x1 = snap(origin.x+CGFloat(col+1)*pitch)-gap, y1 = snap(origin.y+CGFloat(row+1)*pitch)-gap
         let frame = CGRect(x: x0,y: y0,width: max(1,x1-x0),height: max(1,y1-y0))
         if tile.frame != frame { tile.frame = frame; tile.needsLayout = true }
+        tile.layoutSubtreeIfNeeded()
       }
     }
     for key in Array(face.tiles.keys) where !keep.contains(key) {
@@ -2801,14 +3228,16 @@ struct MacCalendarGrid: NSViewRepresentable {
       CGRect(x: snap(offset.x + rect.minX * ratio), y: snap(offset.y + rect.minY * ratio),
         width: max(1, snap(rect.width * ratio)), height: max(1, snap(rect.height * ratio)))
     }
-    let visible = CGRect(x: -offset.x / ratio, y: -offset.y / ratio, width: bounds.width / ratio, height: bounds.height / ratio)
+    let cover = coverageRect(face)
+    let visible = CGRect(x: (cover.minX-offset.x) / ratio, y: (cover.minY-offset.y) / ratio, width: cover.width / ratio, height: cover.height / ratio)
     var keep = Set<String>()
     for index in geometry.visibleItems(in: visible.insetBy(dx: 0, dy: -reference)) {
       let key = String(index); keep.insert(key)
       let tile: NSView
       if let existing = face.tiles[key] { tile = existing.1 }
-      else { tile = makeTile?(index, reference) ?? NSView(); face.addSubview(tile); face.tiles[key] = (index, tile) }
+      else { tile = makeTile?(index, reference) ?? NSView(); prepareTile(tile); face.addSubview(tile); face.tiles[key] = (index, tile) }
       tile.frame = frame(geometry.items[index]); tile.needsLayout = true
+      tile.layoutSubtreeIfNeeded()
     }
     for key in Array(face.tiles.keys) where !keep.contains(key) {
       if let old = face.tiles.removeValue(forKey: key) { releaseTile?(old.1); old.1.removeFromSuperview() }
@@ -2816,33 +3245,46 @@ struct MacCalendarGrid: NSViewRepresentable {
   }
   /// One unscaled caption follows the blended position of its section's first
   /// row. Each face supplies tile geometry only; text never crossfades twice.
-  private func populateHeaders() {
-    guard let geometry = groupedGeometry?(shown), geometry.items.indices.contains(anchor) else { return }
-    let active = faces.values.filter { $0.weight > 0 }
-    let total = active.reduce(CGFloat.zero) { $0 + $1.weight }
-    guard total > 0 else { return }
+  private func headerRects(pitch: CGFloat, focus: CGPoint, weights: [Int: CGFloat]) -> [Int: CGRect] {
+    guard let geometry = groupedGeometry?(shown), geometry.items.indices.contains(anchor) else { return [:] }
+    let total = weights.values.reduce(CGFloat.zero, +)
+    guard total > 0 else { return [:] }
     var positions: [Int: CGFloat] = [:]
-    for face in active {
-      guard let g = groupedGeometry?(face.columns), g.items.indices.contains(anchor) else { continue }
-      let reference = max(1, referenceSide(face.columns)), ratio = pitch / (reference + 2)
+    for (columns, weight) in weights where weight > 0 {
+      guard let g = groupedGeometry?(columns), g.items.indices.contains(anchor) else { continue }
+      let ratio = pitch / (max(1, referenceSide(columns)) + 2)
       let a = g.items[anchor]
       let offset = focus.y - (a.minY + fraction.y * a.height) * ratio
       for h in g.headers where g.items.indices.contains(h.firstItem) {
-        // Header height remains native; the bottom follows the section's row.
         let y = offset + g.items[h.firstItem].minY * ratio - h.frame.height
-        positions[h.firstItem, default: 0] += y * face.weight / total
+        positions[h.firstItem, default: 0] += y * weight / total
       }
     }
-    var keep = Set<Int>()
+    var result: [Int: CGRect] = [:]
     for (i, header) in geometry.headers.enumerated() {
       guard let y = positions[header.firstItem] else { continue }
       let next = i + 1 < geometry.headers.count
         ? positions[geometry.headers[i + 1].firstItem] ?? .greatestFiniteMagnitude : .greatestFiniteMagnitude
-      let rect = CGRect(x: MacGridSectionHeader.inset,
+      result[header.firstItem] = CGRect(x: MacGridSectionHeader.inset,
         y: snap(min(max(y, 0), next - header.frame.height)),
         width: MacGridSectionHeader.contentWidth(for: bounds.width), height: header.frame.height)
-      guard rect.intersects(bounds) else { continue }
-      keep.insert(header.firstItem)
+    }
+    return result
+  }
+  private func populateHeaders() {
+    guard let geometry = groupedGeometry?(shown) else { return }
+    let endWeights = settling.map { weights(at: $0.start + settleDuration) } ?? faces.mapValues(\.weight)
+    let rects = headerRects(pitch: pitch, focus: focus, weights: endWeights)
+    var keep = Set(rects.filter { $0.value.intersects(bounds) }.keys)
+    if let model = settling {
+      for (i, pose) in coverage.enumerated() {
+        let time = model.start + settleDuration * Double(i) / Double(max(1, coverage.count - 1))
+        keep.formUnion(headerRects(pitch: pose.pitch, focus: pose.focus, weights: weights(at: time))
+          .filter { $0.value.intersects(bounds) }.keys)
+      }
+    }
+    for header in geometry.headers where keep.contains(header.firstItem) {
+      guard let rect = rects[header.firstItem] else { continue }
       let view: MacGridSectionHeader
       if let existing = headers[header.firstItem] { view = existing }
       else {
@@ -2850,9 +3292,28 @@ struct MacCalendarGrid: NSViewRepresentable {
         view.configure(title: header.title, introduction: groupedIntroduction?(header.firstItem))
         headers[header.firstItem] = view; addSubview(view)
       }
-      view.frame = rect
+      view.wantsLayer = true; view.frame = rect; view.layoutSubtreeIfNeeded()
     }
     for id in Array(headers.keys) where !keep.contains(id) { headers.removeValue(forKey: id)?.removeFromSuperview() }
+  }
+  private func animateHeaders(_ model: GridZoom.Settle, duration: CFTimeInterval) {
+    var tracks: [Int: [NSNumber]] = [:]
+    for k in 0...72 {
+      let time = model.start + duration * Double(k) / 72
+      let pose = model.state(at: time)
+      let rects = headerRects(pitch: pose.pitch, focus: pose.focus, weights: weights(at: time))
+      for (id, header) in headers {
+        guard let rect = rects[id], let layer = header.layer else { continue }
+        let y = k == 72 ? layer.position.y : layer.position.y + rect.minY - header.frame.minY
+        tracks[id, default: []].append(NSNumber(value: Double(y)))
+      }
+    }
+    for (id, header) in headers {
+      let move = CAKeyframeAnimation(keyPath: "position.y")
+      move.values = tracks[id]; move.duration = duration; move.calculationMode = .linear
+      move.beginTime = header.layer?.convertTime(model.start, from: nil) ?? model.start
+      header.layer?.add(move, forKey: "zoom.caption")
+    }
   }
   func headerFrame(at firstItem: Int) -> CGRect? { headers[firstItem]?.frame }
   func tile(at index: Int) -> NSView? {
@@ -2860,7 +3321,14 @@ struct MacCalendarGrid: NSViewRepresentable {
       ?? faces.values.lazy.compactMap { $0.tiles.values.first { $0.0 == index }?.1 }.first
   }
   var visibleTileCount: Int { faces.values.reduce(0) { $0+$1.tiles.count } }
+  func retainDensePixels(in canvas: MacDenseCanvas) {
+    if let source = faces[shown]?.canvas { canvas.retainDisplayedPixels(from: source) }
+  }
   func stop() {
+    blendGeneration += 1; settleGeneration += 1
+    blendWait?.cancel(); blendWait = nil; settling = nil; settleCompletion = nil
+    blendEnd = nil; settleEnd = nil
+    layer?.removeAnimation(forKey: "zoom.settleClock")
     for face in faces.values { release(face); face.removeFromSuperview() }
     faces.removeAll(); order.removeAll(); blend = nil
     for header in headers.values { header.removeFromSuperview() }; headers.removeAll()

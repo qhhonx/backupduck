@@ -82,6 +82,23 @@ pinch the content top follows the header actually shown: dense overviews
 have no interval line to make room for. The header's legibility backdrop and
 light title appear only while photos actually lie behind the header, and
 fade in or out over 250 ms.
+
+Mac grid zoom also hands its release to Core Animation, using the shared
+critically damped pitch/focus spring. Tile geometry springs keep ordinary
+gaps at 2 pt and source-cell marks at native size. Dense pooled photos share
+a photo-only layer transform, with native-size period-label tracks outside
+that transform. A fractional release whose quantized edges cannot share one
+transform retains tile springs. Grouped source tiles retain tile springs for
+native-size marks. Shared section
+captions follow the weighted first-row position on release-time keyframes.
+Opacity keyframes preserve the existing composite weights, pixel-ready hold
+and release fade; while magnify is held without new events the fade stays
+paused, as during event-driven tracking. The native collection takes over
+only after both geometry and opacity complete. A native stage animation owns
+completion independently of virtualized off-screen tile layers. The exact target
+pose covers the native update pass, then the next main-queue turn releases the
+stage; dense mosaics retain displayed pixels while their own renditions arrive.
+
 Cancellation restores the initial density; Reduce Motion adopts state without
 spatial animation. Native bottom-bar minimization remains system-owned. The period capsule is
 48 pt tall and centred between the compact native icon and its mirror
