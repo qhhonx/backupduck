@@ -25,15 +25,17 @@ licensing requests.
 
 ## What is available
 
-- Native SwiftUI iOS/macOS senders with PhotoKit libraries, reusable thumbnail
-  grids, new-photo backup, existing-library import and visible transfer progress.
+- Native iPhone, iPad and Mac senders built on UIKit and AppKit: the photo
+  library with backup marks and one photo viewer, automatic backup of new photos,
+  backup of earlier photos, Backup History and notifications, with a Live
+  Activity on iPhone and a menu bar status on Mac.
 - Mac folder sources with recursive indexing, automatic change checks and external-drive recovery. See [folder backup](docs/folder-backup.md) for supported formats and limits.
 - A Kotlin Android receiver with gallery publication, supported motion-photo
-  conversion, burst metadata and per-sender transfer history.
+  conversion, burst metadata, and received photos browsable by device.
 - A shared Rust engine with paired HTTPS, certificate pinning, original-resource
   checksums, resumable uploads, persistent queues and automatic transient retries.
-- Configurable storage budgets and Android receiver temperature protection,
-  private-staging reclamation and diagnostics.
+- Automatic receiver storage limits, temperature protection, private-staging
+  reclamation and exportable diagnostics.
 - Optional [browser management](docs/browser-management.md) for viewing Pixel receiver transfers and retrying failed gallery processing from a computer on trusted Wi-Fi.
 - Signed Sparkle updates on Mac and verified, user-confirmed APK updates on Android.
 - An English/Simplified Chinese website and native interfaces.
@@ -109,9 +111,9 @@ No personal photos, device connections, or external accounts are used.
 
 ## Next milestones
 
-1. Validate locked-device scheduling and network interruptions over extended runs.
-2. Extend physical-device coverage for receiver discovery, network changes and background recovery.
-3. Validate storage policies and native processing recovery with real mixed libraries.
-4. Refine native library UX and add Windows/Android sender hosts against the same engine.
+1. Add Android and Windows sender hosts against the same engine.
+2. Extend physical-device coverage for locked-device scheduling, network changes
+   and background recovery.
+3. Validate storage policies and processing recovery with real mixed libraries.
 
 NAS and online deployments remain unspecified until concrete requirements exist.
