@@ -21,6 +21,7 @@ test('static site preserves signed bytes and publishes only complete release met
     assert.equal(metadata.feed, undefined);
     assert.equal(await readFile(join(output, 'CNAME'), 'utf8'), 'backupduck.app\n');
     await access(join(output, 'lib/demo.js'));
+    await access(join(output, 'subscription-terms.html'));
     await assert.rejects(access(join(output, 'api')));
     await assert.rejects(buildSite(output, [{...release(), draft: true}]), /No complete/);
     assert.deepEqual(await readFile(join(output, 'appcast.xml')), bytes);

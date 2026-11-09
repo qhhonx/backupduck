@@ -12,7 +12,7 @@ export async function buildSite(output, releases, fetchFeed = fetch) {
   const feed = Buffer.from(await response.arrayBuffer());
   if (feed.length > 1048576 || !feed.includes(Buffer.from('<rss'))) throw Error('Invalid published appcast.');
   await mkdir(output, {recursive: true});
-  for (const name of ['index.html', 'privacy.html', 'style.css', 'app.js', 'zh.json', 'icon.png', 'memories.png', 'media']) {
+  for (const name of ['index.html', 'privacy.html', 'subscription-terms.html', 'style.css', 'app.js', 'zh.json', 'icon.png', 'memories.png', 'media']) {
     await cp(resolve(source, name), resolve(output, name), {recursive: true});
   }
   await mkdir(resolve(output, 'lib'), {recursive: true});
