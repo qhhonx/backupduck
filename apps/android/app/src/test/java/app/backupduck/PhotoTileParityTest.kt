@@ -75,11 +75,13 @@ class PhotoTileParityTest {
         assertEquals(View.VISIBLE, badge(recent).visibility)
         assertEquals(badge(timeline).drawable.intrinsicWidth, badge(recent).drawable.intrinsicWidth)
         assertEquals(kind(timeline).drawable.intrinsicWidth, kind(recent).drawable.intrinsicWidth)
-        val shown = recent.image.photoPoster(pending.id)
+        val shown = checkNotNull(recent.image.photoPoster(pending.id))
         val saved = pending.copy(processing = "complete")
         mosaic.bind(listOf(saved), images, { it.filename }) { _, _, _ -> }
         assertSame("Progress changes retain the native tile", recent, mosaic.getChildAt(0))
-        assertSame("Publication must not clear the receipt cover", shown, recent.image.photoPoster(saved.id))
+        val retained = recent.image.photoPoster(saved.id)
+        assertTrue("Publication must retain the visible receipt pixels until a better cover is available",
+            retained != null && shown.sameAs(retained))
         assertEquals(View.GONE, badge(recent).visibility)
         assertEquals(View.VISIBLE, kind(recent).visibility)
     }
