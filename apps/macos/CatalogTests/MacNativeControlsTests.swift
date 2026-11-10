@@ -143,9 +143,19 @@ import XCTest
     let scenario = try XCTUnwrap(Scenario.loadAll().first { $0.id == "records.toolbar-all" })
     let model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
     await model.open()
-    let window = await mount(MacWorkspace(model: model, library: PhotoLibraryModel(), initialDestination: .transfers))
+    defer { model.stop() }
+    let folders = FolderSources(backup: model)
+    folders.previewRows = []
+    let window = await mount(MacWorkspace(model: model, library: PhotoLibraryModel(),
+      initialDestination: .transfers, folderSources: folders))
+    // The workspace adds search after the asynchronous history scope resolves.
+    // Wait for the native item to appear, independently of the mount delay.
+    let deadline = ContinuousClock.now + .seconds(5)
+    while window.toolbar?.items.contains(where: { $0 is NSSearchToolbarItem }) != true,
+      ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(50))
+    }
     _ = try search(in: window)
-    model.stop()
   }
 
   func testSearchStartsCompactAndExpandsOnlyForEditing() async throws {
