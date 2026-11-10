@@ -20,6 +20,10 @@ enum BackupHubStatus: Equatable {
   case paused
   /// `bytes` is nil when any pending work is absent or its original size is unknown.
   case backingUp(remaining: Int, bytes: UInt64?)
+  #if os(macOS)
+  /// Known folder work extends past the currently materialized transfer jobs.
+  case backingUpWithoutTotal
+  #endif
   /// Everything reached the Pixel; `saving` photos are still going into its Photos.
   case caughtUp(lastSaved: Date?, saving: Int)
   case empty
@@ -144,6 +148,9 @@ extension BackupHubStatus {
     case .empty: return text("hub_empty")
     case .paused: return text("hub_paused")
     case .caughtUp(_, let saving): return text(Self.caughtUpTitle(saving: saving, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup))
+    #if os(macOS)
+    case .backingUpWithoutTotal: return text("hub_backing_up_without_total")
+    #endif
     case .backingUp(let remaining, let bytes):
       if let bytes, bytes > 0 {
         return String(format: text("hub_backing_up"), remaining.formatted(),

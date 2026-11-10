@@ -80,6 +80,18 @@ struct FolderSummary: Decodable, Equatable {
   var initialFilter: LibraryBackupView = .all
   var initialSettingsFolder: String? = nil
   var isPreview: Bool { previewRows != nil }
+  var hubStatus: BackupHubStatus {
+    let status = backup.hubStatus
+    switch status {
+    case .backingUp, .caughtUp, .empty:
+      guard let receiver = backup.pairing?.receiverID else { return status }
+      let preparing = sources.contains { source in
+        source.receiver == receiver && source.pendingControl == nil && hasPendingPreparation(source.id)
+      }
+      return preparing ? .backingUpWithoutTotal : status
+    default: return status
+    }
+  }
   private var observedGlobalAutoBackup: Bool?
   private var watches: [String: FolderWatch] = [:]
   private var access: [String: URL] = [:]
@@ -453,6 +465,9 @@ struct FolderSummary: Decodable, Equatable {
   private func setPhase(_ id: String, _ phase: String) {
     if phases[id] != phase { phases[id] = phase }
   }
+  private func hasPendingPreparation(_ id: String) -> Bool {
+    phases[id] == "folder_preparing" || phases[id] == "folder_cache_wait"
+  }
   private func markOffline(_ id: String) {
     setPhase(id, "folder_offline")
     Task { _ = try? await call(["action": "availability", "source": id, "available": false]); await refreshFacts() }
@@ -541,7 +556,11 @@ struct FolderSummary: Decodable, Equatable {
         return
       }
       guard !backup.paused else { setPhase(source.id, "backup_paused"); return }
-      guard backup.summary.queued + backup.summary.running + backup.summary.waiting < 16 else { setPhase(source.id, "folder_queue_wait"); return }
+      guard backup.summary.queued + backup.summary.running + backup.summary.waiting < 16 else {
+        // The queue limit does not invalidate work already observed at the source.
+        if !hasPendingPreparation(source.id) { setPhase(source.id, "folder_queue_wait") }
+        return
+      }
       guard await backup.canPrepareForReceiver() else { setPhase(source.id, "waiting_for_wifi"); return }
       var candidateCommand: [String: Any] = ["action": "candidates", "source": source.id, "receiver": receiver]
       if let retryPath { candidateCommand["relative"] = retryPath }

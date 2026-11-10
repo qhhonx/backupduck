@@ -217,6 +217,10 @@ appear as one line when they matter.
   title uses the same card and reserved
   progress slot. Earlier-photo counting retains its checked-item count without
   inventing a percentage before membership is known.
+- On Mac, confirmed folder preparation keeps the hub and menu in their working
+  state between transfers. While folder work is still being prepared, the card
+  keeps its progress slot and omits the count, size and fraction for the
+  incomplete queue. Pauses and problems still take priority.
 - The keep-screen-on switch appears only while 50 or more photos remain.
 - The Pixel shows free space only in the space card, or as a hint when less
   than 15% remains and auto cleanup is off. Readings are the device's own.

@@ -67,17 +67,17 @@ enum MacAboutNavigation {
   let earlierPhotosStarted: Bool
   let autoBackup: Bool
 
-  init(model: BackupModel) {
+  init(model: BackupModel, folders: FolderSources? = nil) {
     receiver = model.peerDevice?.name ?? "Pixel"
     preparing = model.importing
     earlierPhotosStarted = model.earlierPhotosStarted
     autoBackup = model.autoBackup
-    status = model.hubStatus
+    status = folders?.hubStatus ?? model.hubStatus
   }
 
   var isBackingUp: Bool {
     switch status {
-    case .backingUp: return true
+    case .backingUp, .backingUpWithoutTotal: return true
     case .empty, .caughtUp: return preparing
     default: return false
     }
@@ -85,7 +85,7 @@ enum MacAboutNavigation {
 
   var sentence: String {
     switch status {
-    case .backingUp:
+    case .backingUp, .backingUpWithoutTotal:
       return String(format: NSLocalizedString("menu_backup_destination", comment: ""),
         status.sentence(receiver: receiver, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup), receiver)
     case .problem(.receiverRejected):
@@ -124,11 +124,12 @@ struct MacStatusMenuItems: View {
 
 struct MacStatusMenu: View {
   @ObservedObject var model: BackupModel
+  @ObservedObject var folders = FolderSources.shared
   @Environment(\.openWindow) private var openWindow
   @State private var changingPause = false
 
   var body: some View {
-    MacStatusMenuItems(status: MacMenuStatus(model: model), paused: model.paused,
+    MacStatusMenuItems(status: MacMenuStatus(model: model, folders: folders), paused: model.paused,
       pauseEnabled: model.ready && model.pairing != nil && !changingPause && !model.changingPause,
       togglePause: {
         guard !changingPause, !model.changingPause else { return }
@@ -144,5 +145,15 @@ struct MacStatusMenu: View {
       }, openSettings: {
         MacSettingsNavigation.open { openWindow(id: "main") }
       }, quit: { NSApp.terminate(nil) })
+  }
+}
+
+struct MacStatusMenuIcon: View {
+  @ObservedObject var model: BackupModel
+  @ObservedObject var folders = FolderSources.shared
+
+  var body: some View {
+    Image(nsImage: MacMenuStatus(model: model, folders: folders).isBackingUp ? MacMenuBarIcon.activeImage : MacMenuBarIcon.image)
+      .renderingMode(.template).accessibilityLabel(Text("brand_name"))
   }
 }

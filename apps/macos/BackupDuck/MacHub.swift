@@ -22,10 +22,12 @@ struct MacHub: View {
   private var connected: Bool { model.pairing != nil && model.ready }
 
   var body: some View {
+    let hubStatus = folders.hubStatus
     ScrollView {
       VStack(alignment: .leading, spacing: DuckSpacing.medium) {
         if model.pairing != nil { devicePill }
-        status
+        status(hubStatus)
+          .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.text), value: hubStatus)
         if connected, model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted { earlier(model.earlierPhotosCardStatus) }
         if connected, !recentPhotos.isEmpty {
           VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
@@ -33,12 +35,11 @@ struct MacHub: View {
             MacRecentPhotos(photos: recentPhotos, state: recentMedia, present: presentPhoto)
           }
         }
-        if connected { summaryRows }
+        if connected { summaryRows(hubStatus) }
       }
       .padding(DuckSpacing.large)
       .frame(maxWidth: 680)
       .frame(maxWidth: .infinity)
-      .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.text), value: model.hubStatus)
     }
     .background(DuckRole.background)
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet }
@@ -53,8 +54,8 @@ struct MacHub: View {
 
   // MARK: - Status (I3: one state at a time)
 
-  @ViewBuilder private var status: some View {
-    switch model.hubStatus {
+  @ViewBuilder private func status(_ hubStatus: BackupHubStatus) -> some View {
+    switch hubStatus {
     case .notPaired:
       DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note_mac") {
         Button("hub_connect", action: pair).duckPrimaryButton()
@@ -66,10 +67,10 @@ struct MacHub: View {
     case .paused:
       card(Text("hub_paused"), note: "hub_paused_note", symbol: "pause.circle.fill", tone: .secondary,
         action: "hub_resume") { Task { await model.setPaused(false) } }
-    case .backingUp:
+    case .backingUp, .backingUpWithoutTotal:
       DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
-        title: Text(verbatim: model.hubStatus.sentence(receiver: receiverName)),
-        progress: progress, trailing: {
+        title: Text(verbatim: hubStatus.sentence(receiver: receiverName)),
+        progress: hubStatus == .backingUpWithoutTotal ? nil : model.hubProgress, reservesProgress: true, trailing: {
         DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
       })
     case .caughtUp(let last, let saving):
@@ -84,8 +85,6 @@ struct MacHub: View {
       }
     }
   }
-
-  private var progress: Double { model.hubProgress }
 
   // MARK: - Problems (cause, what happens by itself, at most one action)
 
@@ -174,10 +173,10 @@ struct MacHub: View {
       .filter { seen.insert($0.asset.source_id).inserted }
       .prefix(8).map(HistoryPhoto.init(job:))
   }
-  private var summaryRows: some View {
+  private func summaryRows(_ hubStatus: BackupHubStatus) -> some View {
     VStack(spacing: 0) {
       let attention = model.summary.count(for: "attention")
-      if attention > 0 && !model.hubStatus.showsAttentionDetails {
+      if attention > 0 && !hubStatus.showsAttentionDetails {
         row(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
           symbol: "exclamationmark.triangle.fill") { showTransfers("attention") }
           .accessibilityIdentifier("hub.needsYou")

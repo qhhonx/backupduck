@@ -7,6 +7,42 @@ import XCTest
 #endif
 
 @MainActor final class FolderBrowseScopeTests: XCTestCase {
+  func testBackupStatusStaysWorkingBetweenFolderTransfers() {
+    let restoresNetwork = BackupEnvironment.restoresSenderNetwork
+    BackupEnvironment.restoresSenderNetwork = { false }
+    defer { BackupEnvironment.restoresSenderNetwork = restoresNetwork }
+    let model = BackupModel(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    model.pairing = Pairing(version: 1, receiverID: "receiver", endpoint: "", certificate: "", token: "")
+    model.ready = true; model.paused = false; model.receiverConnection = .ready
+    let folders = FolderSources(backup: model)
+    folders.sources = [FolderSource(id: "folder", name: "Fixture", bookmark: Data(),
+      automatic: false, enabled: true, receiver: "receiver", lastCheck: nil)]
+    folders.phases["folder"] = "folder_preparing"
+
+    model.summary.queued = 1
+    let working = folders.hubStatus
+    XCTAssertEqual(working, .backingUpWithoutTotal)
+    model.summary.queued = 0
+    model.summary.received = 1
+    XCTAssertEqual(model.hubStatus, .caughtUp(lastSaved: nil, saving: 1), "Reproduce the empty transfer queue between originals")
+    XCTAssertEqual(folders.hubStatus, working)
+    XCTAssertTrue(MacMenuStatus(model: model, folders: folders).isBackingUp)
+    model.summary.running = 1
+    XCTAssertEqual(folders.hubStatus, working)
+    model.paused = true
+    XCTAssertEqual(folders.hubStatus, .paused)
+    model.paused = false; model.receiverConnection = .network
+    XCTAssertEqual(folders.hubStatus, .problem(.receiverUnreachable))
+    model.receiverConnection = .ready
+    model.summary.running = 0
+    folders.sources[0].receiver = "other-receiver"
+    XCTAssertEqual(folders.hubStatus, .caughtUp(lastSaved: nil, saving: 1))
+    folders.sources[0].receiver = "receiver"
+    folders.phases["folder"] = "folder_up_to_date"
+    XCTAssertEqual(folders.hubStatus, .caughtUp(lastSaved: nil, saving: 1))
+    XCTAssertFalse(MacMenuStatus(model: model, folders: folders).isBackingUp)
+  }
+
   func testScopesRestoreIndependentSearchFiltersAndSelections() {
     let browser = FolderBrowser()
     browser.search = "camera"
