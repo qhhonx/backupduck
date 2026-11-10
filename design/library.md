@@ -172,6 +172,17 @@ filtering, headers and album browsing.
 - **Filter menu.** Two sections with headers and no other dividers: "Show" —
   All Photos, Not Backed Up (History: All, Needs You); "Type" — All Types, Photos, Live Photos, Videos, Bursts. All Types sits
   inside the Type section. An active non-default choice tints the filter symbol.
+- **Library membership.** Photo Library and Folders use ordered metadata
+  results with stable identifiers and media types. Photo Library can display
+  its opening viewport while materializing the rest of the same collection.
+  Completion is automatic, retains the visible anchor and waits for an
+  active zoom to settle before changing the extent. Collection totals describe
+  the source rather than the opening viewport. The record feed maintains its
+  own task results and extent as it loads older records.
+- **Rendition priority.** Visible tiles and their near neighbors take priority
+  over background thumbnail fill. Cached small covers can appear while the
+  display-size rendition loads. Folder cache fill has its own table capacity,
+  so it cannot consume the Photo Library's decoded thumbnail slots.
 - **Filter presentation.** Committed Show, Type and search membership is adopted
   once with a 0.2-second grid crossfade (Reduce Motion: instant), without
   interpolating collection rows. New views start at their newest edge; returning
@@ -207,8 +218,9 @@ filtering, headers and album browsing.
   keyboard command. There is no intermediate cover page, extra All Photos
   destination or separate scope control. Parent and children retain independent
   search, filter, selection and scroll state and share the photo toolbar.
-  Search matches file and subfolder names within the selected scope. Grids are
-  continuous, with no repeated folder names, inline day headings or floating
+  Search matches file and subfolder names within the selected scope. Folder
+  grids run from oldest to newest by the recorded photo date and open at the
+  bottom. Grids are continuous, with no repeated folder names, inline day headings or floating
   date capsules. Single-folder availability and unsupported-file notes remain
   ordinary content; they do not pin. See `mac-folders.md`.
 - **Album browsing.** On Mac, album photos share the ordinary 3, 4, 6 and 9
@@ -383,10 +395,11 @@ Single-click selects. Double-click or Space/Return opens the current photo
 inside the same window, growing from its cell. A mouse or trackpad drag pages
 sideways; dragging up shows information and dragging down hides it, then returns
 to the grid. The grid remains alive beneath the viewer, which uses the system
-window background. Escape or Back returns to the currently viewed asset,
-retaining filter and selection. The viewer uses native horizontal page tracking,
-fit/magnification, video/Live Photo playback and an information sidebar with
-complete wrapping values. There is no permanent filmstrip; Left and Right move
+window background. Space, Escape or Back returns to the currently viewed asset,
+retaining filter and selection. A held Space press triggers at most one
+transition, including when focus returns to the grid. The viewer uses native
+horizontal page tracking, fit/magnification, video/Live Photo playback and an
+information sidebar with complete wrapping values. There is no permanent filmstrip; Left and Right move
 through the library. Backup registers durable intent through the shared queue,
 never through browsing.
 

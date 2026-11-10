@@ -14,6 +14,8 @@ struct MacHub: View {
   var showTransfers: (String) -> Void
   @State private var offlineHelp = false
   @State private var livePhotoHelp = false
+  @State private var deliveryRequest: FolderDeliveryRequest?
+  @State private var deliveryProgress: FolderDeliveryProgress?
   @StateObject private var recentMedia = MacHistoryGridState()
   @Environment(\.macViewerPresentation) private var presentPhoto
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,10 +24,13 @@ struct MacHub: View {
   private var connected: Bool { model.pairing != nil && model.ready }
 
   var body: some View {
+    let hubStatus = folders.hubStatus
+    let request = deliveryObservationRequest(hubStatus)
     ScrollView {
       VStack(alignment: .leading, spacing: DuckSpacing.medium) {
         if model.pairing != nil { devicePill }
-        status
+        status(hubStatus)
+          .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.text), value: hubStatus)
         if connected, model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted { earlier(model.earlierPhotosCardStatus) }
         if connected, !recentPhotos.isEmpty {
           VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
@@ -33,17 +38,17 @@ struct MacHub: View {
             MacRecentPhotos(photos: recentPhotos, state: recentMedia, present: presentPhoto)
           }
         }
-        if connected { summaryRows }
+        if connected { summaryRows(hubStatus) }
       }
       .padding(DuckSpacing.large)
       .frame(maxWidth: 680)
       .frame(maxWidth: .infinity)
-      .animation(reduceMotion ? nil : .easeOut(duration: DuckMotion.text), value: model.hubStatus)
     }
     .background(DuckRole.background)
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet }
     .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
+    .task(id: request) { await observeFolderDelivery(request) }
   }
 
   private var devicePill: some View {
@@ -53,8 +58,8 @@ struct MacHub: View {
 
   // MARK: - Status (I3: one state at a time)
 
-  @ViewBuilder private var status: some View {
-    switch model.hubStatus {
+  @ViewBuilder private func status(_ hubStatus: BackupHubStatus) -> some View {
+    switch hubStatus {
     case .notPaired:
       DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note_mac") {
         Button("hub_connect", action: pair).duckPrimaryButton()
@@ -66,10 +71,16 @@ struct MacHub: View {
     case .paused:
       card(Text("hub_paused"), note: "hub_paused_note", symbol: "pause.circle.fill", tone: .secondary,
         action: "hub_resume") { Task { await model.setPaused(false) } }
-    case .backingUp:
+    case .backingUp, .backingUpWithoutTotal:
+      let hasUnpreparedFolders = hubStatus == .backingUpWithoutTotal
+      let request = deliveryObservationRequest(hubStatus)
+      let folderProgress = deliveryRequest == request ? deliveryProgress : nil
+      let showsFolderProgress = folderProgress.map { $0.delivered < $0.total } == true || hasUnpreparedFolders
+      let title = showsFolderProgress ? BackupHubStatus.backingUpWithoutTotal : hubStatus
       DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
-        title: Text(verbatim: model.hubStatus.sentence(receiver: receiverName)),
-        progress: progress, trailing: {
+        title: Text(verbatim: title.sentence(receiver: receiverName)),
+        note: showsFolderProgress ? folderProgressNote(folderProgress, checkingScope: request != nil && folderProgress == nil) : nil,
+        progress: showsFolderProgress ? folderProgress?.fraction : model.hubProgress, reservesProgress: true, trailing: {
         DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
       })
     case .caughtUp(let last, let saving):
@@ -85,7 +96,43 @@ struct MacHub: View {
     }
   }
 
-  private var progress: Double { model.hubProgress }
+  private func folderProgressNote(_ progress: FolderDeliveryProgress?, checkingScope: Bool) -> Text {
+    if let progress, progress.total > 0 {
+      let format = NSLocalizedString("hub_folder_delivery_progress", comment: "")
+      return Text(verbatim: String(format: format, progress.delivered.formatted(), progress.total.formatted()))
+        .monospacedDigit()
+    }
+    if checkingScope { return Text("hub_folder_counting") }
+    let format = NSLocalizedString("hub_folder_delivered", comment: "")
+    return Text(verbatim: String(format: format, model.summary.received.formatted())).monospacedDigit()
+  }
+
+  private func deliveryObservationRequest(_ status: BackupHubStatus) -> FolderDeliveryRequest? {
+    switch status {
+    case .backingUp, .backingUpWithoutTotal: folders.hubDeliveryRequest
+    default: nil
+    }
+  }
+
+  private func observeFolderDelivery(_ request: FolderDeliveryRequest?) async {
+    if deliveryRequest != request {
+      deliveryProgress = nil
+      deliveryRequest = request
+    }
+    guard let request else { return }
+    var observedRevision: (Int64, Int)?
+    while !Task.isCancelled {
+      let revision = (model.queueRevision, folders.revision)
+      if observedRevision?.0 != revision.0 || observedRevision?.1 != revision.1 {
+        if let progress = try? await folders.hubDeliveryProgress(request),
+          !Task.isCancelled, request == deliveryObservationRequest(folders.hubStatus) {
+          if deliveryProgress != progress { deliveryProgress = progress }
+          observedRevision = revision
+        }
+      }
+      try? await Task.sleep(for: .seconds(1))
+    }
+  }
 
   // MARK: - Problems (cause, what happens by itself, at most one action)
 
@@ -174,10 +221,10 @@ struct MacHub: View {
       .filter { seen.insert($0.asset.source_id).inserted }
       .prefix(8).map(HistoryPhoto.init(job:))
   }
-  private var summaryRows: some View {
+  private func summaryRows(_ hubStatus: BackupHubStatus) -> some View {
     VStack(spacing: 0) {
       let attention = model.summary.count(for: "attention")
-      if attention > 0 && !model.hubStatus.showsAttentionDetails {
+      if attention > 0 && !hubStatus.showsAttentionDetails {
         row(Text(String(format: NSLocalizedString("hub_needs_you_count", comment: ""), attention.formatted())), value: nil,
           symbol: "exclamationmark.triangle.fill") { showTransfers("attention") }
           .accessibilityIdentifier("hub.needsYou")
@@ -244,18 +291,19 @@ private struct MacRecentPhotos: View {
 @MainActor private final class MacRecentGridSource: MacGridSource {
   let state: MacHistoryGridState
   let photos: [String: HistoryPhoto]
-  let identifiers: [String]
+  let fetchResult: MacGridFetchResult
   let contextID = "hub-recent"
   var previewPoster: ((String) -> NSImage?)?
   var previewFrame: ((String) -> CGRect?)?
   init(photos: [HistoryPhoto], state: MacHistoryGridState) {
     self.state = state
     self.photos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
-    identifiers = photos.map(\.id)
+    fetchResult = MacGridFetchResult(identifiers: photos.map(\.id), kinds: photos.map { photo in
+      photo.job.flatMap { LibraryMediaKind(rawValue: $0.asset.kind) } ?? .unknown
+    })
   }
   var contentRevision: String { "\(state.imageRevision)" }
   var selection: Set<String> { get { state.selection } set { state.selection = newValue } }
-  var thumbnails: ThumbnailPipeline? { state.thumbnails }
   var scroll: MacGridScrollState {
     if let value = state.scrolls[contextID] { return value }
     let value = MacGridScrollState(); state.scrolls[contextID] = value; return value

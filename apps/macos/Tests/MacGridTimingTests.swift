@@ -224,6 +224,7 @@ import XCTest
 
 @MainActor private final class ResizeGridSource: MacGridSource {
   let identifiers = (0..<120).map { "item-\($0)" }
+  var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   let contextID = "resize-test"
   let contentRevision = "1"
   var selection: Set<String> = ["item-20", "item-21"]

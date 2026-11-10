@@ -44,7 +44,7 @@ struct FolderFacts: Decodable, Equatable {
     }
   }
 }
-struct FolderPhoto: Decodable, Identifiable, Equatable {
+struct FolderPhoto: Decodable, Identifiable, Equatable, Sendable {
   let relative: String
   let source_id: String
   let revision: String
@@ -60,7 +60,32 @@ struct FolderPhoto: Decodable, Identifiable, Equatable {
   var date: Date { Date(timeIntervalSince1970: Double(capture_ms) / 1000) }
   var canBackUp: Bool { backup == "not_backed_up" || backup == "needs_you" }
 }
-struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool }
+struct FolderFetchResponse: Decodable { let rows: [FolderPhoto] }
+
+/// Ready-to-adopt browse metadata. Build the lookup and counts off the UI actor.
+struct FolderFetchResult: Sendable {
+  let rows: [FolderPhoto]
+  let byID: [String: FolderPhoto]
+  let grid: MacGridFetchResult
+
+  init(_ rows: [FolderPhoto]) {
+    var byID: [String: FolderPhoto] = [:]
+    byID.reserveCapacity(rows.count)
+    var ordered: [FolderPhoto] = []
+    ordered.reserveCapacity(rows.count)
+    for row in rows where byID[row.id] == nil {
+      byID[row.id] = row
+      ordered.append(row)
+    }
+    // The core returns newest first; the native grid rests at the end.
+    ordered.reverse()
+    self.rows = ordered
+    self.byID = byID
+    grid = MacGridFetchResult(identifiers: ordered.map(\.id), kinds: ordered.map {
+      $0.media_type.hasPrefix("video/") ? .video : .photo
+    })
+  }
+}
 
 enum FolderBrowseScope: Hashable { case all, folder(String) }
 
@@ -68,11 +93,6 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
 @MainActor final class FolderBrowser: ObservableObject {
   enum ContentState: Equatable {
     case loading, photos, filterEmpty, empty, failed
-  }
-  struct Section: Identifiable {
-    let id: String
-    var photos: [FolderPhoto]
-    var hasMore: Bool
   }
   var configured = false
   @Published var scope: FolderBrowseScope = .all { didSet { scopeChanged(from: oldValue) } }
@@ -84,19 +104,21 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
   }
   private var scopeStates: [FolderBrowseScope: ScopeState] = [:]
   private var restoringScope = false
-  private var sectionCache: [String: [Section]] = [:]
+  private var cachedResults: [String: FolderFetchResult] = [:]
+  private var recentKeys: [String] = []
+  private var preheated: [String: UUID] = [:]
   private func scopeChanged(from old: FolderBrowseScope) {
     guard old != scope else { return }
+    stopPreheating()
     selections[activeKey] = selection
-    if resultKey == activeKey { sectionCache[activeKey] = sections }
     scopeStates[old] = ScopeState(filter: filter, type: type, search: search, searchExpanded: searchExpanded)
     restoringScope = true
     let state = scopeStates[scope] ?? ScopeState(filter: .all, type: .all, search: "", searchExpanded: false)
     filter = state.filter; type = state.type; search = state.search; searchExpanded = state.searchExpanded
     restoringScope = false
     activeKey = key; selection = selections[key] ?? []
-    sections = sectionCache[key] ?? []; resultKey = sectionCache[key] == nil ? nil : key
-    error = nil
+    restoreResult(for: key)
+    error = nil; loading = false
     generation += 1
   }
   @Published var filter: LibraryBackupView = .all { didSet { contextChanged() } }
@@ -112,7 +134,11 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
   @Published var searchExpanded = false
   @Published var search = "" { didSet { contextChanged() } }
   @Published var selection = Set<String>()
-  @Published private(set) var sections: [Section] = []
+  @Published private(set) var result: FolderFetchResult?
+  private(set) var resultRevision = 0
+  var visiblePhotos: [FolderPhoto] { result?.rows ?? [] }
+  var identifiers: [String] { result?.grid.identifiers ?? [] }
+  var photosByID: [String: FolderPhoto] { result?.byID ?? [:] }
   @Published private(set) var resultKey: String?
   @Published private(set) var loading = false
   @Published var error: String?
@@ -121,37 +147,81 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
   private var activeKey = "all|all||all"
   private func contextChanged() {
     guard !restoringScope, key != activeKey else { return }
+    stopPreheating()
     generation += 1
-    if resultKey == activeKey { sectionCache[activeKey] = sections }
     selections[activeKey] = selection
     activeKey = key; selection = selections[key] ?? []
-    sections = sectionCache[key] ?? []; resultKey = sectionCache[key] == nil ? nil : key
-    error = nil
+    restoreResult(for: key)
+    error = nil; loading = false
   }
-  private var loadingSections = Set<String>()
+  private func restoreResult(for key: String) {
+    result = cachedResults[key]
+    resultKey = result == nil ? nil : key
+    if result != nil { retainResult(for: key) }
+  }
+  private func retainResult(for key: String) {
+    cachedResults[key] = result
+    recentKeys.removeAll { $0 == key }
+    recentKeys.append(key)
+    if recentKeys.count > 4 { cachedResults.removeValue(forKey: recentKeys.removeFirst()) }
+  }
+  func preheat(_ photos: [FolderPhoto], sources: [String: FolderSource], pixels: CGFloat) {
+    let candidates = photos.prefix(64).map { photo in
+      (photo, "\(photo.id)|\(photo.revision)|\(pixels)")
+    }
+    let keep = Set(candidates.map(\.1))
+    for key in preheated.keys.filter({ !keep.contains($0) }) {
+      if let token = preheated.removeValue(forKey: key) { FileThumbnailPipeline.shared.cancel(token) }
+    }
+    for (photo, key) in candidates where preheated[key] == nil {
+      guard let source = sources[photo.folder_id] else { continue }
+      let token = UUID()
+      preheated[key] = token
+      FileThumbnailPipeline.shared.request(id: token, source: source, relative: photo.relative,
+        assetID: photo.source_id, revision: photo.revision, size: pixels / 2, preheat: true) { _ in }
+    }
+  }
+  func stopPreheating() {
+    preheated.values.forEach { FileThumbnailPipeline.shared.cancel($0) }
+    preheated.removeAll()
+  }
+  func prefillOverview(_ folders: FolderSources) async {
+    guard !folders.isPreview, MacThumbnailTables.enabled else { return }
+    // Let the new viewport issue its display requests before the bulk fill.
+    try? await Task.sleep(for: .seconds(1))
+    guard !Task.isCancelled, resultKey == key, MacThumbnailTables.folderOverview.available,
+      let epoch = MacThumbnailTables.storage.epoch, let result else { return }
+    let sources = Dictionary(uniqueKeysWithValues: folders.sources.filter {
+      folders.facts[$0.id]?.available != false
+    }.map { ($0.id, $0) })
+    let table = MacThumbnailTables.folderOverview
+    for (index, photo) in result.rows.reversed().enumerated() {
+      guard !Task.isCancelled, MacThumbnailTables.storage.isCurrent(epoch), !table.isFull else { return }
+      if index % 128 == 0 { await Task.yield() }
+      guard let source = sources[photo.folder_id] else { continue }
+      let key = FileThumbnailPipeline.cacheBase(source: photo.folder_id, asset: photo.source_id, revision: photo.revision)
+      guard !table.contains(key) else { continue }
+      let image = await FileThumbnailPipeline.shared.overviewImage(photo, source: source)
+      guard !Task.isCancelled else { return }
+      if let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+        MacThumbnailTables.rememberFolder(key: key, image: cg, epoch: epoch)
+      }
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+  }
   private var generation = 0
   var key: String {
     let identity: String
     switch scope { case .all: identity = "all"; case .folder(let id): identity = "folder:" + id }
     return "\(identity)|\(filter.rawValue)|\(search)|\(type.rawValue)"
   }
-  /// The collection and its empty state consume the same local media-type
-  /// projection. Rust has already applied search and backup membership.
-  var visiblePhotos: [FolderPhoto] {
-    sections.flatMap(\.photos).filter {
-      type.matches(kind: $0.media_type.hasPrefix("video/") ? "video" : "photo")
-    }
-  }
   var contentState: ContentState {
     if error != nil && visiblePhotos.isEmpty { return .failed }
     guard resultKey == key, !loading else { return .loading }
     guard visiblePhotos.isEmpty else { return .photos }
-    // An unmatched prefix is still a pending browse, not an empty result.
-    guard !sections.contains(where: \.hasMore) else { return .loading }
     return search.isEmpty && filter == .all && type == .all ? .empty : .filterEmpty
   }
   func clearFilters() { filter = .all; type = .all; search = "" }
-  var selected: [FolderPhoto] { sections.flatMap(\.photos).filter { selection.contains($0.id) && $0.canBackUp } }
   /// Submitted photos leave selection in every saved browse context. Photos
   /// selected after the press remain selected if the person changes the view.
   func completeSelection(_ submitted: Set<String>) {
@@ -159,38 +229,27 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
     for key in Array(selections.keys) { selections[key]?.subtract(submitted) }
   }
   func reload(_ folders: FolderSources) async {
+    guard !Task.isCancelled else { return }
     generation += 1
     let current = generation, requestedKey = key
-    let requestedSearch = search, requestedFilter = filter
-    let ids: [String]
-    switch scope { case .all: ids = ["all"]; case .folder(let id): ids = [id] }
-    loading = sections.isEmpty
+    let requestedSearch = search, requestedFilter = filter, requestedType = type
+    let source: String?
+    switch scope { case .all: source = nil; case .folder(let id): source = id }
+    loading = result == nil
+    defer { if current == generation { loading = false } }
     do {
-      var next: [Section] = []
-      for id in ids {
-        let depth = max(100, sections.first { $0.id == id }?.photos.count ?? 100)
-        var rows: [FolderPhoto] = []; var more = true
-        while rows.count < depth && more {
-          let page = try await folders.browse(id == "all" ? nil : id, offset: rows.count, search: requestedSearch, filter: requestedFilter)
-          guard current == generation, !Task.isCancelled else { return }
-          rows += page.rows; more = page.has_more
-        }
-        next.append(Section(id: id, photos: rows, hasMore: more))
+      let fetched = try await folders.fetch(source, search: requestedSearch, filter: requestedFilter, type: requestedType)
+      guard current == generation, !Task.isCancelled else { return }
+      let previous = result?.rows
+      let unchanged = await Task.detached(priority: .userInitiated) { previous == fetched.rows }.value
+      guard current == generation, !Task.isCancelled else { return }
+      if !unchanged || resultKey != requestedKey {
+        resultRevision &+= 1
+        result = fetched; resultKey = requestedKey
+        retainResult(for: requestedKey)
       }
-      guard current == generation else { return }
-      sections = next; sectionCache[requestedKey] = next; resultKey = requestedKey; error = nil
-    } catch { if current == generation { self.error = error.localizedDescription } }
-    if current == generation { loading = false }
-  }
-  func more(_ id: String, folders: FolderSources) async {
-    guard let i = sections.firstIndex(where: { $0.id == id }), sections[i].hasMore, !loadingSections.contains(id) else { return }
-    loadingSections.insert(id); defer { loadingSections.remove(id) }
-    let current = generation, offset = sections[i].photos.count
-    do {
-      let page = try await folders.browse(id == "all" ? nil : id, offset: offset, search: search, filter: filter)
-      guard current == generation, let index = sections.firstIndex(where: { $0.id == id }), sections[index].photos.count == offset else { return }
-      sections[index].photos += page.rows; sections[index].hasMore = page.has_more; sectionCache[key] = sections
-    } catch { if current == generation { self.error = error.localizedDescription } }
+      if error != nil { error = nil }
+    } catch { if current == generation, !Task.isCancelled { self.error = error.localizedDescription } }
   }
 }
 

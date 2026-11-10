@@ -297,6 +297,16 @@ final class MacFileDetailPosterTests: XCTestCase {
 }
 
 @MainActor final class FileThumbnailPipelineTests: XCTestCase {
+  func testFolderTablesPreservePhotoLibraryCapacityAndShareTheStorageLimit() {
+    let tables = MacThumbnailTables.activeTables
+    XCTAssertEqual(Set(tables.map(\.url)).count, 4)
+    XCTAssertEqual(MacThumbnailTables.overviewShare, 0.5)
+    XCTAssertEqual(MacThumbnailTables.detailShare, 0.2)
+    let total = tables.reduce(0) { $0 + $1.limit * $1.entryBytes }
+    let budget = MacThumbnailTables.budgetMB * 1024 * 1024
+    XCTAssertLessThanOrEqual(total + Int(Double(budget) * MacThumbnailTables.fileRenditionShare), budget)
+  }
+
   private func fixture() throws -> (URL, FolderSource, ThumbnailCacheStorage, CGImage) {
     let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
       .appendingPathComponent("disk-grid-\(UUID().uuidString)", isDirectory: true)
@@ -316,6 +326,19 @@ final class MacFileDetailPosterTests: XCTestCase {
       ThumbnailCacheStorage(directory: base.appendingPathComponent("cache", isDirectory: true)), image)
   }
 
+  func testOverviewRequestLeavesDisplayRenditionBudgetAvailable() async throws {
+    let (base, source, storage, bitmap) = try fixture()
+    defer { try? FileManager.default.removeItem(at: base) }
+    let pipeline = FileThumbnailPipeline(storage: storage, originalLoader: { _, _ in bitmap })
+    let photo = FolderPhoto(relative: "fixture.jpg", source_id: "still", revision: "1", size: 1,
+      media_type: "image/jpeg", modified_ms: 1, folder_id: source.id, capture_ms: 1,
+      date_source: "file_modified", backup: "not_backed_up", saved_at_ms: nil)
+    let preview = await pipeline.overviewImage(photo, source: source)
+    XCTAssertNotNil(preview)
+    while !pipeline.isIdle { try await Task.sleep(for: .milliseconds(10)) }
+    XCTAssertEqual(storage.detailUsage, 0)
+  }
+
   func testRestartUsesFinalDiskTierWithoutOriginalAndRevisionDoesNotReuseIt() async throws {
     let (base, source, storage, _) = try fixture()
     defer { try? FileManager.default.removeItem(at: base) }
@@ -327,15 +350,21 @@ final class MacFileDetailPosterTests: XCTestCase {
     await fulfillment(of: [cold], timeout: 10)
     while !first.isIdle { try await Task.sleep(for: .milliseconds(10)) }
     try FileManager.default.removeItem(at: base.appendingPathComponent("source/fixture.jpg"))
+    var offline = source
+    offline.bookmark = Data()
     let restarted = FileThumbnailPipeline(storage: storage, budget: { 16 * 1024 * 1024 })
     let warm = expectation(description: "disk tier survives source absence and new instance")
-    restarted.request(id: UUID(), source: source, relative: "fixture.jpg", revision: "one", size: 64) { image in
+    restarted.request(id: UUID(), source: offline, relative: "fixture.jpg", revision: "one", size: 64) { image in
       XCTAssertNotNil(image); warm.fulfill()
     }
     await fulfillment(of: [warm], timeout: 10)
     XCTAssertEqual(restarted.statistics.diskHits, 1); XCTAssertEqual(restarted.statistics.originalLoads, 0)
+    var immediately: NSImage?
+    restarted.request(id: UUID(), source: offline, relative: "fixture.jpg", revision: "one", size: 128) { immediately = $0 }
+    XCTAssertNotNil(immediately, "A retained larger tier is immediately available without a bookmark")
+    XCTAssertEqual(restarted.statistics.memoryHits, 1)
     let changed = expectation(description: "new revision does not show old pixels")
-    restarted.request(id: UUID(), source: source, relative: "fixture.jpg", revision: "two", size: 64) { image in
+    restarted.request(id: UUID(), source: offline, relative: "fixture.jpg", revision: "two", size: 64) { image in
       XCTAssertNil(image); changed.fulfill()
     }
     await fulfillment(of: [changed], timeout: 10)

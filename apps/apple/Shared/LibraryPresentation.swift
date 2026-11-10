@@ -11,17 +11,29 @@ struct LibraryRangeSelection {
   }
 }
 
-/// Incremental metadata index. Presentation groups never change transfer identities.
+#if os(macOS)
+enum LibraryMediaKind: String, Sendable {
+  case photo, motion, video, burst, unknown
+}
+#endif
+
+/// Metadata index. Presentation groups never change transfer identities.
 struct LibraryPresentationIndex: Sendable {
   struct Metadata {
     let id: String
     let burst: String?
     let representative: Bool
+    #if os(macOS)
+    var kind: LibraryMediaKind = .unknown
+    #endif
     var key: String { burst.map { "burst:" + $0 } ?? id }
   }
   struct Row: Sendable {
     let key: String
     var rawIndex: Int
+    #if os(macOS)
+    var kind: LibraryMediaKind = .unknown
+    #endif
   }
   private(set) var rows: [Row] = []
   private(set) var positions: [String: Int] = [:]
@@ -42,7 +54,11 @@ struct LibraryPresentationIndex: Sendable {
         }
       } else {
         positions[item.key] = rows.count
+        #if os(macOS)
+        rows.append(Row(key: item.key, rawIndex: cursor, kind: item.burst == nil ? item.kind : .burst))
+        #else
         rows.append(Row(key: item.key, rawIndex: cursor))
+        #endif
       }
       cursor += 1
     }
@@ -71,6 +87,7 @@ struct LibraryGroup: Sendable {
 }
 
 extension LibraryPresentationIndex {
+  #if os(macOS)
   /// Reads every remaining item with one bulk enumeration. Overview mosaics need
   /// the whole library; per-object access faults each asset individually.
   mutating func loadRemaining(_ fetch: PHFetchResult<PHAsset>) {
@@ -80,19 +97,33 @@ extension LibraryPresentationIndex {
     items.reserveCapacity(total - start)
     fetch.enumerateObjects(at: IndexSet(integersIn: start..<total), options: []) { asset, _, stop in
       if Task.isCancelled { stop.pointee = true; return }
-      items.append(Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier, representative: asset.representsBurst))
+      items.append(Self.macMetadata(asset))
     }
     guard items.count == total - start else { return }
     load(sourceCount: total, targetRows: .max, minimumCursor: total) { items[$0 - start] }
   }
+  #endif
   @discardableResult mutating func load(_ fetch: PHFetchResult<PHAsset>, targetRows: Int,
     minimumCursor: Int = 0) -> Bool {
-    load(sourceCount: fetch.count, targetRows: targetRows, minimumCursor: minimumCursor) { index in
+    let count = fetch.count
+    return load(sourceCount: count, targetRows: targetRows, minimumCursor: minimumCursor) { index in
       let asset = fetch.object(at: index)
-      return Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier,
-        representative: asset.representsBurst)
+      #if os(macOS)
+      if count <= targetRows { return Self.macMetadata(asset) }
+      #endif
+      return Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier, representative: asset.representsBurst)
     }
   }
+  #if os(macOS)
+  private static func macMetadata(_ asset: PHAsset) -> Metadata {
+    let kind: LibraryMediaKind = switch asset.mediaType {
+    case .image: asset.mediaSubtypes.contains(.photoLive) ? .motion : .photo
+    case .video: .video
+    default: .unknown
+    }
+    return Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier, representative: asset.representsBurst, kind: kind)
+  }
+  #endif
 }
 
 /// V5: publication and receipt are different facts; unknown carries no mark.

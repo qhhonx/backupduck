@@ -105,6 +105,27 @@ import UserNotifications
     } else if ProcessInfo.processInfo.arguments.contains("-unified-browsing") {
       FolderCatalog.install("folders.sections", folders: folders, sheet: nil)
     }
+    if scenario.id == "hub.backing-up", ProcessInfo.processInfo.arguments.contains("-folder-progress-replay") {
+      folders.sources = [.init(id: "fixture-progress", name: "Camera Exports", bookmark: Data(),
+        automatic: false, enabled: true, receiver: "catalog-pixel", lastCheck: Date(), manualCutoffMS: 123)]
+      folders.phases["fixture-progress"] = "folder_preparing"
+      MacCatalogApp.core.setValue(["delivered": 22, "total": 40], for: "folder")
+      Task { @MainActor [weak model, weak folders] in
+        try? await Task.sleep(for: .seconds(4))
+        for tick in 1...8 {
+          guard !Task.isCancelled, let model, let folders else { return }
+          // A queued job, a receipt and the gap before the next original.
+          let delivered = 22 + tick / 2
+          MacCatalogApp.core.setValue(["delivered": delivered, "total": 40], for: "folder")
+          model.summary.running = tick % 2
+          model.summary.queued = 0
+          model.summary.received = delivered
+          folders.phases["fixture-progress"] = tick % 2 == 0 ? "folder_cache_wait" : "folder_preparing"
+          folders.revision += 1
+          try? await Task.sleep(for: .seconds(1))
+        }
+      }
+    }
     if scenario.id == "records.running-grid" {
       Task { @MainActor [weak model] in
         try? await Task.sleep(for: .seconds(5))
@@ -800,7 +821,9 @@ enum MacWindowSnapshot {
       "publication_failed": 0, "waiting": 0, "failed": 0, "queued": 0, "running": 3, "paused": 0,
       "confirmed_bytes": 0, "active": 3, "attention": 0]
     core.setValue(jobs, for: "jobs")
+    core.setValue(tick, for: "sender_revision")
     core.setValue(summary, for: "sender_summary")
+    core.setValue(summary, for: "backup_summary")
     let items: [[String: Any]] = jobs.map { ["id": "job-\($0["id"]!)", "cursor": $0["id"]!,
       "sort_value": $0["sort_value"]!, "job": $0] }
     core.setValue(["items": items, "summary": summary], for: "backup_tasks")

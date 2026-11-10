@@ -1,6 +1,9 @@
 //! Optional desktop boundary. Source files are never owned caches.
 use super::*;
-use backupduck_folder_source::{resolve, revision, BrowseFilter, Index, Observation, PageSort};
+use backupduck_folder_source::{
+    resolve, revision, BrowseFilter, BrowseMediaKind, BrowseQuery, DeliveryProgress, Index,
+    Observation, PageSort,
+};
 static PREVIEW_INDEX: Mutex<Option<Index>> = Mutex::new(None);
 static INDEX: Mutex<Option<Index>> = Mutex::new(None);
 #[derive(Deserialize)]
@@ -15,6 +18,10 @@ pub enum Command {
         source: String,
         receiver: String,
     },
+    DeliveryProgress {
+        receiver: String,
+        scopes: Vec<DeliveryScope>,
+    },
     Availability {
         source: String,
         available: bool,
@@ -27,7 +34,8 @@ pub enum Command {
         search: String,
         #[serde(default)]
         filter: BrowseFilter,
-        offset: usize,
+        #[serde(default)]
+        kind: BrowseMediaKind,
     },
     Undated {
         source: String,
@@ -209,6 +217,12 @@ pub fn call(command: Command) -> Result<Value> {
     call_with_index(&host, index, command)
 }
 
+#[derive(Deserialize)]
+pub struct DeliveryScope {
+    source: String,
+    max_created_ms: Option<u64>,
+}
+
 fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Result<Value> {
     match command {
         Command::PreviewBegin { .. } | Command::PreviewStep | Command::PreviewCancel => {
@@ -287,6 +301,28 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
                 backupduck_folder_source::millis(SystemTime::now()),
             )?)?)
         }
+        Command::DeliveryProgress { receiver, scopes } => {
+            let queue = host.sender.lock().map_err(lock)?;
+            let mut total = DeliveryProgress::default();
+            for scope in scopes {
+                let Some(progress) = index.delivery_progress(
+                    &scope.source,
+                    &receiver,
+                    scope.max_created_ms,
+                    |id| {
+                        Ok(queue
+                            .job_observation(id)?
+                            .is_some_and(|job| job.state == backupduck_sender::JobState::Received))
+                    },
+                )?
+                else {
+                    return Ok(Value::Null);
+                };
+                total.delivered += progress.delivered;
+                total.total += progress.total;
+            }
+            Ok(json!(total))
+        }
         Command::Facts { source, receiver } => {
             let queue = host.sender.lock().map_err(lock)?;
             Ok(serde_json::to_value(index.facts(
@@ -300,20 +336,24 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
             receiver,
             search,
             filter,
-            offset,
+            kind,
         } => {
             let queue = host.sender.lock().map_err(lock)?;
             let since = backupduck_folder_source::millis(SystemTime::now())
                 .saturating_sub(7 * 24 * 60 * 60 * 1000);
-            Ok(serde_json::to_value(index.browse(
-                source.as_deref(),
-                &receiver,
-                &search,
-                filter,
-                offset,
-                since,
+            let result = index.browse(
+                BrowseQuery {
+                    source: source.as_deref(),
+                    receiver: &receiver,
+                    search: &search,
+                    filter,
+                    kind,
+                    since_ms: since,
+                },
                 |id| folder_observation(&queue, id),
-            )?)?)
+            )?;
+            drop(queue);
+            Ok(serde_json::to_value(result)?)
         }
         Command::ValidateRules { include, exclude } => {
             match backupduck_folder_source::validate_rules(&include, &exclude) {
@@ -734,10 +774,8 @@ fn selected_repeat_sources(
 
 /// A verified receipt is still saving until the receiver confirms Photos publication.
 fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Observation> {
-    let job = match queue.job(id) {
-        Ok(job) => job,
-        Err(Error::NotFound) => return Ok(Observation::default()),
-        Err(error) => return Err(error),
+    let Some(job) = queue.job_observation(id)? else {
+        return Ok(Observation::default());
     };
     let state = if job.state == backupduck_sender::JobState::Failed
         || job.processing == Some(ProcessingState::Failed)
@@ -754,7 +792,7 @@ fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Obse
     };
     Ok(Observation {
         state: state.into(),
-        saved_at_ms: queue.publication_time(id)?,
+        saved_at_ms: job.published_at_ms,
     })
 }
 

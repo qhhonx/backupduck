@@ -24,10 +24,94 @@ import SwiftUI
   var inset: CGFloat = 0
 }
 
-/// The collection owns geometry, gestures, reuse and diffing. A source supplies
-/// stable identities and configures an existing cell without replacing its view.
+/// Ordered metadata for a browse result. The opening viewport can be prepared
+/// before the whole result is materialized. Images are requested separately.
+struct MacGridFetchResult: Sendable {
+  let identifiers: [String]
+  let positions: [String: Int]?
+  let opening: Bool
+  private let kinds: [LibraryMediaKind]?
+  let totals: MacGridTotals?
+  var count: Int { identifiers.count }
+
+  init(photoRows: [LibraryPresentationIndex.Row], opening: Bool = false) {
+    let ordered = photoRows.reversed()
+    self.init(identifiers: ordered.map(\.key), kinds: opening ? nil : ordered.map(\.kind), opening: opening)
+  }
+
+  init(identifiers: [String], kinds: [LibraryMediaKind]? = nil, opening: Bool = false) {
+    precondition(kinds == nil || kinds?.count == identifiers.count)
+    self.identifiers = identifiers
+    self.opening = opening
+    self.kinds = kinds
+    if let kinds {
+      var positions: [String: Int] = [:]
+      positions.reserveCapacity(identifiers.count)
+      var photos = 0, videos = 0
+      for (index, kind) in kinds.enumerated() {
+        positions[identifiers[index]] = index
+        switch kind {
+        case .photo, .motion, .burst: photos += 1
+        case .video: videos += 1
+        case .unknown: break
+        }
+      }
+      self.positions = positions
+      totals = MacGridTotals(total: identifiers.count, photos: photos, videos: videos)
+    } else {
+      positions = nil
+      totals = opening ? nil : MacGridTotals(total: identifiers.count)
+    }
+  }
+
+  func mediaKind(at index: Int) -> LibraryMediaKind? {
+    guard identifiers.indices.contains(index) else { return nil }
+    return kinds?[index] ?? .unknown
+  }
+}
+
+/// A cancellable rendition request, independent of membership and cell reuse.
+/// Each provider can return a cached preview before the requested rendition.
+@MainActor struct MacGridImageRequest {
+  typealias Delivery = (NSImage?, Bool) -> Void
+  let placeholder: () -> CGImage?
+  let request: (@escaping Delivery) -> (() -> Void)
+
+  static func library(_ asset: PHAsset, pipeline: ThumbnailPipeline, pixels: CGFloat,
+    originalAspect: Bool) -> Self {
+    let key = MacThumbnailTables.key(asset)
+    return Self(placeholder: { MacThumbnailTables.placeholder(key: key) }, request: { deliver in
+      let epoch = MacThumbnailTables.storage.epoch
+      let id = pipeline.request(asset, pixels: pixels, contentMode: originalAspect ? .aspectFit : .aspectFill) { image, inCloud in
+        if !inCloud, let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+          MacThumbnailTables.remember(key: key, image: cg, epoch: epoch)
+        }
+        deliver(image, inCloud)
+      }
+      return { pipeline.cancel(id) }
+    })
+  }
+  static func folder(_ photo: FolderPhoto, source: FolderSource, pixels: CGFloat) -> Self {
+    let key = FileThumbnailPipeline.cacheBase(source: photo.folder_id, asset: photo.source_id, revision: photo.revision)
+    return Self(placeholder: { MacThumbnailTables.folderPlaceholder(key: key) }, request: { deliver in
+      let id = UUID(), epoch = MacThumbnailTables.storage.epoch
+      let pipeline = FileThumbnailPipeline.shared
+      pipeline.request(id: id, source: source, relative: photo.relative, assetID: photo.source_id,
+        revision: photo.revision, size: pixels / 2) { image in
+        if let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+          MacThumbnailTables.rememberFolder(key: key, image: cg, epoch: epoch)
+        }
+        deliver(image, false)
+      }
+      return { pipeline.cancel(id) }
+    })
+  }
+}
+
+/// The collection owns geometry, gestures, reuse and diffing. Adapters publish
+/// a fetch result and render requested IDs in reusable cells.
 @MainActor protocol MacGridSource: AnyObject {
-  var identifiers: [String] { get }
+  var fetchResult: MacGridFetchResult { get }
   var contextID: String { get }
   var contentRevision: String { get }
   var membershipReady: Bool { get }
@@ -42,28 +126,26 @@ import SwiftUI
   var selection: Set<String> { get set }
   var scroll: MacGridScrollState { get }
   var startsAtEnd: Bool { get }
+  var preservesViewportDuringLiveUpdates: Bool { get }
   var zoomStops: [Int] { get }
   var footer: String { get }
   var footerNotes: [String] { get }
-  var thumbnails: ThumbnailPipeline? { get }
   var previewPoster: ((String) -> NSImage?)? { get set }
   var previewFrame: ((String) -> CGRect?)? { get set }
-  func asset(_ id: String) -> PHAsset?
   func informationTarget(_ id: String) -> MacPhotoInformationTarget
   func date(_ id: String) -> Date?
-  func fact(_ id: String) -> MacThumbnailTables.Fact?
   func configure(_ cell: PhotoCell, id: String, pixels: CGFloat, originalAspect: Bool)
   func zoomTile(_ id: String, side: CGFloat, scale: CGFloat, originalAspect: Bool) -> NSView
   func preheat(_ ids: [String], pixels: CGFloat)
+  func stopPreheating()
   func prefill()
-  func loadAllIfNeeded()
-  func loadAll() async
-  func loadMore(visible: [String])
+  func didDisplay(_ ids: ArraySlice<String>)
   func refreshMarks(_ cells: [PhotoCell], receiver: String?, revision: String) async
   func saveScroll()
 }
 
 extension MacGridSource {
+  var identifiers: [String] { fetchResult.identifiers }
   var membershipReady: Bool { true }
   var groups: [Int: String] { [:] }
   var flowHeaders: Set<Int> { [] }
@@ -73,21 +155,15 @@ extension MacGridSource {
   func introduction(at index: Int) -> AnyView? { nil }
   func headerHeights(width: CGFloat) -> [Int: CGFloat] { [:] }
   var startsAtEnd: Bool { false }
+  var preservesViewportDuringLiveUpdates: Bool { false }
   var zoomStops: [Int] { MacLibraryDensity.grid }
   var footer: String { "" }
   var footerNotes: [String] { [] }
-  var thumbnails: ThumbnailPipeline? { nil }
-  func asset(_ id: String) -> PHAsset? { nil }
-  func informationTarget(_ id: String) -> MacPhotoInformationTarget {
-    if let asset = asset(id) { return .library(asset, nil, nil) }
-    return .selection(0)
-  }
-  func fact(_ id: String) -> MacThumbnailTables.Fact? { nil }
+  func informationTarget(_ id: String) -> MacPhotoInformationTarget { .selection(0) }
   func preheat(_ ids: [String], pixels: CGFloat) {}
+  func stopPreheating() {}
   func prefill() {}
-  func loadAllIfNeeded() {}
-  func loadAll() async {}
-  func loadMore(visible: [String]) {}
+  func didDisplay(_ ids: ArraySlice<String>) {}
   func refreshMarks(_ cells: [PhotoCell], receiver: String?, revision: String) async {}
   func saveScroll() {}
   func zoomTile(_ id: String, side: CGFloat, scale: CGFloat, originalAspect: Bool) -> NSView {
@@ -97,6 +173,22 @@ extension MacGridSource {
     tile.cell.isSelected = selection.contains(id)
     return tile
   }
+}
+
+/// Optional overview specialization. Ordinary sources use the shared cell
+/// and do not need to manufacture PhotoKit assets.
+@MainActor protocol MacDenseGridSource: MacGridSource {
+  var thumbnails: ThumbnailPipeline? { get }
+  func asset(_ id: String) -> PHAsset?
+  func fact(_ id: String) -> MacThumbnailTables.Fact?
+  func completeOpening() async
+}
+
+extension MacDenseGridSource {
+  func completeOpening() async {}
+  var thumbnails: ThumbnailPipeline? { nil }
+  func asset(_ id: String) -> PHAsset? { nil }
+  func fact(_ id: String) -> MacThumbnailTables.Fact? { nil }
 }
 
 /// File-backed sources reuse the production cell, including marks and request
@@ -147,25 +239,16 @@ struct MacLibraryGrid: View {
   }
 }
 
-@MainActor final class MacPhotoLibrarySource: MacGridSource {
+@MainActor final class MacPhotoLibrarySource: MacDenseGridSource {
   let library: PhotoLibraryModel
   var ordinaryOnly = false
-  private var membershipKey = ""
-  private var cachedIDs: [String] = []
   private var scrollKey = ""
   private let retainedScroll = MacGridScrollState()
-  private var bulkGeneration = -1
   init(_ library: PhotoLibraryModel) { self.library = library }
-  var identifiers: [String] {
-    let key = "\(library.generation)|\(library.loaded)"
-    if membershipKey != key {
-      membershipKey = key
-      cachedIDs = (0..<library.loaded).reversed().compactMap { library.identifier(at: $0) }
-    }
-    return cachedIDs
-  }
+  var fetchResult: MacGridFetchResult { library.macFetchResult }
+  func completeOpening() async { await library.completeMacBrowse() }
   var contextID: String { "\(library.filter)|\(library.scrollResetGeneration)" }
-  var contentRevision: String { "\(library.generation)|\(library.contentGeneration)" }
+  var contentRevision: String { "\(library.generation)|\(library.contentGeneration)|\(fetchResult.opening)" }
   var selection: Set<String> { get { library.selection } set { library.selection = newValue } }
   var startsAtEnd: Bool { true }
   var zoomStops: [Int] { ordinaryOnly ? MacLibraryDensity.grid : MacLibraryDensity.columns }
@@ -209,23 +292,6 @@ struct MacLibraryGrid: View {
   }
   func preheat(_ ids: [String], pixels: CGFloat) { library.thumbnails.preheat(ids.compactMap(asset), pixels: pixels) }
   func prefill() { MacThumbnailTables.prefill(library.fetch) }
-  func loadAllIfNeeded() {
-    guard library.hasMoreRows, bulkGeneration != library.generation else { return }
-    bulkGeneration = library.generation
-    let generation = library.generation
-    Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .seconds(1))
-      for _ in 0..<40 {
-        guard let self, self.library.hasMoreRows, self.library.generation == generation else { return }
-        await self.library.loadAllRows()
-        if self.library.hasMoreRows { try? await Task.sleep(for: .milliseconds(250)) }
-      }
-    }
-  }
-  func loadAll() async { await library.loadAllRows() }
-  func loadMore(visible: [String]) {
-    if visible.contains(where: { (library.index(of: $0) ?? 0) >= library.loaded - 48 }) { library.loadMore() }
-  }
   func refreshMarks(_ cells: [PhotoCell], receiver: String?, revision: String) async {
     let generation = library.generation
     let assets = cells.compactMap { $0.presentationID.flatMap(asset) }
@@ -292,7 +358,7 @@ enum MacGridDateRange {
 
 /// A complete collection total can exist without a trustworthy media split.
 /// Missing type metadata must never turn every item into a photo.
-struct MacGridTotals: Equatable {
+struct MacGridTotals: Equatable, Sendable {
   let total: Int
   let photos: Int?
   let videos: Int?

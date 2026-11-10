@@ -1,6 +1,7 @@
-BackupDuck 0.6.0 requires macOS 15 or later.
+BackupDuck 0.6.1 requires macOS 15 or later.
 
 Please try:
-- Pair with the Pixel, choose what to back up, and start or pause earlier photos.
-- Browse Photo Library, Folders and Backup History. Zoom, open a photo, and return to the same place.
-- Search for albums in the automatic backup settings. Add a folder and check that photos and counts update.
+- Open a large local folder or SD card, scroll and zoom, then return to the same folder. Check how quickly thumbnails reappear.
+- Select a folder photo, press Space to open it, then press Space again to return to the grid.
+- Back up several files from a folder. The Backup page and menu should keep showing backup in progress while more files are being prepared.
+- Open Photo Library and check that recent photos appear while the rest of the library loads.

@@ -123,6 +123,7 @@ struct MacMediaGrid: NSViewRepresentable {
   }
   func updateNSView(_ scroll: NSScrollView, context: Context) {
     let c = context.coordinator
+    if !active { c.parent.source.stopPreheating() }
     c.parent = self
     c.bindPreviewSource()
     guard let collection = c.collection,
@@ -162,7 +163,10 @@ struct MacMediaGrid: NSViewRepresentable {
     c.viewportResized(layout: layout)
     if !c.magnifying { c.syncDensity(columns: resolvedColumns, layout: layout) }
     c.applyItems(scroll: scroll, layout: layout)
-    source.loadAllIfNeeded()
+    if source.preservesViewportDuringLiveUpdates { c.updateFooter() }
+    if active, layout.isDense, source.fetchResult.opening, let source = source as? any MacDenseGridSource {
+      Task { await source.completeOpening() }
+    }
     if c.networkAllowed != networkPolicy.allowed {
       c.networkAllowed = networkPolicy.allowed; c.refreshVisibleImages()
     }
@@ -209,6 +213,7 @@ struct MacMediaGrid: NSViewRepresentable {
     coordinator.removeZoomStage()
     coordinator.rememberScroll()
     coordinator.refresh.cancel()
+    coordinator.parent.source.stopPreheating()
     if let observer = coordinator.observer { NotificationCenter.default.removeObserver(observer) }
     if let observer = coordinator.frameObserver { NotificationCenter.default.removeObserver(observer) }
     coordinator.parent.source.previewPoster = nil
@@ -285,7 +290,7 @@ struct MacMediaGrid: NSViewRepresentable {
       let dense = layout.isDense
       canvas.isHidden = !dense
       guard dense else { canvas.reset(); return }
-      canvas.pipeline = parent.source.thumbnails
+      canvas.pipeline = denseSource?.thumbnails
       canvas.assetAt = { [weak self] index in self?.asset(at: index) }
       canvas.factAt = { [weak self] index in self?.fact(at: index) }
       canvas.count = count
@@ -421,6 +426,12 @@ struct MacMediaGrid: NSViewRepresentable {
         if let scroll = collection?.enclosingScrollView as? LibraryScrollView {
           scroll.willScroll = { [weak self] in self?.prepareForScrolling() }
           scroll.didScroll = { [weak self] in self?.scrolledFromInput() }
+          if parent.source.preservesViewportDuringLiveUpdates {
+            scroll.userScrollEnded = { [weak self, weak scroll] in
+              guard let self, let scroll, let layout = self.collection?.collectionViewLayout as? LibraryTimelineLayout else { return }
+              self.applyItems(scroll: scroll, layout: layout)
+            }
+          }
           scroll.viewportReleased = { [weak self] in self?.sourceViewportReleased() }
         }
       }
@@ -435,6 +446,7 @@ struct MacMediaGrid: NSViewRepresentable {
     var generation = -1
     var contextID: String?
     private var measuredHeaderWidth: CGFloat = 0
+    private var appliedLiveSource: (any MacGridSource)?
     var ids: [String] = []
     var positions: [String: Int] = [:]
     var dataSource: NSCollectionViewDiffableDataSource<Int, String>?
@@ -478,16 +490,29 @@ struct MacMediaGrid: NSViewRepresentable {
       }
       dataSource = data
     }
+    private var awaitingOpeningExpansion = false
+    private var showingOpening = false
     func applyItems(scroll: NSScrollView, layout: LibraryTimelineLayout) {
-      // An asynchronous source must publish a complete membership before the
-      // context changes; never adopt old rows under the new filter identity.
+      // Never adopt old rows under a new filter identity.
       guard parent.source.membershipReady, width() > 120 else {
         if !parent.source.membershipReady { scrolled() }
         return
       }
       measuredHeaderWidth = width()
-      let next = parent.source.identifiers
+      let result = parent.source.fetchResult
+      let next = result.identifiers
       let changedContext = contextID != parent.source.contextID
+      let liveUpdates = parent.source.preservesViewportDuringLiveUpdates
+      let nativeScroll = scroll as? LibraryScrollView
+      if liveUpdates, !changedContext, nativeScroll?.isUserScrolling == true, ids != next { return }
+      let scrollRevision = nativeScroll?.userScrollRevision
+      let expandingOpening = showingOpening && !result.opening && !changedContext
+      if expandingOpening, zoomStage != nil {
+        awaitingOpeningExpansion = true
+        return
+      }
+      awaitingOpeningExpansion = false
+      showingOpening = result.opening
       guard ids != next || changedContext else {
         let heights = parent.source.headerHeights(width: width())
         let folders = parent.source.folderHeaders(width: width())
@@ -497,23 +522,47 @@ struct MacMediaGrid: NSViewRepresentable {
           layout.folders = folders; layout.dateIDs = parent.source.dateIDs
           layout.revision += 1; layout.invalidateLayout()
           collection?.layoutSubtreeIfNeeded()
+          if liveUpdates { refreshVisibleHeaders(); scrolled() }
         }
-        refreshVisibleHeaders(); refreshVisibleImages(); scrolled(); return
+        if liveUpdates { appliedLiveSource = parent.source }
+        else {
+          refreshVisibleHeaders(); refreshVisibleImages(); scrolled()
+        }
+        return
       }
       if changedContext && contextID != nil { coverMembership(in: scroll) }
       if !changedContext { rememberScroll() }
       stopLayoutAnimation(); removeZoomStage(); magnifying = false
       let first = contextID == nil
       let retained = parent.source.scroll
-      let offset = retained.offset, anchor = retained.anchor, inset = retained.inset
+      let offset = retained.offset
+      var anchor = retained.anchor, inset = retained.inset
       if changedContext { pinnedToNewest = parent.source.startsAtEnd && anchor == nil }
+      let nextPositions = result.positions ?? Dictionary(uniqueKeysWithValues: next.enumerated().map { ($0.element, $0.offset) })
+      if liveUpdates, !changedContext, !pinnedToNewest, let previous = appliedLiveSource,
+        let retainedID = anchor, nextPositions[retainedID] == nil || previous.date(retainedID) != parent.source.date(retainedID) {
+        // A status change can move the anchor record to the newest end. Keep
+        // another visible row in place instead of following that record.
+        anchor = nil
+        if let span = visibleRange(),
+          let index = (span.first...span.last).first(where: {
+            let id = ids[$0]
+            return nextPositions[id] != nil && previous.date(id) == parent.source.date(id)
+          }) {
+          anchor = ids[index]
+          inset = scroll.contentView.bounds.minY - layout.frame(at: index).minY
+        }
+      }
+      appliedLiveSource = liveUpdates ? parent.source : nil
       contextID = parent.source.contextID
-      // Membership changes a person can follow animate; paging in thousands of
-      // older rows, or a whole new fetch, is applied at once as before.
-      let previous = Set(ids)
-      let changes = previous.symmetricDifference(Set(next)).count
+      var animates = false
+      if !liveUpdates, parent.active, !first, !changedContext, !expandingOpening, !reducedMotion, abs(ids.count - next.count) <= 64 {
+        let removals = ids.lazy.filter { nextPositions[$0] == nil }.prefix(65).count
+        let insertions = next.lazy.filter { self.positions[$0] == nil }.prefix(65 - min(removals, 65)).count
+        animates = (1...64).contains(removals + insertions)
+      }
       let previousIDs = ids
-      ids = next; positions = Dictionary(uniqueKeysWithValues: next.enumerated().map { ($0.element, $0.offset) })
+      ids = next; positions = nextPositions
       (collection as? LibraryCollectionView)?.remapSelectionAnchors(from: previousIDs, to: positions, reset: changedContext)
       count = next.count; generation += 1; appliedSelection = nil
       layout.revision += 1
@@ -525,7 +574,6 @@ struct MacMediaGrid: NSViewRepresentable {
       var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
       snapshot.appendSections([0]); snapshot.appendItems(next, toSection: 0)
       let expected = generation
-      let animates = parent.active && !first && !changedContext && !reducedMotion && changes > 0 && changes <= 64
       dataSource?.apply(snapshot, animatingDifferences: animates) { [weak self, weak scroll] in
         guard let self, self.generation == expected, let scroll, let collection = self.collection else { return }
         collection.needsLayout = true; collection.layoutSubtreeIfNeeded(); self.ensureDocumentHeight()
@@ -534,7 +582,9 @@ struct MacMediaGrid: NSViewRepresentable {
         if self.pinnedToNewest { target.y = maximum }
         else if let index = self.displayIndex(of: anchor) { target.y = layout.frame(at: index).minY + inset }
         target.y = min(maximum, max(0, target.y))
-        scroll.contentView.scroll(to: target); scroll.reflectScrolledClipView(scroll.contentView)
+        if !liveUpdates || changedContext || (scroll as? LibraryScrollView)?.userScrollRevision == scrollRevision {
+          scroll.contentView.scroll(to: target); scroll.reflectScrolledClipView(scroll.contentView)
+        }
         self.restoring = false; self.applyingSelection = false
         self.applyPendingFocus(); self.scrolled()
         self.revealMembership()
@@ -592,7 +642,9 @@ struct MacMediaGrid: NSViewRepresentable {
       }
     }
     private func scrolledFromInput() {
-      if let scroll = collection?.enclosingScrollView {
+      if let scroll = collection?.enclosingScrollView,
+        !parent.source.preservesViewportDuringLiveUpdates
+          || abs(scroll.contentView.bounds.minY - parent.source.scroll.offset.y) > 0.5 {
         pinnedToNewest = scroll.contentView.bounds.maxY >= settledContentHeight - 2
       }
       // AppKit may apply a wheel after scrollWheel returns. Populate its actual
@@ -628,13 +680,17 @@ struct MacMediaGrid: NSViewRepresentable {
         contextID == nil || measuredHeaderWidth != width() {
         applyItems(scroll: scroll, layout: layout)
       }
-      guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView else { return }
-      let clip = scroll.contentView, height = settledContentHeight
-      guard clip.bounds.maxY < height - 2 else { return }
-      ensureDocumentHeight()
-      clip.scroll(to: CGPoint(x: 0, y: max(0, height - clip.bounds.height)))
+      guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView,
+        (scroll as? LibraryScrollView)?.isUserScrolling != true else { return }
+      let clip = scroll.contentView
+      var proposed = clip.bounds
+      proposed.origin = CGPoint(x: 0, y: max(0, settledContentHeight - proposed.height))
+      // AppKit owns the document frame here. Setting it in response to its
+      // own resize notification can trigger another resize and scroll.
+      let target = clip.constrainBoundsRect(proposed).origin
+      guard target.y > clip.bounds.minY + 2 else { return }
+      clip.scroll(to: target)
       scroll.reflectScrolledClipView(clip)
-      updateDense()
     }
     /// Window resizing changes geometry, not the person's zoom preference.
     /// Stop a running zoom before rebuilding its now-stale viewport geometry.
@@ -682,6 +738,14 @@ struct MacMediaGrid: NSViewRepresentable {
       stage?.stop(); stage?.removeFromSuperview()
       collection?.alphaValue = 1
       CATransaction.commit()
+      if awaitingOpeningExpansion {
+        awaitingOpeningExpansion = false
+        DispatchQueue.main.async { [weak self] in
+          guard let self, let collection = self.collection, let scroll = collection.enclosingScrollView,
+            let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
+          self.applyItems(scroll: scroll, layout: layout)
+        }
+      }
     }
     private func width() -> CGFloat {
       collection?.enclosingScrollView?.contentSize.width ?? collection?.bounds.width ?? 1
@@ -738,12 +802,15 @@ struct MacMediaGrid: NSViewRepresentable {
       return label
     }()
     private var footerKey = ""
+    private var liveFooterText: String?
+    private var liveFooterNotes: [String] = []
     // Items are presented oldest first (newest at the bottom, as in Photos). The
     // library model indexes newest first, so every display index is mirrored
     // against the number of items the collection currently holds.
-    func asset(at item: Int) -> PHAsset? { identifier(at: item).flatMap { parent.source.asset($0) } }
+    private var denseSource: (any MacDenseGridSource)? { parent.source as? any MacDenseGridSource }
+    func asset(at item: Int) -> PHAsset? { identifier(at: item).flatMap { denseSource?.asset($0) } }
     func date(at item: Int) -> Date? { identifier(at: item).flatMap { parent.source.date($0) } }
-    func fact(at item: Int) -> MacThumbnailTables.Fact? { identifier(at: item).flatMap { parent.source.fact($0) } }
+    func fact(at item: Int) -> MacThumbnailTables.Fact? { identifier(at: item).flatMap { denseSource?.fact($0) } }
     func identifier(at item: Int) -> String? { ids.indices.contains(item) ? ids[item] : nil }
     func bindPreviewSource() {
       parent.source.previewPoster = { [weak self] id in
@@ -794,11 +861,16 @@ struct MacMediaGrid: NSViewRepresentable {
     func updateFooter() {
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
       if parent.embeddedPreview { layout.footerHeight = 0; footer.isHidden = true; return }
-      let key = "\(ObjectIdentifier(parent.source))|\(parent.source.contextID)|\(parent.source.contentRevision)|\(count)"
+      let liveUpdates = parent.source.preservesViewportDuringLiveUpdates
+      let key = liveUpdates ? "" : "\(ObjectIdentifier(parent.source))|\(parent.source.contextID)|\(parent.source.contentRevision)|\(count)"
       let width = max(1, collection.bounds.width)
-      if key != footerKey || abs(footerWidth - width) > 0.5 {
+      let total = liveUpdates ? parent.source.footer : nil
+      let notes = liveUpdates ? parent.source.footerNotes : []
+      let contentChanged = liveUpdates ? total != liveFooterText || notes != liveFooterNotes : key != footerKey
+      if contentChanged || abs(footerWidth - width) > 0.5 {
         footerKey = key; footerWidth = width
-        let text = MacGridFooter.attributed(total: parent.source.footer, notes: parent.source.footerNotes)
+        liveFooterText = total; liveFooterNotes = notes
+        let text = MacGridFooter.attributed(total: total ?? parent.source.footer, notes: liveUpdates ? notes : parent.source.footerNotes)
         footer.attributedStringValue = text
         footerTextHeight = MacGridFooter.textHeight(text, width: width)
         footerHeight = MacGridFooter.height(text, width: width)
@@ -812,8 +884,9 @@ struct MacMediaGrid: NSViewRepresentable {
       if zoomStage?.ownsFooter(footer) == true { return }
       if footer.superview !== collection { collection.addSubview(footer) }
       let height = layout.collectionViewContentSize.height
-      footer.frame = CGRect(x: 0, y: max(0, height - footerHeight + MacGridFooter.topInset),
+      let frame = CGRect(x: 0, y: max(0, height - footerHeight + MacGridFooter.topInset),
         width: width, height: footerTextHeight)
+      if footer.frame != frame { footer.frame = frame }
     }
     /// Item size whose column count is exactly `columns`.
     private func itemSize(forColumns columns: Int) -> CGFloat {
@@ -885,7 +958,7 @@ struct MacMediaGrid: NSViewRepresentable {
       stage.referenceSide = { [weak self] columns in (self?.naturalPitch(columns) ?? 3)-(self?.gap(columns) ?? 2) }
       stage.denseAsset = { [weak self] index in self?.asset(at: index) }
       stage.denseFact = { [weak self] index in self?.fact(at: index) }
-      stage.thumbnails = parent.source.thumbnails
+      stage.thumbnails = denseSource?.thumbnails
       var pixels = denseCanvas?.displayedImages ?? [:]
       for item in collection.visibleItems().compactMap({ $0 as? PhotoCell }) {
         if let index = collection.indexPath(for: item)?.item, let image = item.displayedImage { pixels[index] = image }
@@ -1034,7 +1107,6 @@ struct MacMediaGrid: NSViewRepresentable {
         velocity: retainsStage ? zoomStage?.frozenPitchVelocity : 0)
     }
     private func finishStage(columns: Int,size: CGFloat,cancelled: Bool,velocity: CGFloat? = nil, animated: Bool = true) {
-      if MacLibraryDensity.isDense(columns) { Task { await parent.source.loadAll() } }
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout,
         let scroll = collection.enclosingScrollView else { return }
       animationTarget = (.all,size)
@@ -1434,12 +1506,15 @@ struct MacMediaGrid: NSViewRepresentable {
         let paths = collection.indexPathsForVisibleItems().sorted()
         guard parent.source.membershipReady, let span = self.visibleRange() else { return }
         let first = span.first, last = span.last
-        parent.source.loadMore(visible: Array(self.ids[first...last]))
+        parent.source.didDisplay(self.ids[first...last])
         let dense = self.layoutDense
         if !dense {
           let range = max(0, first - 24)..<min(self.count, last + 49)
-          parent.source.preheat(range.compactMap { self.identifier(at: $0) }, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
-        }
+          var candidates = Array(self.ids[first...last])
+          candidates.append(contentsOf: self.ids[(last + 1)..<range.upperBound])
+          candidates.append(contentsOf: self.ids[range.lowerBound..<first].reversed())
+          parent.source.preheat(candidates, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
+        } else { parent.source.stopPreheating() }
         guard !dense else { return }
         let cells = paths.compactMap { collection.item(at: $0) as? PhotoCell }
         await parent.source.refreshMarks(cells, receiver: parent.receiverID,
@@ -1579,7 +1654,7 @@ struct MacMediaGrid: NSViewRepresentable {
   }
   override func keyDown(with event: NSEvent) {
     if event.charactersIgnoringModifiers == " " || event.keyCode == 36 {
-      if let path = selectionIndexPaths.sorted().first { preview?(path) }
+      if !event.isARepeat, let path = selectionIndexPaths.sorted().first { preview?(path) }
       return
     }
     if event.keyCode == 53 { applySelection([]); keyAnchor = nil; keyCursor = nil; return }
@@ -1916,8 +1991,7 @@ private final class MacMarqueeView: NSView {
 }
 
 @MainActor final class PhotoCell: NSCollectionViewItem {
-  private var pipeline: ThumbnailPipeline?
-  private var request: PHImageRequestID = PHInvalidImageRequestID
+  private var cancelImageRequest: (() -> Void)?
   private var token = UUID()
   private var imageKey = ""
   private(set) var assetID: String?
@@ -1929,15 +2003,15 @@ private final class MacMarqueeView: NSView {
   private let media = MacBadgeLayer()
   private let status = MacBadgeLayer()
   private let cloud = MacBadgeLayer()
-  private let selectionMark = MacBadgeLayer()
   private var selectionVisible = true
   private var statusState: String?
+  private var configuredFolderPhoto: FolderPhoto?
   private let burstCount = MacTextBadgeLayer(weight: .medium, fill: DuckMedia.scrimBurstNSColor, radius: 4)
   private let duration = MacTextBadgeLayer(weight: .semibold, fill: DuckMedia.scrimDurationNSColor, radius: 5)
   private var zoomReadingRect: CGRect?
   private weak var zoomReadingHost: NSView?
   var zoomReadingFrame: CGRect?
-  var zoomReadingLayers: [CALayer] { [media, burstCount, duration, cloud, status, selectionMark] }
+  var zoomReadingLayers: [CALayer] { [media, burstCount, duration, cloud, status] }
   func setZoomReadingHost(_ host: NSView?) {
     guard zoomReadingHost !== host else { return }
     CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -1963,7 +2037,6 @@ private final class MacMarqueeView: NSView {
       .init(layer: duration, frame: CGRect(x: f.maxX - durationWidth - 7, y: f.minY + 7, width: durationWidth, height: 18), glyphWidth: duration.textWidth, trailing: true),
       .init(layer: cloud, frame: CGRect(x: f.minX + 8, y: f.minY + 8, width: 24, height: 24)),
       .init(layer: status, frame: CGRect(x: f.maxX - 32, y: f.minY + 8, width: 24, height: 24)),
-      .init(layer: selectionMark, frame: CGRect(x: f.maxX - 30, y: f.minY + 6, width: 24, height: 24)),
     ], photo: f, tile: frame, visible: visible)
   }
   /// Hover help for the visible status and burst badges, as tooltip rectangles
@@ -1986,14 +2059,9 @@ private final class MacMarqueeView: NSView {
     view.layer?.addSublayer(photoLayer)
     view.layer?.addSublayer(selectionOutline)
     selectionOutline.borderColor = NSColor.controlAccentColor.cgColor
-    for badge in [media, status, cloud, selectionMark] {
-      badge.backgroundColor = DuckMedia.scrimMarkCGColor
-      badge.cornerRadius = 12
-      view.layer?.addSublayer(badge)
-    }
     // design/library.md § Tile marks: white glyphs with a soft shadow, no circles.
     for badge in [media, status, cloud] {
-      badge.backgroundColor = nil
+      view.layer?.addSublayer(badge)
       badge.shadowColor = DuckMedia.shadowCGColor
       badge.shadowOpacity = 0.45
       badge.shadowRadius = 2
@@ -2018,7 +2086,7 @@ private final class MacMarqueeView: NSView {
     // Badges sit on the photo, not the cell, so original aspect keeps them on it.
     CATransaction.begin(); CATransaction.setDisableActions(true)
     let scale = view.window?.backingScaleFactor ?? 2
-    for badge in [media, status, cloud, selectionMark] { badge.scale = scale }
+    for badge in [media, status, cloud] { badge.scale = scale }
     burstCount.scale = scale; duration.scale = scale
     let frame = zoomReadingFrame ?? view.frame
     let poses = zoomReadingPoses(in: frame, visible: zoomReadingRect)
@@ -2045,15 +2113,11 @@ private final class MacMarqueeView: NSView {
     guard imageKey != key else { return }
     let sameAsset = assetID == asset.localIdentifier
     cancel()
-    self.pipeline = pipeline
     assetID = asset.localIdentifier
     imageKey = key
-    let current = token
     if !sameAsset {
       displayedImage = nil
-      // A decoded table thumbnail fills the cell at once while its own size
-      // loads; without it a reused cell stays blank until PhotoKit delivers.
-      photoLayer.contents = MacThumbnailTables.placeholder(asset)
+      photoLayer.contents = nil
     }
     // The layer always fills its own frame; original aspect shrinks the frame to
     // the photo's rectangle (animated), so the selection outline hugs the photo.
@@ -2078,16 +2142,9 @@ private final class MacMarqueeView: NSView {
             ? "library_filter_motion"
             : symbol == nil ? "library_filter_photo" : "library_filter_video", comment: ""))
     setGroup(count: nil, state: nil)
-    request = pipeline.request(asset, pixels: pixels, contentMode: originalAspect ? .aspectFit : .aspectFill) { [weak self] image, inCloud in
-      guard let self, self.token == current else { return }
-      if let image {
-        self.retainDisplayedImage(image)
-        if !inCloud, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-          MacThumbnailTables.remember(asset, image: cg)
-        }
-      }
-      self.cloud.symbol = "icloud"
-      self.cloud.isHidden = image != nil || !inCloud
+    requestImage(.library(asset, pipeline: pipeline, pixels: pixels, originalAspect: originalAspect)) { [weak self] image, inCloud in
+      self?.cloud.symbol = "icloud"
+      self?.cloud.isHidden = image != nil || !inCloud
     }
   }
   func setPresentationID(_ id: String) { presentationID = id }
@@ -2104,6 +2161,7 @@ private final class MacMarqueeView: NSView {
   /// Folder browsing reuses the library cell, V5 marks, selection and cancellation.
   func configureFolder(_ photo: FolderPhoto, source: FolderSource, pixels: CGFloat, synthetic: NSImage? = nil) {
     let key = "folder|\(photo.id)|\(photo.revision)|\(pixels)"
+    guard imageKey != key || configuredFolderPhoto != photo else { return }
     if imageKey != key {
       let sameFile = presentationID == photo.id && imageKey.hasPrefix("folder|\(photo.id)|\(photo.revision)|")
       cancel(); imageKey = key; assetID = photo.source_id; presentationID = photo.id
@@ -2114,15 +2172,13 @@ private final class MacMarqueeView: NSView {
       duration.isHidden = true; burstCount.isHidden = true
       if let synthetic { retainDisplayedImage(synthetic) }
       else {
-        let expected = token
-        FileThumbnailPipeline.shared.request(id: expected, source: source, relative: photo.relative, revision: photo.revision, size: pixels / 2) { [weak self] image in
-          guard let self, self.token == expected else { return }
+        requestImage(.folder(photo, source: source, pixels: pixels)) { [weak self] image, _ in
           // A missing file (an ejected card) retries on the next configure.
-          guard let image else { self.imageKey = ""; return }
-          self.retainDisplayedImage(image)
+          if image == nil { self?.imageKey = "" }
         }
       }
     }
+    configuredFolderPhoto = photo
     setSelectionVisible(true)
     setState(photo.backup == "sending" ? "sending" : photo.backup == "saving" ? "saving" : photo.backup == "needs_you" ? "needs_you" : nil)
     let statusKey = photo.backup == "saved" ? "folders_photo_saved" : photo.backup == "saving" ? "folders_photo_saving" : photo.backup == "sending" ? "folders_photo_sending" : photo.backup == "needs_you" ? "folders_photo_needs_you" : "folders_photo_not_backed_up"
@@ -2130,6 +2186,15 @@ private final class MacMarqueeView: NSView {
     view.alphaValue = 1
     view.setAccessibilityLabel(photo.relative + ". " + photo.date.formatted(date: .abbreviated, time: .shortened))
     view.needsLayout = true
+  }
+  func requestImage(_ request: MacGridImageRequest, delivered: @escaping MacGridImageRequest.Delivery) {
+    if photoLayer.contents == nil { photoLayer.contents = request.placeholder() }
+    let expected = token
+    cancelImageRequest = request.request { [weak self] image, inCloud in
+      guard let self, self.token == expected else { return }
+      if let image { self.retainDisplayedImage(image) }
+      delivered(image, inCloud)
+    }
   }
   private var fitted = false
   private var assetAspect: CGFloat = 1
@@ -2237,6 +2302,7 @@ private final class MacMarqueeView: NSView {
     tipsShown = !tips.isEmpty
   }
   func setSelectionVisible(_ value: Bool) {
+    guard selectionVisible != value else { return }
     selectionVisible = value
     view.layer?.borderWidth = 0
     status.isHidden = (value && isSelected) || statusState == nil || status.symbol == nil
@@ -2247,7 +2313,6 @@ private final class MacMarqueeView: NSView {
   /// mark and no dimming. Rebuilding layer state on every SwiftUI update pass
   /// was a measurable hot spot, so only changes are applied.
   private func updateSelectionMark() {
-    selectionMark.isHidden = true
     let outlined = selectionVisible && isSelected
     guard markedSelected != outlined else { return }
     markedSelected = outlined
@@ -2266,11 +2331,11 @@ private final class MacMarqueeView: NSView {
     return layer
   }()
   func cancel() {
-    pipeline?.cancel(request)
-    FileThumbnailPipeline.shared.cancel(token)
-    request = PHInvalidImageRequestID
+    cancelImageRequest?()
+    cancelImageRequest = nil
     token = UUID()
     imageKey = ""
+    configuredFolderPhoto = nil
   }
   override func prepareForReuse() {
     super.prepareForReuse()
@@ -2349,6 +2414,11 @@ private final class MacMarqueeView: NSView {
   var willScroll: (() -> Void)?
   var didScroll: (() -> Void)?
   private var scrollInputOwnsViewport = false
+  var userScrollEnded: (() -> Void)?
+  private var scrollIdleTask: Task<Void, Never>?
+  private var lastScrollInput = TimeInterval.zero
+  private(set) var userScrollRevision = 0
+  var isUserScrolling: Bool { scrollIdleTask != nil }
   private var notifyingScroll = false
   var embeddedPreview = false
   func endScrollInput() { scrollInputOwnsViewport = false }
@@ -2356,8 +2426,28 @@ private final class MacMarqueeView: NSView {
     if embeddedPreview { nextResponder?.scrollWheel(with: event) }
     else {
       let moves = event.scrollingDeltaX != 0 || event.scrollingDeltaY != 0
-      if moves { willScroll?(); scrollInputOwnsViewport = true }
+      if moves {
+        willScroll?(); scrollInputOwnsViewport = true
+        if userScrollEnded != nil { noteUserScroll() }
+      }
       super.scrollWheel(with: event)
+    }
+  }
+  private func noteUserScroll() {
+    userScrollRevision &+= 1
+    lastScrollInput = ProcessInfo.processInfo.systemUptime
+    guard scrollIdleTask == nil else { return }
+    scrollIdleTask = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .milliseconds(150))
+        guard let self, !Task.isCancelled else { return }
+        if ProcessInfo.processInfo.systemUptime - self.lastScrollInput >= 0.15 {
+          self.scrollIdleTask = nil
+          self.scrollInputOwnsViewport = false
+          self.userScrollEnded?()
+          return
+        }
+      }
     }
   }
   override func reflectScrolledClipView(_ clipView: NSClipView) {
@@ -2905,7 +2995,10 @@ struct MacCalendarGrid: NSViewRepresentable {
     if event.clickCount >= 2 { open?(path, point) } else { select?(path, point) }
   }
   override func keyDown(with event: NSEvent) {
-    if event.keyCode == 36 || event.charactersIgnoringModifiers == " " { openSelected?(); return }
+    if event.keyCode == 36 || event.charactersIgnoringModifiers == " " {
+      if !event.isARepeat { openSelected?() }
+      return
+    }
     super.keyDown(with: event)
   }
 }

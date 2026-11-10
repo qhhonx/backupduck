@@ -119,6 +119,7 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
   @Published private(set) var loading = false
   @Published private(set) var failed = false
   @Published private(set) var resolved = false
+  private(set) var observationRevision = 0
   private var receiver: String?
   private var state = "all"
   private var generation = 0
@@ -152,10 +153,14 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
       first = Page(items: items, summary: first.summary)
       let problems = state == "attention" ? first : try await page(receiver: receiver, state: "attention", after: nil)
       guard current == generation, !Task.isCancelled else { return }
-      photos = first.items.compactMap(HistoryPhoto.init)
-      attention = problems.items.compactMap(HistoryPhoto.init)
-      total = first.summary.count(for: state)
-      hasMore = pageCount == Self.pageSize
+      let nextPhotos = first.items.compactMap(HistoryPhoto.init)
+      let nextAttention = problems.items.compactMap(HistoryPhoto.init)
+      if photos != nextPhotos || attention != nextAttention { observationRevision &+= 1 }
+      if photos != nextPhotos { photos = nextPhotos }
+      if attention != nextAttention { attention = nextAttention }
+      let nextTotal = first.summary.count(for: state)
+      if total != nextTotal { total = nextTotal }
+      if hasMore != (pageCount == Self.pageSize) { hasMore = pageCount == Self.pageSize }
     } catch { if current == generation && !Task.isCancelled { failed = true } }
   }
 
@@ -183,8 +188,11 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
       guard current == generation else { return }
       let known = Set(photos.map(\.id))
       let fresh = next.items.compactMap(HistoryPhoto.init).filter { !known.contains($0.id) }
-      photos += fresh
-      if state == "attention" { attention = photos }
+      if !fresh.isEmpty {
+        observationRevision &+= 1
+        photos += fresh
+        if state == "attention" { attention = photos }
+      }
       hasMore = !fresh.isEmpty && next.items.count == Self.pageSize
     } catch { if current == generation { failed = true } }
   }
@@ -246,8 +254,17 @@ struct BackupHistoryView: View {
         if visibleRange?.title != title { visibleRange?.title = title }
       }
       .onReceive(gridState.$selection) { selectionChanged($0.count) }
-      .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(filter)") {
+      .task(id: "\(active)|\(model.pairing?.receiverID ?? "")|\(filter)") {
+        guard active else { return }
+        var observed = model.queueRevision
         await reload()
+        while !Task.isCancelled {
+          do { try await Task.sleep(for: .milliseconds(750)) } catch { return }
+          let revision = model.queueRevision
+          guard revision != observed, !history.loading else { continue }
+          observed = revision
+          await reload()
+        }
       }
     #else
     IOSHistoryGrid(history: history, router: photoRouter, model: model, columns: columns,

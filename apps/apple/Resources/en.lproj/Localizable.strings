@@ -639,6 +639,10 @@
 "hub_empty_note" = "Turn on Auto Backup, or pick photos in your library.";
 "hub_backing_up" = "Backing up %1$@ items · about %2$@";
 "hub_backing_up_count" = "Backing up %@ items";
+"hub_backing_up_without_total" = "Backing up";
+"hub_folder_delivered" = "Reached your Pixel: %@ items";
+"hub_folder_delivery_progress" = "Folder files delivered: %1$@ of %2$@";
+"hub_folder_counting" = "Checking which folder files to back up…";
 "hub_keep_awake" = "Keep the Screen On Until Done";
 "hub_keep_awake_note" = "Backups are fastest with BackupDuck open.";
 "hub_pause" = "Pause";

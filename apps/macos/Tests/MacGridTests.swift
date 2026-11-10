@@ -12,7 +12,9 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
   private let base: PHFetchResult<PHAsset>
   private let lock = NSLock()
   private var enumerations = 0
+  private var indexedEnumerations = 0
   var fullEnumerations: Int { lock.lock(); defer { lock.unlock() }; return enumerations }
+  var bulkReads: Int { lock.lock(); defer { lock.unlock() }; return indexedEnumerations }
   init(_ base: PHFetchResult<PHAsset>) { self.base = base; super.init() }
   override var count: Int { base.count }
   override func object(at index: Int) -> PHAsset { base.object(at: index) }
@@ -23,6 +25,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
   }
   override func enumerateObjects(at indexes: IndexSet, options: NSEnumerationOptions,
     using block: @escaping (PHAsset, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    lock.lock(); indexedEnumerations += 1; lock.unlock()
     base.enumerateObjects(at: indexes, options: options, using: block)
   }
 }
@@ -220,7 +223,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     XCTAssertEqual(scroll.contentView.bounds.maxY, layout.frame(at: 95).maxY, accuracy: 0.5,
       "An offscreen return photo only needs its nearest edge revealed")
   }
-  func testPhotoLibraryReloadPagesWithoutBuildingPhoneMembership() async throws {
+  func testPhotoLibraryOpensBeforeBulkReadAndCompletesWithoutScrolling() async throws {
     let original = BackupEnvironment.usesPhotoLibrary
     BackupEnvironment.usesPhotoLibrary = false
     defer { BackupEnvironment.usesPhotoLibrary = original }
@@ -233,17 +236,25 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 
     XCTAssertEqual(library.total, 2_400)
     XCTAssertEqual(library.loaded, 240)
-    XCTAssertTrue(library.hasMoreRows)
-    XCTAssertEqual(fetch.fullEnumerations, 0, "The Mac grid must not prepare the phone's full membership")
+    XCTAssertEqual(fetch.bulkReads, 0, "Opening the grid must not wait on a bulk read")
     let source = MacPhotoLibrarySource(library)
-    XCTAssertEqual(source.identifiers.count, 240)
+    let openingIDs = source.fetchResult.identifiers
+    XCTAssertTrue(source.fetchResult.opening)
+    XCTAssertNil(source.fetchResult.totals, "The opening rows are not the collection total")
 
-    library.loadMore()
-    for _ in 0..<100 where library.loaded == 240 {
-      try await Task.sleep(for: .milliseconds(10))
+    for _ in 0..<150 where source.fetchResult.opening {
+      try await Task.sleep(for: .milliseconds(20))
     }
-    XCTAssertEqual(library.loaded, 480)
-    XCTAssertEqual(source.identifiers.count, 480)
+    XCTAssertEqual(library.loaded, 2_400)
+    XCTAssertFalse(library.hasMoreRows)
+    XCTAssertEqual(fetch.bulkReads, 1, "The same result completes automatically in one bulk read")
+    XCTAssertEqual(fetch.fullEnumerations, 0, "The Mac grid uses its lightweight index")
+    XCTAssertFalse(source.fetchResult.opening)
+    XCTAssertEqual(source.fetchResult.count, 2_400)
+    XCTAssertEqual(Array(source.fetchResult.identifiers.suffix(240)), openingIDs)
+    XCTAssertEqual(source.fetchResult.positions?[openingIDs[0]], 2_160)
+    XCTAssertNotEqual(source.fetchResult.mediaKind(at: 2_399), .unknown)
+
     let calendar = MacLibraryNavigation.periods(fetch)
     XCTAssertFalse(calendar.0.isEmpty)
     XCTAssertFalse(calendar.1.isEmpty)
@@ -1147,21 +1158,70 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     let oldPhoto = HistoryPhoto(BackupTaskItem(id: "old", cursor: 0, sort_value: nil,
       job: nil, preparation: edited))!
     XCTAssertNil(model.matching(oldPhoto), "An edited source is not the same recorded photo")
-    await model.loadMore()
-    XCTAssertEqual(model.photos.count, 220)
+    let state = MacHistoryGridState()
+    let firstPage = MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "")
+    XCTAssertTrue(firstPage.startsAtEnd)
+    XCTAssertEqual(firstPage.identifiers.last, "job-0")
+    core.pageDelay = true
+    let refresh = Task { await model.reload(receiver: "test-receiver") }
+    while !model.loading { await Task.yield() }
+    let reloading = MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "")
+    XCTAssertFalse(reloading.footer.isEmpty, "A refresh must keep the published collection total")
+    XCTAssertEqual(reloading.footer, firstPage.footer)
+    await refresh.value
+    core.pageDelay = false
+    let grid = MacMediaGrid(source: firstPage, navigation: state.navigation, queueRevision: 0,
+      receiverID: nil, columns: 4)
+    let coordinator = MacMediaGrid.Coordinator(grid)
+    let scroll = NSScrollView(frame: CGRect(x: 0, y: 0, width: 804, height: 420))
+    let collection = LibraryCollectionView(frame: scroll.bounds)
+    let layout = LibraryTimelineLayout(mode: .all, target: 200)
+    layout.requestedColumns = 4; collection.collectionViewLayout = layout
+    collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
+    scroll.documentView = collection
+    mountMacGridCollection(collection, coordinator: coordinator)
+    coordinator.parent.reducedMotionOverride = true
+    coordinator.installDataSource(collection); coordinator.applyItems(scroll: scroll, layout: layout)
+    try? await Task.sleep(for: .milliseconds(50))
+    let newestOffset = coordinator.settledContentHeight - scroll.contentView.bounds.height
+    XCTAssertGreaterThan(newestOffset, 0)
+    XCTAssertEqual(scroll.contentView.bounds.minY, newestOffset, accuracy: 0.5)
+    firstPage.didDisplay(firstPage.identifiers.suffix(24))
+    await Task.yield()
+    XCTAssertEqual(model.photos.count, 200, "Opening at the latest end must not fetch older pages")
+    coordinator.pinnedToNewest = false
+    let anchor = "job-188"
+    let oldFrame = layout.frame(at: firstPage.identifiers.firstIndex(of: anchor)!)
+    scroll.contentView.scroll(to: CGPoint(x: 0, y: oldFrame.minY + 8))
+    coordinator.rememberScroll()
+    let retainedAnchor = firstPage.scroll.anchor
+    let retainedInset = firstPage.scroll.inset
+    firstPage.didDisplay(firstPage.identifiers.dropFirst().prefix(24))
+    for _ in 0..<50 where model.photos.count == 200 { try? await Task.sleep(for: .milliseconds(10)) }
+    XCTAssertEqual(model.photos.count, 220, "Older pages load from the timeline's top edge")
+    let expanded = MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "")
+    XCTAssertEqual(Array(expanded.identifiers.suffix(firstPage.identifiers.count - 1)), Array(firstPage.identifiers.dropFirst()))
+    coordinator.parent.source = expanded
+    coordinator.applyItems(scroll: scroll, layout: layout)
+    try? await Task.sleep(for: .milliseconds(50))
+    XCTAssertNotNil(retainedAnchor)
+    if let retainedAnchor, let newIndex = expanded.identifiers.firstIndex(of: retainedAnchor) {
+      XCTAssertEqual(scroll.contentView.bounds.minY, layout.frame(at: newIndex).minY + retainedInset, accuracy: 0.5)
+    }
     core.reordered = true
     await model.reload(receiver: "test-receiver")
     XCTAssertEqual(model.photos.count, 220, "Observations must retain the loaded browsing window")
     XCTAssertEqual(model.photos.first?.id, "job-219")
     XCTAssertFalse(model.hasMore)
-    let state = MacHistoryGridState()
     let source = MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "")
     XCTAssertEqual(source.identifiers.count, 220)
     XCTAssertEqual(source.identifiers.first, "job-7", "Needs You reasons precede ordinary records")
     XCTAssertEqual(source.identifiers.filter { $0 == "job-7" }.count, 1)
     XCTAssertEqual(source.groups.count, 2, "Only the reason and its trailing section break remain")
     XCTAssertEqual(source.flowHeaders, Set(source.groups.keys))
-    XCTAssertEqual(source.identifiers.dropFirst().first, "job-0", "Ordinary history uses update order")
+    XCTAssertEqual(source.identifiers.dropFirst().first, "job-219")
+    XCTAssertEqual(source.identifiers.last, "job-0", "The latest update is at the end")
+    XCTAssertFalse(MacHistoryGridSource(history: model, state: state, filter: "attention", type: .all, search: "").startsAtEnd)
     XCTAssertEqual(source.date("job-0"), Date(timeIntervalSince1970: 1_792_495_800))
     XCTAssertNotEqual(source.date("job-0"), source.photos["job-0"]?.takenAt,
       "History dates describe a status update even for a much older photo")
@@ -1174,6 +1234,24 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     source.scroll.anchor = "job-200"
     XCTAssertEqual(MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "").scroll.anchor, "job-200")
     XCTAssertNil(video.scroll.anchor, "Each browse view owns its anchor")
+  }
+
+  func testFreshCellShowsOnlyTheSavingGlyphBeforeSelectionChanges() throws {
+    let cell = PhotoCell()
+    cell.view.frame = CGRect(x: 0, y: 0, width: 140, height: 140)
+    cell.setState("saving")
+    cell.setSelectionVisible(true)
+    cell.viewDidLayout()
+
+    let visibleBadges = cell.zoomReadingLayers.compactMap { $0 as? MacBadgeLayer }.filter { !$0.isHidden }
+    XCTAssertEqual(visibleBadges.count, 1)
+    let badge = try XCTUnwrap(visibleBadges.first)
+    XCTAssertEqual(badge.symbol, "clock")
+    XCTAssertNil(badge.backgroundColor)
+    cell.isSelected = true
+    XCTAssertTrue(badge.isHidden)
+    cell.isSelected = false
+    XCTAssertFalse(badge.isHidden)
   }
 
   func testFolderResizeRetainsDisplayedPixelsUntilReplacementArrives() {
@@ -1426,7 +1504,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     XCTAssertTrue(all.groups.isEmpty); XCTAssertTrue(all.flowHeaders.isEmpty)
     XCTAssertEqual(all.identifiers.count, 6)
     let dates = all.identifiers.compactMap { all.date($0) }
-    XCTAssertEqual(dates, dates.sorted(by: >), "The combined scope retains the core browse date order")
+    XCTAssertEqual(dates, dates.sorted(), "The combined scope places the newest items at the end")
     browser.scope = .folder("b"); browser.search = "sample"; await browser.reload(folders)
     let search = MacFolderGridSource(folders: folders, browser: browser)
     XCTAssertEqual(search.identifiers.count, 3)
@@ -1511,6 +1589,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 @MainActor final class HierarchyGridSource: MacGridSource {
   let folderSources = FolderSources(backup: BackupModel.shared)
   var identifiers = (0..<72).map { "hierarchy-\($0)" }
+  var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   let contextID = "hierarchy-test"
   let contentRevision = "1"
   var selection = Set<String>()
@@ -1559,6 +1638,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 @MainActor private final class GridTestSource: MacGridSource {
   var zoomStops = MacLibraryDensity.grid
   var identifiers = ["a", "b", "c"]
+  var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   var contextID = "test"
   var contentRevision = "1"
   var selection = Set<String>()
@@ -1581,7 +1661,9 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 
 final class GridHistoryCore: CoreTransport, @unchecked Sendable {
   var reordered = false
+  var pageDelay = false
   func call(_ command: String) async throws -> Data {
+    if pageDelay { try await Task.sleep(for: .milliseconds(60)) }
     let query = try JSONSerialization.jsonObject(with: Data(command.utf8)) as! [String: Any]
     var ordered = Array(0..<220)
     if reordered { ordered.insert(ordered.removeLast(), at: 0) }

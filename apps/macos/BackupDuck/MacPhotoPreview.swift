@@ -61,10 +61,7 @@ struct MacPhotoPreview: View {
     }
     .modifier(MacViewerInspector(navigation: navigation,
       target: .library(session.current.asset, library, recorded?.job)))
-    .background(MacMediaKeyHandler { event in
-      if event.keyCode == 53 || event.charactersIgnoringModifiers == " " {
-        close(session.current.asset); return true
-      }
+    .background(MacMediaKeyHandler(close: { close(session.current.asset) }) { event in
       if event.modifierFlags.intersection([.command,.option,.control]).isEmpty,
         event.keyCode == 123 || event.keyCode == 124 {
         guard !session.zoomed else { return false }
@@ -742,9 +739,19 @@ struct MacVideoWithPoster: NSViewRepresentable {
 /// is active. Install once per viewer and remove on every dismissal path.
 struct MacMediaKeyHandler: NSViewRepresentable {
   @Environment(\.macWorkspaceActive) private var active
+  var close: () -> Void
   var handle: (NSEvent) -> Bool
   func makeNSView(context: Context) -> MacMediaKeyView { MacMediaKeyView() }
-  func updateNSView(_ view: MacMediaKeyView, context: Context) { view.handle = active ? handle : nil }
+  func updateNSView(_ view: MacMediaKeyView, context: Context) {
+    view.handle = active ? handleKeyDown : nil
+  }
+  private func handleKeyDown(_ event: NSEvent) -> Bool {
+    if event.keyCode == 53 || event.charactersIgnoringModifiers == " " {
+      if !event.isARepeat { close() }
+      return true
+    }
+    return handle(event)
+  }
   static func dismantleNSView(_ view: MacMediaKeyView, coordinator: ()) { view.stop() }
 }
 @MainActor final class MacMediaKeyView: NSView {
@@ -1434,8 +1441,7 @@ struct MacRecordedPhotoPreview: View {
         nextEnabled: collectionPaging?.hasNext ?? false,
         previous: { collectionPaging?.move(-1) }, next: { collectionPaging?.move(1) }))
       .modifier(MacViewerInspector(navigation: navigation, target: .recorded(photo)))
-      .background(MacMediaKeyHandler { event in
-        if event.keyCode == 53 { close(); return true }
+      .background(MacMediaKeyHandler(close: close) { event in
         if event.modifierFlags.intersection([.command, .option, .control]).isEmpty {
           if event.keyCode == 123 { collectionPaging?.move(-1); return true }
           if event.keyCode == 124 { collectionPaging?.move(1); return true }

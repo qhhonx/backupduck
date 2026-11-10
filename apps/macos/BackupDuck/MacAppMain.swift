@@ -38,7 +38,7 @@ import SwiftUI
     MenuBarExtra {
       MacStatusMenu(model: model)
     } label: {
-      Image(nsImage: MacMenuStatus(model: model).isBackingUp ? MacMenuBarIcon.activeImage : MacMenuBarIcon.image).renderingMode(.template).accessibilityLabel(Text("brand_name"))
+      MacStatusMenuIcon(model: model)
         // The menu-bar label stays mounted after the workspace window closes.
         // Reveal that same scene before its receiver-scoped consumer takes a tap.
         .onChange(of: notifier.route, initial: true) { _, route in

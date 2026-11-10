@@ -37,8 +37,12 @@ final class ThumbnailCacheStorage: @unchecked Sendable {
     if clearing, version == expected { clearing = false }
   }
   private func managedFiles(detail: Bool = false) throws -> [URL] {
-    let pattern = detail ? "^[0-9a-f]{64}\\.detail$|^[A-Za-z0-9-]+\\.detailtmp$"
-      : "^(?:mac-)?(?:overview|detail)(?:-[a-z0-9]+)?-[0-9]+\\.table$"
+    #if os(macOS)
+    let tablePattern = "^(?:mac-(?:folder-)?)?(?:overview|detail)(?:-[a-z0-9]+)?-[0-9]+\\.table$"
+    #else
+    let tablePattern = "^(?:mac-)?(?:overview|detail)(?:-[a-z0-9]+)?-[0-9]+\\.table$"
+    #endif
+    let pattern = detail ? "^[0-9a-f]{64}\\.detail$|^[A-Za-z0-9-]+\\.detailtmp$" : tablePattern
     var info = stat()
     guard lstat(directory.path, &info) == 0 else {
       if errno == ENOENT { return [] }

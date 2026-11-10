@@ -53,6 +53,24 @@ struct FolderSummary: Decodable, Equatable {
   let scanning: Bool
 }
 
+struct FolderDeliveryRequest: Equatable {
+  struct Scope: Equatable {
+    let source: String
+    let cutoff: UInt64?
+  }
+  let receiver: String
+  let scopes: [Scope]
+}
+
+struct FolderDeliveryProgress: Decodable, Equatable {
+  let delivered: UInt64
+  let total: UInt64
+  var fraction: Double? {
+    guard total > 0 else { return nil }
+    return Double(delivered) / Double(total)
+  }
+}
+
 @MainActor final class FolderSources: ObservableObject {
   static let shared = FolderSources(backup: .shared)
   // Catalog adapters never open the owner's folder configuration or indexes.
@@ -80,6 +98,38 @@ struct FolderSummary: Decodable, Equatable {
   var initialFilter: LibraryBackupView = .all
   var initialSettingsFolder: String? = nil
   var isPreview: Bool { previewRows != nil }
+  var hubStatus: BackupHubStatus {
+    let status = backup.hubStatus
+    switch status {
+    case .backingUp, .caughtUp, .empty:
+      guard let receiver = backup.pairing?.receiverID else { return status }
+      let preparing = sources.contains { source in
+        source.receiver == receiver && source.pendingControl == nil && hasPendingPreparation(source.id)
+      }
+      return preparing ? .backingUpWithoutTotal : status
+    default: return status
+    }
+  }
+  var hubDeliveryRequest: FolderDeliveryRequest? {
+    guard let receiver = backup.pairing?.receiverID else { return nil }
+    let scopes = sources.compactMap { source -> FolderDeliveryRequest.Scope? in
+      guard source.receiver == receiver, source.pendingControl == nil, !source.baselinePending,
+        source.lastCheck != nil, phases[source.id] != "folder_offline" else { return nil }
+      let finishingManual = phases[source.id] == "folder_up_to_date" && !source.automatic && source.manualCutoffMS != nil
+      guard source.manualActive || finishingManual || (source.automaticActive && backup.autoBackup) else { return nil }
+      return .init(source: source.id, cutoff: source.automatic ? nil : source.manualCutoffMS)
+    }
+    return scopes.isEmpty ? nil : .init(receiver: receiver, scopes: scopes)
+  }
+  func hubDeliveryProgress(_ request: FolderDeliveryRequest) async throws -> FolderDeliveryProgress? {
+    let scopes: [[String: Any]] = request.scopes.map {
+      var scope: [String: Any] = ["source": $0.source]
+      if let cutoff = $0.cutoff { scope["max_created_ms"] = cutoff }
+      return scope
+    }
+    let data = try await call(["action": "delivery_progress", "receiver": request.receiver, "scopes": scopes])
+    return try JSONDecoder().decode(FolderDeliveryProgress?.self, from: data)
+  }
   private var observedGlobalAutoBackup: Bool?
   private var watches: [String: FolderWatch] = [:]
   private var access: [String: URL] = [:]
@@ -453,6 +503,9 @@ struct FolderSummary: Decodable, Equatable {
   private func setPhase(_ id: String, _ phase: String) {
     if phases[id] != phase { phases[id] = phase }
   }
+  private func hasPendingPreparation(_ id: String) -> Bool {
+    phases[id] == "folder_preparing" || phases[id] == "folder_cache_wait"
+  }
   private func markOffline(_ id: String) {
     setPhase(id, "folder_offline")
     Task { _ = try? await call(["action": "availability", "source": id, "available": false]); await refreshFacts() }
@@ -541,7 +594,11 @@ struct FolderSummary: Decodable, Equatable {
         return
       }
       guard !backup.paused else { setPhase(source.id, "backup_paused"); return }
-      guard backup.summary.queued + backup.summary.running + backup.summary.waiting < 16 else { setPhase(source.id, "folder_queue_wait"); return }
+      guard backup.summary.queued + backup.summary.running + backup.summary.waiting < 16 else {
+        // The queue limit does not invalidate work already observed at the source.
+        if !hasPendingPreparation(source.id) { setPhase(source.id, "folder_queue_wait") }
+        return
+      }
       guard await backup.canPrepareForReceiver() else { setPhase(source.id, "waiting_for_wifi"); return }
       var candidateCommand: [String: Any] = ["action": "candidates", "source": source.id, "receiver": receiver]
       if let retryPath { candidateCommand["relative"] = retryPath }
@@ -672,27 +729,43 @@ struct FolderSummary: Decodable, Equatable {
     }
     return try JSONDecoder().decode(FolderEntry?.self, from: await call(["action": "preview_entry", "source": id, "job": job, "source_id": sourceID]))
   }
-  func refreshFacts() async {
+  func refreshFacts(source: String? = nil) async {
     guard !isPreview, backup.ready else { return }
-    for source in sources {
+    let receiver = backup.pairing?.receiverID ?? ""
+    let ids = source.map { [$0] } ?? sources.map(\.id)
+    for id in ids {
+      guard !Task.isCancelled, (backup.pairing?.receiverID ?? "") == receiver else { return }
       do {
-        let value = try JSONDecoder().decode(FolderFacts.self, from: await call(["action": "facts", "source": source.id, "receiver": backup.pairing?.receiverID ?? ""]))
-        if facts[source.id] != value { facts[source.id] = value }
-      } catch { self.error = error.localizedDescription }
+        let value = try JSONDecoder().decode(FolderFacts.self, from: await call(["action": "facts", "source": id, "receiver": receiver]))
+        guard !Task.isCancelled, (backup.pairing?.receiverID ?? "") == receiver else { return }
+        if facts[id] != value, sources.contains(where: { $0.id == id }) { facts[id] = value }
+      } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
   }
-  func browse(_ id: String?, offset: Int, search: String, filter: LibraryBackupView) async throws -> FolderPhotoPage {
+  func fetch(_ id: String?, search: String, filter: LibraryBackupView, type: LibraryFilter) async throws -> FolderFetchResult {
     if let previewRows {
       let matches = previewRows.filter { photo in
         (id == nil || photo.folder_id == id) && (search.isEmpty || photo.relative.localizedCaseInsensitiveContains(search)) &&
-        (filter == .all || filter == .notBackedUp && photo.backup == "not_backed_up")
-      }.sorted { $0.capture_ms > $1.capture_ms }
-      return FolderPhotoPage(rows: Array(matches.dropFirst(offset).prefix(100)), has_more: matches.count > offset + 100)
+        (filter == .all || filter == .notBackedUp && photo.backup == "not_backed_up") &&
+        type.matches(kind: photo.media_type.hasPrefix("video/") ? "video" : "photo")
+      }.sorted {
+        if $0.capture_ms != $1.capture_ms { return $0.capture_ms > $1.capture_ms }
+        return ($0.folder_id, $0.relative) < ($1.folder_id, $1.relative)
+      }
+      return FolderFetchResult(matches)
     }
-    var command: [String: Any] = ["action": "browse", "receiver": backup.pairing?.receiverID ?? "", "offset": offset, "search": search,
+    var command: [String: Any] = ["action": "browse", "receiver": backup.pairing?.receiverID ?? "",
+      "search": search, "kind": type.rawValue,
       "filter": filter == .notBackedUp ? "not_backed_up" : filter.rawValue]
     if let id { command["source"] = id }
-    return try JSONDecoder().decode(FolderPhotoPage.self, from: await call(command))
+    let data = try await call(command)
+    try Task.checkCancellation()
+    let work = Task.detached(priority: .userInitiated) {
+      let response = try JSONDecoder().decode(FolderFetchResponse.self, from: data)
+      try Task.checkCancellation()
+      return FolderFetchResult(response.rows)
+    }
+    return try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
   }
   func selectedBackupRepeatSources(_ photos: [FolderPhoto], receiver: String) async throws -> Set<String> {
     guard backup.pairing?.receiverID == receiver else { throw Bridge.Failure(code: "conflict") }
@@ -744,6 +817,7 @@ struct FolderSummary: Decodable, Equatable {
   }
   private func readDates(_ source: FolderSource, root: URL) async {
     guard let entries = try? JSONDecoder().decode([FolderEntry].self, from: await call(["action": "undated", "source": source.id])) else { return }
+    var browseChanged = false
     for entry in entries {
       let url = root.appendingPathComponent(entry.relative).standardizedFileURL
       guard url.path.hasPrefix(root.path + "/"), url.resolvingSymlinksInPath().path == url.path else { continue }
@@ -751,9 +825,12 @@ struct FolderSummary: Decodable, Equatable {
       if entry.media_type.hasPrefix("video/") { date = try? await FolderMedia.video(url).0 }
       else { date = try? await Task.detached(priority: .utility) { try FolderMedia.image(url).date }.value }
       let capture = date.map { UInt64(max(0, $0.timeIntervalSince1970 * 1000)) } ?? entry.modified_ms
-      _ = try? await call(["action": "record_date", "source": source.id, "relative": entry.relative, "revision": entry.revision, "capture_ms": capture, "embedded": date != nil])
+      let recorded = try? await call(["action": "record_date", "source": source.id, "relative": entry.relative, "revision": entry.revision, "capture_ms": capture, "embedded": date != nil])
+      // The inventory already projects the modification date while metadata
+      // is pending. Recording that same fallback does not change a grid.
+      if recorded != nil, date != nil { browseChanged = true }
     }
-    if !entries.isEmpty { indexRevision += 1 }
+    if browseChanged { indexRevision += 1 }
   }
 }
 

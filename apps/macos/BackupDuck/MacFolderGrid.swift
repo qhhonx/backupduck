@@ -22,14 +22,7 @@ struct MacFolderGrid: View {
         if let present { present(.folder(photo, context, folders, returnTo, navigation: navigation)) }
         else { MacFolderViewer.open(photo, context: context, folders: folders) }
       }, resize: resize)
-    .modifier(MacGridInspector(navigation: navigation, source: source, active: active))
-    .task(id: "\(browser.key)|\(browser.sections.map { $0.photos.count })") {
-      // Type filtering is a browse projection. Continue bounded native pages
-      // when a loaded page has no matches, including an all-video first page.
-      if source.identifiers.isEmpty && browser.error == nil {
-        for section in browser.sections where section.hasMore { await browser.more(section.id, folders: folders) }
-      }
-    }
+    .modifier(MacGridInspector(navigation: navigation, source: source, active: active, selection: browser.selection))
   }
 }
 
@@ -37,7 +30,12 @@ struct MacFolderGrid: View {
   let folders: FolderSources
   let browser: FolderBrowser
   let photos: [String: FolderPhoto]
-  let identifiers: [String]
+  private let sources: [String: FolderSource]
+  let fetchResult: MacGridFetchResult
+  let contextID: String
+  let membershipReady: Bool
+  var startsAtEnd: Bool { true }
+  var preservesViewportDuringLiveUpdates: Bool { true }
   let groups: [Int: String]
   let flowHeaders: Set<Int>
   private let notice: AnyView?
@@ -46,9 +44,12 @@ struct MacFolderGrid: View {
   var previewFrame: ((String) -> CGRect?)?
   init(folders: FolderSources, browser: FolderBrowser, settings: @escaping (String) -> Void = { _ in }, stop: @escaping (FolderSource) -> Void = { _ in }) {
     self.folders = folders; self.browser = browser
+    sources = Dictionary(uniqueKeysWithValues: folders.sources.map { ($0.id, $0) })
     let rows = browser.visiblePhotos
-    photos = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-    identifiers = rows.map(\.id)
+    photos = browser.photosByID
+    fetchResult = browser.result?.grid ?? MacGridFetchResult(identifiers: [])
+    contextID = browser.key
+    membershipReady = browser.resultKey == contextID
     if case let .folder(id) = browser.scope, !rows.isEmpty,
       let folder = folders.sources.first(where: { $0.id == id }), folderScopeHasNotice(folders.facts[id]) {
       notice = AnyView(FolderScopeNotice(folders: folders, source: folder))
@@ -68,31 +69,14 @@ struct MacFolderGrid: View {
     measured = (width, heights)
     return heights
   }
-  var membershipReady: Bool { browser.resultKey == browser.key }
-  var contextID: String { browser.key }
-  var contentRevision: String { "\(folders.indexRevision)|\(folders.revision)" }
+  var contentRevision: String {
+    let unavailable = sources.keys.filter { folders.facts[$0]?.available == false }.sorted()
+    return "\(browser.resultRevision)|\(unavailable.joined(separator: ","))"
+  }
   var footer: String { totals?.text() ?? "" }
   var totals: MacGridTotals? {
     guard membershipReady, !browser.loading, browser.error == nil else { return nil }
-    let complete = !browser.sections.contains(where: \.hasMore)
-    if complete {
-      return MacGridTotals.complete(kinds: identifiers.compactMap { photos[$0] }.map {
-        $0.media_type.hasPrefix("video/") ? "video" : "photo"
-      })
-    }
-    guard browser.search.isEmpty, browser.type == .all else { return nil }
-    let sources = folders.sources.filter { source in
-      if case .folder(let id) = browser.scope { return source.id == id }; return true
-    }
-    let facts = sources.compactMap { folders.facts[$0.id] }
-    guard !sources.isEmpty, facts.count == sources.count else { return nil }
-    let remaining = browser.filter == .notBackedUp
-    let total = facts.reduce(UInt64(0)) { $0 + (remaining ? $1.not_backed_up : $1.supported) }
-    let split = facts.compactMap { remaining ? $0.not_backed_up_kinds : $0.supported_kinds }
-    guard split.count == facts.count else { return MacGridTotals(total: Int(clamping: total)) }
-    return MacGridTotals(total: Int(clamping: total),
-      photos: Int(clamping: split.reduce(UInt64(0)) { $0 + $1.photos }),
-      videos: Int(clamping: split.reduce(UInt64(0)) { $0 + $1.videos }))
+    return fetchResult.totals
   }
   var selection: Set<String> { get { browser.selection } set { browser.selection = newValue } }
   var scroll: MacGridScrollState {
@@ -107,13 +91,13 @@ struct MacFolderGrid: View {
     return photo.date
   }
   func configure(_ cell: PhotoCell, id: String, pixels: CGFloat, originalAspect: Bool) {
-    guard let photo = photos[id], let source = folders.sources.first(where: { $0.id == photo.folder_id }) else { return }
+    guard let photo = photos[id], let source = sources[photo.folder_id] else { return }
     cell.configureFolder(photo, source: source, pixels: pixels, synthetic: folders.syntheticImage(photo))
     cell.view.alphaValue = folders.facts[photo.folder_id]?.available == false ? 0.5 : 1
   }
-  func loadMore(visible: [String]) {
-    for section in browser.sections where section.hasMore && section.photos.filter({ photos[$0.id] != nil }).suffix(20).contains(where: { visible.contains($0.id) }) {
-      Task { await browser.more(section.id, folders: folders) }
-    }
+  func preheat(_ ids: [String], pixels: CGFloat) {
+    guard !folders.isPreview, contextID == browser.key else { return }
+    browser.preheat(ids.compactMap { photos[$0] }, sources: sources, pixels: pixels)
   }
+  func stopPreheating() { browser.stopPreheating() }
 }

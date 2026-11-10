@@ -55,9 +55,12 @@ anywhere.
    - Photos the Pixel could not save to Photos for another reason. Action: View
      (the fix is on the Pixel).
 2. **Timeline**: every backed-up or in-progress photo as a thumbnail grid,
-   newest change first, paged as the user scrolls. iPhone and Pixel group by
-   the day of the latest change (Today, Yesterday, then dates). Mac uses a
-   continuous grid and the native subtitle date rule below. Tile marks:
+   paged as the user scrolls. iPhone and Pixel show the latest change first
+   and group by day (Today, Yesterday, then dates). The Mac timeline runs from
+   oldest to newest by the latest record update. It opens at the newest edge
+   at the bottom and loads older pages above the visible records while keeping
+   the viewport in place. Needs You keeps cause priority and opens at the top.
+   Tile marks:
    - none: in the Pixel's Photos
    - arrow: sending or waiting to send
    - clock: received by the Pixel, being saved to Photos
@@ -255,10 +258,13 @@ Mac Backup History remains a cross-source page backed by the existing paged
 parent browser is a separate aggregate of added folder media only. Needs You cause groups precede the continuous
 latest-change timeline; an item appears once. Cause headings stay in the
 document flow without date-capsule styling or pinning. Stable task identities
-drive animated membership differences.
-Marks and progress observations reconfigure the visible native cell in place,
-without a grid or section reload. Refreshes retain loaded page depth and the
-visible date anchor. Photo-library thumbnails use the existing media pipeline;
+drive membership differences.
+Marks and progress observations reconfigure the visible native cell in place.
+Keep the published footer visible while refreshing. Defer background membership
+changes during scrolling, including momentum. Follow new rows only while the
+viewport rests at the newest edge. Away from that edge, retain a visible row
+even when the record previously used as the anchor changes position. Refreshes
+retain loaded page depth. Photo-library thumbnails use the existing media pipeline;
 folder thumbnails and originals use the file pipeline and security-scoped access.
 Previous/next retains the current mixed-source collection and the shared backup
 information inspector, including recorded information for unavailable originals.

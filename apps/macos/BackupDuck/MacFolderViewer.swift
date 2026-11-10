@@ -78,8 +78,7 @@ struct MacFolderPreviewPage: View {
       nextEnabled: (collectionPaging?.hasNext ?? (index + 1 < context.count)) && !zoomed,
       previous: { move(-1) }, next: { move(1) }))
     .modifier(MacViewerInspector(navigation: navigation, target: .folder(photo, folders, recorded)))
-    .background(MacMediaKeyHandler { event in
-      if event.keyCode == 53 { close(photo); return true }
+    .background(MacMediaKeyHandler(close: { close(photo) }) { event in
       if event.modifierFlags.intersection([.command, .option, .control]).isEmpty, !zoomed {
         if event.keyCode == 123 { move(-1); return true }
         if event.keyCode == 124 { move(1); return true }
@@ -178,7 +177,8 @@ struct MacFolderPreviewPage: View {
       // The clicked grid retains presentation while the native leaf attaches.
       // Its poster prevents a loading-page flash but cannot start the flight;
       // only validated detail pixels (or an explicit failure) release entry.
-      image = poster
+      image = poster ?? FileThumbnailPipeline.shared.memoryPoster(source: photo.folder_id,
+        asset: photo.source_id, revision: photo.revision)
     }
   }
   deinit { worker?.cancel(); root?.stopAccessingSecurityScopedResource() }
@@ -191,7 +191,10 @@ struct MacFolderPreviewPage: View {
     worker?.cancel()
     let generation = UUID(); loadGeneration = generation
     failure = false
-    if image == nil, photo.media_type.hasPrefix("video/") { image = poster }
+    if image == nil {
+      image = poster ?? FileThumbnailPipeline.shared.memoryPoster(source: photo.folder_id,
+        asset: photo.source_id, revision: photo.revision)
+    }
     worker = Task { [weak self] in
       await self?.load(photo: photo, folders: folders, target: target, generation: generation)
     }
@@ -213,7 +216,7 @@ struct MacFolderPreviewPage: View {
     if photo.media_type.hasPrefix("video/") { player = AVPlayer(url: file); entryReady = true; return }
     let epoch = MacThumbnailTables.storage.epoch
     let budget = MacThumbnailTables.budgetMB * 1024 * 1024
-    let tables = [MacThumbnailTables.overview, MacThumbnailTables.detail]
+    let tables = MacThumbnailTables.activeTables
     let storage = MacThumbnailTables.storage
     let reserved = await Task.detached(priority: .utility) {
       let used = tables.map(\.usage)

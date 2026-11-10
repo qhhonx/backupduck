@@ -142,6 +142,10 @@ struct LibraryMembershipCache {
   private var presentation = LibraryPresentationIndex()
   private var loadingPage = false
   private var cancelMetadata: (() -> Void)?
+  #if os(macOS)
+  private var macCompletion: Task<Void, Never>?
+  private(set) var macFetchResult = MacGridFetchResult(identifiers: [])
+  #endif
   let tileStates = LibrarySourceStateCache()
   private var groups: [String: LibraryGroup] = [:]
   private var groupOrder: [String] = []
@@ -170,6 +174,9 @@ struct LibraryMembershipCache {
     membership = LibraryMembership(assets)
     presentation = LibraryPresentationIndex()
     presentation.load(assets, targetRows: assets.count)
+    #if os(macOS)
+    macFetchResult = MacGridFetchResult(photoRows: presentation.rows)
+    #endif
     total = assets.count; loaded = presentation.rows.count
     self.filter = filter; requestedFilter = filter
     self.backupView = backupView; requestedBackupView = backupView
@@ -282,6 +289,10 @@ struct LibraryMembershipCache {
       // Invalidate suspended metadata fetches before clearing visible state.
       requestGeneration += 1
       cancelMetadata?(); cancelMetadata = nil
+      #if os(macOS)
+      macCompletion?.cancel(); macCompletion = nil
+      macFetchResult = MacGridFetchResult(identifiers: [])
+      #endif
       fetch = nil
       membership = nil
       #if os(iOS)
@@ -341,14 +352,21 @@ struct LibraryMembershipCache {
     LaunchTrace.mark("library reload start")
     requestGeneration += 1
     cancelMetadata?(); cancelMetadata = nil
+    #if os(macOS)
+    macCompletion?.cancel(); macCompletion = nil
+    #endif
     let expected = requestGeneration
     loading = true
     let selectedFilter = requestedFilter
     let selectedView = requestedBackupView
     let receiver = backupReceiver
+    let anchor = resetWindow ? nil : scrollAnchorID
+    #if os(iOS)
     let targetRows = resetWindow ? 240 : max(240, loaded)
     let previousCursor = resetWindow ? 0 : presentation.cursor
-    let anchor = resetWindow ? nil : scrollAnchorID
+    #else
+    let refreshesCompleteGrid = !resetWindow && loaded > 0 && !hasMoreRows
+    #endif
     let selected = selection
     let collection = collectionID
     let early = collection == nil && selectedView == .all ? Self.takeEarlyFetch(for: selectedFilter) : nil
@@ -383,20 +401,35 @@ struct LibraryMembershipCache {
         }
         fetch = narrowed
       }
-      let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
       LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
-      index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
       #if os(iOS)
+      let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
+      index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
       let membership = cached?.1 ?? LibraryMembership(fetch)
       #else
-      // Mac uses the incremental presentation and its own calendar index.
+      if refreshesCompleteGrid {
+        index.loadRemaining(fetch)
+      } else {
+        let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
+        index.load(fetch, targetRows: 240, minimumCursor: anchorIndex)
+      }
       let membership = LibraryMembership(PHFetchResult<PHAsset>())
       #endif
       return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys), true, membership)
     }
     cancelMetadata = { work.cancel() }
     let result = await work.value
+    #if os(macOS)
+    let grid: MacGridFetchResult
+    if refreshesCompleteGrid {
+      grid = await Task.detached(priority: .userInitiated) {
+        MacGridFetchResult(photoRows: result.1.rows)
+      }.value
+    } else {
+      grid = MacGridFetchResult(photoRows: result.1.rows, opening: result.0.count > 240)
+    }
+    #endif
     LaunchTrace.mark("library fetch done (\(result.0.count) assets)")
     guard expected == requestGeneration, authorized else { return }
     cancelMetadata = nil
@@ -426,6 +459,9 @@ struct LibraryMembershipCache {
     backupView = selectedView
     fetch = result.0
     presentation = result.1
+    #if os(macOS)
+    macFetchResult = grid
+    #endif
     total = result.0.count
     loaded = presentation.rows.count
     filter = selectedFilter
@@ -435,7 +471,41 @@ struct LibraryMembershipCache {
     loadingPage = false
     loading = false
     generation += 1
+    #if os(macOS)
+    if macFetchResult.opening {
+      // Give AppKit and the visible thumbnail requests the opening frame.
+      // Complete this same fetch independently of how far the person scrolls.
+      Task { [weak self] in
+        try? await Task.sleep(for: .seconds(1))
+        guard let self, self.requestGeneration == expected else { return }
+        await self.completeMacBrowse()
+      }
+    }
+    #endif
   }
+  #if os(macOS)
+  func completeMacBrowse() async {
+    if let macCompletion { await macCompletion.value; return }
+    guard let fetch, !loading, macFetchResult.opening else { return }
+    let expected = requestGeneration
+    let task = Task { [weak self] in
+      let job = Task.detached(priority: .utility) {
+        var next = LibraryPresentationIndex()
+        next.loadRemaining(fetch)
+        return (next, MacGridFetchResult(photoRows: next.rows))
+      }
+      let (next, grid) = await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
+      guard let self, self.requestGeneration == expected, !Task.isCancelled else { return }
+      self.macCompletion = nil
+      self.presentation = next
+      self.macFetchResult = grid
+      self.loaded = next.rows.count
+    }
+    macCompletion = task
+    await task.value
+  }
+  #endif
+  #if os(iOS)
   func loadMore() {
     guard let fetch, !loading, !loadingPage, presentation.cursor < fetch.count else { return }
     loadingPage = true
@@ -458,35 +528,23 @@ struct LibraryMembershipCache {
       if result.1 { generation += 1 }
     }
   }
-  /// Overview mosaics show the whole library: publish every remaining row with
-  /// one bulk read instead of page by page.
-  func loadAllRows() async {
-    guard let fetch, !loading, !loadingPage, hasMoreRows else { return }
-    loadingPage = true
-    let expected = requestGeneration, current = presentation
-    let job = Task.detached(priority: .userInitiated) {
-      var next = current
-      next.loadRemaining(fetch)
-      return next
-    }
-    let next = await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
-    guard expected == requestGeneration, authorized, !Task.isCancelled else { loadingPage = false; return }
-    presentation = next
-    loaded = next.rows.count
-    loadingPage = false
-  }
+  #endif
   func previewIndex(of asset: PHAsset) -> Int? {
     index(of: asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier)
   }
   func previewNeighbor(of asset: PHAsset, direction: Int) async -> PHAsset? {
     guard let current = previewIndex(of: asset), current + direction >= 0 else { return nil }
     if current + direction >= loaded, hasMoreRows {
+      #if os(macOS)
+      await completeMacBrowse()
+      #else
       loadMore()
       for _ in 0..<200 {
         if current + direction < loaded || !loadingPage { break }
         try? await Task.sleep(nanoseconds: 10_000_000)
         if Task.isCancelled { return nil }
       }
+      #endif
     }
     guard let refreshed = previewIndex(of: asset) else { return nil }
     return self.asset(at: refreshed + direction)
@@ -498,6 +556,9 @@ struct LibraryMembershipCache {
     // A tapped tile is already presented: answer at once, without asking
     // PhotoKit where it sits in the whole library.
     if let index = index(of: token), index+1 < loaded || !hasMoreRows { return asset(at:index) }
+    #if os(macOS)
+    await completeMacBrowse()
+    #else
     guard let fetch, let raw = Self.rawIndex(of: token, in: fetch) else { return nil }
     guard !loading else { return nil }
     requestGeneration &+= 1;cancelMetadata?();cancelMetadata=nil;loadingPage=false
@@ -510,6 +571,7 @@ struct LibraryMembershipCache {
     let next=await withTaskCancellationHandler(operation:{await job.value},onCancel:{job.cancel()})
     guard expected==requestGeneration,authorized,!Task.isCancelled else { return nil }
     presentation=next;loaded=next.rows.count;generation &+= 1
+    #endif
     return index(of:token).flatMap { asset(at:$0) }
   }
   func asset(at index: Int) -> PHAsset? {

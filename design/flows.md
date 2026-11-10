@@ -217,6 +217,13 @@ appear as one line when they matter.
   title uses the same card and reserved
   progress slot. Earlier-photo counting retains its checked-item count without
   inventing a percentage before membership is known.
+- On Mac, confirmed folder preparation keeps the hub and menu in their working
+  state between transfers. Once the folder scope is indexed, show its delivered
+  file count and total in the same card. The bar advances on confirmed Pixel
+  receipts and remains visible across individual transfers and rescans. Scope
+  changes use the next completed index. File selection without an indexed
+  backup scope uses confirmed deliveries only. Pauses and problems still take
+  priority.
 - The keep-screen-on switch appears only while 50 or more photos remain.
 - The Pixel shows free space only in the space card, or as a hint when less
   than 15% remains and auto cleanup is off. Readings are the device's own.

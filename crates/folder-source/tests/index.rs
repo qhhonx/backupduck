@@ -763,64 +763,92 @@ fn browse_facts_filters_search_dates_and_receiver_isolation() {
         (107, 1, 1, 5, 1, 104)
     );
     assert_eq!(i.facts("a", "other", |_| unreachable!()).unwrap().saved, 0);
-    let page = i
-        .browse(
-            None,
-            "r",
-            "nested",
-            BrowseFilter::NotBackedUp,
-            0,
-            0,
+    let browse = |search, filter, since_ms| {
+        i.browse(
+            BrowseQuery {
+                receiver: "r",
+                search,
+                filter,
+                since_ms,
+                ..Default::default()
+            },
             observe,
         )
-        .unwrap();
-    assert_eq!(page.rows.len(), 100);
-    assert!(page.has_more);
-    assert_eq!(
-        i.browse(
-            None,
-            "r",
-            "nested",
-            BrowseFilter::NotBackedUp,
-            100,
-            0,
-            observe
-        )
         .unwrap()
-        .rows
-        .len(),
-        4
-    );
+    };
+    let result = browse("nested", BrowseFilter::NotBackedUp, 0);
+    assert_eq!(result.rows.len(), 104);
     assert_eq!(
-        i.browse(None, "r", "IMG_001", BrowseFilter::All, 0, 0, observe)
-            .unwrap()
-            .rows[0]
-            .backup,
+        browse("IMG_001", BrowseFilter::All, 0).rows[0].backup,
         "saving"
     );
-    assert!(i
-        .browse(None, "r", "", BrowseFilter::Recent, 0, 101, observe)
-        .unwrap()
-        .rows
-        .is_empty());
-    assert_eq!(
-        i.browse(None, "r", "", BrowseFilter::NeedsYou, 0, 0, observe)
-            .unwrap()
-            .rows
-            .len(),
-        1
-    );
+    assert!(browse("", BrowseFilter::Recent, 101).rows.is_empty());
+    assert_eq!(browse("", BrowseFilter::NeedsYou, 0).rows.len(), 1);
     i.record_date("a", &a.relative, &a.revision, u64::MAX / 2, true)
         .unwrap();
     assert_eq!(
-        i.browse(None, "r", "", BrowseFilter::All, 0, 0, observe)
-            .unwrap()
-            .rows[0]
-            .entry
-            .relative,
+        browse("", BrowseFilter::All, 0).rows[0].entry.relative,
         a.relative
     );
     assert!(i.record_date("a", &a.relative, "stale", 1, true).is_err());
+}
+#[test]
+fn browse_fetches_complete_media_membership_and_observes_only_matching_jobs() {
+    let t = Temp::new();
+    for n in 0..120 {
+        fs::write(t.root().join(format!("nested/photo_{n:03}.jpg")), b"photo").unwrap();
+    }
+    for n in 0..3 {
+        fs::write(t.root().join(format!("nested/video_{n}.mov")), b"video").unwrap();
+    }
+    #[cfg(unix)]
+    fs::hard_link(
+        t.root().join("nested/video_1.mov"),
+        t.root().join("nested/zz_alias.mov"),
+    )
+    .unwrap();
+    let mut index = t.index();
+    scan(&mut index, "a", &t.root(), 1);
+    for n in 0..3 {
+        let relative = format!("nested/video_{n}.mov");
+        let entry = index.entry("a", &relative).unwrap();
+        index
+            .mark("a", &relative, "r", &entry.revision, n + 1)
+            .unwrap();
+        index
+            .record_date("a", &relative, &entry.revision, 5 - n as u64, true)
+            .unwrap();
+    }
+    let mut observed = Vec::new();
+    let result = index
+        .browse(
+            BrowseQuery {
+                source: Some("a"),
+                receiver: "r",
+                search: "NESTED",
+                kind: BrowseMediaKind::Video,
+                ..Default::default()
+            },
+            |job| {
+                observed.push(job);
+                Ok(Observation::default())
+            },
+        )
+        .unwrap();
+    let paths: Vec<_> = result
+        .rows
+        .iter()
+        .map(|row| row.entry.relative.as_str())
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            "nested/video_0.mov",
+            "nested/video_1.mov",
+            "nested/video_2.mov"
+        ]
+    );
+    assert_eq!(observed, [1, 2, 3], "Only matching media need status");
 }
 #[test]
 fn selected_intent_is_durable_bounded_and_does_not_include_other_baseline_photos() {
@@ -971,5 +999,72 @@ fn media_splits_cover_partial_scans_every_backup_state_and_receiver_scope() {
             photos: 4,
             videos: 3
         }
+    );
+}
+
+#[test]
+fn folder_delivery_progress_uses_index_membership_and_confirmed_receipts() {
+    let t = Temp::new();
+    for file in ["photo.jpg", "companion.mov", "pending.jpg", "ignored.jpg"] {
+        fs::write(t.root().join(file), b"original").unwrap();
+    }
+    let mut index = t.index();
+    let now = clock();
+    scan(&mut index, "folder", &t.root(), now);
+    for file in ["photo.jpg", "companion.mov"] {
+        let entry = index.entry("folder", file).unwrap();
+        index
+            .mark("folder", file, "receiver", &entry.revision, 7)
+            .unwrap();
+    }
+    let ignored = index.entry("folder", "ignored.jpg").unwrap();
+    index
+        .ignore("folder", &ignored.relative, &ignored.revision)
+        .unwrap();
+
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |_| Ok(false))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 0,
+            total: 3
+        })
+    );
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |id| Ok(id == 7))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 2,
+            total: 3
+        })
+    );
+    assert_eq!(
+        index
+            .delivery_progress("folder", "other", None, |_| panic!("wrong receiver"))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 0,
+            total: 3
+        })
+    );
+
+    index.baseline("folder", "@baseline").unwrap();
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |_| Ok(true))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 2,
+            total: 2
+        })
+    );
+    index.begin("folder", &t.root(), now + 12000).unwrap();
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |_| Ok(true))
+            .unwrap(),
+        None
     );
 }
