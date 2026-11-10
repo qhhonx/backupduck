@@ -177,6 +177,8 @@ result before the grid adopts it. Scan and metadata observations update the
 inventory independently of browsing. The grid knows the final row count and
 media split when the result arrives. It can display the result while the
 collection's backup summary is loading.
+The visible viewport has rendition priority. Background cover fill starts
+after the grid opens and uses the folder source's own decoded table capacity.
 
 The native collection engine is shared with Photo Library and Backup History
 (`library.md` section 5). Source adapters supply stable file identities, images,

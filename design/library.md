@@ -172,11 +172,17 @@ filtering, headers and album browsing.
 - **Filter menu.** Two sections with headers and no other dividers: "Show" —
   All Photos, Not Backed Up (History: All, Needs You); "Type" — All Types, Photos, Live Photos, Videos, Bursts. All Types sits
   inside the Type section. An active non-default choice tints the filter symbol.
-- **Library membership.** Photo Library and Folders publish complete, ordered
-  metadata results with stable identifiers and media types. The same AppKit
-  grid uses the result for its full extent, selection and viewer order. Visible
-  cells request renditions separately from the source adapter. The record feed
-  maintains its own task results and extent as it loads older records.
+- **Library membership.** Photo Library and Folders use ordered metadata
+  results with stable identifiers and media types. Photo Library can display
+  its opening viewport while materializing the rest of the same collection.
+  Completion is automatic, retains the visible anchor and waits for an
+  active zoom to settle before changing the extent. Collection totals describe
+  the source rather than the opening viewport. The record feed maintains its
+  own task results and extent as it loads older records.
+- **Rendition priority.** Visible tiles and their near neighbors take priority
+  over background thumbnail fill. Cached small covers can appear while the
+  display-size rendition loads. Folder cache fill has its own table capacity,
+  so it cannot consume the Photo Library's decoded thumbnail slots.
 - **Filter presentation.** Committed Show, Type and search membership is adopted
   once with a 0.2-second grid crossfade (Reduce Motion: instant), without
   interpolating collection rows. New views start at their newest edge; returning

@@ -163,6 +163,9 @@ struct MacMediaGrid: NSViewRepresentable {
     c.viewportResized(layout: layout)
     if !c.magnifying { c.syncDensity(columns: resolvedColumns, layout: layout) }
     c.applyItems(scroll: scroll, layout: layout)
+    if active, layout.isDense, source.fetchResult.opening, let source = source as? any MacDenseGridSource {
+      Task { await source.completeOpening() }
+    }
     if c.networkAllowed != networkPolicy.allowed {
       c.networkAllowed = networkPolicy.allowed; c.refreshVisibleImages()
     }
@@ -479,16 +482,25 @@ struct MacMediaGrid: NSViewRepresentable {
       }
       dataSource = data
     }
+    private var awaitingOpeningExpansion = false
+    private var showingOpening = false
     func applyItems(scroll: NSScrollView, layout: LibraryTimelineLayout) {
-      // An asynchronous source must publish a complete membership before the
-      // context changes; never adopt old rows under the new filter identity.
+      // Never adopt old rows under a new filter identity.
       guard parent.source.membershipReady, width() > 120 else {
         if !parent.source.membershipReady { scrolled() }
         return
       }
       measuredHeaderWidth = width()
-      let next = parent.source.fetchResult.identifiers
+      let result = parent.source.fetchResult
+      let next = result.identifiers
       let changedContext = contextID != parent.source.contextID
+      let expandingOpening = showingOpening && !result.opening && !changedContext
+      if expandingOpening, zoomStage != nil {
+        awaitingOpeningExpansion = true
+        return
+      }
+      awaitingOpeningExpansion = false
+      showingOpening = result.opening
       guard ids != next || changedContext else {
         let heights = parent.source.headerHeights(width: width())
         let folders = parent.source.folderHeaders(width: width())
@@ -509,12 +521,15 @@ struct MacMediaGrid: NSViewRepresentable {
       let offset = retained.offset, anchor = retained.anchor, inset = retained.inset
       if changedContext { pinnedToNewest = parent.source.startsAtEnd && anchor == nil }
       contextID = parent.source.contextID
-      // Membership changes a person can follow animate; paging in thousands of
-      // older rows, or a whole new fetch, is applied at once as before.
-      let previous = Set(ids)
-      let changes = previous.symmetricDifference(Set(next)).count
+      let nextPositions = result.positions ?? Dictionary(uniqueKeysWithValues: next.enumerated().map { ($0.element, $0.offset) })
+      var animates = false
+      if parent.active, !first, !changedContext, !expandingOpening, !reducedMotion, abs(ids.count - next.count) <= 64 {
+        let removals = ids.lazy.filter { nextPositions[$0] == nil }.prefix(65).count
+        let insertions = next.lazy.filter { self.positions[$0] == nil }.prefix(65 - min(removals, 65)).count
+        animates = (1...64).contains(removals + insertions)
+      }
       let previousIDs = ids
-      ids = next; positions = Dictionary(uniqueKeysWithValues: next.enumerated().map { ($0.element, $0.offset) })
+      ids = next; positions = nextPositions
       (collection as? LibraryCollectionView)?.remapSelectionAnchors(from: previousIDs, to: positions, reset: changedContext)
       count = next.count; generation += 1; appliedSelection = nil
       layout.revision += 1
@@ -526,7 +541,6 @@ struct MacMediaGrid: NSViewRepresentable {
       var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
       snapshot.appendSections([0]); snapshot.appendItems(next, toSection: 0)
       let expected = generation
-      let animates = parent.active && !first && !changedContext && !reducedMotion && changes > 0 && changes <= 64
       dataSource?.apply(snapshot, animatingDifferences: animates) { [weak self, weak scroll] in
         guard let self, self.generation == expected, let scroll, let collection = self.collection else { return }
         collection.needsLayout = true; collection.layoutSubtreeIfNeeded(); self.ensureDocumentHeight()
@@ -683,6 +697,14 @@ struct MacMediaGrid: NSViewRepresentable {
       stage?.stop(); stage?.removeFromSuperview()
       collection?.alphaValue = 1
       CATransaction.commit()
+      if awaitingOpeningExpansion {
+        awaitingOpeningExpansion = false
+        DispatchQueue.main.async { [weak self] in
+          guard let self, let collection = self.collection, let scroll = collection.enclosingScrollView,
+            let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
+          self.applyItems(scroll: scroll, layout: layout)
+        }
+      }
     }
     private func width() -> CGFloat {
       collection?.enclosingScrollView?.contentSize.width ?? collection?.bounds.width ?? 1
@@ -1439,7 +1461,10 @@ struct MacMediaGrid: NSViewRepresentable {
         let dense = self.layoutDense
         if !dense {
           let range = max(0, first - 24)..<min(self.count, last + 49)
-          parent.source.preheat(range.compactMap { self.identifier(at: $0) }, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
+          var candidates = Array(self.ids[first...last])
+          candidates.append(contentsOf: self.ids[(last + 1)..<range.upperBound])
+          candidates.append(contentsOf: self.ids[range.lowerBound..<first].reversed())
+          parent.source.preheat(candidates, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
         } else { parent.source.stopPreheating() }
         guard !dense else { return }
         let cells = paths.compactMap { collection.item(at: $0) as? PhotoCell }

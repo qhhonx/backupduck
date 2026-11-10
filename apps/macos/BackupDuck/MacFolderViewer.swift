@@ -217,7 +217,7 @@ struct MacFolderPreviewPage: View {
     if photo.media_type.hasPrefix("video/") { player = AVPlayer(url: file); entryReady = true; return }
     let epoch = MacThumbnailTables.storage.epoch
     let budget = MacThumbnailTables.budgetMB * 1024 * 1024
-    let tables = [MacThumbnailTables.overview, MacThumbnailTables.detail]
+    let tables = MacThumbnailTables.activeTables
     let storage = MacThumbnailTables.storage
     let reserved = await Task.detached(priority: .utility) {
       let used = tables.map(\.usage)

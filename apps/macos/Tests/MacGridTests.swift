@@ -12,7 +12,9 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
   private let base: PHFetchResult<PHAsset>
   private let lock = NSLock()
   private var enumerations = 0
+  private var indexedEnumerations = 0
   var fullEnumerations: Int { lock.lock(); defer { lock.unlock() }; return enumerations }
+  var bulkReads: Int { lock.lock(); defer { lock.unlock() }; return indexedEnumerations }
   init(_ base: PHFetchResult<PHAsset>) { self.base = base; super.init() }
   override var count: Int { base.count }
   override func object(at index: Int) -> PHAsset { base.object(at: index) }
@@ -23,6 +25,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
   }
   override func enumerateObjects(at indexes: IndexSet, options: NSEnumerationOptions,
     using block: @escaping (PHAsset, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    lock.lock(); indexedEnumerations += 1; lock.unlock()
     base.enumerateObjects(at: indexes, options: options, using: block)
   }
 }
@@ -220,7 +223,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     XCTAssertEqual(scroll.contentView.bounds.maxY, layout.frame(at: 95).maxY, accuracy: 0.5,
       "An offscreen return photo only needs its nearest edge revealed")
   }
-  func testPhotoLibraryReloadPublishesCompleteGridMembership() async {
+  func testPhotoLibraryOpensBeforeBulkReadAndCompletesWithoutScrolling() async throws {
     let original = BackupEnvironment.usesPhotoLibrary
     BackupEnvironment.usesPhotoLibrary = false
     defer { BackupEnvironment.usesPhotoLibrary = original }
@@ -232,11 +235,24 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     await library.reload(resetWindow: true)
 
     XCTAssertEqual(library.total, 2_400)
+    XCTAssertEqual(library.loaded, 240)
+    XCTAssertEqual(fetch.bulkReads, 0, "Opening the grid must not wait on a bulk read")
+    let source = MacPhotoLibrarySource(library)
+    let openingIDs = source.fetchResult.identifiers
+    XCTAssertTrue(source.fetchResult.opening)
+    XCTAssertNil(source.fetchResult.totals, "The opening rows are not the collection total")
+
+    for _ in 0..<150 where source.fetchResult.opening {
+      try await Task.sleep(for: .milliseconds(20))
+    }
     XCTAssertEqual(library.loaded, 2_400)
     XCTAssertFalse(library.hasMoreRows)
+    XCTAssertEqual(fetch.bulkReads, 1, "The same result completes automatically in one bulk read")
     XCTAssertEqual(fetch.fullEnumerations, 0, "The Mac grid uses its lightweight index")
-    let source = MacPhotoLibrarySource(library)
+    XCTAssertFalse(source.fetchResult.opening)
     XCTAssertEqual(source.fetchResult.count, 2_400)
+    XCTAssertEqual(Array(source.fetchResult.identifiers.suffix(240)), openingIDs)
+    XCTAssertEqual(source.fetchResult.positions?[openingIDs[0]], 2_160)
     XCTAssertNotEqual(source.fetchResult.mediaKind(at: 2_399), .unknown)
 
     let calendar = MacLibraryNavigation.periods(fetch)

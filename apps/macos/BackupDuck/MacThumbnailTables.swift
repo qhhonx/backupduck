@@ -23,12 +23,14 @@ enum MacThumbnailTables {
     let stored = UserDefaults.standard.integer(forKey: budgetKey)
     return max(64, stored == 0 ? 1024 : stored)
   }
-  static var tableUsage: Int { storage.tableUsage(active: [overview, detail]) }
+  static var activeTables: [ThumbnailTable] { [overview, detail, folderOverview, folderDetail] }
+  static var tableUsage: Int { storage.tableUsage(active: activeTables) }
   static var usage: Int { tableUsage + storage.detailUsage }
   static func setBudget(_ mb: Int) {
     storage.invalidate()
     UserDefaults.standard.set(mb, forKey: budgetKey)
-    for (table, share) in [(overview, overviewShare), (detail, detailShare)] {
+    for (table, share) in [(overview, overviewShare), (detail, detailShare),
+      (folderOverview, folderOverviewShare), (folderDetail, folderDetailShare)] {
       let limit = Int(Double(mb * 1024 * 1024) * share) / table.entryBytes
       table.limit = limit
       // A lowered limit starts the table over; it refills newest first.
@@ -36,8 +38,12 @@ enum MacThumbnailTables {
     }
   }
   static let overviewShare = 0.5, detailShare = 0.2
+  private static let folderOverviewShare = 0.08, folderDetailShare = 0.04
+  static let fileRenditionShare = 0.30 - folderOverviewShare - folderDetailShare
   static let overview = table("mac-overview", side: overviewSide, capacity: 131_072, share: overviewShare)
   static let detail = table("mac-detail", side: detailSide, capacity: 16_384, share: detailShare)
+  static let folderOverview = table("mac-folder-overview", side: overviewSide, capacity: 65_536, share: folderOverviewShare)
+  static let folderDetail = table("mac-folder-detail", side: detailSide, capacity: 8_192, share: folderDetailShare)
   /// The main display's own colour space. Core Animation colour-matched every
   /// sRGB tile to it on each commit, a third of the overview's scroll time; the
   /// tables store pixels already matched. A different display profile gets its
@@ -80,13 +86,25 @@ enum MacThumbnailTables {
     guard enabled, storage.epoch != nil else { return nil }
     return detail.image(key) ?? overview.image(key)
   }
+  static func folderPlaceholder(key: String) -> CGImage? {
+    guard enabled, storage.epoch != nil else { return nil }
+    return folderDetail.image(key) ?? folderOverview.image(key)
+  }
   /// Stores a delivered thumbnail in each table it is sharp enough for. Grid
   /// cells deliver larger images; the table draws them down to its tile size.
   static func remember(_ asset: PHAsset, pixels: CGFloat = 0, image: CGImage) {
     remember(key: key(asset), image: image, epoch: storage.epoch)
   }
   static func remember(key: String, image: CGImage, epoch: Int?) {
-    guard enabled, let epoch, storage.isCurrent(epoch) else { return }
+    guard enabled else { return }
+    remember(key: key, image: image, epoch: epoch, overview: overview, detail: detail)
+  }
+  static func rememberFolder(key: String, image: CGImage, epoch: Int?) {
+    guard enabled else { return }
+    remember(key: key, image: image, epoch: epoch, overview: folderOverview, detail: folderDetail)
+  }
+  private static func remember(key: String, image: CGImage, epoch: Int?, overview: ThumbnailTable, detail: ThumbnailTable) {
+    guard let epoch, storage.isCurrent(epoch) else { return }
     let edge = min(image.width, image.height)
     overview.writes.async {
       if edge * 5 >= overviewSide * 4 { overview.store(key, image: image, generation: epoch) }
@@ -101,7 +119,7 @@ enum MacThumbnailTables {
     defer { storage.endClear(epoch) }
     prefillTask?.cancel()
     let failure = await Task.detached(priority: .userInitiated) {
-      let tableFailure = storage.clearTables(active: [overview, detail])
+      let tableFailure = storage.clearTables(active: activeTables)
       let detailFailure = storage.clearDetails()
       return tableFailure ?? detailFailure
     }.value

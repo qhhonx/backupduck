@@ -159,7 +159,7 @@ import SwiftUI
         ?? originals.firstIndex(where: { !$0.visible.isEmpty })
         ?? (decoding == 0 ? originals.indices.first : nil) {
       let flight = originals.remove(at: index); decoding += 1; flight.started = true
-      let storage = storage, limit = budget() * 3 / 10
+      let storage = storage, limit = Int(Double(budget()) * MacThumbnailTables.fileRenditionShare)
       Task(priority: flight.visible.isEmpty ? .utility : .userInitiated) {
         if flight.needsEmbeddedPreview {
           flight.needsEmbeddedPreview = false

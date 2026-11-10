@@ -297,6 +297,16 @@ final class MacFileDetailPosterTests: XCTestCase {
 }
 
 @MainActor final class FileThumbnailPipelineTests: XCTestCase {
+  func testFolderTablesPreservePhotoLibraryCapacityAndShareTheStorageLimit() {
+    let tables = MacThumbnailTables.activeTables
+    XCTAssertEqual(Set(tables.map(\.url)).count, 4)
+    XCTAssertEqual(MacThumbnailTables.overviewShare, 0.5)
+    XCTAssertEqual(MacThumbnailTables.detailShare, 0.2)
+    let total = tables.reduce(0) { $0 + $1.limit * $1.entryBytes }
+    let budget = MacThumbnailTables.budgetMB * 1024 * 1024
+    XCTAssertLessThanOrEqual(total + Int(Double(budget) * MacThumbnailTables.fileRenditionShare), budget)
+  }
+
   private func fixture() throws -> (URL, FolderSource, ThumbnailCacheStorage, CGImage) {
     let base = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
       .appendingPathComponent("disk-grid-\(UUID().uuidString)", isDirectory: true)

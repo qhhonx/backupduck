@@ -24,30 +24,43 @@ import SwiftUI
   var inset: CGFloat = 0
 }
 
-/// Ordered metadata for a browse result. Images are requested independently
-/// for the visible region. Asset libraries publish their full membership.
+/// Ordered metadata for a browse result. The opening viewport can be prepared
+/// before the whole result is materialized. Images are requested separately.
 struct MacGridFetchResult: Sendable {
   let identifiers: [String]
+  let positions: [String: Int]?
+  let opening: Bool
   private let kinds: [LibraryMediaKind]?
-  let totals: MacGridTotals
+  let totals: MacGridTotals?
   var count: Int { identifiers.count }
 
-  init(identifiers: [String], kinds: [LibraryMediaKind]? = nil) {
+  init(photoRows: [LibraryPresentationIndex.Row], opening: Bool = false) {
+    let ordered = photoRows.reversed()
+    self.init(identifiers: ordered.map(\.key), kinds: opening ? nil : ordered.map(\.kind), opening: opening)
+  }
+
+  init(identifiers: [String], kinds: [LibraryMediaKind]? = nil, opening: Bool = false) {
     precondition(kinds == nil || kinds?.count == identifiers.count)
     self.identifiers = identifiers
+    self.opening = opening
     self.kinds = kinds
     if let kinds {
+      var positions: [String: Int] = [:]
+      positions.reserveCapacity(identifiers.count)
       var photos = 0, videos = 0
-      for kind in kinds {
+      for (index, kind) in kinds.enumerated() {
+        positions[identifiers[index]] = index
         switch kind {
         case .photo, .motion, .burst: photos += 1
         case .video: videos += 1
         case .unknown: break
         }
       }
+      self.positions = positions
       totals = MacGridTotals(total: identifiers.count, photos: photos, videos: videos)
     } else {
-      totals = MacGridTotals(total: identifiers.count)
+      positions = nil
+      totals = opening ? nil : MacGridTotals(total: identifiers.count)
     }
   }
 
@@ -80,13 +93,13 @@ struct MacGridFetchResult: Sendable {
   }
   static func folder(_ photo: FolderPhoto, source: FolderSource, pixels: CGFloat) -> Self {
     let key = FileThumbnailPipeline.cacheBase(source: photo.folder_id, asset: photo.source_id, revision: photo.revision)
-    return Self(placeholder: { MacThumbnailTables.placeholder(key: key) }, request: { deliver in
+    return Self(placeholder: { MacThumbnailTables.folderPlaceholder(key: key) }, request: { deliver in
       let id = UUID(), epoch = MacThumbnailTables.storage.epoch
       let pipeline = FileThumbnailPipeline.shared
       pipeline.request(id: id, source: source, relative: photo.relative, assetID: photo.source_id,
         revision: photo.revision, size: pixels / 2) { image in
         if let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-          MacThumbnailTables.remember(key: key, image: cg, epoch: epoch)
+          MacThumbnailTables.rememberFolder(key: key, image: cg, epoch: epoch)
         }
         deliver(image, false)
       }
@@ -166,9 +179,11 @@ extension MacGridSource {
   var thumbnails: ThumbnailPipeline? { get }
   func asset(_ id: String) -> PHAsset?
   func fact(_ id: String) -> MacThumbnailTables.Fact?
+  func completeOpening() async
 }
 
 extension MacDenseGridSource {
+  func completeOpening() async {}
   var thumbnails: ThumbnailPipeline? { nil }
   func asset(_ id: String) -> PHAsset? { nil }
   func fact(_ id: String) -> MacThumbnailTables.Fact? { nil }
@@ -225,22 +240,13 @@ struct MacLibraryGrid: View {
 @MainActor final class MacPhotoLibrarySource: MacDenseGridSource {
   let library: PhotoLibraryModel
   var ordinaryOnly = false
-  private var membershipKey = ""
-  private var cachedResult = MacGridFetchResult(identifiers: [])
   private var scrollKey = ""
   private let retainedScroll = MacGridScrollState()
   init(_ library: PhotoLibraryModel) { self.library = library }
-  var fetchResult: MacGridFetchResult {
-    let key = "\(library.generation)|\(library.loaded)"
-    if membershipKey != key {
-      membershipKey = key
-      let rows = library.macBrowseRows.reversed()
-      cachedResult = MacGridFetchResult(identifiers: rows.map(\.key), kinds: rows.map(\.kind))
-    }
-    return cachedResult
-  }
+  var fetchResult: MacGridFetchResult { library.macFetchResult }
+  func completeOpening() async { await library.completeMacBrowse() }
   var contextID: String { "\(library.filter)|\(library.scrollResetGeneration)" }
-  var contentRevision: String { "\(library.generation)|\(library.contentGeneration)" }
+  var contentRevision: String { "\(library.generation)|\(library.contentGeneration)|\(fetchResult.opening)" }
   var selection: Set<String> { get { library.selection } set { library.selection = newValue } }
   var startsAtEnd: Bool { true }
   var zoomStops: [Int] { ordinaryOnly ? MacLibraryDensity.grid : MacLibraryDensity.columns }

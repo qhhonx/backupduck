@@ -183,12 +183,15 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
     preheated.removeAll()
   }
   func prefillOverview(_ folders: FolderSources) async {
-    guard !folders.isPreview, MacThumbnailTables.enabled, MacThumbnailTables.overview.available,
+    guard !folders.isPreview, MacThumbnailTables.enabled else { return }
+    // Let the new viewport issue its display requests before the bulk fill.
+    try? await Task.sleep(for: .seconds(1))
+    guard !Task.isCancelled, resultKey == key, MacThumbnailTables.folderOverview.available,
       let epoch = MacThumbnailTables.storage.epoch, let result else { return }
     let sources = Dictionary(uniqueKeysWithValues: folders.sources.filter {
       folders.facts[$0.id]?.available != false
     }.map { ($0.id, $0) })
-    let table = MacThumbnailTables.overview
+    let table = MacThumbnailTables.folderOverview
     for (index, photo) in result.rows.enumerated() {
       guard !Task.isCancelled, MacThumbnailTables.storage.isCurrent(epoch), !table.isFull else { return }
       if index % 128 == 0 { await Task.yield() }
@@ -198,7 +201,7 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
       let image = await FileThumbnailPipeline.shared.overviewImage(photo, source: source)
       guard !Task.isCancelled else { return }
       if let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-        MacThumbnailTables.remember(key: key, image: cg, epoch: epoch)
+        MacThumbnailTables.rememberFolder(key: key, image: cg, epoch: epoch)
       }
       try? await Task.sleep(for: .milliseconds(20))
     }
