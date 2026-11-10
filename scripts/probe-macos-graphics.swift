@@ -88,7 +88,7 @@ enum MacDetailBitmap {
         bitsPerPixel: record.pixelBits, bytesPerRow: record.rowBytes, space: space,
         bitmapInfo: CGBitmapInfo(rawValue: record.bitmapInfo), provider: provider,
         decode: nil, shouldInterpolate: true, intent: intent) else { print("codec guard 8 failed"); return nil }
-    if record.headroom > 0 {
+    if record.headroom > 0, image.contentHeadroom != record.headroom {
       guard let tagged = CGImageCreateCopyWithContentHeadroom(record.headroom, image) else { print("codec guard 9 failed"); return nil }
       image = tagged
     }
@@ -112,5 +112,8 @@ for name in [CGColorSpace.sRGB, CGColorSpace.displayP3] {
   let namedProfileData = namedProfile as Data? ?? Data()
   let differing = zip(originalProfileData, namedProfileData).enumerated().compactMap { $0.element.0 == $0.element.1 ? nil : $0.offset }
   print("space=\(name) original=\(String(describing: original.name)) namedEqual=\(named.map { CFEqual(original, $0) } ?? false) profileEqual=\(fromProfile.map { CFEqual(original, $0) } ?? false) profileSizes=\(originalProfileData.count)/\(namedProfileData.count) differentBytes=\(differing.prefix(25)) bitmapInfo=\(image.bitmapInfo.rawValue) headroom=\(image.contentHeadroom)")
-  print("encoded=\(MacDetailBitmap.encode(image, key: "probe")?.count ?? 0)")
+  guard let record = MacDetailBitmap.encode(image, key: "probe"),
+    let restored = MacDetailBitmap.decode(record, key: "probe"),
+    restored.contentHeadroom == image.contentHeadroom else { fatalError("SDR bitmap did not round-trip") }
+  print("encoded=\(record.count)")
 }
