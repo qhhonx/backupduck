@@ -39,6 +39,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
   if let layout = collection.collectionViewLayout as? LibraryTimelineLayout {
     layout.denseThreshold = MacLibraryDensity.denseThreshold
   }
+  coordinator.parent.reducedMotionOverride = false
   coordinator.collection = collection; collection.delegate = coordinator
 }
 
@@ -1765,6 +1766,6 @@ private struct OverviewClickTestHost: View {
   @ObservedObject var size: MacGridSize
   var body: some View {
     MacMediaGrid(source: source, navigation: navigation, queueRevision: 0, receiverID: nil,
-      columns: size.columns, prefillsTables: false, resize: { size.columns = $0 })
+      columns: size.columns, prefillsTables: false, reducedMotionOverride: false, resize: { size.columns = $0 })
   }
 }

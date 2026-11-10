@@ -22,6 +22,7 @@ struct MacMediaGrid: NSViewRepresentable {
   /// library grid may start it. An album grid reads the tables but would cancel
   /// the library's pass and make it start over when the album closes.
   var prefillsTables = true
+  var reducedMotionOverride: Bool?
   var preview: (String) -> Void = { _ in }
   var enterSelection: () -> Void = {}
   var resize: (Int) -> Void = { _ in }
@@ -559,7 +560,9 @@ struct MacMediaGrid: NSViewRepresentable {
     private var settleCount = 0
     private var settleAtNewest = false
     private var startOffset: CGFloat = 0
-    private var reducedMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    private var reducedMotion: Bool {
+      parent.reducedMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
     func stopLayoutAnimation() {
       layoutGeneration &+= 1
       pendingAdoption = nil; adoptionCheckGeneration = nil
