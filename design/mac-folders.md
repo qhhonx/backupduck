@@ -58,6 +58,10 @@ Both use only the current visible photo-date range in the subtitle;
 there are no inline day headings or floating date capsules. Selection replaces
 that subtitle with one selected-item count.
 
+Both grids run from oldest to newest by the recorded photo date. A new
+view opens at the newest edge, at the bottom. Older photos are above it.
+A returning view restores its own visible-photo anchor.
+
 Collection totals appear once below the final photo row, using the current
 inventory or complete results. A known aggregate without a trustworthy
 photo/video split says items; it never treats every item as a photo. Search, type and

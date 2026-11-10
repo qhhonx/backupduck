@@ -144,7 +144,7 @@ import XCTest
 
   func testSparseTypeFilterReturnsCompleteMembership() async {
     let folders = FolderSources(backup: BackupModel.shared)
-    // Browse returns newest first, so all videos are beyond the first page.
+    // The core returns newest first, so all videos are beyond its first page.
     folders.previewRows = (0..<150).map { photo($0, video: $0 < 50) }
     let browser = FolderBrowser(); browser.scope = .folder("a"); browser.type = .video
     await browser.reload(folders)
@@ -185,7 +185,9 @@ import XCTest
     await browser.reload(folders)
     XCTAssertEqual(browser.identifiers.count, 151)
     XCTAssertEqual(Set(browser.identifiers).count, browser.identifiers.count)
-    XCTAssertEqual(browser.identifiers.first, photo(150).id)
+    XCTAssertEqual(browser.identifiers.first, photo(0).id)
+    XCTAssertEqual(browser.identifiers.last, photo(150).id)
+    XCTAssertTrue(MacFolderGridSource(folders: folders, browser: browser).startsAtEnd)
   }
 
   private func photo(_ index: Int, video: Bool = false) -> FolderPhoto {

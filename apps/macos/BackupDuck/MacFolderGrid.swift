@@ -34,6 +34,7 @@ struct MacFolderGrid: View {
   let fetchResult: MacGridFetchResult
   let contextID: String
   let membershipReady: Bool
+  var startsAtEnd: Bool { true }
   let groups: [Int: String]
   let flowHeaders: Set<Int>
   private let notice: AnyView?

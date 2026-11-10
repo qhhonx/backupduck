@@ -218,8 +218,9 @@ filtering, headers and album browsing.
   keyboard command. There is no intermediate cover page, extra All Photos
   destination or separate scope control. Parent and children retain independent
   search, filter, selection and scroll state and share the photo toolbar.
-  Search matches file and subfolder names within the selected scope. Grids are
-  continuous, with no repeated folder names, inline day headings or floating
+  Search matches file and subfolder names within the selected scope. Folder
+  grids run from oldest to newest by the recorded photo date and open at the
+  bottom. Grids are continuous, with no repeated folder names, inline day headings or floating
   date capsules. Single-folder availability and unsupported-file notes remain
   ordinary content; they do not pin. See `mac-folders.md`.
 - **Album browsing.** On Mac, album photos share the ordinary 3, 4, 6 and 9

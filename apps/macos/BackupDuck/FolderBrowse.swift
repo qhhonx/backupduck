@@ -77,6 +77,8 @@ struct FolderFetchResult: Sendable {
       byID[row.id] = row
       ordered.append(row)
     }
+    // The core returns newest first; the native grid rests at the end.
+    ordered.reverse()
     self.rows = ordered
     self.byID = byID
     grid = MacGridFetchResult(identifiers: ordered.map(\.id), kinds: ordered.map {
@@ -192,7 +194,7 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
       folders.facts[$0.id]?.available != false
     }.map { ($0.id, $0) })
     let table = MacThumbnailTables.folderOverview
-    for (index, photo) in result.rows.enumerated() {
+    for (index, photo) in result.rows.reversed().enumerated() {
       guard !Task.isCancelled, MacThumbnailTables.storage.isCurrent(epoch), !table.isFull else { return }
       if index % 128 == 0 { await Task.yield() }
       guard let source = sources[photo.folder_id] else { continue }

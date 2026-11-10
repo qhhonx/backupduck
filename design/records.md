@@ -55,9 +55,12 @@ anywhere.
    - Photos the Pixel could not save to Photos for another reason. Action: View
      (the fix is on the Pixel).
 2. **Timeline**: every backed-up or in-progress photo as a thumbnail grid,
-   newest change first, paged as the user scrolls. iPhone and Pixel group by
-   the day of the latest change (Today, Yesterday, then dates). Mac uses a
-   continuous grid and the native subtitle date rule below. Tile marks:
+   paged as the user scrolls. iPhone and Pixel show the latest change first
+   and group by day (Today, Yesterday, then dates). The Mac timeline runs from
+   oldest to newest by the latest record update. It opens at the newest edge
+   at the bottom and loads older pages above the visible records while keeping
+   the viewport in place. Needs You keeps cause priority and opens at the top.
+   Tile marks:
    - none: in the Pixel's Photos
    - arrow: sending or waiting to send
    - clock: received by the Pixel, being saved to Photos

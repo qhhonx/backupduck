@@ -124,12 +124,15 @@ struct MacHistoryGrid: View {
   var flowHeaders: Set<Int> { Set(groups.keys) }
   private var measured: (width: CGFloat, heights: [Int: CGFloat])?
   let contextID: String
+  let startsAtEnd: Bool
+  private let olderPageBoundary: ArraySlice<String>
   private let locallyFiltered: Bool
   private let receiverName: String?
   var previewPoster: ((String) -> NSImage?)?
   var previewFrame: ((String) -> CGRect?)?
   init(history: BackupHistoryModel, state: MacHistoryGridState, filter: String, type: LibraryFilter, search: String) {
     self.history = history; self.state = state
+    startsAtEnd = filter != "attention"
     locallyFiltered = type != .all || !search.isEmpty
     receiverName = BackupEnvironment.activeModel().peerDevice?.name
     contextID = "\(filter)|\(type.rawValue)|\(search)"
@@ -143,10 +146,16 @@ struct MacHistoryGrid: View {
     }
     let problems = history.causes.map { ($0.0, $0.1.filter(matches).sorted(by: newestFirst)) }
     var rows = problems.flatMap(\.1)
+    let attentionCount = rows.count
     let known = Set(rows.map(\.id))
-    rows += history.photos.filter { !known.contains($0.id) && matches($0) }.sorted(by: newestFirst)
+    let timeline = history.photos.filter { !known.contains($0.id) && matches($0) }.sorted(by: newestFirst)
+    if startsAtEnd { rows.append(contentsOf: timeline.reversed()) }
+    else { rows.append(contentsOf: timeline) }
+    let identifiers = rows.map(\.id)
+    olderPageBoundary = startsAtEnd && !timeline.isEmpty
+      ? identifiers.dropFirst(attentionCount).prefix(24) : identifiers.suffix(24)
     photos = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-    fetchResult = MacGridFetchResult(identifiers: rows.map(\.id), kinds: rows.map { photo in
+    fetchResult = MacGridFetchResult(identifiers: identifiers, kinds: rows.map { photo in
       photo.job.flatMap { LibraryMediaKind(rawValue: $0.asset.kind) } ?? .unknown
     })
     var headers: [Int: String] = [:], index = 0
@@ -210,7 +219,9 @@ struct MacHistoryGrid: View {
     cell.setState(photo.mark == .sending ? "sending" : photo.mark == .saving ? "saving" : photo.mark == .needsYou ? "needs_you" : nil)
   }
   func didDisplay(_ ids: ArraySlice<String>) {
-    if identifiers.suffix(24).contains(where: { ids.contains($0) }) { Task { await history.loadMore() } }
+    if history.hasMore, olderPageBoundary.contains(where: { ids.contains($0) }) {
+      Task { await history.loadMore() }
+    }
   }
   func preheat(_ ids: [String], pixels: CGFloat) { state.thumbnails.preheat(ids.compactMap(asset), pixels: pixels) }
 }
