@@ -251,6 +251,36 @@ import XCTest
     try await Task.sleep(for: .milliseconds(80))
     XCTAssertEqual(pager.selectedIndex, 6)
     navigation.viewerBack?(); XCTAssertEqual(selectedID, displayed[6])
+
+    final class SelectedGrid: LibraryCollectionView {
+      override var selectionIndexPaths: Set<IndexPath> {
+        get { [IndexPath(item: 6, section: 0)] }
+        set { super.selectionIndexPaths = newValue }
+      }
+    }
+    let grid = SelectedGrid()
+    var opens = 0
+    grid.preview = { _ in opens += 1 }
+    func space(repeating: Bool = false) throws -> NSEvent {
+      try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+        windowNumber: window.windowNumber, context: nil, characters: " ", charactersIgnoringModifiers: " ",
+        isARepeat: repeating, keyCode: 49))
+    }
+    let press = try space()
+    let repeatEvent = try space(repeating: true)
+    grid.keyDown(with: press)
+    XCTAssertEqual(opens, 1)
+    let currentPage = try XCTUnwrap(pager.selectedViewController)
+    let currentKeys = try XCTUnwrap(nativeView(MacMediaKeyView.self, in: currentPage.view))
+    selectedID = nil
+    XCTAssertEqual(currentKeys.handle?(repeatEvent), true)
+    XCTAssertNil(selectedID, "The opening Space press may repeat while the viewer owns the key")
+    if currentKeys.handle?(press) != true { grid.keyDown(with: press) }
+    XCTAssertEqual(selectedID, displayed[6])
+    grid.keyDown(with: repeatEvent)
+    XCTAssertEqual(opens, 1, "The closing Space press must not reopen the folder viewer")
+    grid.keyDown(with: press)
+    XCTAssertEqual(opens, 2, "A fresh Space press still opens the selected item")
   }
 
   func testHistoryDetailNeighborsFollowTheFilteredNativeGridAcrossSourceTypes() async throws {

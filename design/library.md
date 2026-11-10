@@ -394,10 +394,11 @@ Single-click selects. Double-click or Space/Return opens the current photo
 inside the same window, growing from its cell. A mouse or trackpad drag pages
 sideways; dragging up shows information and dragging down hides it, then returns
 to the grid. The grid remains alive beneath the viewer, which uses the system
-window background. Escape or Back returns to the currently viewed asset,
-retaining filter and selection. The viewer uses native horizontal page tracking,
-fit/magnification, video/Live Photo playback and an information sidebar with
-complete wrapping values. There is no permanent filmstrip; Left and Right move
+window background. Space, Escape or Back returns to the currently viewed asset,
+retaining filter and selection. A held Space press triggers at most one
+transition, including when focus returns to the grid. The viewer uses native
+horizontal page tracking, fit/magnification, video/Live Photo playback and an
+information sidebar with complete wrapping values. There is no permanent filmstrip; Left and Right move
 through the library. Backup registers durable intent through the shared queue,
 never through browsing.
 

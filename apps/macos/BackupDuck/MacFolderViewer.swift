@@ -78,8 +78,7 @@ struct MacFolderPreviewPage: View {
       nextEnabled: (collectionPaging?.hasNext ?? (index + 1 < context.count)) && !zoomed,
       previous: { move(-1) }, next: { move(1) }))
     .modifier(MacViewerInspector(navigation: navigation, target: .folder(photo, folders, recorded)))
-    .background(MacMediaKeyHandler { event in
-      if event.keyCode == 53 { close(photo); return true }
+    .background(MacMediaKeyHandler(close: { close(photo) }) { event in
       if event.modifierFlags.intersection([.command, .option, .control]).isEmpty, !zoomed {
         if event.keyCode == 123 { move(-1); return true }
         if event.keyCode == 124 { move(1); return true }

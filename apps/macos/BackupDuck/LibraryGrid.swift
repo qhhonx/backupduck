@@ -1605,7 +1605,7 @@ struct MacMediaGrid: NSViewRepresentable {
   }
   override func keyDown(with event: NSEvent) {
     if event.charactersIgnoringModifiers == " " || event.keyCode == 36 {
-      if let path = selectionIndexPaths.sorted().first { preview?(path) }
+      if !event.isARepeat, let path = selectionIndexPaths.sorted().first { preview?(path) }
       return
     }
     if event.keyCode == 53 { applySelection([]); keyAnchor = nil; keyCursor = nil; return }
@@ -2924,7 +2924,10 @@ struct MacCalendarGrid: NSViewRepresentable {
     if event.clickCount >= 2 { open?(path, point) } else { select?(path, point) }
   }
   override func keyDown(with event: NSEvent) {
-    if event.keyCode == 36 || event.charactersIgnoringModifiers == " " { openSelected?(); return }
+    if event.keyCode == 36 || event.charactersIgnoringModifiers == " " {
+      if !event.isARepeat { openSelected?() }
+      return
+    }
     super.keyDown(with: event)
   }
 }
