@@ -52,7 +52,7 @@ synthetic native recording and inspect intermediate frames as separate evidence.
 
 Photo Library performance is a release gate on both Mac and iPhone, including
 changes made for other media sources that touch the shared grid or caches.
-Use revision `3f891e2` as the reference. Compare Release
+Use the `v0.6.0` release as the reference. Compare Release
 builds on the same device, library, viewport and cache state. Check first
 visible covers, warm return, scrolling and density changes. Preserve any
 performance gains in the parent revision. A regression on either platform

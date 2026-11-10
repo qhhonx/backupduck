@@ -1,3 +1,12 @@
+# 0.6.1 — build 91
+
+- Mac folders open from their saved index. Scrolling and returning to a folder
+  load nearby thumbnails first and reuse cached covers.
+- Mac Photo Library shows the first photos while it prepares the full grid.
+- Pressing Space in the Mac viewer returns to the current photo in the grid.
+- Mac backup status stays active while more folder files are being prepared.
+  The Backup page shows a total when the remaining work is known.
+
 # 0.6.0 — build 90
 
 - iPhone photo browsing uses the same native grid across the library, albums

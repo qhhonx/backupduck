@@ -7,7 +7,7 @@
 		<string>app.backupduck.backup.processing</string>
 	</array>
 	<key>BackupDuckReleaseVersion</key>
-	<string>0.6.0</string>
+	<string>0.6.1</string>
 	<key>BackupDuckUIRevision</key>
 	<string>1.2.10</string>
 	<key>CFBundleDevelopmentRegion</key>
@@ -28,7 +28,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.0</string>
+	<string>0.6.1</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -41,7 +41,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>90</string>
+	<string>91</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
