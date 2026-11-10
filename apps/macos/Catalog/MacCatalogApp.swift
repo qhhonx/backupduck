@@ -105,6 +105,27 @@ import UserNotifications
     } else if ProcessInfo.processInfo.arguments.contains("-unified-browsing") {
       FolderCatalog.install("folders.sections", folders: folders, sheet: nil)
     }
+    if scenario.id == "hub.backing-up", ProcessInfo.processInfo.arguments.contains("-folder-progress-replay") {
+      folders.sources = [.init(id: "fixture-progress", name: "Camera Exports", bookmark: Data(),
+        automatic: false, enabled: true, receiver: "catalog-pixel", lastCheck: Date(), manualCutoffMS: 123)]
+      folders.phases["fixture-progress"] = "folder_preparing"
+      MacCatalogApp.core.setValue(["delivered": 22, "total": 40], for: "folder")
+      Task { @MainActor [weak model, weak folders] in
+        try? await Task.sleep(for: .seconds(4))
+        for tick in 1...8 {
+          guard !Task.isCancelled, let model, let folders else { return }
+          // A queued job, a receipt and the gap before the next original.
+          let delivered = 22 + tick / 2
+          MacCatalogApp.core.setValue(["delivered": delivered, "total": 40], for: "folder")
+          model.summary.running = tick % 2
+          model.summary.queued = 0
+          model.summary.received = delivered
+          folders.phases["fixture-progress"] = tick % 2 == 0 ? "folder_cache_wait" : "folder_preparing"
+          folders.revision += 1
+          try? await Task.sleep(for: .seconds(1))
+        }
+      }
+    }
     if scenario.id == "records.running-grid" {
       Task { @MainActor [weak model] in
         try? await Task.sleep(for: .seconds(5))

@@ -53,6 +53,24 @@ struct FolderSummary: Decodable, Equatable {
   let scanning: Bool
 }
 
+struct FolderDeliveryRequest: Equatable {
+  struct Scope: Equatable {
+    let source: String
+    let cutoff: UInt64?
+  }
+  let receiver: String
+  let scopes: [Scope]
+}
+
+struct FolderDeliveryProgress: Decodable, Equatable {
+  let delivered: UInt64
+  let total: UInt64
+  var fraction: Double? {
+    guard total > 0 else { return nil }
+    return Double(delivered) / Double(total)
+  }
+}
+
 @MainActor final class FolderSources: ObservableObject {
   static let shared = FolderSources(backup: .shared)
   // Catalog adapters never open the owner's folder configuration or indexes.
@@ -92,20 +110,25 @@ struct FolderSummary: Decodable, Equatable {
     default: return status
     }
   }
-  /// When the full batch is unknown, show the oldest running transfer's
-  /// partial progress, keeping the same item in view until it leaves running.
-  var hubCurrentTransferFraction: Double? {
-    guard let receiver = backup.pairing?.receiverID,
-      let job = backup.jobs.filter({
-        $0.state == "running" && ($0.receiverID == receiver || $0.receiverID == nil)
-      }).min(by: { $0.id < $1.id }),
-      !job.asset.resources.isEmpty, job.asset.resources.allSatisfy({ $0.size > 0 }) else { return nil }
-    let total = job.totalBytes
-    if let live = backup.transferProgress[job.id] {
-      return live.activeFraction(confirmed: job.confirmedBytes, total: total)
+  var hubDeliveryRequest: FolderDeliveryRequest? {
+    guard let receiver = backup.pairing?.receiverID else { return nil }
+    let scopes = sources.compactMap { source -> FolderDeliveryRequest.Scope? in
+      guard source.receiver == receiver, source.pendingControl == nil, !source.baselinePending,
+        source.lastCheck != nil, phases[source.id] != "folder_offline" else { return nil }
+      let finishingManual = phases[source.id] == "folder_up_to_date" && !source.automatic && source.manualCutoffMS != nil
+      guard source.manualActive || finishingManual || (source.automaticActive && backup.autoBackup) else { return nil }
+      return .init(source: source.id, cutoff: source.automatic ? nil : source.manualCutoffMS)
     }
-    guard job.confirmedBytes > 0, job.confirmedBytes < total else { return nil }
-    return Double(job.confirmedBytes) / Double(total)
+    return scopes.isEmpty ? nil : .init(receiver: receiver, scopes: scopes)
+  }
+  func hubDeliveryProgress(_ request: FolderDeliveryRequest) async throws -> FolderDeliveryProgress? {
+    let scopes: [[String: Any]] = request.scopes.map {
+      var scope: [String: Any] = ["source": $0.source]
+      if let cutoff = $0.cutoff { scope["max_created_ms"] = cutoff }
+      return scope
+    }
+    let data = try await call(["action": "delivery_progress", "receiver": request.receiver, "scopes": scopes])
+    return try JSONDecoder().decode(FolderDeliveryProgress?.self, from: data)
   }
   private var observedGlobalAutoBackup: Bool?
   private var watches: [String: FolderWatch] = [:]

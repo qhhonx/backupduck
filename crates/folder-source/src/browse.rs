@@ -67,6 +67,12 @@ impl MediaCounts {
         }
     }
 }
+#[derive(Debug, Default, Serialize, PartialEq, Eq)]
+pub struct DeliveryProgress {
+    pub delivered: u64,
+    pub total: u64,
+}
+
 #[derive(Debug, Default, Serialize)]
 pub struct FolderFacts {
     pub supported: u64,
@@ -235,6 +241,56 @@ impl Index {
         }
         Ok(())
     }
+    /// Count indexed originals in the source's backup scope. A paired photo and
+    /// clip share one receipt but advance two files. Do not read a partial scan.
+    pub fn delivery_progress(
+        &self,
+        source: &str,
+        receiver: &str,
+        max_created_ms: Option<u64>,
+        mut received: impl FnMut(i64) -> Result<bool>,
+    ) -> Result<Option<DeliveryProgress>> {
+        if self.scan.as_ref().is_some_and(|scan| scan.source == source) {
+            return Ok(None);
+        }
+        let mut statement = self
+            .conn
+            .prepare_cached(
+                "WITH scope AS (
+                SELECT DISTINCT f.identity,f.revision,s.job
+                FROM files f
+                LEFT JOIN submitted s ON s.source=f.source AND s.identity=f.identity
+                    AND s.receiver=?2 AND s.revision=f.revision AND s.job>0
+                WHERE f.source=?1 AND f.present=1 AND (?3 IS NULL OR f.created<=?3)
+                    AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source
+                        AND d.relative=f.relative AND d.revision=f.revision)
+                    AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source
+                        AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0)
+                    AND (s.job IS NOT NULL OR NOT EXISTS(SELECT 1 FROM submitted b
+                        WHERE b.source=f.source AND b.identity=f.identity AND b.revision=f.revision
+                        AND b.receiver IN (?2,'@baseline') AND b.job=0))
+            ) SELECT job,COUNT(*) FROM scope GROUP BY job",
+            )
+            .map_err(db)?;
+        let rows = statement
+            .query_map(
+                params![source, receiver, max_created_ms.map(|value| value as i64)],
+                |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, i64>(1)? as u64)),
+            )
+            .map_err(db)?;
+        let mut progress = DeliveryProgress::default();
+        for row in rows {
+            let (job, count) = row.map_err(db)?;
+            progress.total += count;
+            if let Some(job) = job {
+                if received(job)? {
+                    progress.delivered += count;
+                }
+            }
+        }
+        Ok(Some(progress))
+    }
+
     pub fn facts(
         &self,
         source: &str,

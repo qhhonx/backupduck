@@ -1,7 +1,8 @@
 //! Optional desktop boundary. Source files are never owned caches.
 use super::*;
 use backupduck_folder_source::{
-    resolve, revision, BrowseFilter, BrowseMediaKind, BrowseQuery, Index, Observation, PageSort,
+    resolve, revision, BrowseFilter, BrowseMediaKind, BrowseQuery, DeliveryProgress, Index,
+    Observation, PageSort,
 };
 static PREVIEW_INDEX: Mutex<Option<Index>> = Mutex::new(None);
 static INDEX: Mutex<Option<Index>> = Mutex::new(None);
@@ -16,6 +17,10 @@ pub enum Command {
     Facts {
         source: String,
         receiver: String,
+    },
+    DeliveryProgress {
+        receiver: String,
+        scopes: Vec<DeliveryScope>,
     },
     Availability {
         source: String,
@@ -212,6 +217,12 @@ pub fn call(command: Command) -> Result<Value> {
     call_with_index(&host, index, command)
 }
 
+#[derive(Deserialize)]
+pub struct DeliveryScope {
+    source: String,
+    max_created_ms: Option<u64>,
+}
+
 fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Result<Value> {
     match command {
         Command::PreviewBegin { .. } | Command::PreviewStep | Command::PreviewCancel => {
@@ -289,6 +300,28 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
                 &receiver,
                 backupduck_folder_source::millis(SystemTime::now()),
             )?)?)
+        }
+        Command::DeliveryProgress { receiver, scopes } => {
+            let queue = host.sender.lock().map_err(lock)?;
+            let mut total = DeliveryProgress::default();
+            for scope in scopes {
+                let Some(progress) = index.delivery_progress(
+                    &scope.source,
+                    &receiver,
+                    scope.max_created_ms,
+                    |id| {
+                        Ok(queue
+                            .job_observation(id)?
+                            .is_some_and(|job| job.state == backupduck_sender::JobState::Received))
+                    },
+                )?
+                else {
+                    return Ok(Value::Null);
+                };
+                total.delivered += progress.delivered;
+                total.total += progress.total;
+            }
+            Ok(json!(total))
         }
         Command::Facts { source, receiver } => {
             let queue = host.sender.lock().map_err(lock)?;

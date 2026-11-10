@@ -1001,3 +1001,70 @@ fn media_splits_cover_partial_scans_every_backup_state_and_receiver_scope() {
         }
     );
 }
+
+#[test]
+fn folder_delivery_progress_uses_index_membership_and_confirmed_receipts() {
+    let t = Temp::new();
+    for file in ["photo.jpg", "companion.mov", "pending.jpg", "ignored.jpg"] {
+        fs::write(t.root().join(file), b"original").unwrap();
+    }
+    let mut index = t.index();
+    let now = clock();
+    scan(&mut index, "folder", &t.root(), now);
+    for file in ["photo.jpg", "companion.mov"] {
+        let entry = index.entry("folder", file).unwrap();
+        index
+            .mark("folder", file, "receiver", &entry.revision, 7)
+            .unwrap();
+    }
+    let ignored = index.entry("folder", "ignored.jpg").unwrap();
+    index
+        .ignore("folder", &ignored.relative, &ignored.revision)
+        .unwrap();
+
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |_| Ok(false))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 0,
+            total: 3
+        })
+    );
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |id| Ok(id == 7))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 2,
+            total: 3
+        })
+    );
+    assert_eq!(
+        index
+            .delivery_progress("folder", "other", None, |_| panic!("wrong receiver"))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 0,
+            total: 3
+        })
+    );
+
+    index.baseline("folder", "@baseline").unwrap();
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |_| Ok(true))
+            .unwrap(),
+        Some(DeliveryProgress {
+            delivered: 2,
+            total: 2
+        })
+    );
+    index.begin("folder", &t.root(), now + 12000).unwrap();
+    assert_eq!(
+        index
+            .delivery_progress("folder", "receiver", None, |_| Ok(true))
+            .unwrap(),
+        None
+    );
+}

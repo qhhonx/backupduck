@@ -20,6 +20,8 @@ inset final 3 pt region aligned with their text column from construction;
 value updates and the end of counting never add a layout row.
 Show byte progress only during actual transfer with meaningful partial progress;
 waiting, completed and unrelated preparation states do not leave an empty track.
+A known folder scope uses confirmed file deliveries instead. Keep that bar
+visible during the gaps between individual files.
 Large text adapts the layout without clipping. Failures and important consequences
 remain visible even when they require more space.
 

@@ -14,6 +14,8 @@ struct MacHub: View {
   var showTransfers: (String) -> Void
   @State private var offlineHelp = false
   @State private var livePhotoHelp = false
+  @State private var deliveryRequest: FolderDeliveryRequest?
+  @State private var deliveryProgress: FolderDeliveryProgress?
   @StateObject private var recentMedia = MacHistoryGridState()
   @Environment(\.macViewerPresentation) private var presentPhoto
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -23,6 +25,7 @@ struct MacHub: View {
 
   var body: some View {
     let hubStatus = folders.hubStatus
+    let request = deliveryObservationRequest(hubStatus)
     ScrollView {
       VStack(alignment: .leading, spacing: DuckSpacing.medium) {
         if model.pairing != nil { devicePill }
@@ -45,6 +48,7 @@ struct MacHub: View {
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet }
     .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
+    .task(id: request) { await observeFolderDelivery(request) }
   }
 
   private var devicePill: some View {
@@ -69,11 +73,14 @@ struct MacHub: View {
         action: "hub_resume") { Task { await model.setPaused(false) } }
     case .backingUp, .backingUpWithoutTotal:
       let hasUnpreparedFolders = hubStatus == .backingUpWithoutTotal
-      let currentTransfer = hasUnpreparedFolders ? folders.hubCurrentTransferFraction : nil
+      let request = deliveryObservationRequest(hubStatus)
+      let folderProgress = deliveryRequest == request ? deliveryProgress : nil
+      let showsFolderProgress = folderProgress.map { $0.delivered < $0.total } == true || hasUnpreparedFolders
+      let title = showsFolderProgress ? BackupHubStatus.backingUpWithoutTotal : hubStatus
       DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
-        title: Text(verbatim: hubStatus.sentence(receiver: receiverName)),
-        note: hasUnpreparedFolders ? folderProgressNote(currentTransfer: currentTransfer) : nil,
-        progress: hasUnpreparedFolders ? currentTransfer : model.hubProgress, reservesProgress: true, trailing: {
+        title: Text(verbatim: title.sentence(receiver: receiverName)),
+        note: showsFolderProgress ? folderProgressNote(folderProgress, checkingScope: request != nil && folderProgress == nil) : nil,
+        progress: showsFolderProgress ? folderProgress?.fraction : model.hubProgress, reservesProgress: true, trailing: {
         DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
       })
     case .caughtUp(let last, let saving):
@@ -89,10 +96,42 @@ struct MacHub: View {
     }
   }
 
-  private func folderProgressNote(currentTransfer: Double?) -> Text {
-    let key = currentTransfer == nil ? "hub_folder_delivered" : "hub_folder_current_transfer"
-    return Text(verbatim: String(format: NSLocalizedString(key, comment: ""), model.summary.received.formatted()))
-      .monospacedDigit()
+  private func folderProgressNote(_ progress: FolderDeliveryProgress?, checkingScope: Bool) -> Text {
+    if let progress, progress.total > 0 {
+      let format = NSLocalizedString("hub_folder_delivery_progress", comment: "")
+      return Text(verbatim: String(format: format, progress.delivered.formatted(), progress.total.formatted()))
+        .monospacedDigit()
+    }
+    if checkingScope { return Text("hub_folder_counting") }
+    let format = NSLocalizedString("hub_folder_delivered", comment: "")
+    return Text(verbatim: String(format: format, model.summary.received.formatted())).monospacedDigit()
+  }
+
+  private func deliveryObservationRequest(_ status: BackupHubStatus) -> FolderDeliveryRequest? {
+    switch status {
+    case .backingUp, .backingUpWithoutTotal: folders.hubDeliveryRequest
+    default: nil
+    }
+  }
+
+  private func observeFolderDelivery(_ request: FolderDeliveryRequest?) async {
+    if deliveryRequest != request {
+      deliveryProgress = nil
+      deliveryRequest = request
+    }
+    guard let request else { return }
+    var observedRevision: (Int64, Int)?
+    while !Task.isCancelled {
+      let revision = (model.queueRevision, folders.revision)
+      if observedRevision?.0 != revision.0 || observedRevision?.1 != revision.1 {
+        if let progress = try? await folders.hubDeliveryProgress(request),
+          !Task.isCancelled, request == deliveryObservationRequest(folders.hubStatus) {
+          if deliveryProgress != progress { deliveryProgress = progress }
+          observedRevision = revision
+        }
+      }
+      try? await Task.sleep(for: .seconds(1))
+    }
   }
 
   // MARK: - Problems (cause, what happens by itself, at most one action)
