@@ -163,6 +163,7 @@ struct MacMediaGrid: NSViewRepresentable {
     c.viewportResized(layout: layout)
     if !c.magnifying { c.syncDensity(columns: resolvedColumns, layout: layout) }
     c.applyItems(scroll: scroll, layout: layout)
+    if source.preservesViewportDuringLiveUpdates { c.updateFooter() }
     if active, layout.isDense, source.fetchResult.opening, let source = source as? any MacDenseGridSource {
       Task { await source.completeOpening() }
     }
@@ -425,6 +426,12 @@ struct MacMediaGrid: NSViewRepresentable {
         if let scroll = collection?.enclosingScrollView as? LibraryScrollView {
           scroll.willScroll = { [weak self] in self?.prepareForScrolling() }
           scroll.didScroll = { [weak self] in self?.scrolledFromInput() }
+          if parent.source.preservesViewportDuringLiveUpdates {
+            scroll.userScrollEnded = { [weak self, weak scroll] in
+              guard let self, let scroll, let layout = self.collection?.collectionViewLayout as? LibraryTimelineLayout else { return }
+              self.applyItems(scroll: scroll, layout: layout)
+            }
+          }
           scroll.viewportReleased = { [weak self] in self?.sourceViewportReleased() }
         }
       }
@@ -439,6 +446,7 @@ struct MacMediaGrid: NSViewRepresentable {
     var generation = -1
     var contextID: String?
     private var measuredHeaderWidth: CGFloat = 0
+    private var appliedLiveSource: (any MacGridSource)?
     var ids: [String] = []
     var positions: [String: Int] = [:]
     var dataSource: NSCollectionViewDiffableDataSource<Int, String>?
@@ -494,6 +502,10 @@ struct MacMediaGrid: NSViewRepresentable {
       let result = parent.source.fetchResult
       let next = result.identifiers
       let changedContext = contextID != parent.source.contextID
+      let liveUpdates = parent.source.preservesViewportDuringLiveUpdates
+      let nativeScroll = scroll as? LibraryScrollView
+      if liveUpdates, !changedContext, nativeScroll?.isUserScrolling == true, ids != next { return }
+      let scrollRevision = nativeScroll?.userScrollRevision
       let expandingOpening = showingOpening && !result.opening && !changedContext
       if expandingOpening, zoomStage != nil {
         awaitingOpeningExpansion = true
@@ -510,20 +522,41 @@ struct MacMediaGrid: NSViewRepresentable {
           layout.folders = folders; layout.dateIDs = parent.source.dateIDs
           layout.revision += 1; layout.invalidateLayout()
           collection?.layoutSubtreeIfNeeded()
+          if liveUpdates { refreshVisibleHeaders(); scrolled() }
         }
-        refreshVisibleHeaders(); refreshVisibleImages(); scrolled(); return
+        if liveUpdates { appliedLiveSource = parent.source }
+        else {
+          refreshVisibleHeaders(); refreshVisibleImages(); scrolled()
+        }
+        return
       }
       if changedContext && contextID != nil { coverMembership(in: scroll) }
       if !changedContext { rememberScroll() }
       stopLayoutAnimation(); removeZoomStage(); magnifying = false
       let first = contextID == nil
       let retained = parent.source.scroll
-      let offset = retained.offset, anchor = retained.anchor, inset = retained.inset
+      let offset = retained.offset
+      var anchor = retained.anchor, inset = retained.inset
       if changedContext { pinnedToNewest = parent.source.startsAtEnd && anchor == nil }
-      contextID = parent.source.contextID
       let nextPositions = result.positions ?? Dictionary(uniqueKeysWithValues: next.enumerated().map { ($0.element, $0.offset) })
+      if liveUpdates, !changedContext, !pinnedToNewest, let previous = appliedLiveSource,
+        let retainedID = anchor, nextPositions[retainedID] == nil || previous.date(retainedID) != parent.source.date(retainedID) {
+        // A status change can move the anchor record to the newest end. Keep
+        // another visible row in place instead of following that record.
+        anchor = nil
+        if let span = visibleRange(),
+          let index = (span.first...span.last).first(where: {
+            let id = ids[$0]
+            return nextPositions[id] != nil && previous.date(id) == parent.source.date(id)
+          }) {
+          anchor = ids[index]
+          inset = scroll.contentView.bounds.minY - layout.frame(at: index).minY
+        }
+      }
+      appliedLiveSource = liveUpdates ? parent.source : nil
+      contextID = parent.source.contextID
       var animates = false
-      if parent.active, !first, !changedContext, !expandingOpening, !reducedMotion, abs(ids.count - next.count) <= 64 {
+      if !liveUpdates, parent.active, !first, !changedContext, !expandingOpening, !reducedMotion, abs(ids.count - next.count) <= 64 {
         let removals = ids.lazy.filter { nextPositions[$0] == nil }.prefix(65).count
         let insertions = next.lazy.filter { self.positions[$0] == nil }.prefix(65 - min(removals, 65)).count
         animates = (1...64).contains(removals + insertions)
@@ -549,7 +582,9 @@ struct MacMediaGrid: NSViewRepresentable {
         if self.pinnedToNewest { target.y = maximum }
         else if let index = self.displayIndex(of: anchor) { target.y = layout.frame(at: index).minY + inset }
         target.y = min(maximum, max(0, target.y))
-        scroll.contentView.scroll(to: target); scroll.reflectScrolledClipView(scroll.contentView)
+        if !liveUpdates || changedContext || (scroll as? LibraryScrollView)?.userScrollRevision == scrollRevision {
+          scroll.contentView.scroll(to: target); scroll.reflectScrolledClipView(scroll.contentView)
+        }
         self.restoring = false; self.applyingSelection = false
         self.applyPendingFocus(); self.scrolled()
         self.revealMembership()
@@ -607,7 +642,9 @@ struct MacMediaGrid: NSViewRepresentable {
       }
     }
     private func scrolledFromInput() {
-      if let scroll = collection?.enclosingScrollView {
+      if let scroll = collection?.enclosingScrollView,
+        !parent.source.preservesViewportDuringLiveUpdates
+          || abs(scroll.contentView.bounds.minY - parent.source.scroll.offset.y) > 0.5 {
         pinnedToNewest = scroll.contentView.bounds.maxY >= settledContentHeight - 2
       }
       // AppKit may apply a wheel after scrollWheel returns. Populate its actual
@@ -643,7 +680,8 @@ struct MacMediaGrid: NSViewRepresentable {
         contextID == nil || measuredHeaderWidth != width() {
         applyItems(scroll: scroll, layout: layout)
       }
-      guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView else { return }
+      guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView,
+        (scroll as? LibraryScrollView)?.isUserScrolling != true else { return }
       let clip = scroll.contentView, height = settledContentHeight
       guard clip.bounds.maxY < height - 2 else { return }
       ensureDocumentHeight()
@@ -761,6 +799,8 @@ struct MacMediaGrid: NSViewRepresentable {
       return label
     }()
     private var footerKey = ""
+    private var liveFooterText: String?
+    private var liveFooterNotes: [String] = []
     // Items are presented oldest first (newest at the bottom, as in Photos). The
     // library model indexes newest first, so every display index is mirrored
     // against the number of items the collection currently holds.
@@ -818,11 +858,16 @@ struct MacMediaGrid: NSViewRepresentable {
     func updateFooter() {
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout else { return }
       if parent.embeddedPreview { layout.footerHeight = 0; footer.isHidden = true; return }
-      let key = "\(ObjectIdentifier(parent.source))|\(parent.source.contextID)|\(parent.source.contentRevision)|\(count)"
+      let liveUpdates = parent.source.preservesViewportDuringLiveUpdates
+      let key = liveUpdates ? "" : "\(ObjectIdentifier(parent.source))|\(parent.source.contextID)|\(parent.source.contentRevision)|\(count)"
       let width = max(1, collection.bounds.width)
-      if key != footerKey || abs(footerWidth - width) > 0.5 {
+      let total = liveUpdates ? parent.source.footer : nil
+      let notes = liveUpdates ? parent.source.footerNotes : []
+      let contentChanged = liveUpdates ? total != liveFooterText || notes != liveFooterNotes : key != footerKey
+      if contentChanged || abs(footerWidth - width) > 0.5 {
         footerKey = key; footerWidth = width
-        let text = MacGridFooter.attributed(total: parent.source.footer, notes: parent.source.footerNotes)
+        liveFooterText = total; liveFooterNotes = notes
+        let text = MacGridFooter.attributed(total: total ?? parent.source.footer, notes: liveUpdates ? notes : parent.source.footerNotes)
         footer.attributedStringValue = text
         footerTextHeight = MacGridFooter.textHeight(text, width: width)
         footerHeight = MacGridFooter.height(text, width: width)
@@ -836,8 +881,9 @@ struct MacMediaGrid: NSViewRepresentable {
       if zoomStage?.ownsFooter(footer) == true { return }
       if footer.superview !== collection { collection.addSubview(footer) }
       let height = layout.collectionViewContentSize.height
-      footer.frame = CGRect(x: 0, y: max(0, height - footerHeight + MacGridFooter.topInset),
+      let frame = CGRect(x: 0, y: max(0, height - footerHeight + MacGridFooter.topInset),
         width: width, height: footerTextHeight)
+      if footer.frame != frame { footer.frame = frame }
     }
     /// Item size whose column count is exactly `columns`.
     private func itemSize(forColumns columns: Int) -> CGFloat {
@@ -1957,6 +2003,7 @@ private final class MacMarqueeView: NSView {
   private let selectionMark = MacBadgeLayer()
   private var selectionVisible = true
   private var statusState: String?
+  private var configuredFolderPhoto: FolderPhoto?
   private let burstCount = MacTextBadgeLayer(weight: .medium, fill: DuckMedia.scrimBurstNSColor, radius: 4)
   private let duration = MacTextBadgeLayer(weight: .semibold, fill: DuckMedia.scrimDurationNSColor, radius: 5)
   private var zoomReadingRect: CGRect?
@@ -2118,6 +2165,7 @@ private final class MacMarqueeView: NSView {
   /// Folder browsing reuses the library cell, V5 marks, selection and cancellation.
   func configureFolder(_ photo: FolderPhoto, source: FolderSource, pixels: CGFloat, synthetic: NSImage? = nil) {
     let key = "folder|\(photo.id)|\(photo.revision)|\(pixels)"
+    guard imageKey != key || configuredFolderPhoto != photo else { return }
     if imageKey != key {
       let sameFile = presentationID == photo.id && imageKey.hasPrefix("folder|\(photo.id)|\(photo.revision)|")
       cancel(); imageKey = key; assetID = photo.source_id; presentationID = photo.id
@@ -2134,6 +2182,7 @@ private final class MacMarqueeView: NSView {
         }
       }
     }
+    configuredFolderPhoto = photo
     setSelectionVisible(true)
     setState(photo.backup == "sending" ? "sending" : photo.backup == "saving" ? "saving" : photo.backup == "needs_you" ? "needs_you" : nil)
     let statusKey = photo.backup == "saved" ? "folders_photo_saved" : photo.backup == "saving" ? "folders_photo_saving" : photo.backup == "sending" ? "folders_photo_sending" : photo.backup == "needs_you" ? "folders_photo_needs_you" : "folders_photo_not_backed_up"
@@ -2257,6 +2306,7 @@ private final class MacMarqueeView: NSView {
     tipsShown = !tips.isEmpty
   }
   func setSelectionVisible(_ value: Bool) {
+    guard selectionVisible != value else { return }
     selectionVisible = value
     view.layer?.borderWidth = 0
     status.isHidden = (value && isSelected) || statusState == nil || status.symbol == nil
@@ -2290,6 +2340,7 @@ private final class MacMarqueeView: NSView {
     cancelImageRequest = nil
     token = UUID()
     imageKey = ""
+    configuredFolderPhoto = nil
   }
   override func prepareForReuse() {
     super.prepareForReuse()
@@ -2368,6 +2419,11 @@ private final class MacMarqueeView: NSView {
   var willScroll: (() -> Void)?
   var didScroll: (() -> Void)?
   private var scrollInputOwnsViewport = false
+  var userScrollEnded: (() -> Void)?
+  private var scrollIdleTask: Task<Void, Never>?
+  private var lastScrollInput = TimeInterval.zero
+  private(set) var userScrollRevision = 0
+  var isUserScrolling: Bool { scrollIdleTask != nil }
   private var notifyingScroll = false
   var embeddedPreview = false
   func endScrollInput() { scrollInputOwnsViewport = false }
@@ -2375,8 +2431,28 @@ private final class MacMarqueeView: NSView {
     if embeddedPreview { nextResponder?.scrollWheel(with: event) }
     else {
       let moves = event.scrollingDeltaX != 0 || event.scrollingDeltaY != 0
-      if moves { willScroll?(); scrollInputOwnsViewport = true }
+      if moves {
+        willScroll?(); scrollInputOwnsViewport = true
+        if userScrollEnded != nil { noteUserScroll() }
+      }
       super.scrollWheel(with: event)
+    }
+  }
+  private func noteUserScroll() {
+    userScrollRevision &+= 1
+    lastScrollInput = ProcessInfo.processInfo.systemUptime
+    guard scrollIdleTask == nil else { return }
+    scrollIdleTask = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .milliseconds(150))
+        guard let self, !Task.isCancelled else { return }
+        if ProcessInfo.processInfo.systemUptime - self.lastScrollInput >= 0.15 {
+          self.scrollIdleTask = nil
+          self.scrollInputOwnsViewport = false
+          self.userScrollEnded?()
+          return
+        }
+      }
     }
   }
   override func reflectScrolledClipView(_ clipView: NSClipView) {

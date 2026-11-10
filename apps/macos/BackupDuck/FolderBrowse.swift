@@ -135,6 +135,7 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
   @Published var search = "" { didSet { contextChanged() } }
   @Published var selection = Set<String>()
   @Published private(set) var result: FolderFetchResult?
+  private(set) var resultRevision = 0
   var visiblePhotos: [FolderPhoto] { result?.rows ?? [] }
   var identifiers: [String] { result?.grid.identifiers ?? [] }
   var photosByID: [String: FolderPhoto] { result?.byID ?? [:] }
@@ -239,8 +240,15 @@ enum FolderBrowseScope: Hashable { case all, folder(String) }
     do {
       let fetched = try await folders.fetch(source, search: requestedSearch, filter: requestedFilter, type: requestedType)
       guard current == generation, !Task.isCancelled else { return }
-      result = fetched; resultKey = requestedKey; error = nil
-      retainResult(for: requestedKey)
+      let previous = result?.rows
+      let unchanged = await Task.detached(priority: .userInitiated) { previous == fetched.rows }.value
+      guard current == generation, !Task.isCancelled else { return }
+      if !unchanged || resultKey != requestedKey {
+        resultRevision &+= 1
+        result = fetched; resultKey = requestedKey
+        retainResult(for: requestedKey)
+      }
+      if error != nil { error = nil }
     } catch { if current == generation, !Task.isCancelled { self.error = error.localizedDescription } }
   }
 }

@@ -126,6 +126,7 @@ struct MacGridFetchResult: Sendable {
   var selection: Set<String> { get set }
   var scroll: MacGridScrollState { get }
   var startsAtEnd: Bool { get }
+  var preservesViewportDuringLiveUpdates: Bool { get }
   var zoomStops: [Int] { get }
   var footer: String { get }
   var footerNotes: [String] { get }
@@ -154,6 +155,7 @@ extension MacGridSource {
   func introduction(at index: Int) -> AnyView? { nil }
   func headerHeights(width: CGFloat) -> [Int: CGFloat] { [:] }
   var startsAtEnd: Bool { false }
+  var preservesViewportDuringLiveUpdates: Bool { false }
   var zoomStops: [Int] { MacLibraryDensity.grid }
   var footer: String { "" }
   var footerNotes: [String] { [] }

@@ -998,6 +998,52 @@ import XCTest
     }
   }
 
+  func testLiveMembershipWaitsForNativeScrollingAndPreservesTheReadingRow() async throws {
+    let source = GestureGridSource()
+    source.grouped = false
+    source.preservesViewportDuringLiveUpdates = true
+    source.identifiers = (0..<200).map { "record-\($0)" }
+    let grid = MacMediaGrid(source: source, navigation: MacLibraryNavigation(), queueRevision: 0,
+      receiverID: nil, columns: 4)
+    let coordinator = MacMediaGrid.Coordinator(grid)
+    let scroll = LibraryScrollView(frame: CGRect(x: 0, y: 0, width: width, height: 420))
+    let collection = LibraryCollectionView(frame: scroll.bounds)
+    let layout = LibraryTimelineLayout(mode: .all, target: 198)
+    layout.requestedColumns = 4
+    collection.collectionViewLayout = layout; scroll.documentView = collection
+    collection.register(PhotoCell.self, forItemWithIdentifier: .init("photo"))
+    mountMacGridCollection(collection, coordinator: coordinator)
+    coordinator.installDataSource(collection)
+    let window = hostNativeGrid(scroll)
+    defer { window.orderOut(nil); window.close() }
+    coordinator.applyItems(scroll: scroll, layout: layout)
+    try await Task.sleep(for: .milliseconds(50))
+    coordinator.pinnedToNewest = true
+    let bottom = coordinator.settledContentHeight - scroll.contentSize.height
+    scroll.contentView.scroll(to: CGPoint(x: 0, y: bottom))
+    scroll.reflectScrolledClipView(scroll.contentView)
+    coordinator.rememberScroll()
+
+    let wheel = try XCTUnwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1,
+      wheel1: 290, wheel2: 0, wheel3: 0))
+    scroll.scrollWheel(with: try XCTUnwrap(NSEvent(cgEvent: wheel)))
+    source.identifiers.append(contentsOf: (200..<208).map { "record-\($0)" })
+    coordinator.applyItems(scroll: scroll, layout: layout)
+    XCTAssertTrue(scroll.isUserScrolling)
+    XCTAssertEqual(coordinator.ids.count, 200)
+    for _ in 0..<80 where scroll.isUserScrolling || coordinator.ids.count != 208 {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    let readingOffset = scroll.contentView.bounds.minY
+    XCTAssertEqual(readingOffset, bottom - 290, accuracy: 1)
+    XCTAssertFalse(coordinator.pinnedToNewest)
+    XCTAssertEqual(coordinator.ids.count, 208)
+    source.identifiers.append("record-208")
+    coordinator.applyItems(scroll: scroll, layout: layout)
+    try await Task.sleep(for: .milliseconds(50))
+    XCTAssertEqual(scroll.contentView.bounds.minY, readingOffset, accuracy: 1)
+  }
+
   func testNativeFooterSurvivesZoomRetargetAdoptionAndForcedCleanup() async {
     let source = GestureGridSource(); source.grouped = false
     source.footer = "72 photos, 18 videos"
@@ -1203,6 +1249,7 @@ import XCTest
   var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   var contextID = "gesture-test"
   var contentRevision = "1"
+  var preservesViewportDuringLiveUpdates = false
   var selection = Set<String>()
   var introduction: AnyView?
   var grouped = true

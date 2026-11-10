@@ -258,10 +258,13 @@ Mac Backup History remains a cross-source page backed by the existing paged
 parent browser is a separate aggregate of added folder media only. Needs You cause groups precede the continuous
 latest-change timeline; an item appears once. Cause headings stay in the
 document flow without date-capsule styling or pinning. Stable task identities
-drive animated membership differences.
-Marks and progress observations reconfigure the visible native cell in place,
-without a grid or section reload. Refreshes retain loaded page depth and the
-visible date anchor. Photo-library thumbnails use the existing media pipeline;
+drive membership differences.
+Marks and progress observations reconfigure the visible native cell in place.
+Keep the published footer visible while refreshing. Defer background membership
+changes during scrolling, including momentum. Follow new rows only while the
+viewport rests at the newest edge. Away from that edge, retain a visible row
+even when the record previously used as the anchor changes position. Refreshes
+retain loaded page depth. Photo-library thumbnails use the existing media pipeline;
 folder thumbnails and originals use the file pipeline and security-scoped access.
 Previous/next retains the current mixed-source collection and the shared backup
 information inspector, including recorded information for unavailable originals.

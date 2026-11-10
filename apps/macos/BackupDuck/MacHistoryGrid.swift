@@ -24,8 +24,10 @@ extension LibraryFilter {
     let library = photos.filter { $0.job?.asset.metadata?["source_type"] != "folder" }
     var found = merging ? assets : [:]
     if BackupEnvironment.usesPhotoLibrary {
-      let fetch = PHAsset.fetchAssets(withLocalIdentifiers: library.map(\.source), options: nil)
-      fetch.enumerateObjects { asset, _, _ in found[asset.localIdentifier] = asset }
+      if !library.isEmpty {
+        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: library.map(\.source), options: nil)
+        fetch.enumerateObjects { asset, _, _ in found[asset.localIdentifier] = asset }
+      }
     } else {
       for photo in library { if let asset = photo.job.flatMap({ BackupEnvironment.sampleAsset?($0) }) { found[photo.source] = asset } }
     }
@@ -38,6 +40,7 @@ extension LibraryFilter {
       if let file = await FolderSources.active.historyPhoto(photo) { resolved[photo.id] = file; keys[photo.id] = key }
     }
     guard !Task.isCancelled else { return }
+    guard assets != found || files != resolved || fileKeys != keys else { return }
     assets = found; files = resolved; fileKeys = keys; imageRevision &+= 1
   }
 }
@@ -125,6 +128,7 @@ struct MacHistoryGrid: View {
   private var measured: (width: CGFloat, heights: [Int: CGFloat])?
   let contextID: String
   let startsAtEnd: Bool
+  var preservesViewportDuringLiveUpdates: Bool { true }
   private let olderPageBoundary: ArraySlice<String>
   private let locallyFiltered: Bool
   private let receiverName: String?
@@ -184,19 +188,16 @@ struct MacHistoryGrid: View {
     measured = (width, heights)
     return heights
   }
-  var contentRevision: String { "\(state.imageRevision)" }
+  var contentRevision: String { "\(state.imageRevision)|\(history.observationRevision)" }
   var selection: Set<String> { get { state.selection } set { state.selection = newValue } }
   var scroll: MacGridScrollState {
     if let value = state.scrolls[contextID] { return value }
     let value = MacGridScrollState(); state.scrolls[contextID] = value; return value
   }
-  var footer: String {
-    guard !history.failed, !history.loading else { return "" }
-    if !history.hasMore {
-      return MacGridTotals.complete(kinds: identifiers.map { photos[$0]?.job?.asset.kind }).text()
-    }
+  private(set) lazy var footer: String = {
+    if !history.hasMore { return fetchResult.totals?.text() ?? "" }
     return locallyFiltered ? "" : MacGridTotals(total: history.total).text()
-  }
+  }()
   var footerNotes: [String] {
     receiverName.map { [String(format: NSLocalizedString("grid_footer_receiver", comment: ""), $0)] } ?? []
   }

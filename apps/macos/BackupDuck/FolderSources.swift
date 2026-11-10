@@ -729,13 +729,10 @@ struct FolderDeliveryProgress: Decodable, Equatable {
     }
     return try JSONDecoder().decode(FolderEntry?.self, from: await call(["action": "preview_entry", "source": id, "job": job, "source_id": sourceID]))
   }
-  func refreshFacts(preferred: String? = nil) async {
+  func refreshFacts(source: String? = nil) async {
     guard !isPreview, backup.ready else { return }
     let receiver = backup.pairing?.receiverID ?? ""
-    var ids = sources.map(\.id)
-    if let preferred, let i = ids.firstIndex(of: preferred) {
-      ids.remove(at: i); ids.insert(preferred, at: 0)
-    }
+    let ids = source.map { [$0] } ?? sources.map(\.id)
     for id in ids {
       guard !Task.isCancelled, (backup.pairing?.receiverID ?? "") == receiver else { return }
       do {

@@ -821,7 +821,9 @@ enum MacWindowSnapshot {
       "publication_failed": 0, "waiting": 0, "failed": 0, "queued": 0, "running": 3, "paused": 0,
       "confirmed_bytes": 0, "active": 3, "attention": 0]
     core.setValue(jobs, for: "jobs")
+    core.setValue(tick, for: "sender_revision")
     core.setValue(summary, for: "sender_summary")
+    core.setValue(summary, for: "backup_summary")
     let items: [[String: Any]] = jobs.map { ["id": "job-\($0["id"]!)", "cursor": $0["id"]!,
       "sort_value": $0["sort_value"]!, "job": $0] }
     core.setValue(["items": items, "summary": summary], for: "backup_tasks")

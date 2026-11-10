@@ -35,6 +35,7 @@ struct MacFolderGrid: View {
   let contextID: String
   let membershipReady: Bool
   var startsAtEnd: Bool { true }
+  var preservesViewportDuringLiveUpdates: Bool { true }
   let groups: [Int: String]
   let flowHeaders: Set<Int>
   private let notice: AnyView?
@@ -68,7 +69,10 @@ struct MacFolderGrid: View {
     measured = (width, heights)
     return heights
   }
-  var contentRevision: String { "\(folders.indexRevision)|\(folders.revision)" }
+  var contentRevision: String {
+    let unavailable = sources.keys.filter { folders.facts[$0]?.available == false }.sorted()
+    return "\(browser.resultRevision)|\(unavailable.joined(separator: ","))"
+  }
   var footer: String { totals?.text() ?? "" }
   var totals: MacGridTotals? {
     guard membershipReady, !browser.loading, browser.error == nil else { return nil }

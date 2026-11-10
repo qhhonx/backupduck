@@ -60,7 +60,9 @@ that subtitle with one selected-item count.
 
 Both grids run from oldest to newest by the recorded photo date. A new
 view opens at the newest edge, at the bottom. Older photos are above it.
-A returning view restores its own visible-photo anchor.
+A returning view restores its own visible-photo anchor. Coalesce backup
+updates and keep thumbnail prefill independent of queue progress. During
+scrolling, including momentum, hold the current grid order until input settles.
 
 Collection totals appear once below the final photo row, using the current
 inventory or complete results. A known aggregate without a trustworthy

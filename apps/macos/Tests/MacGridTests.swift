@@ -1162,6 +1162,14 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     let firstPage = MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "")
     XCTAssertTrue(firstPage.startsAtEnd)
     XCTAssertEqual(firstPage.identifiers.last, "job-0")
+    core.pageDelay = true
+    let refresh = Task { await model.reload(receiver: "test-receiver") }
+    while !model.loading { await Task.yield() }
+    let reloading = MacHistoryGridSource(history: model, state: state, filter: "all", type: .all, search: "")
+    XCTAssertFalse(reloading.footer.isEmpty, "A refresh must keep the published collection total")
+    XCTAssertEqual(reloading.footer, firstPage.footer)
+    await refresh.value
+    core.pageDelay = false
     let grid = MacMediaGrid(source: firstPage, navigation: state.navigation, queueRevision: 0,
       receiverID: nil, columns: 4)
     let coordinator = MacMediaGrid.Coordinator(grid)
@@ -1635,7 +1643,9 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 
 final class GridHistoryCore: CoreTransport, @unchecked Sendable {
   var reordered = false
+  var pageDelay = false
   func call(_ command: String) async throws -> Data {
+    if pageDelay { try await Task.sleep(for: .milliseconds(60)) }
     let query = try JSONSerialization.jsonObject(with: Data(command.utf8)) as! [String: Any]
     var ordered = Array(0..<220)
     if reordered { ordered.insert(ordered.removeLast(), at: 0) }

@@ -37,7 +37,6 @@ struct FolderSourcesPage: View {
   }
   @State private var adding: URL?
   @State private var stopping: FolderSource?
-  @State private var refreshedFactsKey: String?
   @StateObject private var navigation = MacLibraryNavigation()
   // The page is split into stages so each modifier chain type-checks on its own.
   var body: some View {
@@ -78,16 +77,25 @@ struct FolderSourcesPage: View {
     .task(id: reloadKey) {
       guard active else { return }
       if !browser.search.isEmpty { try? await Task.sleep(for: .milliseconds(200)); if Task.isCancelled { return } }
-      let factsKey = self.factsKey
       await browser.reload(folders)
       guard !Task.isCancelled else { return }
-      if refreshedFactsKey != factsKey {
-        let preferred: String?
-        if case .folder(let id) = browser.scope { preferred = id } else { preferred = nil }
-        await folders.refreshFacts(preferred: preferred)
-        if !Task.isCancelled, folders.error == nil { refreshedFactsKey = factsKey }
-      }
       await browser.prefillOverview(folders)
+    }
+    .task(id: factsKey) {
+      guard active else { return }
+      await folders.refreshFacts(source: scopedFolderID)
+    }
+    .task(id: reloadKey) {
+      guard active, !folders.isPreview else { return }
+      var observed = liveRevision
+      while !Task.isCancelled {
+        do { try await Task.sleep(for: .seconds(1)) } catch { return }
+        let revision = liveRevision
+        guard revision != observed, browser.resultKey == browser.key else { continue }
+        observed = revision
+        await browser.reload(folders)
+        if !Task.isCancelled, let source = scopedFolderID { await folders.refreshFacts(source: source) }
+      }
     }
     .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
       if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup, added: { id in browser.scope = .folder(id) }) { self.adding = nil } }
@@ -171,15 +179,16 @@ struct FolderSourcesPage: View {
   private var backupFailed: Binding<Bool> {
     Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })
   }
-  /// Reloads the grid when the sources, filters, index, queue or receiver change.
-  private var reloadKey: String {
-    "\(active)|\(browser.key)|\(folders.indexRevision)|\(factsKey)"
+  private var scopedFolderID: String? {
+    if case .folder(let id) = browser.scope { return id }
+    return nil
   }
   private var factsKey: String {
     let sources = folders.sources.map(\.id).joined(separator: ",")
-    let receiver = backup.pairing?.receiverID ?? ""
-    return [sources, "\(backup.queueRevision)", "\(folders.revision)", receiver].joined(separator: "|")
+    return "\(active)|\(scopedFolderID ?? "")|\(folders.indexRevision)|\(sources)|\(backup.pairing?.receiverID ?? "")"
   }
+  private var reloadKey: String { "\(factsKey)|\(browser.key)" }
+  private var liveRevision: String { "\(backup.queueRevision)|\(folders.revision)" }
   private var subtitle: String {
     browser.selection.isEmpty ? "" : String(format: NSLocalizedString("grid_selected_count", comment: ""), browser.selection.count)
   }
