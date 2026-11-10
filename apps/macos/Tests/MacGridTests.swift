@@ -1236,6 +1236,24 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     XCTAssertNil(video.scroll.anchor, "Each browse view owns its anchor")
   }
 
+  func testFreshCellShowsOnlyTheSavingGlyphBeforeSelectionChanges() throws {
+    let cell = PhotoCell()
+    cell.view.frame = CGRect(x: 0, y: 0, width: 140, height: 140)
+    cell.setState("saving")
+    cell.setSelectionVisible(true)
+    cell.viewDidLayout()
+
+    let visibleBadges = cell.zoomReadingLayers.compactMap { $0 as? MacBadgeLayer }.filter { !$0.isHidden }
+    XCTAssertEqual(visibleBadges.count, 1)
+    let badge = try XCTUnwrap(visibleBadges.first)
+    XCTAssertEqual(badge.symbol, "clock")
+    XCTAssertNil(badge.backgroundColor)
+    cell.isSelected = true
+    XCTAssertTrue(badge.isHidden)
+    cell.isSelected = false
+    XCTAssertFalse(badge.isHidden)
+  }
+
   func testFolderResizeRetainsDisplayedPixelsUntilReplacementArrives() {
     let cell = PhotoCell()
     let folder = FolderSource(id: "folder", name: "Synthetic", bookmark: Data(), automatic: false,

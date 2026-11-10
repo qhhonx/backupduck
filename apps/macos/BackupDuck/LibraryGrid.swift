@@ -2000,7 +2000,6 @@ private final class MacMarqueeView: NSView {
   private let media = MacBadgeLayer()
   private let status = MacBadgeLayer()
   private let cloud = MacBadgeLayer()
-  private let selectionMark = MacBadgeLayer()
   private var selectionVisible = true
   private var statusState: String?
   private var configuredFolderPhoto: FolderPhoto?
@@ -2009,7 +2008,7 @@ private final class MacMarqueeView: NSView {
   private var zoomReadingRect: CGRect?
   private weak var zoomReadingHost: NSView?
   var zoomReadingFrame: CGRect?
-  var zoomReadingLayers: [CALayer] { [media, burstCount, duration, cloud, status, selectionMark] }
+  var zoomReadingLayers: [CALayer] { [media, burstCount, duration, cloud, status] }
   func setZoomReadingHost(_ host: NSView?) {
     guard zoomReadingHost !== host else { return }
     CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -2035,7 +2034,6 @@ private final class MacMarqueeView: NSView {
       .init(layer: duration, frame: CGRect(x: f.maxX - durationWidth - 7, y: f.minY + 7, width: durationWidth, height: 18), glyphWidth: duration.textWidth, trailing: true),
       .init(layer: cloud, frame: CGRect(x: f.minX + 8, y: f.minY + 8, width: 24, height: 24)),
       .init(layer: status, frame: CGRect(x: f.maxX - 32, y: f.minY + 8, width: 24, height: 24)),
-      .init(layer: selectionMark, frame: CGRect(x: f.maxX - 30, y: f.minY + 6, width: 24, height: 24)),
     ], photo: f, tile: frame, visible: visible)
   }
   /// Hover help for the visible status and burst badges, as tooltip rectangles
@@ -2058,14 +2056,9 @@ private final class MacMarqueeView: NSView {
     view.layer?.addSublayer(photoLayer)
     view.layer?.addSublayer(selectionOutline)
     selectionOutline.borderColor = NSColor.controlAccentColor.cgColor
-    for badge in [media, status, cloud, selectionMark] {
-      badge.backgroundColor = DuckMedia.scrimMarkCGColor
-      badge.cornerRadius = 12
-      view.layer?.addSublayer(badge)
-    }
     // design/library.md § Tile marks: white glyphs with a soft shadow, no circles.
     for badge in [media, status, cloud] {
-      badge.backgroundColor = nil
+      view.layer?.addSublayer(badge)
       badge.shadowColor = DuckMedia.shadowCGColor
       badge.shadowOpacity = 0.45
       badge.shadowRadius = 2
@@ -2090,7 +2083,7 @@ private final class MacMarqueeView: NSView {
     // Badges sit on the photo, not the cell, so original aspect keeps them on it.
     CATransaction.begin(); CATransaction.setDisableActions(true)
     let scale = view.window?.backingScaleFactor ?? 2
-    for badge in [media, status, cloud, selectionMark] { badge.scale = scale }
+    for badge in [media, status, cloud] { badge.scale = scale }
     burstCount.scale = scale; duration.scale = scale
     let frame = zoomReadingFrame ?? view.frame
     let poses = zoomReadingPoses(in: frame, visible: zoomReadingRect)
@@ -2317,7 +2310,6 @@ private final class MacMarqueeView: NSView {
   /// mark and no dimming. Rebuilding layer state on every SwiftUI update pass
   /// was a measurable hot spot, so only changes are applied.
   private func updateSelectionMark() {
-    selectionMark.isHidden = true
     let outlined = selectionVisible && isSelected
     guard markedSelected != outlined else { return }
     markedSelected = outlined
