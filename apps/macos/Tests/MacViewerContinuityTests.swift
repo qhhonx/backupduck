@@ -299,7 +299,8 @@ import XCTest
     let displayed = await displayedGridIDs(source)
     XCTAssertGreaterThan(displayed.count, 4)
     let context = displayed.compactMap { source.photos[$0] }
-    XCTAssertEqual(context.prefix(4).map(\.id), ["job-1", "job-11", "job-13", "job-15"])
+    XCTAssertEqual(context.prefix(4).map(\.id), ["job-199", "job-197", "job-195", "job-193"],
+      "The filtered history displays older records above the newest ones")
     let library = PhotoLibraryModel(); library.installSyntheticAssets(fixture)
     let navigation = MacLibraryNavigation()
     var selectedID: String?
@@ -322,13 +323,13 @@ import XCTest
     image.onSwipe?(-1)
     try await Task.sleep(for: .milliseconds(300))
     XCTAssertEqual(pager.selectedIndex, 2)
-    navigation.viewerBack?(); XCTAssertEqual(selectedID, displayed[2])
+    navigation.viewerBack?(); XCTAssertEqual(selectedID, displayed[2],
+      "An unavailable file keeps its place after PhotoKit entries in the same grid directory")
     let delegate = try XCTUnwrap(pager.delegate as? MacCollectionPager.Coordinator)
     pager.selectedIndex = 3
     delegate.pageController(pager, didTransitionTo: 3); delegate.pageControllerDidEndLiveTransition(pager)
     try await Task.sleep(for: .milliseconds(80))
-    navigation.viewerBack?(); XCTAssertEqual(selectedID, displayed[3],
-      "An unavailable file keeps its place after PhotoKit entries in the same grid directory")
+    navigation.viewerBack?(); XCTAssertEqual(selectedID, displayed[3])
   }
 
   func testNativePagerDoesNotResetToThreeSlotsBetweenContinuousSwipes() throws {
@@ -616,6 +617,14 @@ import XCTest
     XCTAssertFalse(navigation.informationPresented)
   }
 
+  private func waitForInfoTarget(_ identity: String, in info: MacViewerInfoPanel,
+    file: StaticString = #filePath, line: UInt = #line) async throws {
+    for _ in 0..<40 where info.store.target.identity != identity {
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertEqual(info.store.target.identity, identity, file: file, line: line)
+  }
+
   func testSettingsAlbumGridInfoFollowsSelectedAssetWithoutOpeningDetail() async throws {
     let previousLibrary = BackupEnvironment.usesPhotoLibrary
     let previousModel = BackupEnvironment.activeModel
@@ -667,23 +676,19 @@ import XCTest
     XCTAssertEqual(info.store.target.identity, MacPhotoInformationTarget.library(fetch.object(at: 0), albumLibrary, nil).identity)
     let controller = info.panel.contentViewController, frame = info.panel.frame
     albumLibrary.selection = [fetch.object(at: 1).localIdentifier]
-    try await Task.sleep(for: .milliseconds(300))
-    XCTAssertEqual(info.store.target.identity, MacPhotoInformationTarget.library(fetch.object(at: 1), albumLibrary, nil).identity)
+    try await waitForInfoTarget(MacPhotoInformationTarget.library(fetch.object(at: 1), albumLibrary, nil).identity, in: info)
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.panel.frame, frame)
     XCTAssertTrue(info.panel.contentViewController === controller)
     albumLibrary.selection = []
-    try await Task.sleep(for: .milliseconds(300))
-    XCTAssertEqual(info.store.target.identity, "selection:0")
+    try await waitForInfoTarget("selection:0", in: info)
     XCTAssertTrue(info.panel.isVisible, "Clearing selection keeps Info open for the selection instruction")
     XCTAssertTrue(info.panel.contentViewController === controller)
     XCTAssertEqual(info.panel.frame, frame)
     albumLibrary.selection = [fetch.object(at: 2).localIdentifier]
-    try await Task.sleep(for: .milliseconds(300))
-    XCTAssertEqual(info.store.target.identity, MacPhotoInformationTarget.library(fetch.object(at: 2), albumLibrary, nil).identity)
+    try await waitForInfoTarget(MacPhotoInformationTarget.library(fetch.object(at: 2), albumLibrary, nil).identity, in: info)
     XCTAssertTrue(info.panel.isVisible)
     albumLibrary.selection = [fetch.object(at: 1).localIdentifier, fetch.object(at: 2).localIdentifier]
-    try await Task.sleep(for: .milliseconds(300))
-    XCTAssertEqual(info.store.target.identity, "selection:2")
+    try await waitForInfoTarget("selection:2", in: info)
     info.panel.performClose(nil)
     XCTAssertFalse(navigation.informationPresented)
   }
@@ -737,24 +742,24 @@ import XCTest
     let frame = info.panel.frame
     let controller = info.panel.contentViewController
     let next = try XCTUnwrap(folders.browser.visiblePhotos.first { $0.id != photo.id })
+    let nextTarget = MacPhotoInformationTarget.folder(next, folders, nil).identity
     folders.browser.selection = [next.id]
-    try await Task.sleep(for: .milliseconds(400))
+    try await waitForInfoTarget(nextTarget, in: info)
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.panel.frame, frame)
     XCTAssertTrue(info.panel.contentViewController === controller)
     folders.browser.selection = []
-    try await Task.sleep(for: .milliseconds(300))
+    try await waitForInfoTarget("selection:0", in: info)
     XCTAssertTrue(info.panel.isVisible, "The folder Info panel stays open with selection guidance")
     XCTAssertTrue(info.panel.contentViewController === controller)
     XCTAssertEqual(info.panel.frame, frame)
     folders.browser.selection = [next.id]
-    try await Task.sleep(for: .milliseconds(300))
+    try await waitForInfoTarget(nextTarget, in: info)
     XCTAssertTrue(info.panel.isVisible)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowTransfers"), object: nil)
-    try await Task.sleep(for: .milliseconds(400))
+    try await waitForInfoTarget("selection:0", in: info)
     XCTAssertTrue(info.panel.isVisible)
-    XCTAssertEqual(info.store.target.identity, "selection:0")
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowFolders"), object: nil)
-    try await Task.sleep(for: .milliseconds(400))
+    try await waitForInfoTarget(nextTarget, in: info)
     XCTAssertTrue(info.panel.isVisible, "Returning updates the existing window to the grid selection")
     let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
       timestamp: 0, windowNumber: info.panel.windowNumber, context: nil, characters: "i",
@@ -850,11 +855,6 @@ import XCTest
     let expected = MacPhotoInformationTarget.folder(photo, folders, nil).identity
     XCTAssertEqual(info.store.target.identity, expected)
     let controller = info.panel.contentViewController, frame = info.panel.frame
-    func waitForTarget(_ identity: String) async throws {
-      for _ in 0..<40 where info.store.target.identity != identity {
-        try await Task.sleep(for: .milliseconds(50))
-      }
-    }
     func anchors(in view: NSView) -> [MacViewerInspectorAnchor] {
       (view as? MacViewerInspectorAnchor).map { [$0] } ?? view.subviews.flatMap { anchors(in: $0) }
     }
@@ -867,16 +867,16 @@ import XCTest
     for _ in 0..<40 where navigation.viewerBack != nil {
       try await Task.sleep(for: .milliseconds(50))
     }
-    try await waitForTarget(expected)
+    try await waitForInfoTarget(expected, in: info)
     XCTAssertNil(navigation.viewerBack)
     XCTAssertEqual(folders.browser.selection, [photo.id])
     XCTAssertTrue(info.panel.isVisible); XCTAssertTrue(info.panel.contentViewController === controller)
     XCTAssertEqual(info.panel.frame, frame); XCTAssertEqual(info.store.target.identity, expected)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowTransfers"), object: nil)
-    try await waitForTarget("selection:0")
+    try await waitForInfoTarget("selection:0", in: info)
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.store.target.identity, "selection:0")
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowFolders"), object: nil)
-    try await waitForTarget(expected)
+    try await waitForInfoTarget(expected, in: info)
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.store.target.identity, expected)
     info.panel.performClose(nil)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowTransfers"), object: nil)

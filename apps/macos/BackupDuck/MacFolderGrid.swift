@@ -22,7 +22,7 @@ struct MacFolderGrid: View {
         if let present { present(.folder(photo, context, folders, returnTo, navigation: navigation)) }
         else { MacFolderViewer.open(photo, context: context, folders: folders) }
       }, resize: resize)
-    .modifier(MacGridInspector(navigation: navigation, source: source, active: active))
+    .modifier(MacGridInspector(navigation: navigation, source: source, active: active, selection: browser.selection))
   }
 }
 

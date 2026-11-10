@@ -682,12 +682,15 @@ struct MacMediaGrid: NSViewRepresentable {
       }
       guard pinnedToNewest, zoomStage == nil, !restoring, let collection, let scroll = collection.enclosingScrollView,
         (scroll as? LibraryScrollView)?.isUserScrolling != true else { return }
-      let clip = scroll.contentView, height = settledContentHeight
-      guard clip.bounds.maxY < height - 2 else { return }
-      ensureDocumentHeight()
-      clip.scroll(to: CGPoint(x: 0, y: max(0, height - clip.bounds.height)))
+      let clip = scroll.contentView
+      var proposed = clip.bounds
+      proposed.origin = CGPoint(x: 0, y: max(0, settledContentHeight - proposed.height))
+      // AppKit owns the document frame here. Setting it in response to its
+      // own resize notification can trigger another resize and scroll.
+      let target = clip.constrainBoundsRect(proposed).origin
+      guard target.y > clip.bounds.minY + 2 else { return }
+      clip.scroll(to: target)
       scroll.reflectScrolledClipView(clip)
-      updateDense()
     }
     /// Window resizing changes geometry, not the person's zoom preference.
     /// Stop a running zoom before rebuilding its now-stale viewport geometry.
