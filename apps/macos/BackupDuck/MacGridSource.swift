@@ -330,7 +330,9 @@ struct MacGridTotals: Equatable {
     paragraph.alignment = .center; paragraph.lineBreakMode = .byWordWrapping
     paragraph.firstLineHeadIndent = DuckSpacing.large; paragraph.headIndent = DuckSpacing.large
     paragraph.tailIndent = -DuckSpacing.large
-    let text = ([total] + notes).joined(separator: "\n")
+    // An empty paragraph can take a different font metric on older AppKit.
+    let countLine = total.isEmpty && !notes.isEmpty ? "\u{00A0}" : total
+    let text = ([countLine] + notes).joined(separator: "\n")
     let result = NSMutableAttributedString(string: text, attributes: [
       .font: NSFont.preferredFont(forTextStyle: .caption1),
       .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph])
