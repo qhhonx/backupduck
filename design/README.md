@@ -40,7 +40,7 @@ behaves. Design process, decisions and history are not part of the public source
 
 | Platform | Implementation | Design catalog |
 | --- | --- | --- |
-| iPhone / iPad | `apps/ios/BackupDuck`, `apps/apple/Shared` | `apps/ios/Catalog`, scenarios in `apps/apple/Catalog` |
+| iPhone | `apps/ios/BackupDuck`, `apps/apple/Shared` | `apps/ios/Catalog`, scenarios in `apps/apple/Catalog` |
 | macOS | `apps/macos/BackupDuck`, `apps/apple/Shared` | `apps/macos/Catalog`, scenarios in `apps/apple/Catalog` |
 | Android receiver | `apps/android/app/src/main` | `apps/android/app/src/catalog` |
 | Receiver browser | `crates/native/src/dashboard` | — |

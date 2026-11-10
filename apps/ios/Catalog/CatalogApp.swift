@@ -23,7 +23,11 @@ import UserNotifications
     BackupEnvironment.onboardingSamples = { (0..<samples).map(CatalogLibraryAsset.init) }
     BackupEnvironment.albumSamples = { _ in CatalogLibraryFixture(count: 120).fetch(filter: .all, view: .all) }
     // The catalog never asks for photo access; scenarios behave as if it was granted.
-    BackupEnvironment.requestPhotoAccess = { true }
+    let photoDelay = min(10, max(0, UserDefaults.standard.double(forKey: "onboarding-photo-delay")))
+    BackupEnvironment.requestPhotoAccess = {
+      if photoDelay > 0 { try? await Task.sleep(for: .seconds(photoDelay)) }
+      return true
+    }
     BackupEnvironment.libraryCount = { 12_384 }
   }
 
@@ -252,7 +256,11 @@ private struct ScenarioRun: View {
   }
 
   var body: some View {
-    if scenario.step == "filterEmpty" {
+    if let route = UserDefaults.standard.string(forKey: "viewer-return-route") {
+      ViewerReturnCatalog(route: route, model: model).ignoresSafeArea()
+    } else if scenario.step == "membershipMotion" {
+      MembershipMotionCatalog().ignoresSafeArea()
+    } else if scenario.step == "filterEmpty" {
       IOSLibraryPage(library: library, model: model).task { await model.open() }
     } else if scenario.step == "rename" {
       IPhoneNameCatalog(model: model).task { await model.open() }
@@ -294,10 +302,8 @@ private struct ScenarioRun: View {
   }
 
   private var tabs: some View {
-    TabView(selection: $tab) {
-      ForEach(IOSAppTab.allCases) { item in
-        page(item).duckTabSurface().tabItem { item.label }.tag(item)
-      }
+    IOSNativeTabs(selection: Binding(get: { tab.rawValue }, set: { tab = IOSAppTab(rawValue: $0) ?? .library })) {
+      AnyView(page($0))
     }
     .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
     .background(DuckRole.background.ignoresSafeArea())
@@ -573,25 +579,26 @@ private struct ScenarioInfo: View {
 
 /// A real push into the production editor, so system Back and search restoration
 /// can be reviewed as part of the scenario rather than at a root-only endpoint.
-private struct IOSScopeCatalog: View {
+private struct IOSScopeCatalog: UIViewControllerRepresentable {
   let fixture: ScopeCatalogFixture
-  @State private var path: [BackupScopeDestination]
-  init(fixture: ScopeCatalogFixture) {
-    self.fixture = fixture
-    _path = State(initialValue: [fixture.destination])
+  private func page(_ destination: BackupScopeDestination) -> DuckSettingsPage {
+    DuckSettingsPage(title: Text(LocalizedStringKey(destination.title)), content: AnyView(
+      BackupScopeEditor(destination: destination, store: fixture.store, model: fixture.albums,
+        search: destination == .albums ? fixture.search : "")))
   }
-  var body: some View {
-    NavigationStack(path: $path) {
-      List {
-        NavigationLink("scope_media_types", value: BackupScopeDestination.types)
-        NavigationLink("scope_albums_title", value: BackupScopeDestination.albums)
-      }.navigationTitle("settings_auto_backup")
-        .navigationDestination(for: BackupScopeDestination.self) { destination in
-          BackupScopeEditor(destination: destination, store: fixture.store, model: fixture.albums,
-            search: destination == .albums ? fixture.search : "")
+  func makeUIViewController(context: Context) -> IOSNativeNavigationController {
+    let navigation = IOSNativeNavigationController()
+    navigation.hostingEnvironment = context.environment
+    navigation.installRoot(title: NSLocalizedString("settings_auto_backup", comment: ""), content: AnyView(List {
+      ForEach([BackupScopeDestination.types, .albums]) { destination in
+        DuckSettingsLink(title: page(destination).title) { page(destination).content } label: {
+          Text(LocalizedStringKey(destination.title))
         }
-    }
+      }
+    }), initialPage: page(fixture.destination))
+    return navigation
   }
+  func updateUIViewController(_ controller: IOSNativeNavigationController, context: Context) {}
 }
 
 /// The same durable state/root transition as production, with isolated defaults.
@@ -681,6 +688,390 @@ private struct SelectionReviewCatalog: UIViewControllerRepresentable {
   func updateUIViewController(_ controller: UINavigationController, context: Context) {}
 }
 
+/// A manual return fixture for shared navigation and separate presentation.
+private struct ViewerReturnCatalog: UIViewControllerRepresentable {
+  let route: String
+  let model: BackupModel
+  func makeUIViewController(context: Context) -> UIViewController {
+    let source = ViewerReturnSample()
+    if route == "modal" { return source }
+    if route == "history" {
+      let navigation = IOSHistoryNavigationController(model: model, sheet: true, close: {})
+      navigation.setViewControllers([source], animated: false)
+      return navigation
+    }
+    return CalendarNavigationController(rootViewController: source)
+  }
+  func updateUIViewController(_ controller: UIViewController, context: Context) {}
+}
+
+/// Real grid and viewer gestures with synthetic pixels on each native route.
+private final class ViewerReturnSample: UIViewController {
+  private let calendar = CalendarGridController()
+  private let library = PhotoLibraryModel()
+  private let photos = (0..<120).map(SelectionReviewAsset.init)
+  private var positioned = false
+  private weak var openedViewer: NativeMediaViewer?
+  private var diagnostics = UIButton(type: .system)
+  private var gestureEvents: [String] = []
+  private var drivenPan: ViewerReturnPan?
+  private var returnDemo: Task<Void, Never>?
+  private var showsDiagnostics: Bool { ProcessInfo.processInfo.arguments.contains("-viewer-return-diagnostics") }
+  override var navigationItem: UINavigationItem { calendar.navigationItem }
+  override var childForStatusBarStyle: UIViewController? { calendar }
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    addChild(calendar); view.addSubview(calendar.view); calendar.didMove(toParent: self)
+    calendar.columns = 3
+    calendar.requestImage = { [weak self] item, _, done in
+      done(self?.photos.first { $0.localIdentifier == item.id }?.previewImage, false)
+      return {}
+    }
+    calendar.requestUncroppedImage = calendar.requestImage
+    calendar.prefetchImage = { _, _, _ in {} }
+    calendar.onPreview = { [weak self] item, frame in
+      guard let self, let asset = self.photos.first(where: { $0.localIdentifier == item.id }) else { return }
+      let poster = asset.previewImage
+      let session = MediaPreviewSession(asset: asset, library: self.library, poster: poster, reviewAssets: self.photos)
+      let viewer = NativeMediaViewer(item: IOSPreviewItem(asset: asset, frame: frame, poster: poster), session: session, close: {})
+      self.openedViewer = viewer
+      if self.showsDiagnostics {
+        self.gestureEvents = []; self.drivenPan = nil
+        viewer.loadViewIfNeeded()
+        for pan in viewer.stage.gestureRecognizers?.compactMap({ $0 as? UIPanGestureRecognizer }) ?? [] {
+          pan.addTarget(self, action: #selector(self.observeViewerPan(_:)))
+        }
+        self.installViewerControls(viewer)
+      }
+      presentMediaViewer(viewer, from: self, poster: poster)
+    }
+    library.previewOwnsVacancy = true
+    library.previewVisibility = { [weak self] in self?.calendar.setPreviewHidden($0) }
+    library.previewFrame = { [weak self] id in
+      guard let self, let index = self.photos.firstIndex(where: { $0.localIdentifier == id }) else { return nil }
+      self.calendar.locateAsset(index)
+      return self.calendar.grid.convert(self.calendar.layout.frame(index), to: nil)
+    }
+    calendar.replaceAssets(photos.map {
+      CalendarGridAsset(id: $0.localIdentifier, date: $0.creationDate,
+        aspect: CGFloat($0.pixelWidth) / CGFloat(max(1, $0.pixelHeight)))
+    })
+  }
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews(); calendar.view.frame = view.bounds
+  }
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    guard !positioned else { return }
+    positioned = true; calendar.locateAsset(60)
+  }
+  private func installViewerControls(_ viewer: NativeMediaViewer) {
+    func button(_ title: String, _ identifier: String, _ action: @escaping () -> Void) -> UIButton {
+      let button = UIButton(type: .system)
+      button.configuration = .bordered()
+      button.setTitle(title, for: .normal)
+      button.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
+      button.accessibilityIdentifier = "catalog.viewer-return.\(identifier)"
+      button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+      return button
+    }
+    diagnostics = button("State", "state") { [weak self] in self?.readViewerState() }
+    let first = UIStackView(arrangedSubviews: [diagnostics,
+      button("Pull 25%", "pull25") { [weak self] in self?.drivePull(60) },
+      button("Pull 55%", "pull55") { [weak self] in self?.drivePull(132) },
+      button("Reverse", "reverse") { [weak self] in self?.drivePull(35, velocity: -200) }
+    ])
+    let second = UIStackView(arrangedSubviews: [
+      button("Cancel", "cancel") { [weak self] in self?.endDrivenPan(commit: false) },
+      button("Finish", "finish") { [weak self] in self?.endDrivenPan(commit: true) },
+      button("Chrome", "chrome") { [weak self, weak viewer] in viewer?.toggleChrome(); self?.readViewerState() }
+    ])
+    for row in [first, second] { row.axis = .horizontal; row.spacing = 4; row.distribution = .fillEqually }
+    let demo = button("Run Return Demo", "demo") { [weak self] in self?.runReturnDemo() }
+    let controls = UIStackView(arrangedSubviews: [first, second, demo])
+    controls.axis = .vertical; controls.spacing = 4
+    controls.translatesAutoresizingMaskIntoConstraints = false
+    viewer.view.addSubview(controls)
+    NSLayoutConstraint.activate([
+      controls.leadingAnchor.constraint(equalTo: viewer.view.leadingAnchor, constant: 16),
+      controls.trailingAnchor.constraint(equalTo: viewer.view.trailingAnchor, constant: -16),
+      controls.topAnchor.constraint(equalTo: viewer.view.topAnchor, constant: 140)
+    ])
+  }
+  private func drivePull(_ y: CGFloat, velocity: CGFloat = 200) {
+    guard let viewer = openedViewer, !viewer.openingTransition else { return }
+    if drivenPan == nil {
+      guard !viewer.closing else { return }
+      let pan = ViewerReturnPan(); drivenPan = pan
+      let photo = viewer.imageRect(); pan.origin = CGPoint(x: photo.midX, y: photo.midY)
+      pan.phase = .began; pan.speed = CGPoint(x: 0, y: velocity)
+      viewer.vertical(pan); recordDrivenPan(pan)
+      let change: () -> Void = { [weak self] in self?.changeDrivenPan(y, velocity: velocity) }
+      // One native transition-start callback separates the began and changed
+      // input events. UIKit supplies every animation frame; no clock drives it.
+      if viewer.transitionNavigation?.transitionCoordinator?.animate(alongsideTransition: { _ in
+        DispatchQueue.main.async(execute: change)
+      }, completion: nil) != true { DispatchQueue.main.async(execute: change) }
+    } else { changeDrivenPan(y, velocity: velocity) }
+  }
+  private func changeDrivenPan(_ y: CGFloat, velocity: CGFloat) {
+    guard let viewer = openedViewer, let pan = drivenPan else { return }
+    pan.phase = .changed; pan.delta = CGPoint(x: 8, y: y); pan.speed = CGPoint(x: 0, y: velocity)
+    viewer.vertical(pan); recordDrivenPan(pan)
+  }
+  private func endDrivenPan(commit: Bool) {
+    guard let viewer = openedViewer, let pan = drivenPan else { return }
+    if !commit { changeDrivenPan(35, velocity: -250) }
+    pan.phase = .ended; pan.speed = CGPoint(x: 0, y: commit ? 350 : -250)
+    viewer.vertical(pan); recordDrivenPan(pan); drivenPan = nil
+  }
+  private func recordDrivenPan(_ pan: ViewerReturnPan) {
+    gestureEvents.append("fixture state=\(pan.state.rawValue) y=\(Int(pan.delta.y)) vy=\(Int(pan.speed.y))")
+    gestureEvents = Array(gestureEvents.suffix(12)); readViewerState()
+  }
+  private func runReturnDemo() {
+    guard returnDemo == nil, let viewer = openedViewer, !viewer.closing, !viewer.openingTransition else { return }
+    // Discrete benchmark inputs, separated by observation holds. UIKit alone
+    // animates both native transitions; no timer updates animation geometry.
+    returnDemo = Task { @MainActor [weak self, viewer] in
+      guard let self else { return }
+      defer { self.returnDemo = nil }
+      do {
+        viewer.setChrome(true, animated: false)
+        self.drivePull(60)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        self.changeDrivenPan(132, velocity: 200)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        self.changeDrivenPan(24, velocity: -200)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        self.endDrivenPan(commit: false)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        viewer.setChrome(false, animated: false)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        self.drivePull(132)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        self.endDrivenPan(commit: true)
+        try await Task.sleep(for: .seconds(1)); self.readViewerState()
+        print("[viewer-return-demo] complete")
+      } catch { return }
+    }
+  }
+  @objc private func observeViewerPan(_ pan: UIPanGestureRecognizer) {
+    let translation = pan.translation(in: pan.view), velocity = pan.velocity(in: pan.view)
+    gestureEvents.append("touch state=\(pan.state.rawValue) y=\(Int(translation.y)) vy=\(Int(velocity.y))")
+    gestureEvents = Array(gestureEvents.suffix(12))
+    readViewerState()
+  }
+  private func readViewerState() {
+    guard let viewer = openedViewer else { diagnostics.accessibilityValue = "No viewer"; return }
+    let navigation = viewer.transitionNavigation ?? viewer.navigationController
+    let state: [String: Any] = [
+      "chrome": viewer.chrome, "closing": viewer.closing, "opening": viewer.openingTransition,
+      "nativeOwnerAttached": viewer.navigationController != nil,
+      "nativeTransitionActive": navigation?.transitionCoordinator != nil,
+      "rootAlpha": viewer.view.alpha, "rootInteraction": viewer.view.isUserInteractionEnabled,
+      "barAlpha": navigation?.navigationBar.alpha ?? -1,
+      "toolbarAlpha": navigation?.toolbar.alpha ?? -1,
+      "toolbarHidden": navigation?.isToolbarHidden ?? true,
+      "toolbarItemsHidden": viewer.toolbarItems?.map(\.isHidden) ?? [],
+      "footerAlpha": viewer.footer.alpha, "panEvents": gestureEvents
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]),
+      let report = String(data: data, encoding: .utf8) else { return }
+    diagnostics.accessibilityValue = report
+    print("[viewer-return-state] \(report)")
+    try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("viewer-return-state.json"), options: .atomic)
+  }
+}
+
+private final class ViewerReturnPan: UIPanGestureRecognizer {
+  var phase: UIGestureRecognizer.State = .possible
+  var delta = CGPoint.zero, speed = CGPoint.zero, origin = CGPoint.zero
+  override var state: UIGestureRecognizer.State { get { phase } set { phase = newValue } }
+  override func translation(in view: UIView?) -> CGPoint { delta }
+  override func velocity(in view: UIView?) -> CGPoint { speed }
+  override func location(in view: UIView?) -> CGPoint { origin }
+}
+
+/// One mounted production collection; all changes enter through replaceAssets.
+private struct MembershipMotionCatalog: UIViewControllerRepresentable {
+  func makeUIViewController(context: Context) -> UINavigationController {
+    CalendarNavigationController(rootViewController: MembershipMotionSample())
+  }
+  func updateUIViewController(_ controller: UINavigationController, context: Context) {}
+}
+
+private final class MembershipMotionSample: UIViewController {
+  private let calendar = CalendarGridController()
+  private let controls = UIToolbar()
+  private var rows: [CalendarGridAsset] = []
+  private var nextID = 120
+  private var positioned = false
+  private var demoTask: Task<Void, Never>?
+  override var navigationItem: UINavigationItem { calendar.navigationItem }
+  override var childForStatusBarStyle: UIViewController? { calendar }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    calendar.columns = 3
+    calendar.level = .all
+    calendar.requestImage = { item, _, done in
+      done(Self.image(item), false)
+      return {}
+    }
+    calendar.requestUncroppedImage = calendar.requestImage
+    calendar.placeholderImage = Self.image
+    calendar.storedImage = { item, _ in Self.image(item) }
+    addChild(calendar)
+    view.addSubview(calendar.view)
+    calendar.didMove(toParent: self)
+    view.addSubview(controls)
+    calendar.view.translatesAutoresizingMaskIntoConstraints = false
+    controls.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      calendar.view.topAnchor.constraint(equalTo: view.topAnchor),
+      calendar.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      calendar.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      calendar.view.bottomAnchor.constraint(equalTo: controls.topAnchor),
+      controls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      controls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      controls.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+      controls.heightAnchor.constraint(equalToConstant: 44)
+    ])
+    controls.accessibilityIdentifier = "catalog.membership.controls"
+    func item(_ title: String, id: String, action: @escaping () -> Void) -> UIBarButtonItem {
+      let result = UIBarButtonItem(title: title, primaryAction: UIAction { _ in action() })
+      result.accessibilityIdentifier = "catalog.membership.\(id)"
+      return result
+    }
+    let more = UIBarButtonItem(title: "More", menu: UIMenu(children: [
+      command("Reorder nearby", id: "reorder") { $0.reorder() },
+      command("Insert 1,000", id: "large") { $0.insert(1_000) },
+      command("Middle", id: "middle") { $0.middle() },
+      command("Newest", id: "newest") { $0.calendar.scrollToLatest() },
+      command("Reset 120", id: "reset") { $0.reset(); $0.middle() }
+    ]))
+    more.accessibilityIdentifier = "catalog.membership.more"
+    controls.items = [
+      item("Insert 3", id: "insert") { [weak self] in self?.insert(3) },
+      UIBarButtonItem(systemItem: .flexibleSpace),
+      item("Delete 3", id: "delete") { [weak self] in self?.delete() },
+      UIBarButtonItem(systemItem: .flexibleSpace),
+      item("Rapid", id: "rapid") { [weak self] in
+        // No delay: the second observation arrives during the first native batch.
+        self?.insert(3); self?.delete()
+      },
+      UIBarButtonItem(systemItem: .flexibleSpace), more
+    ]
+    reset()
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    if !positioned {
+      positioned = true
+      middle()
+    }
+    // Installing the native status-bar root reparents this existing controller.
+    // Its next appearance resumes a cancelled demo without remounting the grid.
+    if demoTask == nil, ProcessInfo.processInfo.arguments.contains("-membership-motion-demo") { runDemo() }
+  }
+
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    demoTask?.cancel()
+    demoTask = nil
+  }
+
+  private func runDemo() {
+    // Catalog-only event choreography for native recordings. Sleeps separate
+    // observations; UIKit alone supplies every animation frame and completion.
+    demoTask = Task { @MainActor [weak self] in
+      let started = CACurrentMediaTime()
+      func mark(_ event: String) {
+        print("[membership-demo] event=\(event) elapsed=\(CACurrentMediaTime() - started) uptime=\(CACurrentMediaTime()) epoch=\(Date().timeIntervalSince1970)")
+        fflush(stdout)
+      }
+      mark("middle-ready")
+      for event in ["insert-3", "delete-3", "reorder", "rapid", "newest", "insert-3-newest", "insert-1000", "reset-middle"] {
+        do { try await Task.sleep(for: .seconds(2)) } catch { return }
+        guard let self, !Task.isCancelled, self.viewIfLoaded?.window != nil else { return }
+        mark(event)
+        switch event {
+        case "insert-3", "insert-3-newest": self.insert(3)
+        case "delete-3": self.delete()
+        case "reorder": self.reorder()
+        case "rapid": self.insert(3); self.delete()
+        case "newest": self.calendar.scrollToLatest()
+        case "insert-1000": self.insert(1_000)
+        case "reset-middle": self.reset(); self.middle()
+        default: break
+        }
+      }
+      do { try await Task.sleep(for: .seconds(2)) } catch { return }
+      mark("complete")
+    }
+  }
+
+  private func command(_ title: String, id: String,
+    action: @escaping (MembershipMotionSample) -> Void) -> UIAction {
+    let result = UIAction(title: title, identifier: UIAction.Identifier("catalog.membership.\(id)")) { [weak self] _ in
+      if let self { action(self) }
+    }
+    result.accessibilityIdentifier = "catalog.membership.\(id)"
+    return result
+  }
+
+  private static func image(_ item: CalendarGridAsset) -> UIImage? {
+    SampleImages.cgImage(for: item.id, maxPixelSize: 240).map { UIImage(cgImage: $0) }
+  }
+  private func makeRow(_ number: Int, date: Date) -> CalendarGridAsset {
+    CalendarGridAsset(id: "membership-\(number)", date: date, aspect: 1)
+  }
+  private func reset() {
+    nextID = 120
+    let epoch = Date(timeIntervalSince1970: 1_780_272_000)
+    rows = (0..<120).map { makeRow($0, date: epoch.addingTimeInterval(Double($0) * 86_400)) }
+    publish()
+  }
+  private func focusIndex() -> Int {
+    calendar.focusedAsset().flatMap { id in rows.firstIndex { $0.id == id } } ?? rows.count / 2
+  }
+  private func insert(_ count: Int) {
+    let index = min(rows.count, max(0, focusIndex() - calendar.columns))
+    let before = index > 0 ? rows[index - 1].date! : rows.first!.date!.addingTimeInterval(-86_400)
+    let after = index < rows.count ? rows[index].date! : before.addingTimeInterval(86_400)
+    let additions = (0..<count).map { offset in
+      makeRow(nextID + offset, date: before.addingTimeInterval(
+        after.timeIntervalSince(before) * Double(offset + 1) / Double(count + 1)))
+    }
+    nextID += count
+    rows.insert(contentsOf: additions, at: index)
+    publish()
+  }
+  private func delete() {
+    guard rows.count > 6 else { return }
+    // Keep the focused identity available to test its stationary anchor.
+    let index = min(rows.count - 3, focusIndex() + calendar.columns)
+    rows.removeSubrange(index..<(index + 3))
+    publish()
+  }
+  private func reorder() {
+    guard rows.count > 6 else { return }
+    let index = max(0, min(rows.count - 2, focusIndex() - calendar.columns))
+    rows.swapAt(index, index + 1)
+    publish()
+  }
+  private func middle() {
+    calendar.view.layoutIfNeeded()
+    calendar.locateAsset(rows.count / 2)
+  }
+  private func publish() {
+    calendar.displayedTotal = rows.count
+    calendar.replaceAssets(rows)
+  }
+}
+
 private final class SelectionReviewAsset: PHAsset, PreviewSample, @unchecked Sendable {
   let number: Int
   init(_ number: Int) { self.number = number; super.init() }
@@ -718,6 +1109,10 @@ final class SelectionReviewSample: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     addChild(calendar); view.addSubview(calendar.view); calendar.didMove(toParent: self)
+    // The navigation stack owns this container, not its calendar child. Install
+    // the child's persistent item objects on that actual toolbar owner so UIKit
+    // receives setToolbarItems and can update the visible native bar.
+    setToolbarItems(calendar.toolbarItems, animated: false)
     calendar.requestImage = { [weak self] item, pixels, done in
       guard let self, let asset = self.photos.first(where: { $0.localIdentifier == item.id }) else { return {} }
       let request = self.library.thumbnails.request(asset, pixels: pixels, completion: done)

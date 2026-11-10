@@ -1,4 +1,5 @@
 import AppKit
+import Photos
 import SwiftUI
 
 /// The Backup destination as the hub in the Mac dialect (interaction.md I2 task
@@ -13,7 +14,7 @@ struct MacHub: View {
   var showTransfers: (String) -> Void
   @State private var offlineHelp = false
   @State private var livePhotoHelp = false
-  @StateObject private var photoRouter = BackupPhotoRouter()
+  @StateObject private var recentMedia = MacHistoryGridState()
   @Environment(\.macViewerPresentation) private var presentPhoto
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -26,14 +27,10 @@ struct MacHub: View {
         if model.pairing != nil { devicePill }
         status
         if connected, model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted { earlier(model.earlierPhotosCardStatus) }
-        if connected, !recentSources.isEmpty {
+        if connected, !recentPhotos.isEmpty {
           VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
             DuckSectionHeader(title: "hub_recent")
-            DuckPhotoMosaic(sources: recentSources, twoRows: true, thumbnail: recentThumbnail, open: { source, frame in
-              guard let photo = recentPhotos.first(where: { $0.source == source }) else { return }
-              photoRouter.macPresent = presentPhoto
-              photoRouter.open(photo, collection: recentPhotos, frame: frame)
-            })
+            MacRecentPhotos(photos: recentPhotos, state: recentMedia, present: presentPhoto)
           }
         }
         if connected { summaryRows }
@@ -69,12 +66,9 @@ struct MacHub: View {
     case .paused:
       card(Text("hub_paused"), note: "hub_paused_note", symbol: "pause.circle.fill", tone: .secondary,
         action: "hub_resume") { Task { await model.setPaused(false) } }
-    case .backingUp(let remaining, let bytes):
+    case .backingUp:
       DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
-        title: Text(verbatim: bytes > 0
-          ? String(format: NSLocalizedString("hub_backing_up", comment: ""), remaining.formatted(),
-            ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))
-          : String(format: NSLocalizedString("hub_backing_up_count", comment: ""), remaining.formatted())),
+        title: Text(verbatim: model.hubStatus.sentence(receiver: receiverName)),
         progress: progress, trailing: {
         DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
       })
@@ -180,15 +174,6 @@ struct MacHub: View {
       .filter { seen.insert($0.asset.source_id).inserted }
       .prefix(8).map(HistoryPhoto.init(job:))
   }
-  private func recentThumbnail(_ source: String, _ side: CGFloat) -> AnyView {
-    if let job = model.jobs.first(where: { $0.asset.source_id == source && $0.asset.metadata?["source_type"] == "folder" }) {
-      return AnyView(MacTransferThumbnail(job: job, size: side, cornerRadius: 0, fillsFrame: true))
-    }
-    return AnyView(AssetThumbnail(sourceID: source, size: side, cornerRadius: 0))
-  }
-  private var recentSources: [String] { recentPhotos.map(\.source)
-  }
-
   private var summaryRows: some View {
     VStack(spacing: 0) {
       let attention = model.summary.count(for: "attention")
@@ -222,4 +207,78 @@ struct MacHub: View {
     }
     .buttonStyle(.plain)
   }
+}
+
+
+/// The hub keeps a small, native grid mounted as the viewer's flight source.
+private struct MacRecentPhotos: View {
+  let photos: [HistoryPhoto]
+  @ObservedObject var state: MacHistoryGridState
+  var present: ((MacViewerRequest) -> Void)?
+
+  var body: some View {
+    let source = MacRecentGridSource(photos: photos, state: state)
+    let rows = max(1, (photos.count + 3) / 4)
+    GeometryReader { geometry in
+      let side = floor((geometry.size.width - 4 - 6) / 4)
+      MacMediaGrid(source: source, navigation: state.navigation, queueRevision: Int64(state.imageRevision),
+        receiverID: nil, columns: 4, embeddedPreview: true, prefillsTables: false,
+        preview: { id in
+          guard let photo = source.photos[id] else { return }
+          present?(.history(photo, photos, state, { state.navigation.focus($0) }))
+        })
+        .frame(height: 4 + CGFloat(rows) * side + CGFloat(rows - 1) * 2)
+    }
+    .modifier(MacGridInspector(navigation: state.navigation, source: source))
+    .aspectRatio(4 / CGFloat(rows), contentMode: .fit)
+    .padding(.bottom, 4)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(Text("hub_recent"))
+    .task(id: photos.map { $0.id + "|" + ($0.job?.asset.revision ?? "") }.joined(separator: ",")) {
+      await state.resolve(photos)
+    }
+  }
+}
+
+/// Uses the same media adapters and PhotoCell configuration as History.
+@MainActor private final class MacRecentGridSource: MacGridSource {
+  let state: MacHistoryGridState
+  let photos: [String: HistoryPhoto]
+  let identifiers: [String]
+  let contextID = "hub-recent"
+  var previewPoster: ((String) -> NSImage?)?
+  var previewFrame: ((String) -> CGRect?)?
+  init(photos: [HistoryPhoto], state: MacHistoryGridState) {
+    self.state = state
+    self.photos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
+    identifiers = photos.map(\.id)
+  }
+  var contentRevision: String { "\(state.imageRevision)" }
+  var selection: Set<String> { get { state.selection } set { state.selection = newValue } }
+  var thumbnails: ThumbnailPipeline? { state.thumbnails }
+  var scroll: MacGridScrollState {
+    if let value = state.scrolls[contextID] { return value }
+    let value = MacGridScrollState(); state.scrolls[contextID] = value; return value
+  }
+  func asset(_ id: String) -> PHAsset? { photos[id].flatMap { state.assets[$0.source] } }
+  func informationTarget(_ id: String) -> MacPhotoInformationTarget {
+    guard let photo = photos[id] else { return .selection(0) }
+    if let file = state.files[id] { return .folder(file, FolderSources.active, photo.job) }
+    if let asset = asset(id) { return .library(asset, nil, photo.job) }
+    return .recorded(photo)
+  }
+  func date(_ id: String) -> Date? { photos[id]?.changedAt }
+  func configure(_ cell: PhotoCell, id: String, pixels: CGFloat, originalAspect: Bool) {
+    guard let photo = photos[id] else { return }
+    if let file = state.files[id], let folder = FolderSources.active.sources.first(where: { $0.id == file.folder_id }) {
+      cell.configureFolder(file, source: folder, pixels: pixels, synthetic: FolderSources.active.syntheticImage(file))
+    } else if let asset = asset(id) {
+      cell.configure(asset, pipeline: state.thumbnails, pixels: pixels, identifier: id)
+    } else {
+      cell.configureUnavailable(id: id, label: photo.job?.asset.resources.first?.filename ?? "", video: photo.job?.asset.kind == "video")
+    }
+    cell.setPresentationID(id)
+    cell.setState(photo.mark == .sending ? "sending" : photo.mark == .saving ? "saving" : photo.mark == .needsYou ? "needs_you" : nil)
+  }
+  func preheat(_ ids: [String], pixels: CGFloat) { state.thumbnails.preheat(ids.compactMap(asset), pixels: pixels) }
 }

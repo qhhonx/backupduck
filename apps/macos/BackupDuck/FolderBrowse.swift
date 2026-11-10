@@ -62,20 +62,53 @@ struct FolderPhoto: Decodable, Identifiable, Equatable {
 }
 struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool }
 
+enum FolderBrowseScope: Hashable { case all, folder(String) }
+
 /// Browse state only. Membership, filters, counts and durable backup intent come from Rust.
 @MainActor final class FolderBrowser: ObservableObject {
+  enum ContentState: Equatable {
+    case loading, photos, filterEmpty, empty, failed
+  }
   struct Section: Identifiable {
     let id: String
     var photos: [FolderPhoto]
     var hasMore: Bool
   }
   var configured = false
-  @Published var byFolder = true { didSet { contextChanged() } }
+  @Published var scope: FolderBrowseScope = .all { didSet { scopeChanged(from: oldValue) } }
+  private struct ScopeState {
+    var filter: LibraryBackupView
+    var type: LibraryFilter
+    var search: String
+    var searchExpanded: Bool
+  }
+  private var scopeStates: [FolderBrowseScope: ScopeState] = [:]
+  private var restoringScope = false
+  private var sectionCache: [String: [Section]] = [:]
+  private func scopeChanged(from old: FolderBrowseScope) {
+    guard old != scope else { return }
+    selections[activeKey] = selection
+    if resultKey == activeKey { sectionCache[activeKey] = sections }
+    scopeStates[old] = ScopeState(filter: filter, type: type, search: search, searchExpanded: searchExpanded)
+    restoringScope = true
+    let state = scopeStates[scope] ?? ScopeState(filter: .all, type: .all, search: "", searchExpanded: false)
+    filter = state.filter; type = state.type; search = state.search; searchExpanded = state.searchExpanded
+    restoringScope = false
+    activeKey = key; selection = selections[key] ?? []
+    sections = sectionCache[key] ?? []; resultKey = sectionCache[key] == nil ? nil : key
+    error = nil
+    generation += 1
+  }
   @Published var filter: LibraryBackupView = .all { didSet { contextChanged() } }
   @Published var type: LibraryFilter = .all { didSet { contextChanged() } }
   /// Kept here, not in the page, so returning to Folders keeps its density.
   @Published var columns = MacLibraryDensity.standard
   var gridScrolls: [String: MacGridScrollState] = [:]
+  private var visibleRanges: [String: MacVisibleRange] = [:]
+  var visibleRange: MacVisibleRange {
+    if let range = visibleRanges[key] { return range }
+    let range = MacVisibleRange(); visibleRanges[key] = range; return range
+  }
   @Published var searchExpanded = false
   @Published var search = "" { didSet { contextChanged() } }
   @Published var selection = Set<String>()
@@ -85,15 +118,39 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   @Published var error: String?
   var offsets: [String: CGPoint] = [:]
   private var selections: [String: Set<String>] = [:]
-  private var activeKey = "true|all||all"
+  private var activeKey = "all|all||all"
   private func contextChanged() {
-    guard key != activeKey else { return }
+    guard !restoringScope, key != activeKey else { return }
+    generation += 1
+    if resultKey == activeKey { sectionCache[activeKey] = sections }
     selections[activeKey] = selection
     activeKey = key; selection = selections[key] ?? []
+    sections = sectionCache[key] ?? []; resultKey = sectionCache[key] == nil ? nil : key
+    error = nil
   }
   private var loadingSections = Set<String>()
   private var generation = 0
-  var key: String { "\(byFolder)|\(filter.rawValue)|\(search)|\(type.rawValue)" }
+  var key: String {
+    let identity: String
+    switch scope { case .all: identity = "all"; case .folder(let id): identity = "folder:" + id }
+    return "\(identity)|\(filter.rawValue)|\(search)|\(type.rawValue)"
+  }
+  /// The collection and its empty state consume the same local media-type
+  /// projection. Rust has already applied search and backup membership.
+  var visiblePhotos: [FolderPhoto] {
+    sections.flatMap(\.photos).filter {
+      type.matches(kind: $0.media_type.hasPrefix("video/") ? "video" : "photo")
+    }
+  }
+  var contentState: ContentState {
+    if error != nil && visiblePhotos.isEmpty { return .failed }
+    guard resultKey == key, !loading else { return .loading }
+    guard visiblePhotos.isEmpty else { return .photos }
+    // An unmatched prefix is still a pending browse, not an empty result.
+    guard !sections.contains(where: \.hasMore) else { return .loading }
+    return search.isEmpty && filter == .all && type == .all ? .empty : .filterEmpty
+  }
+  func clearFilters() { filter = .all; type = .all; search = "" }
   var selected: [FolderPhoto] { sections.flatMap(\.photos).filter { selection.contains($0.id) && $0.canBackUp } }
   /// Submitted photos leave selection in every saved browse context. Photos
   /// selected after the press remain selected if the person changes the view.
@@ -104,8 +161,9 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
   func reload(_ folders: FolderSources) async {
     generation += 1
     let current = generation, requestedKey = key
-    let grouped = byFolder && search.isEmpty
-    let ids = grouped ? folders.sources.map(\.id) : ["all"]
+    let requestedSearch = search, requestedFilter = filter
+    let ids: [String]
+    switch scope { case .all: ids = ["all"]; case .folder(let id): ids = [id] }
     loading = sections.isEmpty
     do {
       var next: [Section] = []
@@ -113,14 +171,14 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
         let depth = max(100, sections.first { $0.id == id }?.photos.count ?? 100)
         var rows: [FolderPhoto] = []; var more = true
         while rows.count < depth && more {
-          let page = try await folders.browse(id == "all" ? nil : id, offset: rows.count, search: search, filter: filter)
+          let page = try await folders.browse(id == "all" ? nil : id, offset: rows.count, search: requestedSearch, filter: requestedFilter)
           guard current == generation, !Task.isCancelled else { return }
           rows += page.rows; more = page.has_more
         }
         next.append(Section(id: id, photos: rows, hasMore: more))
       }
       guard current == generation else { return }
-      sections = next; resultKey = requestedKey; error = nil
+      sections = next; sectionCache[requestedKey] = next; resultKey = requestedKey; error = nil
     } catch { if current == generation { self.error = error.localizedDescription } }
     if current == generation { loading = false }
   }
@@ -131,8 +189,8 @@ struct FolderPhotoPage: Decodable { let rows: [FolderPhoto]; let has_more: Bool 
     do {
       let page = try await folders.browse(id == "all" ? nil : id, offset: offset, search: search, filter: filter)
       guard current == generation, let index = sections.firstIndex(where: { $0.id == id }), sections[index].photos.count == offset else { return }
-      sections[index].photos += page.rows; sections[index].hasMore = page.has_more
-    } catch { self.error = error.localizedDescription }
+      sections[index].photos += page.rows; sections[index].hasMore = page.has_more; sectionCache[key] = sections
+    } catch { if current == generation { self.error = error.localizedDescription } }
   }
 }
 
@@ -161,7 +219,6 @@ extension FolderSources {
 struct FolderCommandActions {
   var add: () -> Void
   var search: () -> Void
-  var view: (Bool) -> Void
   var filter: (LibraryBackupView) -> Void
   var backUp: () -> Void
   var canBackUp: Bool
@@ -176,8 +233,11 @@ extension FocusedValues {
 struct MacFolderCommands: Commands {
   @FocusedValue(\.folderCommands) private var actions
   @FocusedValue(\.photoViewerCommands) private var viewer
+  @FocusedValue(\.gridInfoCommands) private var gridInfo
+  @FocusedValue(\.windowInfoCommands) private var windowInfo
   @FocusedValue(\.historyZoom) private var historyZoom
   @FocusedValue(\.gridSearch) private var gridSearch
+  @FocusedValue(\.settingsBack) private var settingsBack
   var body: some Commands {
     CommandGroup(after: .newItem) {
       Button("folders_back_up_selected") { actions?.backUp() }.disabled(actions?.canBackUp != true)
@@ -193,12 +253,16 @@ struct MacFolderCommands: Commands {
       Button("mac_library_zoom_out") { historyZoom?.smaller() }.disabled(historyZoom?.canShrink != true)
       Button("mac_library_zoom_in") { historyZoom?.larger() }.disabled(historyZoom?.canGrow != true)
       Divider()
-      Button("mac_library_back") { viewer?.back() }.disabled(viewer == nil)
+      Button(viewer == nil ? "mac_fidelity_back" : "mac_library_back") {
+        if let viewer { viewer.back() } else { settingsBack?.back() }
+      }
+      .keyboardShortcut("[", modifiers: .command)
+      .disabled(viewer == nil && settingsBack == nil)
       Divider()
-      Button("folders_by_folder") { actions?.view(true) }.disabled(actions == nil)
-      Button("mac_library_all_photos") { actions?.view(false) }.disabled(actions == nil)
-      Divider()
-      Button("folders_show_info") { viewer?.info() }.disabled(viewer == nil).keyboardShortcut("i", modifiers: .command)
+      Button("folders_show_info") {
+        if let windowInfo { windowInfo.toggle() }
+        else if let viewer { viewer.info() } else { gridInfo?.toggle() }
+      }.disabled(windowInfo == nil && viewer == nil && gridInfo == nil).keyboardShortcut("i", modifiers: .command)
       Divider()
       ForEach(LibraryBackupView.allCases) { view in
         Button(LocalizedStringKey(view.title)) { actions?.filter(view) }.disabled(actions == nil)

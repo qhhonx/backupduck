@@ -7,28 +7,35 @@ import UIKit
 struct IOSSettings: View {
   @ObservedObject var model: BackupModel
   var showBottom = false
+  var body: some View {
+    IOSNativeNavigation(title: NSLocalizedString("nav_settings", comment: "")) {
+      IOSSettingsContent(model: model, showBottom: showBottom)
+    }
+  }
+}
+
+private struct IOSSettingsContent: View {
+  @ObservedObject var model: BackupModel
+  var showBottom = false
   @AppStorage("duckAppearance") private var appearance = "system"
   @Environment(\.openURL) private var openURL
+  @Environment(\.duckSettingsNavigator) private var navigator
   @State private var editingName = false
-  @State private var diagnostics = false
-  @State private var advanced = false
   @State private var retrying = false
   private var values: DuckSettingsValues { DuckSettingsValues(model: model) }
-
   var body: some View {
-    NavigationStack {
       ScrollViewReader { proxy in
       Form {
         header
         if model.message != nil && !model.ready { openFailedCard }
         Section {
           // Devices live in Settings (design/navigation.md, D3).
-          NavigationLink { IOSDevicePage(model: model) } label: {
+          DuckSettingsLink(title: Text("settings_devices")) { IOSDevicePage(model: model) } label: {
             LabeledContent { Text(model.peerDevice?.name ?? NSLocalizedString("settings_pair_first", comment: "")) } label: {
               DuckSettingsLabel(title: "settings_devices", symbol: "smartphone", color: DuckGlyph.green)
             }
           }.accessibilityIdentifier("settings.devices")
-          NavigationLink { IOSAutoBackupSettings(model: model) } label: {
+          DuckSettingsLink(title: Text("settings_auto_backup")) { IOSAutoBackupSettings(model: model) } label: {
             LabeledContent { Text(values.autoBackup) } label: { DuckSettingsLabel(title: "settings_auto_backup", symbol: "arrow.triangle.2.circlepath", color: DuckGlyph.blue) }
           }.accessibilityIdentifier("settings.auto_backup")
         }
@@ -53,7 +60,7 @@ struct IOSSettings: View {
           .accessibilityIdentifier("settings.language")
         }
         Section {
-          NavigationLink {
+          DuckSettingsLink(title: Text("settings_help_center")) {
             HelpCenter()
           } label: { DuckSettingsLabel(title: "settings_help_center", symbol: "questionmark", color: DuckGlyph.orange) }
             .accessibilityIdentifier("settings.help")
@@ -61,7 +68,7 @@ struct IOSSettings: View {
           DuckRateBackupDuckRow()
         }
         Section {
-          NavigationLink { IOSAboutSettings() } label: {
+          DuckSettingsLink(title: Text("about_title")) { IOSAboutSettings() } label: {
             LabeledContent { Text(DuckSettingsValues.releaseVersion) } label: {
               DuckSettingsLabel(title: "about_title", symbol: "info", color: DuckGlyph.gray)
             }
@@ -77,14 +84,9 @@ struct IOSSettings: View {
           Button("settings_edit") { editingName = true }.disabled(model.deviceSnapshot == nil)
         }
       }
-      .navigationDestination(isPresented: $diagnostics) {
-        DiagnosticsView(model: model)
-      }
-      .navigationDestination(isPresented: $advanced) { IOSAdvancedSettings(model: model) }
       .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
       .onAppear { if showBottom { proxy.scrollTo("settings.bottom", anchor: .bottom) } }
       }
-    }
     .sheet(isPresented: $editingName) {
       if let name = model.deviceSnapshot?.device.name { DeviceNameEditor(model: model, name: name) }
     }
@@ -94,7 +96,7 @@ struct IOSSettings: View {
   private var header: some View {
     Section {
       VStack(spacing: 6) {
-        Image(systemName: UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone")
+        Image(systemName: "iphone")
           .font(.largeTitle)
           .foregroundStyle(.white)  // design-exception: white glyph on the avatar circle
           .frame(width: 84, height: 84)
@@ -117,7 +119,7 @@ struct IOSSettings: View {
   private var openFailedCard: some View {
     Section {
       DuckStateCard(symbol: "exclamationmark.triangle.fill", tone: DuckRole.attentionGlyph, title: Text("settings_open_failed"),
-        note: model.message.flatMap { $0 == NSLocalizedString("pairing_unlock_wait", comment: "") ? nil : Text($0) }, action: {
+        note: model.message.map { Text($0) }, action: {
         DuckTintedButton("retry_task") {
           guard !retrying else { return }
           retrying = true
@@ -130,10 +132,10 @@ struct IOSSettings: View {
 
   private var footer: some View {
     HStack(spacing: DuckSpacing.xSmall) {
-      Button("settings_diagnostics") { diagnostics = true }
+      Button("settings_diagnostics") { navigator?.open(DuckSettingsPage(title: Text("settings_diagnostics"), content: AnyView(DiagnosticsView(model: model)))) }
         .padding(.vertical, DuckSpacing.small).contentShape(Rectangle())
       Text(verbatim: "·").foregroundStyle(.secondary)
-      Button("settings_advanced") { advanced = true }
+      Button("settings_advanced") { navigator?.open(DuckSettingsPage(title: Text("settings_advanced"), content: AnyView(IOSAdvancedSettings(model: model)))) }
         .padding(.vertical, DuckSpacing.small).contentShape(Rectangle())
     }.font(.footnote)
     .frame(maxWidth: .infinity)
@@ -166,10 +168,10 @@ private struct IOSAutoBackupSettings: View {
         }
       }
       Section {
-        NavigationLink { BackupScopeEditor(destination: .types) } label: {
+        DuckSettingsLink(title: Text("scope_media_types")) { BackupScopeEditor(destination: .types) } label: {
           LabeledContent("settings_media_types", value: scope.typesSummary)
         }
-        NavigationLink { BackupScopeEditor(destination: .albums) } label: {
+        DuckSettingsLink(title: Text("scope_albums_title")) { BackupScopeEditor(destination: .albums) } label: {
           LabeledContent("settings_specific_albums", value: scope.albumsSummary)
         }
       } header: {
@@ -256,6 +258,19 @@ struct IOSDevicePage: View {
   var body: some View {
     DevicePage(model: model) { connecting = true }
       .sheet(isPresented: $connecting) { IOSConnectSheet(model: model, reconnect: false) }
+  }
+}
+
+/// Observe the saved choice inside the hosted view tree. The media container
+/// retains that tree after replacing the scene's original window root.
+struct IOSSavedAppearance: ViewModifier {
+  @AppStorage("duckAppearance") private var appearance = "system"
+  private var colorScheme: ColorScheme? {
+    appearance == "dark" ? .dark : appearance == "light" ? .light : nil
+  }
+  func body(content: Content) -> some View {
+    content.preferredColorScheme(colorScheme)
+      .background(IOSAppearanceBridge(appearance: appearance).frame(width: 0, height: 0))
   }
 }
 

@@ -99,10 +99,28 @@ targets:
     settings:
       base:
         PRODUCT_NAME: BackupDuckCatalog
+        ENABLE_TESTABILITY: YES
         PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog
         INFOPLIST_FILE: Catalog/Info.plist
         CODE_SIGN_IDENTITY: '-'
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE
+  BackupDuckCatalogTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: CatalogTests
+      - path: Tests
+      - path: ../apple/Tests
+      - path: ../ios/Tests/GridZoomTests.swift
+    dependencies:
+      - target: BackupDuckCatalog
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/BackupDuckCatalog.app/Contents/MacOS/BackupDuckCatalog
+        BUNDLE_LOADER: $(TEST_HOST)
+        CODE_SIGN_IDENTITY: '-'
 schemes:
   BackupDuck:
     build:
@@ -124,3 +142,6 @@ schemes:
         BackupDuckCatalog: all
     run:
       config: Release
+    test:
+      config: Release
+      targets: [BackupDuckCatalogTests]

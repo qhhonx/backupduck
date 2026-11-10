@@ -1,0 +1,10 @@
+{
+  "id": "folders.header-wrapping",
+  "extends": "folders.sections",
+  "title": "Folders: wrapped identity and nested dates",
+  "expect": [
+    "A long folder name wraps identically in its flowing and pinned identity row.",
+    "Second and third dates replace only the date below the folder identity.",
+    "The next folder retires the previous identity and date together."
+  ]
+}

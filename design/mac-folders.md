@@ -10,64 +10,87 @@ external drives) backed up, and what is still missing?" Adding a folder comes
 second. Folders is therefore a second photo grid, not a file manager: it shows
 no file list, no path tree and no settings.
 
-## Folders page (Browse)
+## Folders and scoped browsing
 
-- Sidebar position Photos › Folders (A3). Content type Browse (`interaction.md`
-  I2), the same skeleton as Photo Library.
-- **Default view, by folder:** each added folder is a section with its name,
-  where it lives ("SanDisk external drive", "Pictures › Camera exports"), one
-  true state sentence and a more menu, followed by its recent photos. The summary
-  is the folder section header: its leading text and trailing menu align with
-  the date text at the library header's 28 pt inset. Measure its wrapped content at exactly its
-  laid-out width. Date headers contain only the date; All Photos has no folder
-  summaries.
+- The Photos sidebar has an expandable **Folders** destination. Selecting the
+  parent opens one flat native photo grid across all added folder sources,
+  without Photo Library items. Its children open individual added folders;
+  they do not form a recursive file-system tree.
+- Each child opens its own flat native photo grid. The window title is the
+  folder name. It is a sidebar destination rather than a pushed page, so it
+  adds neither Back nor a synthetic Command-[ route. Selecting the parent
+  restores its aggregate browse state. Folder identity and dates do not become
+  repeated content headings or sticky rows.
+- The parent supports cross-folder search and selection. Source identities and
+  overlap handling come from the core, never file-name or image-based host
+  deduplication. There is no cover overview, separate All Photos child or
+  button, or By Folder / All Photos segmented control: navigation owns scope.
 - **State sentence**, one at a time, in this order: drive not connected; needs
   you; backing up N (size); not yet backed up N (only when the person chose
   "only new photos"); "N photos are in the Pixel's Photos". Never "all" while a
   supported photo is unsaved.
-- **Unsupported files** (for example RAW, which the Pixel's Photos cannot store)
-  are not counted in the state sentence. When a folder has any, one quiet line
-  under the section says how many will not be backed up, with an info button
-  that opens a popover: what they are, why, and that the files stay on the Mac,
-  with Show in Finder.
-- **Drive not connected:** the section dims and says that photos already backed
-  up are unaffected and that backup continues when the drive returns.
-- **Section more menu:** Back Up Remaining Photos (when any are not backed up),
-  Show in Finder, Folder Settings…, Stop Backing Up This Folder…
-- Selecting photos with click and ⌘/⇧-click shows one primary action on the
-  toolbar's trailing edge, "Back Up N Items", when the selection contains
-  photos that are not backed up. Backing up a selection saves the intent at
-  once and needs no second confirmation.
-- Double-click opens the shared in-window media viewer with previous/next over the current collection and its information inspector (A8).
+- **Unsupported files** are excluded from supported photo/video counts. When
+  any exist, a quiet line explains how many will not be backed up. An info
+  popover explains their kinds, why they are unsupported and that they stay on
+  the Mac, with Show in Finder.
+- **Drive not connected:** retain the folder, indexed media and any available
+  thumbnails. Explain that completed backups are unaffected and backup resumes
+  when the drive returns. Missing access or a read failure is not an empty
+  folder. Unavailable files retain their recorded information and viewer fallback.
+- A single folder's availability and unsupported-file notes remain ordinary
+  content before its photos and scroll away. They neither pin nor turn into
+  photo-date captions. The parent grid does not interleave folder summaries.
+- The applicable folder's More menu offers Back Up Remaining Photos when any
+  are not backed up, Show in Finder, Folder Settings and Stop Backing Up This
+  Folder. Settings remains the canonical editor.
+- Selecting photos uses the shared native selection rules. Back Up N Photos
+  remains visible for any selection and uses the same registration feedback as
+  Photo Library. A repeat backup asks once before making another copy in the
+  Pixel's Photos; cancellation preserves the selection. Active work is reused
+  rather than duplicated. Double-click, Space or Return opens the shared
+  in-window viewer, preserving the current collection and inspector.
 
-## Toolbar (A2)
+## Toolbar, date and search
 
-The leading side contains only the sidebar toggle and the title **Folders**,
-with a subtitle describing the visible scope: for example, “3 folders · 1,284
-photos” or “Not Backed Up · 312 photos”. Only a pushed level adds Back between
-the sidebar toggle and the title. Counts come from the current inventory or
-complete results; a paged search never presents its loaded count as a total.
+The workspace owns the native title and subtitle (`library.md` section 5).
+The aggregate parent title is **Folders**; a child uses its folder name.
+Both use only the current visible photo-date range in the subtitle;
+there are no inline day headings or floating date capsules. Selection replaces
+that subtitle with one selected-item count.
 
-Trailing groups keep this order, with native shared capsule backgrounds:
+Collection totals appear once below the final photo row, using the current
+inventory or complete results. A known aggregate without a trustworthy
+photo/video split says items; it never treats every item as a photo. Search, type and
+backup filters cannot present a loaded prefix as a complete count. Missing
+counts and dates are omitted. A file-derived date keeps its recorded provenance;
+the viewer must not call a file-modification time a known capture time.
 
-1. A shared Zoom Out / Zoom In capsule. Folders uses the Photo Library's grid
-   engine and density levels (`library.md` §5).
-2. A **By Folder | All Photos** segmented capsule, replaced by a pop-up at
-   narrow window widths or while search is expanded. Each view retains its own
-   scroll position and selection (I6).
-3. One action capsule: **Filter**, **Add Folder**, then **More** when a single
-   folder applies. Filter has two sections: Show (All Photos, Not Backed Up, Needs You, Recently Backed Up) and Type (All Types, Photos, Live Photos, Videos, Bursts). An active non-default choice tints its symbol. There are no other dividers. More offers Show in Finder and Folder
-   Settings… for the applicable folder.
-4. **Back Up N Items**, the single prominent text action, appears only while
-   the selection contains eligible photos that are not backed up. Successful registration clears the submitted selection, shows Added to Backup for two seconds, then removes the action. Failure preserves the selection.
-5. **Search**, a separate magnifier circle at the trailing edge. Clicking it or
-   pressing ⌘F expands and focuses a native search field. Escape collapses an
-   empty search. Search finds file and subfolder names within added folders.
+Both parent and child use the common trailing toolbar order: Zoom Out / Zoom In,
+Filter, Add Folder and the applicable folder's More menu, the selection's
+backup action, then native Search. Filter has Show (All Photos,
+Not Backed Up) and Type (All Types, Photos, Live Photos, Videos, Bursts). The active non-default choice tints its symbol.
+There is no extra scope switch beside these controls.
 
-The viewer replaces the browsing toolbar. Returning restores the search query,
-its expanded state, the active view, filter, selection and scroll position.
-View, filter, Add Folder, Back Up and Search also have menu-bar
-equivalents.
+Search starts as a compact magnifier. Clicking it or pressing Command-F expands
+the native field. Escape uses native cancellation; clicking content ends editing
+while retaining the query. A single-folder search matches file and subfolder
+names only inside that source. The Folders parent searches those names across
+all added folder sources.
+Searching never silently changes scope.
+
+Each scope retains its filter, query and search-field expansion. Each
+scope/filter/query combination retains selection, loaded depth and the stable
+visible-photo anchor. The aggregate parent has its own state, independent of
+its children. The thumbnail-size preference is shared across full photo
+browsers. Sidebar navigation and viewer return reuse these same states.
+Renaming a folder keeps its source identity; removing the active source returns
+to the aggregate parent without removing completed backup records.
+
+Successful backup registration clears only the submitted photos from selection,
+briefly reports Added to Backup in the existing action, then removes it if no
+selection remains. Failure preserves the selection. The viewer replaces the browsing toolbar and restores the scoped
+browser on return. Browse, search, filter, add and backup actions also have
+menu-bar equivalents.
 
 ## Adding a folder
 
@@ -77,24 +100,24 @@ equivalents.
    photos and new ones) or only photos added from now on. It shows the counted
    number and size once known and "Counting…" until then. Cancel and Add at the
    bottom trailing edge.
-3. After Add the sheet closes and the new section appears; progress belongs to
-   Overview. New photos follow the global Auto Backup preference; there is no
+3. After Add the sheet closes and the new source opens in its own grid; progress
+   belongs to Overview. New photos follow the global Auto Backup preference; there is no
    per-folder automatic switch.
 
 Choosing "only new photos" leaves no lasting reminder; the remaining photos can
-be backed up later from the section menu or by selection.
+be backed up later from the folder's More menu or by selection.
 
 ## Settings › Folders (Preferences)
 
 The canonical place to manage folders (P6), reached from the Folders row in Mac
-Settings. A list of folders (name, location, count or state) with Add Folder…
+Settings or the Folders summary under Auto Backup. Both routes select the same
+canonical Settings category. A list of folders (name, location, count or state) with Add Folder…
 below it; the Folders page's add button runs the same flow. Footnote: new photos
 in these folders follow Auto Backup; stopping a folder deletes nothing on the
 Mac or in the Pixel's Photos.
 
 **One folder:** a header with its icon, name, location and state; Show in
-Finder; File Rules (with "most people don't need this"); Stop Backing Up This
-Folder… There are no concurrency, cache or scan-interval settings
+Finder; File Rules (with "most people don't need this"); Remove Folder with confirmation. New photos follow the shared Auto Backup setting; this page has no independent automatic-backup switch. There are no concurrency, cache or scan-interval settings
 (`settings.md`).
 
 **File Rules** (Advanced): a sheet with two token fields, "Skip these" and "Only
@@ -131,8 +154,8 @@ Each item is a fact from the core, never derived in the app (P3):
 
 The Mac folder detail presents Location with a trailing Show in Finder button;
 File Rules shows the current include/skip rule counts (or all supported photos
-and videos) with a trailing Edit button. Auto Backup has the trailing Stop
-Backing Up This Folder action and its existing confirmation. These are ordinary
+and videos) with a trailing Edit button. The Folder row has a trailing Remove
+Folder action and confirmation explaining that original files and saved photos remain. These are ordinary
 41-point preference rows that grow for long content; no dismissive rules footer
 or leading button-only rows.
 
@@ -149,14 +172,22 @@ library viewers reuse the same edge-revealed previous/next controls.
 ## Shared grid updates
 
 The native collection engine is shared with Photo Library and Backup History
-(`library.md` §5). Source adapters supply stable file identities, sections,
-images and marks. Membership inserts, removals and moves use diffable updates;
-state changes configure visible cells in place without reloading the grid.
-A committed filter membership replaces the grid once under a 0.2-second
-crossfade; Reduce Motion adopts immediately. A pending source projection must
-not publish the previous rows under the new browse context.
-Each view/filter retains its scroll position, date anchor and selection.
-Folder summaries retain drive availability, unsupported-file explanations and
-management actions above the shared date headers. An unavailable file keeps the
-existing viewer placeholder and recovery action. Empty filtered results use
-No Photos Match with Show All Photos, which clears Show, Type and search.
+(`library.md` section 5). Source adapters supply stable file identities, images,
+marks and recorded dates. Membership inserts, removals and moves use diffable
+updates; state changes configure visible cells in place without reloading the
+grid. A committed filter membership replaces the grid once under a
+0.2-second crossfade; Reduce Motion adopts immediately. A pending projection
+must not publish previous rows under a new browse scope.
+
+Scope restoration retains loaded depth, selection and a stable photo anchor
+across paging, refresh, sidebar navigation and viewer return. A disconnected
+source stays browsable from its known inventory. Folder summaries remain
+ordinary flow content; there are no nested folder/date sticky headers.
+Empty filtered results use No Photos Match with Show All Photos, which clears
+Show, Type and the query inside the current scope. Search never widens a child
+to the aggregate parent. Genuine empty, indexing, unavailable and failed states
+keep distinct explanations and actions.
+
+The Folders sidebar parent reveals a native Add Folder symbol while the pointer
+is in the sidebar. It runs the same chooser and submission flow as the toolbar
+and menu command; leaving the sidebar hides the shortcut.

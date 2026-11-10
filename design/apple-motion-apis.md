@@ -1,6 +1,6 @@
 # Apple motion: system APIs and how BackupDuck uses them
 
-This is the implementation contract for motion on iPhone, iPad and Mac.
+This is the implementation contract for motion on iPhone and Mac.
 [Motion](foundations/motion.md) owns timings and choreography; this document
 owns *how* those motions are built. Deployment targets are iOS 18 and macOS 15,
 so the SwiftUI-animation bridges below are available everywhere; newer APIs
@@ -60,7 +60,7 @@ Then choose the system mechanism below that produces that behaviour, and
 implement it with that mechanism. Matching a curve frame by frame in our own
 loop is not acceptable, even when it looks the same in a recording.
 
-## 4. iOS and iPadOS
+## 4. iOS
 
 ### View animation
 
@@ -175,6 +175,13 @@ loop is not acceptable, even when it looks the same in a recording.
 
 ## 5. macOS
 
+- Selection backup uses one retained native symbol button inside the shared
+  toolbar action group. Its upward-arrow symbol never changes. Selection and
+  registration change enabled state, help and accessible labels in place.
+  It uses the same standard toolbar
+  Button and Label as adjacent actions; the system owns symbol sizing and
+  control geometry. There is no selection-driven toolbar insertion,
+  removal, frame animation or custom opacity transition.
 - `NSAnimationContext.runAnimationGroup { context in ... }` with
   `view.animator()` animates frames, alpha and layer-backed properties.
   - Set `context.duration`, `context.timingFunction` and
@@ -213,10 +220,10 @@ loop is not acceptable, even when it looks the same in a recording.
 | Motion | System mechanism |
 |---|---|
 | Photos-tab period capsule | KVO on the bar's morph target; `UIView.animate` spring materializes glass |
-| iPhone library viewer present, dismiss and drag to dismiss | Custom present transition (`UIViewControllerAnimatedTransitioning` and `UIViewControllerInteractiveTransitioning`): a grid snapshot crossfades above the opaque viewer page, and a media snapshot flies on one `UIViewPropertyAnimator` spring; the drag updates per gesture event |
+| iPhone library viewer present, dismiss and drag to dismiss | Native presentation (`UIViewControllerTransitioningDelegate`, `UIViewControllerAnimatedTransitioning` and `UIViewControllerInteractiveTransitioning`) gives the viewer its own navigation controller above the unchanged source. A source sheet supplies the same bounds and clipping. The grid and its native chrome stay below viewer content; media flies below the filmstrip and viewer bars on one `UIViewPropertyAnimator` spring. The drag updates per gesture event, with input priority among the app-owned media pans |
 | iPhone grid pinch zoom (Photos tab) | Per-gesture-event tracking; crossfade as Core Animation keyframes scheduled at events; release settle as one `CASpringAnimation` per density layer over a layout made once at the target pose |
-| Mac grid zoom (Library, Folders, History) | Magnify tracked per event; composite opacity keyframes (paused between magnify events); release uses tile `CASpringAnimation` geometry for ordinary/grouped faces, a photo-only spring transform for dense faces, and native-size caption position keyframes; visible-stage animation delegates own completion |
+| Mac grid zoom (Library, Folders, History) | Magnify tracked per event; shared, autonomous photo-mixture keyframes retargeted at density changes and reversals; release uses tile `CASpringAnimation` geometry for ordinary/grouped faces, a photo-only spring transform for dense faces, and native-size caption, mark and totals tracks; ordinary marks occupy a reading plane outside the photo clip, with their own installed tracks sampled once at input takeover; backwards fill retains the source before one transaction starts the prepared batch, and visible-stage animation delegates synchronize its analytic start and own completion |
 | Mac level and viewer flights | One Core Animation group (bounds, position, cornerRadius, opacity keyframes); a moved destination is absorbed by an additive animation |
-| iPad timeline mode morph | `setCollectionViewLayout(_:animated:)` or an interactive transition finished by the system |
+| iPhone calendar/density changes | Shared native calendar collection and tile-stage motion described above |
 | Drag-select edge autoscroll | Display link while the finger is held, where no animation API expresses edge autoscroll |
 | Scroll benchmarks | Display link behind a launch argument; test-only, must not ship |

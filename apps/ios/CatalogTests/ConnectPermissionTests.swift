@@ -1,12 +1,42 @@
 import XCTest
+import Combine
 import SwiftUI
+import AVFoundation
 import UIKit
 import Photos
 @testable import BackupDuckCatalog
 
+private actor ChangingReceiverFixture {
+  let fixture: CatalogLibraryFixture
+  private var queries = 0
+  init(_ fixture: CatalogLibraryFixture) { self.fixture = fixture }
+  func fetch(filter: LibraryFilter, view: LibraryBackupView) -> PHFetchResult<PHAsset> {
+    let result = fixture.fetch(filter: filter, view: view)
+    guard view == .notBackedUp else { return result }
+    queries += 1
+    guard queries > 1 else { return result }
+    return CatalogAssetCollection((1..<result.count).map { result.object(at: $0) })
+  }
+}
+
 /// Runs inside the separately identified catalog. No production application,
 /// system permissions, real credentials or media library is used.
 @MainActor final class ConnectPermissionTests: XCTestCase {
+  func testReadingPairingAtStartupDoesNotPublishAnError() async throws {
+    for (scenario, hasPairing) in [("onboarding.welcome", false), ("hub.caught-up", true)] {
+      try await withModel(scenario) { model, _ in
+        var messages: [String] = []
+        let observation = model.$message.compactMap { $0 }.sink { messages.append($0) }
+        await model.open()
+        withExtendedLifetime(observation) {
+          XCTAssertTrue(model.ready, scenario)
+          XCTAssertEqual(model.pairing != nil, hasPairing, scenario)
+          XCTAssertTrue(messages.isEmpty, scenario)
+        }
+      }
+    }
+  }
+
   func testDiagnosticsReadsLocalEventsBeforeForegroundEnvironmentArrives() async throws {
     try await withModel("diagnostics.root") { model, core in
       await model.open()
@@ -51,7 +81,7 @@ import Photos
     let state = BackupHubStatus.derive(.init(paired: true, ready: true, paused: false,
       connection: .ready, receiverUnavailable: false, summary: summary,
       phoneSpaceShort: false, photoAccess: .full, photoLibraryInScope: true, jobs: []))
-    XCTAssertEqual(state, .backingUp(remaining: 8, bytes: 0))
+    XCTAssertEqual(state, .backingUp(remaining: 8, bytes: nil))
   }
 
   func testDockIsCentredBesideTheSettledNativeIcon() {
@@ -157,20 +187,213 @@ import Photos
         let window = UIWindow(windowScene: scene)
         window.frame = scene.coordinateSpace.bounds
         window.overrideUserInterfaceStyle = style
-        window.rootViewController = CalendarNavigationController(rootViewController: sample)
+        let navigation = CalendarNavigationController(rootViewController: sample)
+        window.rootViewController = navigation
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         try await Task.sleep(for: .milliseconds(800))
-        let button = sample.calendar.selectedButton
+        let item = try XCTUnwrap(navigation.topViewController?.toolbarItems?.first {
+          $0.accessibilityIdentifier == "calendar.review_selected"
+        })
         XCTAssertEqual(sample.calendar.selected.count, 12)
-        XCTAssertTrue(button.isEnabled)
-        XCTAssertNotNil(button.window)
-        XCTAssertFalse(button.isHidden)
-        XCTAssertEqual(button.alpha, 1)
-        XCTAssertEqual(button.superview?.alpha, 1, "Catalog containment must not stop the reveal near zero opacity")
-        XCTAssertFalse(button.superview?.isHidden ?? true)
-        XCTAssertEqual(button.traitCollection.userInterfaceStyle, style)
+        XCTAssertTrue(item.isEnabled)
+        XCTAssertTrue(sample.toolbarItems?.contains { $0 === item } == true,
+          "The navigation stack's container must own the calendar's persistent toolbar items")
+        XCTAssertTrue(sample.calendar.toolbarItems?.contains { $0 === item } == true)
+        XCTAssertFalse(navigation.isToolbarHidden)
+        // Floating toolbar groups on current systems are hosted outside the
+        // legacy UIToolbar view. The navigation page must remain attached.
+        XCTAssertNotNil(navigation.view.window)
+        XCTAssertEqual(navigation.toolbar.traitCollection.userInterfaceStyle, style)
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+          window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        let capture = XCTAttachment(image: image)
+        capture.name = "native-selection-toolbar-\(style == .light ? "light" : "dark")"
+        capture.lifetime = .keepAlways
+        add(capture)
+        sample.calendar.toggleSelection()
+        try await Task.sleep(for: .milliseconds(400))
+        XCTAssertTrue(navigation.isToolbarHidden)
+        sample.calendar.toggleSelection()
+        try await Task.sleep(for: .milliseconds(400))
+        XCTAssertFalse(navigation.isToolbarHidden)
+        XCTAssertFalse(item.isEnabled, "Re-entering selection starts with no selected photos")
       }
+    }
+  }
+
+  func testProductionCalendarHostOwnsSelectionToolbarAndRestoresNavigation() async throws {
+    try await withModel("selection.review.selected") { model, _ in
+      let previous = BackupEnvironment.usesPhotoLibrary
+      BackupEnvironment.usesPhotoLibrary = false
+      defer { BackupEnvironment.usesPhotoLibrary = previous }
+      let library = PhotoLibraryModel()
+      library.installSyntheticAssets(CatalogLibraryFixture(count: 48).fetch(filter: .all, view: .all))
+      let previousDensity = UserDefaults.standard.object(forKey: CalendarGridController.densityKey)
+      UserDefaults.standard.set(5, forKey: CalendarGridController.densityKey)
+      defer { UserDefaults.standard.set(previousDensity, forKey: CalendarGridController.densityKey) }
+      let action = SelectionBackupAction()
+      let host = UIHostingController(rootView: IOSCalendarLibrary(library: library, model: model, backupAction: action))
+      let tabs = UITabBarController()
+      tabs.viewControllers = [host, UIViewController()]
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let window = UIWindow(windowScene: scene)
+      window.frame = scene.coordinateSpace.bounds
+      window.rootViewController = tabs
+      window.makeKeyAndVisible()
+      defer { window.isHidden = true }
+      try await Task.sleep(for: .milliseconds(500))
+      func calendar(in controller: UIViewController) -> CalendarGridController? {
+        if let grid = controller as? CalendarGridController { return grid }
+        return controller.children.lazy.compactMap { calendar(in: $0) }.first
+      }
+      let grid = try XCTUnwrap(calendar(in: host))
+      let navigation = try XCTUnwrap(grid.navigationController)
+      XCTAssertEqual(grid.layout.geometry.columns, 5)
+      grid.selecting = true
+      library.selection = Set(grid.assets.prefix(2).map(\.id))
+      grid.selected = library.selection
+      grid.refreshSelection()
+      try await Task.sleep(for: .milliseconds(400))
+      let item = try XCTUnwrap(navigation.topViewController?.toolbarItems?.first { $0.accessibilityIdentifier == "calendar.review_selected" })
+      XCTAssertTrue(item.isEnabled)
+      XCTAssertTrue(navigation.topViewController === grid)
+      XCTAssertFalse(navigation.isToolbarHidden)
+      XCTAssertTrue(tabs.isTabBarHidden)
+      let selected = grid.selected
+      grid.reviewSelection()
+      let review = try XCTUnwrap(grid.selectionReview)
+      for _ in 0..<100 where review.navigationController?.isBeingPresented != false {
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      try await Task.sleep(for: .milliseconds(100))
+      XCTAssertEqual(review.columns, 3)
+      XCTAssertNotNil(review.navigationController)
+      review.onPreview(review)
+      for _ in 0..<100 where review.presentedViewController == nil {
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      let previewNavigation = try XCTUnwrap(review.presentedViewController as? UINavigationController)
+      let preview = try XCTUnwrap(previewNavigation.topViewController as? NativeMediaViewer)
+      for _ in 0..<100 where previewNavigation.isBeingPresented {
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      let previewAction = try XCTUnwrap(preview.toolbarItems?.first {
+        $0.accessibilityIdentifier == "calendar.selected_preview_backup"
+      })
+      XCTAssertFalse(previewNavigation.isToolbarHidden)
+      XCTAssertTrue(previewAction.isEnabled)
+      XCTAssertEqual(previewAction.title, review.backupItem.title)
+      XCTAssertEqual(preview.toolbarItems?.filter { $0.action != nil }.count, 1,
+        "Detail retains the shared backup action, without a global deselect action")
+      preview.selectionButton.sendActions(for: .touchUpInside)
+      XCTAssertEqual(review.selected.count, selected.count - 1)
+      XCTAssertEqual(previewAction.title, review.backupItem.title)
+      preview.selectionButton.sendActions(for: .touchUpInside)
+      XCTAssertEqual(review.selected, selected)
+      let registration = review.onBackup
+      var registrations: [Set<String>] = []
+      review.onBackup = { registrations.append(review.selected) }
+      UIApplication.shared.sendAction(try XCTUnwrap(previewAction.action), to: previewAction.target, from: previewAction, for: nil)
+      XCTAssertEqual(registrations, [selected], "Detail backs up the full reviewed set through the existing action")
+      review.setBackupFeedback(title: "Preparing", enabled: false, added: false)
+      XCTAssertFalse(previewAction.isEnabled)
+      UIApplication.shared.sendAction(try XCTUnwrap(previewAction.action), to: previewAction.target, from: previewAction, for: nil)
+      XCTAssertEqual(registrations.count, 1, "Registration is guarded while the shared action is busy")
+      review.onBackup = registration
+      review.setBackupFeedback(title: "", enabled: true, added: false)
+      func waitForDetailDialog() async throws -> UIAlertController {
+        for _ in 0..<100 where preview.presentedViewController == nil {
+          try await Task.sleep(for: .milliseconds(20))
+        }
+        let dialog = try XCTUnwrap(preview.presentedViewController as? UIAlertController)
+        for _ in 0..<100 where dialog.isBeingPresented {
+          try await Task.sleep(for: .milliseconds(20))
+        }
+        return dialog
+      }
+      func dismissDetailDialog(_ dialog: UIAlertController) async throws {
+        dialog.dismiss(animated: false)
+        for _ in 0..<100 where preview.presentedViewController != nil {
+          try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertNil(preview.presentedViewController)
+      }
+      // Exercise the real toolbar callback and action. Synthetic assets cannot
+      // resolve PhotoKit originals, so the request must expose its failure in
+      // detail without touching real media or registering preparation work.
+      model.pairing = try JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))
+      UIApplication.shared.sendAction(try XCTUnwrap(previewAction.action), to: previewAction.target, from: previewAction, for: nil)
+      let failure = try await waitForDetailDialog()
+      XCTAssertEqual(failure.preferredStyle, .alert)
+      XCTAssertEqual(failure.title, NSLocalizedString("selection_backup_failed_title", comment: ""))
+      XCTAssertEqual(failure.message, NSLocalizedString("error_source_unavailable", comment: ""))
+      XCTAssertEqual(action.error, failure.message)
+      XCTAssertFalse(action.busy)
+      XCTAssertTrue(previewAction.isEnabled)
+      XCTAssertEqual(library.selection, selected)
+      library.selection = selected
+      try await Task.sleep(for: .milliseconds(100))
+      XCTAssertTrue(preview.presentedViewController === failure)
+      XCTAssertNil(failure.presentedViewController, "A host refresh must not stack another alert")
+      action.error = nil
+      try await dismissDetailDialog(failure)
+
+      // Repeat detection needs PhotoKit source revisions. Supply only its UI
+      // observation here; this does not claim to test request-side detection.
+      action.confirmingRepeat = true
+      let confirmation = try await waitForDetailDialog()
+      XCTAssertEqual(confirmation.preferredStyle, .actionSheet)
+      XCTAssertEqual(confirmation.title, NSLocalizedString("selection_backup_repeat_title", comment: ""))
+      XCTAssertTrue(confirmation.actions.contains { $0.style == .cancel })
+      XCTAssertTrue(confirmation.popoverPresentationController?.barButtonItem === previewAction,
+        "A selected-detail confirmation uses the visible clone as its popover anchor")
+      library.selection = selected
+      try await Task.sleep(for: .milliseconds(100))
+      XCTAssertTrue(preview.presentedViewController === confirmation)
+      XCTAssertNil(confirmation.presentedViewController, "An existing confirmation retains its presentation ownership")
+      // This is the same cancellation method used by the native Cancel action.
+      action.cancel()
+      try await dismissDetailDialog(confirmation)
+      XCTAssertFalse(action.confirmingRepeat)
+      XCTAssertEqual(library.selection, selected)
+      XCTAssertEqual(review.selected, selected)
+      XCTAssertTrue(review.presentedViewController === previewNavigation)
+      XCTAssertTrue(previewAction.isEnabled)
+      let detailImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+        window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+      }
+      let detailCapture = XCTAttachment(image: detailImage)
+      detailCapture.name = "selected-detail-native-backup-toolbar"
+      detailCapture.lifetime = .keepAlways
+      add(detailCapture)
+      preview.dismissViewer()
+      for _ in 0..<100 where review.presentedViewController != nil {
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      XCTAssertNil(review.presentedViewController)
+      review.done()
+      for _ in 0..<100 where navigation.presentedViewController != nil {
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      XCTAssertNil(navigation.presentedViewController)
+      XCTAssertEqual(grid.selected, selected)
+      XCTAssertEqual(grid.columns, 5)
+      XCTAssertEqual(grid.layout.geometry.columns, 5)
+      XCTAssertFalse(navigation.isToolbarHidden)
+      let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+        window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+      }
+      let capture = XCTAttachment(image: image)
+      capture.name = "production-calendar-native-selection-toolbar"
+      capture.lifetime = .keepAlways
+      add(capture)
+      grid.toggleSelection()
+      try await Task.sleep(for: .milliseconds(400))
+      XCTAssertTrue(navigation.isToolbarHidden)
+      XCTAssertFalse(tabs.isTabBarHidden)
+      XCTAssertEqual(grid.columns, 5)
     }
   }
 
@@ -285,6 +508,49 @@ import Photos
     await library.changeFilter(.video)
     XCTAssertEqual(library.filter, .video)
     XCTAssertEqual(library.total, fixture.fetch(filter: .video, view: .notBackedUp).count)
+  }
+
+  func testReturningToNotBackedUpUsesCurrentReceiverMembership() async {
+    let original = BackupEnvironment.usesPhotoLibrary
+    BackupEnvironment.usesPhotoLibrary = false
+    defer { BackupEnvironment.usesPhotoLibrary = original }
+    let fixture = CatalogLibraryFixture(count: 700)
+    let receiver = ChangingReceiverFixture(fixture)
+    let library = PhotoLibraryModel()
+    library.installSyntheticAssets(fixture.fetch(filter: .all, view: .all))
+    library.syntheticFetch = { filter, view in await receiver.fetch(filter: filter, view: view) }
+
+    await library.changeBackupView(.notBackedUp)
+    let first = Set(library.membership?.rows.map(\.id) ?? [])
+    await library.changeBackupView(.all)
+    await library.changeBackupView(.notBackedUp)
+    let second = Set(library.membership?.rows.map(\.id) ?? [])
+    XCTAssertFalse(first.isEmpty)
+    XCTAssertFalse(second.isEmpty)
+    XCTAssertNotEqual(first, second, "Returning must use the receiver's latest answer")
+    XCTAssertEqual(first.count, second.count + 1)
+  }
+
+  func testMembershipCacheRejectsStaleAndReceiptDependentSnapshots() throws {
+    let fixture = CatalogLibraryFixture(count: 500)
+    let all = fixture.fetch(filter: .all, view: .all)
+    let videos = fixture.fetch(filter: .video, view: .all)
+    var cache = LibraryMembershipCache()
+    let epoch = cache.epoch
+    cache.put((all, LibraryMembership(all)), filter: .all, view: .all, epoch: epoch)
+    cache.put((videos, LibraryMembership(videos)), filter: .video, view: .all, epoch: epoch)
+    XCTAssertTrue(try XCTUnwrap(cache.get(.all, view: .all)).0 === all)
+    XCTAssertTrue(try XCTUnwrap(cache.get(.video, view: .all)).0 === videos)
+    XCTAssertNil(cache.get(.all, view: .notBackedUp))
+
+    cache.put((videos, LibraryMembership(videos)), filter: .photo, view: .notBackedUp, epoch: epoch)
+    XCTAssertNil(cache.get(.photo, view: .all), "Receipt-dependent answers cannot enter the reusable cache")
+    cache.invalidate()
+    XCTAssertNil(cache.get(.all, view: .all))
+    cache.put((all, LibraryMembership(all)), filter: .all, view: .all, epoch: epoch)
+    XCTAssertNil(cache.get(.all, view: .all), "An old worker cannot repopulate after a library or permission change")
+    cache.put((videos, LibraryMembership(videos)), filter: .video, view: .all, epoch: cache.epoch)
+    XCTAssertEqual(cache.get(.video, view: .all)?.1.rows.count, videos.count)
   }
 
   func testNativeFilterReplacementRestoresRetainedAnchor() throws {
@@ -434,6 +700,216 @@ import Photos
     XCTAssertEqual(navigation.preferredStatusBarStyle, .default)
     tabs.selectedIndex = 1
     XCTAssertTrue(root.childForStatusBarStyle === host)
+  }
+
+  #if targetEnvironment(simulator)
+  func testPairingPreviewIsVisibleInsideActualScanPages() async throws {
+    try await withModel { model, _ in
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let progress = IOSFirstRunProgress(defaults: UserDefaults(suiteName: "scan-preview-" + UUID().uuidString)!)
+      progress.update { $0.step = "connect"; $0.navigationPath = ["install", "connect"] }
+      let pages = [AnyView(IOSOnboarding(model: model, progress: progress)), AnyView(IOSConnectSheet(model: model))]
+      for (index, page) in pages.enumerated() {
+        var previewLayer: AVCaptureVideoPreviewLayer?
+        ScannerController.simulatedPreview = { previewLayer = $0 }
+        defer { ScannerController.simulatedPreview = nil }
+        let window = UIWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+        window.overrideUserInterfaceStyle = index == 0 ? .light : .dark
+        window.rootViewController = UIHostingController(rootView: page)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(700))
+        let layer = try XCTUnwrap(previewLayer)
+        let rect = layer.convert(layer.bounds, to: window.layer)
+        XCTAssertTrue((layer.delegate as? UIView)?.layer === layer)
+        print("Pairing preview case \(index), screen \(window.bounds), visible layer \(rect)")
+        XCTAssertGreaterThan(rect.width, window.bounds.width * 0.75)
+        XCTAssertEqual(rect.height, 300, accuracy: 1)
+        XCTAssertTrue(window.bounds.contains(rect))
+        guard rect.width > 0 && rect.height > 0 else { continue }
+        let marker = CALayer()
+        marker.frame = layer.bounds
+        marker.backgroundColor = UIColor.magenta.cgColor
+        layer.addSublayer(marker)
+        CATransaction.flush()
+        try await Task.sleep(for: .milliseconds(150))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
+          window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        let shot = XCTAttachment(image: image)
+        shot.name = "Pairing preview \(index)"
+        shot.lifetime = .keepAlways
+        self.add(shot)
+        for x in [rect.minX + 16, rect.midX, rect.maxX - 16] {
+          let sample = try XCTUnwrap(image.cgImage?.cropping(to: CGRect(x: x.rounded(), y: rect.midY.rounded(), width: 1, height: 1)))
+          var rgba = [UInt8](repeating: 0, count: 4)
+          let context = try XCTUnwrap(CGContext(data: &rgba, width: 1, height: 1, bitsPerComponent: 8,
+            bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+          context.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+          XCTAssertGreaterThan(rgba[0], 220)
+          XCTAssertLessThan(rgba[1], 35)
+          XCTAssertGreaterThan(rgba[2], 220)
+        }
+      }
+    }
+  }
+
+  func testInterruptedCameraOffersRecoveryAndRetryUsesANewPreview() async throws {
+    try await withModel { model, _ in
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let progress = IOSFirstRunProgress(defaults: UserDefaults(suiteName: "scan-recovery-" + UUID().uuidString)!)
+      progress.update { $0.step = "connect"; $0.navigationPath = ["install", "connect"] }
+      let state = IOSPixelScannerState()
+      var preview: AVCaptureVideoPreviewLayer?
+      ScannerController.simulatedPreview = { preview = $0 }
+      defer { ScannerController.simulatedPreview = nil }
+      let window = UIWindow(windowScene: scene)
+      window.rootViewController = UIHostingController(rootView: IOSOnboarding(model: model, progress: progress, scanner: state))
+      window.makeKeyAndVisible()
+      defer { window.isHidden = true }
+      try await Task.sleep(for: .milliseconds(500))
+      let first = try XCTUnwrap(preview)
+      let session = try XCTUnwrap(first.session)
+      NotificationCenter.default.post(name: AVCaptureSession.wasInterruptedNotification, object: session,
+        userInfo: [AVCaptureSessionInterruptionReasonKey: AVCaptureSession.InterruptionReason.videoDeviceInUseByAnotherClient.rawValue])
+      try await Task.sleep(for: .milliseconds(250))
+      XCTAssertEqual(state.cameraFailure, .unavailable)
+      XCTAssertEqual(progress.record?.step, "connect")
+      state.retry()
+      try await Task.sleep(for: .milliseconds(350))
+      XCTAssertNil(state.cameraFailure)
+      let retried = try XCTUnwrap(preview)
+      XCTAssertFalse(retried === first)
+      XCTAssertTrue((retried.delegate as? UIView)?.window === window)
+    }
+  }
+  #endif
+
+  func testFirstRunUsesOneNativeStackAndRestoresOnlyVisitedPages() async throws {
+    try await withModel("onboarding.connected") { model, _ in
+      await model.open()
+      let pairedProgress = IOSFirstRunProgress(defaults: UserDefaults(suiteName: "catalog-first-run-paired-" + UUID().uuidString)!)
+      pairedProgress.resolve(legacyDone: false, paired: true)
+      XCTAssertEqual(IOSOnboardingNavigation(record: pairedProgress.record).path, [.photos])
+      let defaults = UserDefaults(suiteName: "catalog-first-run-route-" + UUID().uuidString)!
+      let progress = IOSFirstRunProgress(defaults: defaults)
+      progress.update { $0.step = "welcome" }
+      let route = IOSOnboardingNavigation(record: progress.record)
+      let scanner = IOSPixelScannerState()
+      let host = UIHostingController(rootView: IOSOnboarding(model: model, progress: progress, scanner: scanner, navigation: route))
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let window = UIWindow(windowScene: scene); window.frame = scene.coordinateSpace.bounds
+      window.rootViewController = host; window.makeKeyAndVisible()
+      defer { window.isHidden = true }
+      try await Task.sleep(for: .milliseconds(350))
+      let nav = try XCTUnwrap(firstRunNavigation(host))
+      let bar = nav.navigationBar
+      XCTAssertTrue(bar.isHidden)
+      for (index, step) in IOSOnboarding.Step.allCases.dropFirst().enumerated() {
+        if step == .connected { scanner.payload = "synthetic-completed-code"; scanner.connectionCompleted = true }
+        route.go(step)
+        try await Task.sleep(for: .milliseconds(350))
+        XCTAssertTrue(firstRunNavigation(host) === nav)
+        XCTAssertTrue(nav.navigationBar === bar)
+        XCTAssertFalse(bar.isHidden, step.rawValue)
+        XCTAssertFalse(try XCTUnwrap(nav.topViewController).navigationItem.hidesBackButton)
+        XCTAssertEqual(nav.viewControllers.count, index + 2, step.rawValue)
+        XCTAssertEqual(progress.record?.step, step.rawValue)
+        XCTAssertEqual(IOSOnboardingNavigation(record: IOSFirstRunProgress(defaults: defaults).record).path, route.path)
+      }
+      for expected in IOSOnboarding.Step.allCases.dropLast().reversed() {
+        XCTAssertNotNil(nav.popViewController(animated: false))
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(route.step, expected)
+        XCTAssertEqual(progress.record?.step, expected.rawValue)
+        XCTAssertEqual(bar.isHidden, expected == .welcome)
+        if expected == .connect {
+          XCTAssertNil(scanner.payload, "Returning to Scan must not replay a completed code or remain on Connecting")
+          XCTAssertFalse(scanner.connectionCompleted)
+        }
+      }
+      // A paired receiver skips setup without inventing destinations behind Photos.
+      route.go(.photos)
+      try await Task.sleep(for: .milliseconds(350))
+      XCTAssertEqual(nav.viewControllers.count, 2)
+      XCTAssertEqual(progress.record?.navigationPath, ["photos"])
+      let restored = IOSOnboardingNavigation(record: IOSFirstRunProgress(defaults: defaults).record)
+      XCTAssertEqual(restored.path, [.photos])
+      XCTAssertNotNil(nav.popViewController(animated: false))
+      try await Task.sleep(for: .milliseconds(150))
+      XCTAssertEqual(route.step, .welcome)
+      XCTAssertTrue(bar.isHidden)
+    }
+  }
+
+  func testFirstRunPendingActionKeepsNativeBackAndContentGeometry() async throws {
+    try await withModel("onboarding.connected") { model, _ in
+      await model.open()
+      let progress = IOSFirstRunProgress(defaults: UserDefaults(suiteName: "catalog-first-run-pending-" + UUID().uuidString)!)
+      progress.update { $0.step = "photos"; $0.receiver = model.pairing?.receiverID }
+      let route = IOSOnboardingNavigation(record: progress.record)
+      let host = UIHostingController(rootView: IOSOnboarding(model: model, progress: progress, navigation: route))
+      let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+      let window = UIWindow(windowScene: scene); window.frame = scene.coordinateSpace.bounds
+      window.rootViewController = host; window.makeKeyAndVisible()
+      defer { window.isHidden = true }
+      try await Task.sleep(for: .milliseconds(350))
+      let nav = try XCTUnwrap(firstRunNavigation(host))
+      let page = try XCTUnwrap(nav.topViewController)
+      let item = page.navigationItem
+      let barFrame = nav.navigationBar.convert(nav.navigationBar.bounds, to: window)
+      let safeTop = page.view.safeAreaInsets.top
+      let visit = route.revision
+      route.working = true
+      try await Task.sleep(for: .milliseconds(200))
+      XCTAssertTrue(nav.topViewController === page)
+      XCTAssertTrue(nav.navigationBar.topItem === item)
+      XCTAssertFalse(item.hidesBackButton)
+      XCTAssertFalse(nav.navigationBar.isHidden)
+      XCTAssertEqual(nav.navigationBar.convert(nav.navigationBar.bounds, to: window), barFrame)
+      XCTAssertEqual(page.view.safeAreaInsets.top, safeTop, accuracy: 0.5)
+      // Back remains system-owned while the async operation is outstanding.
+      XCTAssertNotNil(nav.popViewController(animated: false))
+      try await Task.sleep(for: .milliseconds(150))
+      XCTAssertEqual(route.step, .connected)
+      XCTAssertFalse(route.working)
+      XCTAssertFalse(route.owns(.photos, revision: visit))
+      route.go(.photos)
+      try await Task.sleep(for: .milliseconds(350))
+      XCTAssertFalse(route.owns(.photos, revision: visit), "A result from the previous visit cannot push the new visit")
+      XCTAssertEqual(progress.record?.step, "photos")
+      let returningPage = try XCTUnwrap(nav.topViewController)
+      let returningItem = returningPage.navigationItem
+      route.working = true
+      try await Task.sleep(for: .milliseconds(500))
+      XCTAssertTrue(nav.navigationBar.topItem === returningItem)
+      XCTAssertFalse(returningItem.hidesBackButton)
+      XCTAssertEqual(nav.navigationBar.convert(nav.navigationBar.bounds, to: window), barFrame)
+      XCTAssertEqual(returningPage.view.safeAreaInsets.top, safeTop, accuracy: 0.5)
+      route.working = false
+      // The native stack performs the same forward transition after permission
+      // completes; the pending state never removes its source navigation item.
+      withAnimation { route.go(.choose) }
+      try await Task.sleep(for: .milliseconds(500))
+      XCTAssertTrue(firstRunNavigation(host) === nav)
+      XCTAssertEqual(progress.record?.step, "choose")
+      XCTAssertFalse(try XCTUnwrap(nav.topViewController).navigationItem.hidesBackButton)
+      XCTAssertEqual(nav.navigationBar.convert(nav.navigationBar.bounds, to: window), barFrame)
+      XCTAssertNotNil(nav.popViewController(animated: true))
+      try await Task.sleep(for: .milliseconds(500))
+      XCTAssertTrue(nav.topViewController === returningPage)
+      XCTAssertTrue(nav.navigationBar.topItem === returningItem)
+      XCTAssertEqual(progress.record?.step, "photos")
+      XCTAssertEqual(nav.navigationBar.convert(nav.navigationBar.bounds, to: window), barFrame)
+    }
+  }
+
+  private func firstRunNavigation(_ controller: UIViewController) -> UINavigationController? {
+    if let nav = controller as? UINavigationController { return nav }
+    return controller.children.lazy.compactMap { self.firstRunNavigation($0) }.first
   }
 
   func testFirstRunNativeBackPreservesRegisteredIntent() async throws {

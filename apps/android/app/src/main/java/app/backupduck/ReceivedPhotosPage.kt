@@ -120,8 +120,12 @@ internal class ReceivedPhotosPage(private val activity: MainActivity, private va
         val causes = needsYou(attention.items.filter { it.processing == "failed" }, attention.nextCursor != null)
         adapter.scope = photoScope(history.counts, history.items, history.total, activity.devicePanels.senderNames, copies.value)
         adapter.hasSenders = activity.hasKnownSenders != false
-        adapter.submitList(photoRows(history.items, causes, ReceiverEnvironment.now(), ZoneId.systemDefault(),
-            history.loading, history.failed, history.nextCursor != null)) {
+        val rows = photoRows(history.items, causes, ReceiverEnvironment.now(), ZoneId.systemDefault(),
+            history.loading, history.failed, history.nextCursor != null)
+        // Standalone states use the same viewport as Receive; grid tail padding
+        // must not shift their optical center toward the toolbar.
+        view.setPadding(0, 0, 0, if (rows.singleOrNull() is PhotoRow.Status) 0 else activity.dp(24))
+        adapter.submitList(rows) {
             view.post { adapter.prefetch(view, layout, 1) }
             if (needsYouRequested) {
                 val section = adapter.currentList.indexOf(PhotoRow.NeedsHeader)
@@ -216,7 +220,8 @@ internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompa
             try {
                 cache.get(key)?.let { publish(it); return@launch }
                 val receiptKey = "${baseKey(item)}:receipt"
-                val receipt = if (item.processing == "complete") cache.get(receiptKey) ?: withContext(Dispatchers.IO) {
+                // An existing receipt picture does not depend on gallery publication.
+                val receipt = if (item.receipt == "received" || item.processing == "complete") cache.get(receiptKey) ?: withContext(Dispatchers.IO) {
                     thumbnailPermits.withPermit {
                         currentCoroutineContext().ensureActive(); signal.throwIfCanceled()
                         ReceiptThumbnails.read(activity, item.id)?.also {
@@ -267,11 +272,126 @@ internal class PhotoImages(private val activity: androidx.appcompat.app.AppCompa
     }
 }
 
+/** Shared receipt/poster loading and media marks for every received-photo tile. */
+internal class PhotoTile(private val activity: MainActivity, private val images: PhotoImages) : FrameLayout(activity) {
+    var describe: ((CharSequence?) -> Unit)? = null
+    val image = ImageView(activity).apply {
+        scaleType = ImageView.ScaleType.CENTER_CROP; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+    private val badge = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
+    // The media kind uses the same fixed glyph geometry on every entry point.
+    private val kindMark = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO; visibility = View.GONE }
+    private val durationMark = activity.lookText("", R.style.TextAppearance_BackupDuck_Caption).apply {
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        includeFontPadding = false; setSingleLine(); gravity = Gravity.CENTER_VERTICAL
+        typeface = android.graphics.Typeface.create(typeface, 600, false)
+        visibility = View.GONE
+    }
+    private val mediaMarks = LinearLayout(activity).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        // A duration clock keeps its reading order immediately left of the video glyph.
+        layoutDirection = View.LAYOUT_DIRECTION_LTR
+        addView(durationMark, LinearLayout.LayoutParams(-2, -1))
+        addView(kindMark, LinearLayout.LayoutParams(activity.dp(28), activity.dp(28)))
+    }
+    private val durations = VideoDurations.get(activity)
+    private var durationMs: Long? = null
+    private var durationWork: Job? = null
+    private var durationSignal: CancellationSignal? = null
+    private var work: Job? = null
+    private var signal: CancellationSignal? = null
+    private var bound: String? = null
+    private var item: HistoryItem? = null
+    init {
+        addView(image, LayoutParams(-1, -1))
+        addView(badge, LayoutParams(activity.dp(28), activity.dp(28), Gravity.BOTTOM or Gravity.END).apply {
+            setMargins(0, 0, activity.dp(2), activity.dp(2))
+        })
+        addView(mediaMarks, LayoutParams(-2, activity.dp(28), Gravity.TOP or Gravity.END).apply {
+            setMargins(0, activity.dp(2), activity.dp(2), 0)
+        })
+    }
+    fun cancel() {
+        signal?.cancel(); work?.cancel(); signal = null; work = null
+        durationSignal?.cancel(); durationWork?.cancel(); durationSignal = null; durationWork = null
+        bound = null
+    }
+    fun bind(item: HistoryItem, size: Int) {
+        this.item = item
+        image.transitionName = photoTransitionName(item.id)
+        mark(item)
+        val key = "${item.id}:${item.receipt}:${item.processing}"
+        if (bound == key) return
+        val retained = image.photoPoster(item.id)
+        cancel(); bound = key
+        durationMs = durations.cached(item)
+        image.setTag(R.id.photo_transition_ready, null)
+        pictured = false
+        mark(item)
+        if (item.kind == "video") {
+            val next = CancellationSignal(); durationSignal = next
+            durationWork = activity.lifecycleScope.launch {
+                try {
+                    val result = durations.read(item, next)
+                    if (isActive && !next.isCanceled && bound == key) {
+                        durationMs = result; this@PhotoTile.item?.let(::mark)
+                    }
+                } catch (_: android.os.OperationCanceledException) { }
+            }
+        }
+        images.cached(item, size, size)?.let { show(it); return }
+        if (retained != null) show(retained) else { placeholder(image, loading = true); mark(item) }
+        val next = CancellationSignal(); signal = next
+        work = images.load(item, size, size, next) { bitmap ->
+            if (bound == key) {
+                if (bitmap != null) show(bitmap)
+                else if (!pictured) { placeholder(image, icon = unavailableIcon(item)); mark(item) }
+            }
+        }
+    }
+    private var pictured = false
+    private fun show(bitmap: Bitmap) {
+        image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.showPhotoBitmap(bitmap, fade = pictured)
+        image.setTag(R.id.photo_transition_ready, item?.id)
+        pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true); kind(it) }
+    }
+    // An unavailable preview identifies its kind once in the center. A known
+    // duration remains in its corner without repeating the same type glyph.
+    private fun kind(item: HistoryItem) {
+        val icon = kindIcon(item)
+        val duration = if (item.kind == "video") videoDurationLabel(durationMs) else null
+        durationMark.text = duration
+        durationMark.visibility = if (duration != null) View.VISIBLE else View.GONE
+        kindMark.visibility = if (pictured && icon != null) View.VISIBLE else View.GONE
+        if (icon != null) {
+            kindMark.scaleType = ImageView.ScaleType.CENTER
+            kindMark.imageTintList = null
+            kindMark.setImageDrawable(PhotoGlyphs.drawable(activity, icon, 16))
+        }
+        if (pictured) {
+            // design-exception: V5 media text stays white with the same soft black shadow as media glyphs.
+            durationMark.setTextColor(android.graphics.Color.WHITE)
+            // design-exception: V5 uses the glyph's black 45% shadow for legible media text.
+            durationMark.setShadowLayer(activity.dp(3).toFloat(), 0f, activity.dp(1).toFloat(), android.graphics.Color.argb(115, 0, 0, 0))
+        } else {
+            durationMark.setTextColor(activity.getColor(R.color.duck_role_secondary_text))
+            durationMark.setShadowLayer(0f, 0f, 0f, android.graphics.Color.TRANSPARENT)
+        }
+    }
+    fun mark(item: HistoryItem) {
+        this.item = item
+        kind(item)
+        photoMark(activity, badge, item.mark, onPhoto = pictured)
+        contentDescription = tileDescription(activity, item, durationMs)
+        describe?.invoke(contentDescription)
+    }
+}
+
 private class SquareFrame(context: android.content.Context) : FrameLayout(context) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
 }
 
-private class PhotoAdapter(private val activity: MainActivity, private val images: PhotoImages,
+internal class PhotoAdapter(private val activity: MainActivity, private val images: PhotoImages,
     private val cardAction: (CauseGroup, View) -> Unit, private val open: (HistoryItem, ImageView?) -> Unit,
     private val actions: ReceivedPhotosPage.Actions) : ListAdapter<PhotoRow, RecyclerView.ViewHolder>(object : DiffUtil.ItemCallback<PhotoRow>() {
     override fun areItemsTheSame(old: PhotoRow, new: PhotoRow) = old.key == new.key
@@ -389,7 +509,7 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
             is PhotoRow.Cause -> (holder as CauseHolder).bind(row.group)
             is PhotoRow.Day -> (holder as DayHolder).bind(row)
             is PhotoRow.Tile -> (holder as TileHolder).bind(live(row.item))
-            is PhotoRow.Status -> (holder as StatusHolder).bind(row.kind)
+            is PhotoRow.Status -> (holder as StatusHolder).bind(row.kind, currentList.size == 1)
             else -> {}
         }
     }
@@ -434,34 +554,23 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
     }
 
     inner class TileHolder(private val activity: MainActivity) : RecyclerView.ViewHolder(SquareFrame(activity)) {
-        val image = ImageView(activity).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        private val badge = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
-        // The media kind, as the iPhone grid shows it: Live Photo, burst or video.
-        private val kindMark = ImageView(activity).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO; visibility = View.GONE }
-        private var work: Job? = null
-        private var signal: CancellationSignal? = null
-        private var bound: String? = null
+        private val tile = PhotoTile(activity, images)
+        val image: ImageView get() = tile.image
         private var item: HistoryItem? = null
         init {
             (itemView as FrameLayout).apply {
                 setPadding(activity.dp(1), activity.dp(1), activity.dp(1), activity.dp(1))
-                addView(image, FrameLayout.LayoutParams(-1, -1))
+                addView(tile, FrameLayout.LayoutParams(-1, -1))
                 addView(NativePhotoSelectionMark(image),
                     FrameLayout.LayoutParams(activity.token(R.dimen.duck_space_large), activity.token(R.dimen.duck_space_large),
                         Gravity.TOP or Gravity.START).apply {
                         topMargin = activity.token(R.dimen.duck_space_xx_small)
                         marginStart = activity.token(R.dimen.duck_space_xx_small)
                     })
-                addView(badge, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, activity.dp(2), activity.dp(2)) })
-                addView(kindMark, FrameLayout.LayoutParams(activity.dp(28), activity.dp(28), Gravity.TOP or Gravity.END).apply { setMargins(0, activity.dp(2), activity.dp(2), 0) })
                 isFocusable = true; isClickable = true
                 val out = android.util.TypedValue(); activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, out, true)
                 foreground = activity.getDrawable(out.resourceId)
-                setOnLongClickListener {
-                    item?.let { selection?.select(it.id) } == true
-                }
+                setOnLongClickListener { item?.let { selection?.select(it.id) } == true }
                 setOnClickListener {
                     item?.let { current ->
                         if (selection?.toggleIfSelecting(current.id) != true) open(current, image)
@@ -469,44 +578,16 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
                 }
             }
         }
-        fun cancel() { signal?.cancel(); work?.cancel(); signal = null; work = null; bound = null }
+        fun cancel() = tile.cancel()
         fun bind(item: HistoryItem) {
             this.item = item
-            image.transitionName = photoTransitionName(item.id)
             selection?.bind(itemView, item.id)
-            mark(item)
-            val size = tileSize()
-            val key = "${item.id}:${item.receipt}:${item.processing}"
-            if (bound == key) return
-            cancel(); bound = key
-            image.setTag(R.id.photo_transition_ready, null)
-            pictured = false
-            images.cached(item, size, size)?.let { show(it); return }
-            placeholder(image, loading = true); mark(item)
-            val next = CancellationSignal(); signal = next
-            work = images.load(item, size, size, next) { bitmap ->
-                if (bound == key) {
-                    if (bitmap != null) show(bitmap) else placeholder(image, icon = unavailableIcon(item))
-                }
-            }
-        }
-        private var pictured = false
-        private fun show(bitmap: Bitmap) {
-            image.setPadding(0, 0, 0, 0); image.imageTintList = null; image.scaleType = ImageView.ScaleType.CENTER_CROP; image.showPhotoBitmap(bitmap, fade = pictured)
-            image.setTag(R.id.photo_transition_ready, item?.id)
-            pictured = true; item?.let { photoMark(activity, badge, it.mark, onPhoto = true); kind(it) }
-        }
-        /// Over a photo only; an unavailable preview already shows the kind's glyph.
-        private fun kind(item: HistoryItem) {
-            val icon = kindIcon(item)
-            kindMark.visibility = if (pictured && icon != null) View.VISIBLE else View.GONE
-            if (pictured && icon != null) { kindMark.scaleType = ImageView.ScaleType.CENTER; kindMark.setImageDrawable(PhotoGlyphs.drawable(activity, icon, 16)) }
+            tile.bind(item, tileSize())
+            itemView.contentDescription = tile.contentDescription
+            tile.describe = { itemView.contentDescription = it }
         }
         fun mark(item: HistoryItem) {
-            this.item = item
-            kind(item)
-            photoMark(activity, badge, item.mark, onPhoto = pictured)
-            itemView.contentDescription = activity.getString(R.string.photos_tile_description, kindLabel(activity, item), stateLabel(activity, item))
+            this.item = item; tile.mark(item)
         }
     }
 
@@ -591,23 +672,28 @@ private class PhotoAdapter(private val activity: MainActivity, private val image
 
     private inner class StatusHolder(private val activity: MainActivity) : RecyclerView.ViewHolder(LinearLayout(activity)) {
         private val box = itemView as LinearLayout
-        fun bind(kind: StatusKind) = with(activity) {
+        fun bind(kind: StatusKind, fullPage: Boolean) = with(activity) {
             box.removeAllViews(); box.orientation = LinearLayout.VERTICAL; box.gravity = Gravity.CENTER_HORIZONTAL
+            val standalone = fullPage && kind != StatusKind.LOADING
+            // Match Receive's fill-viewport composition, including its page insets.
+            // An inline paging error must retain its natural content height.
+            box.layoutParams.height = if (standalone) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT
             val margin = token(R.dimen.duck_space_medium)
+            val bottom = if (standalone) token(R.dimen.duck_space_large) else 0
             when (kind) {
                 StatusKind.LOADING -> {
                     box.setPadding(margin, token(R.dimen.duck_space_large), margin, token(R.dimen.duck_space_large))
                     box.addView(CircularProgressIndicator(this).apply { isIndeterminate = true; contentDescription = getString(R.string.rhub_loading) })
                 }
                 StatusKind.FAILED -> {
-                    box.setPadding(margin, token(R.dimen.duck_space_x_small), margin, 0)
+                    box.setPadding(margin, token(R.dimen.duck_space_x_small), margin, bottom)
                     lookUnavailable(box, getString(R.string.nav_photos), getString(R.string.photos_load_failed),
-                        getString(R.string.photos_try_again) to actions.reload)
+                        getString(R.string.photos_try_again) to actions.reload, centered = fullPage)
                 }
                 StatusKind.EMPTY -> {
-                    box.setPadding(margin, token(R.dimen.duck_space_xx_large), margin, token(R.dimen.duck_space_large))
+                    box.setPadding(margin, token(R.dimen.duck_space_x_small), margin, bottom)
                     lookEmpty(box, R.drawable.duck_empty, getString(R.string.photos_empty_title), getString(R.string.photos_empty_note),
-                        getString(R.string.rhub_connect) to actions.connect, card = false)
+                        getString(R.string.rhub_connect) to actions.connect, card = false, centered = true)
                 }
             }
         }
@@ -673,7 +759,11 @@ private fun scopeLine(context: android.content.Context, scope: PhotoScope): Stri
 }
 
 /** What a tile says to a screen reader: its kind and where it is. */
-internal fun tileDescription(context: android.content.Context, item: HistoryItem) = context.getString(R.string.photos_tile_description, kindLabel(context, item), stateLabel(context, item))
+internal fun tileDescription(context: android.content.Context, item: HistoryItem, durationMs: Long? = null): String {
+    val duration = if (item.kind == "video") durationMs?.takeIf { it > 0 }?.let(::photoDuration) else null
+    return if (duration != null) context.getString(R.string.photos_video_tile_description, duration, stateLabel(context, item))
+        else context.getString(R.string.photos_tile_description, kindLabel(context, item), stateLabel(context, item))
+}
 
 private fun kindLabel(context: android.content.Context, item: HistoryItem) = context.getString(when {
     item.kind == "motion" -> R.string.photos_kind_live

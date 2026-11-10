@@ -141,7 +141,7 @@ impl Index {
         mut observe: impl FnMut(i64) -> Result<Observation>,
         mut visit: impl FnMut(BrowseEntry) -> bool,
     ) -> Result<()> {
-        let mut stmt = self.conn.prepare("SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,(SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.receiver=?2 AND s.revision=f.revision),COALESCE(d.capture_ms,f.modified),COALESCE(d.date_source,'file_modified'),EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0),EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2) FROM files f LEFT JOIN media_dates d ON d.source=f.source AND d.relative=f.relative AND d.revision=f.revision WHERE f.present=1 AND (?1 IS NULL OR f.source=?1) AND (?3='' OR instr(lower(f.relative),lower(?3))>0) AND f.relative=(SELECT MIN(g.relative) FROM files g WHERE g.source=f.source AND g.identity=f.identity AND g.revision=f.revision AND g.present=1) ORDER BY COALESCE(d.capture_ms,f.modified) DESC,f.source,f.relative").map_err(db)?;
+        let mut stmt = self.conn.prepare("SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,(SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.receiver=?2 AND s.revision=f.revision),COALESCE(d.capture_ms,f.modified),COALESCE(d.date_source,'file_modified'),EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0),EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2),EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2 AND q.repeat_job IS NOT NULL) FROM files f LEFT JOIN media_dates d ON d.source=f.source AND d.relative=f.relative AND d.revision=f.revision WHERE f.present=1 AND (?1 IS NULL OR f.source=?1) AND (?3='' OR instr(lower(f.relative),lower(?3))>0) AND f.relative=(SELECT MIN(g.relative) FROM files g WHERE g.source=f.source AND g.identity=f.identity AND g.revision=f.revision AND g.present=1) ORDER BY COALESCE(d.capture_ms,f.modified) DESC,f.source,f.relative").map_err(db)?;
         let mut rows = stmt.query(params![source, receiver, search]).map_err(db)?;
         while let Some(r) = rows.next().map_err(db)? {
             let folder_id: String = r.get(0).map_err(db)?;
@@ -151,7 +151,9 @@ impl Index {
                 Some(id) => observe(id)?,
                 None => Observation::default(),
             };
-            let backup = if observation.state.is_empty() {
+            let backup = if r.get::<_, bool>(12).map_err(db)? {
+                "sending"
+            } else if observation.state.is_empty() {
                 if r.get::<_, bool>(11).map_err(db)? {
                     "sending"
                 } else if ignored {
@@ -270,17 +272,38 @@ impl Index {
         receiver: &str,
         selections: &[(String, String)],
     ) -> Result<()> {
+        self.request_selected_with_repeats(
+            source,
+            receiver,
+            selections,
+            &std::collections::BTreeMap::new(),
+        )
+    }
+    /// Repeat consent is anchored to the previously observed job. It never
+    /// removes a receipt or grants permission for a later file revision.
+    pub fn request_selected_with_repeats(
+        &mut self,
+        source: &str,
+        receiver: &str,
+        selections: &[(String, String)],
+        repeats: &std::collections::BTreeMap<String, i64>,
+    ) -> Result<()> {
         if selections.len() > 400 || receiver.is_empty() {
             return Err(Error::Invalid("folder selection".into()));
         }
         for (relative, revision) in selections {
+            if let Some(id) = repeats.get(relative) {
+                if *id <= 0 || self.job_id(source, relative, receiver)? != Some(*id) {
+                    return Err(Error::Conflict("folder repeat changed".into()));
+                }
+            }
             if self.entry(source, relative)?.revision != *revision {
                 return Err(Error::Conflict("folder selection changed".into()));
             }
         }
         let tx = self.conn.transaction().map_err(db)?;
         for (relative, revision) in selections {
-            tx.execute("INSERT INTO selected_requests VALUES(?1,?2,?3,?4) ON CONFLICT(source,relative,receiver) DO UPDATE SET revision=excluded.revision",params![source,relative,revision,receiver]).map_err(db)?;
+            tx.execute("INSERT INTO selected_requests(source,relative,revision,receiver,repeat_job) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(source,relative,receiver) DO UPDATE SET revision=excluded.revision,repeat_job=CASE WHEN selected_requests.revision=excluded.revision THEN COALESCE(selected_requests.repeat_job,excluded.repeat_job) ELSE excluded.repeat_job END",params![source,relative,revision,receiver,repeats.get(relative)]).map_err(db)?;
             tx.execute(
                 "DELETE FROM ignored WHERE source=?1 AND relative=?2",
                 params![source, relative],
@@ -295,8 +318,17 @@ impl Index {
         tx.commit().map_err(db)?;
         Ok(())
     }
+    pub fn selected_repeat_job(
+        &self,
+        source: &str,
+        relative: &str,
+        revision: &str,
+        receiver: &str,
+    ) -> Result<Option<i64>> {
+        self.conn.query_row("SELECT q.repeat_job FROM selected_requests q JOIN files f ON f.source=q.source AND f.relative=q.relative AND f.revision=q.revision AND f.present=1 WHERE q.source=?1 AND q.relative=?2 AND q.revision=?3 AND q.receiver=?4", params![source,relative,revision,receiver], |row| row.get(0)).optional().map_err(db).map(Option::flatten)
+    }
     pub fn selected_pending(&self, source: &str, receiver: &str) -> Result<bool> {
-        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM selected_requests q JOIN files f ON f.source=q.source AND f.relative=q.relative AND f.revision=q.revision AND f.present=1 WHERE q.source=?1 AND q.receiver=?2 AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.revision=f.revision AND s.receiver=q.receiver AND s.job>0))",params![source,receiver],|r| r.get(0)).map_err(db)
+        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM selected_requests q JOIN files f ON f.source=q.source AND f.relative=q.relative AND f.revision=q.revision AND f.present=1 WHERE q.source=?1 AND q.receiver=?2 AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.revision=f.revision AND s.receiver=q.receiver AND s.job>0 AND (q.repeat_job IS NULL OR q.repeat_job!=s.job)))",params![source,receiver],|r| r.get(0)).map_err(db)
     }
     pub fn selected_candidates(
         &self,

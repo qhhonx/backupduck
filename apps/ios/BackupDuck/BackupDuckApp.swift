@@ -24,13 +24,9 @@ import SwiftUI
   @StateObject private var notifier = BackupNotifier.shared
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
-  @AppStorage("duckAppearance") private var appearance = "system"
   /// Compatibility marker for installations that already finished setup.
   @AppStorage("firstRunDone") private var firstRunDone = false
   @StateObject private var firstRun = IOSFirstRunProgress()
-  private var colorScheme: ColorScheme? {
-    appearance == "dark" ? .dark : appearance == "light" ? .light : nil
-  }
   private var shouldKeepScreenAwake: Bool {
     keepScreenAwake && scenePhase == .active && model.ready && !model.paused
       && model.pairing != nil && !model.waitingForNetwork && !model.receiverUnavailable
@@ -44,13 +40,12 @@ import SwiftUI
     return !record.completed
   }
   private var tabs: some View {
-    TabView(selection: $selectedTab) {
-      // Three positions (design/navigation.md): Photos, Backup, Settings.
-      IOSLibraryPage(library: library, model: model).duckTabSurface()
-        .tabItem { IOSAppTab.library.label }.tag(IOSAppTab.library.rawValue)
-      IOSHub(model: model, notification: $notification).duckTabSurface().tabItem { IOSAppTab.backup.label }.tag(IOSAppTab.backup.rawValue)
-      IOSSettings(model: model).duckTabSurface()
-        .tabItem { IOSAppTab.settings.label }.tag(IOSAppTab.settings.rawValue)
+    IOSNativeTabs(selection: $selectedTab) { item in
+      switch item {
+      case .library: AnyView(IOSLibraryPage(library: library, model: model))
+      case .backup: AnyView(IOSHub(model: model, notification: $notification))
+      case .settings: AnyView(IOSSettings(model: model))
+      }
     }
     .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
   }
@@ -98,7 +93,7 @@ import SwiftUI
           activityReceiver = receiver
           consumeActivityLink()
         }
-        .duckLibraryTabMinimization(selected: selectedTab == IOSAppTab.library.rawValue).background(DuckRole.background.ignoresSafeArea()).preferredColorScheme(colorScheme).background(IOSAppearanceBridge(appearance: appearance).frame(width: 0, height: 0)).tint(DuckRole.accent).task {
+        .background(DuckRole.background.ignoresSafeArea()).modifier(IOSSavedAppearance()).tint(DuckRole.accent).task {
           await model.open()
           BackupNotifier.shared.start(model)
           BackupLiveActivity.shared.start(model)

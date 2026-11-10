@@ -1,3 +1,16 @@
+# 0.6.0 — build 90
+
+- iPhone photo browsing uses the same native grid across the library, albums
+  and backup history. Opening, zooming and returning to photos preserves the
+  browsing position. This release targets iPhone and requires iOS 18 or later.
+- iPhone first-run navigation, camera pairing and backup status are clearer.
+  Ordinary startup waits no longer appear as local data errors.
+- Mac photo and folder grids keep a stable position during zoom. Settings and
+  album search use native controls, and folder rebackup preserves prior receipts.
+  The Mac app requires macOS 15 or later.
+- The Pixel receiver uses consistent covers and backup status across grids.
+  Unavailable video placeholders remain stable when opening and closing the viewer.
+
 # 0.5.0 — build 89
 
 A redesigned BackupDuck on iPhone, iPad, Mac and Pixel

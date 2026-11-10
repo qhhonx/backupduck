@@ -8,12 +8,70 @@ import Foundation
 /// direction hysteresis, a critically damped release and a content-boundary pivot.
 /// Hosts own views and layers; they must not re-derive these numbers.
 enum GridZoom {
+  /// Shared density roles for cell decoration and dense rendering.
+  enum Density: Int, CaseIterable {
+    case single = 1, comfortable = 3, compact = 5, monthOverview = 15, yearOverview = 31
+    init(referenceColumns: Int) {
+      self = referenceColumns == 1 ? .single : referenceColumns <= 3 ? .comfortable
+        : referenceColumns < 10 ? .compact : referenceColumns < 20 ? .monthOverview : .yearOverview
+    }
+    var isDense: Bool { self == .monthOverview || self == .yearOverview }
+    var gap: CGFloat { isDense ? 0 : 2 }
+
+  }
+
   /// Critically damped release rate, fitted to Photos release recordings.
   static let settleOmega: CGFloat = 12.5
   /// A new adjacent stop needs deliberate travel (in stop-index units).
   static let previewHysteresis: CGFloat = 0.12
   /// An established pair reverses after this much log-size travel from its extreme.
   static let reversalTravel: CGFloat = 0.015
+
+  /// Photo blending runs independently of gesture-event cadence.
+  static let gridFadeDuration: TimeInterval = 1.2
+  static let overviewFadeDuration: TimeInterval = 0.85
+  static let pixelWait: TimeInterval = 0.5
+  static let releaseFadeDuration: TimeInterval = 0.35
+
+  /// Retargetable photo mixture. Hosts hand these weights to Core Animation;
+  /// geometry and input stay with their native grid.
+  struct Blend {
+    var from: [Int: CGFloat]
+    var target: Int
+    var larger: Int?
+    var phase: CGFloat
+    var start: TimeInterval
+    var requested: TimeInterval
+    var duration: TimeInterval
+    let curved: Bool
+
+    init(from: [Int: CGFloat], target: Int, curved: Bool, at now: TimeInterval) {
+      self.from = from; self.target = target; self.curved = curved
+      let active = from.keys.filter { from[$0, default: 0] > 0.0001 || $0 == target }
+      larger = active.count == 2 ? active.min() : nil
+      let weight = larger.map { from[$0, default: 0] } ?? 0
+      phase = curved ? sqrt(weight) : weight
+      let end: CGFloat = larger == target ? 1 : 0
+      let remaining = larger == nil ? 1 - from[target, default: 0] : abs(end - phase)
+      duration = max(0.001, (curved ? GridZoom.gridFadeDuration : GridZoom.overviewFadeDuration) * Double(remaining))
+      start = now; requested = now
+    }
+
+    func weights(at progress: CGFloat) -> [Int: CGFloat] {
+      let t = min(1, max(0, progress))
+      if let larger {
+        let end: CGFloat = larger == target ? 1 : 0
+        let p = phase + (end - phase) * t
+        let weight = curved ? p * p : p
+        return Dictionary(uniqueKeysWithValues: from.keys.map { columns in
+          (columns, columns == larger ? weight : columns == target || from[columns, default: 0] > 0.0001 ? 1 - weight : 0)
+        })
+      }
+      return Dictionary(uniqueKeysWithValues: from.map { columns, weight in
+        (columns, weight * (1 - t) + (columns == target ? t : 0))
+      })
+    }
+  }
 
   /// About 13% of the touch-down finger distance, at least 20 points.
   static func deadZone(startDistance: CGFloat) -> CGFloat { max(20, startDistance * 0.13) }
@@ -168,11 +226,30 @@ enum GridZoom {
           x: Self.spring(focus.x, targetFocus.x, 0, t),
           y: Self.spring(focus.y, targetFocus.y, 0, t)))
     }
+    /// Analytic velocity for an interrupted system spring. Hosts sample this
+    /// once at input takeover, rather than polling rendered layers.
+    func pitchVelocity(at now: TimeInterval) -> CGFloat {
+      let t = CGFloat(max(0, now - start)), w = GridZoom.settleOmega
+      let slope = velocity + w * (pitch - targetPitch)
+      return (velocity - w * slope * t) * exp(-w * t)
+    }
     func isDone(at now: TimeInterval) -> Bool {
       let t = now - start
       let s = state(at: now)
       return t > 0.1 && abs(s.pitch - targetPitch) < 0.05
         && hypot(s.focus.x - targetFocus.x, s.focus.y - targetFocus.y) < 0.25
+    }
+    /// The same subpixel completion threshold on both native hosts. Computing
+    /// the duration once leaves all intermediate frames to the system spring.
+    var duration: TimeInterval {
+      var duration: TimeInterval = 0.1
+      while duration < 2 {
+        let pose = state(at: start + duration)
+        if abs(pose.pitch - targetPitch) < 0.05,
+          hypot(pose.focus.x - targetFocus.x, pose.focus.y - targetFocus.y) < 0.25 { break }
+        duration += 1.0 / 120
+      }
+      return duration
     }
     /// Pitch change per second over the recent samples.
     static func velocity(of samples: [(TimeInterval, CGFloat)]) -> CGFloat {

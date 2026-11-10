@@ -211,6 +211,7 @@
     <string name="photos_empty_note">Photos your iPhone or Mac sends appear here.</string>
     <string name="photos_load_failed">Couldn’t load your photos</string>
     <string name="photos_tile_description">%1$s, %2$s</string>
+    <string name="photos_video_tile_description">Video, %1$s, %2$s</string>
     <string name="photos_state_pending">not in the Pixel’s Photos yet</string>
     <string name="photos_taken_unknown">Date taken unknown</string>
     <string name="photos_received_from">Received from %1$s</string>

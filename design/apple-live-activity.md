@@ -1,6 +1,6 @@
 # Apple backup Live Activity
 
-A compact task surface for iPhone/iPad: remaining photos, receiver, current
+A compact task surface for iPhone: remaining photos, receiver, current
 state, and an explicit pause/resume action. It uses system Lock Screen and
 Dynamic Island presentations, semantic typography and the shared role tokens.
 It is not a scheduler and does not grant additional background execution.

@@ -77,7 +77,7 @@ struct ScopeAlbumGrid: UIViewControllerRepresentable {
   }
   func updateSize() {
     let width = max(1,view.bounds.width-32)
-    let columns = traitCollection.userInterfaceIdiom == .pad ? max(3,Int((width+12)/152)) : 3
+    let columns = 3
     let side = listMode ? width : floor((width-CGFloat(columns-1)*12)/CGFloat(columns))
     let name = UIFont.preferredFont(forTextStyle: listMode ? .body : .caption1)
     let count = UIFont.preferredFont(forTextStyle: .caption1)
@@ -217,6 +217,8 @@ struct ScopeAlbumBrowser: View {
   @ObservedObject private var model = BackupModel.shared
   @StateObject private var backupAction = SelectionBackupAction()
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.duckNativeNavigation) private var nativeNavigation
+  @Environment(\.duckSettingsNavigator) private var navigator
   @MainActor init(album: ScopeAlbum, store: BackupScopeStore? = nil) {
     self.album = album
     self.store = store ?? .shared
@@ -227,31 +229,22 @@ struct ScopeAlbumBrowser: View {
     _library = StateObject(wrappedValue: library)
   }
   var body: some View {
-    content.frame(maxWidth: .infinity, maxHeight: .infinity)
-      .navigationTitle(album.name).navigationBarTitleDisplayMode(.inline)
-      .toolbar(.visible, for: .navigationBar)
-      .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          let chosen = store.rule.choosesAlbum(album.id)
-          // One selection control, as on a photo: an empty circle that fills
-          // with the check when the album is backed up.
-          Button {
-            store.save(store.rule.toggling(album: album.id, name: album.name))
-          } label: {
-            Image(systemName: chosen ? "checkmark.circle.fill" : "circle")
-          }
-          .accessibilityLabel(Text(LocalizedStringKey(chosen ? "scope_album_deselect" : "scope_album_choose")))
-          .accessibilityAddTraits(chosen ? .isSelected : [])
-          .accessibilityIdentifier("backup.scope.album_browser.choose")
-        }
-      }
+    IOSCalendarLibrary(library: library, model: model, backupAction: backupAction, browseOnly: true, allowsPinchZoom: false, embedsNavigation: !nativeNavigation,
+      browseNavigation: CalendarBrowseNavigation(title: album.name,
+        selected: store.rule.choosesAlbum(album.id), back: goBack,
+        toggle: { store.save(store.rule.toggling(album: album.id, name: album.name)) }),
+      browsePlaceholder: library.placeholder == nil ? nil : AnyView(placeholder))
+      .accessibilityIdentifier("backup.scope.album_browser")
+      .ignoresSafeArea(.container)
+      .toolbar(nativeNavigation ? .visible : .hidden, for: .navigationBar)
       .task {
         if BackupEnvironment.usesPhotoLibrary { await library.open() }
         else if library.fetch == nil { library.applyAuthorization(.denied) }
       }
       .onDisappear { library.thumbnails.clear() }
   }
-  @ViewBuilder private var content: some View {
+  private func goBack() { if nativeNavigation { navigator?.back() } else { dismiss() } }
+  @ViewBuilder private var placeholder: some View {
     switch library.placeholder {
     case .loading?: DuckLoadingState("library_loading")
     case .empty?:
@@ -259,7 +252,7 @@ struct ScopeAlbumBrowser: View {
         DuckIllustration(pose: .empty, size: 112)
         Text("library_empty_all")
       } description: { Text("scope_album_no_photos") } actions: {
-        Button("mac_fidelity_back") { dismiss() }.buttonStyle(.bordered)
+        Button("mac_fidelity_back", action: goBack).buttonStyle(.bordered)
       }.accessibilityIdentifier("backup.scope.album_browser.empty")
     case let placeholder?:
       LibraryPlaceholder(kind: placeholder, requestingAccess: library.requestingPermission,
@@ -267,9 +260,7 @@ struct ScopeAlbumBrowser: View {
           guard BackupEnvironment.usesPhotoLibrary else { return }
           Task { await library.open(requestPermission: true) }
         })
-    case nil:
-      IOSCalendarLibrary(library: library, model: model, backupAction: backupAction, browseOnly: true)
-        .accessibilityIdentifier("backup.scope.album_browser")
+    case nil: EmptyView()
     }
   }
 }

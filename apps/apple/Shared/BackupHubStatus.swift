@@ -18,7 +18,8 @@ enum BackupHubStatus: Equatable {
   case opening
   case problem(Problem)
   case paused
-  case backingUp(remaining: Int, bytes: UInt64)
+  /// `bytes` is nil when any pending work is absent or its original size is unknown.
+  case backingUp(remaining: Int, bytes: UInt64?)
   /// Everything reached the Pixel; `saving` photos are still going into its Photos.
   case caughtUp(lastSaved: Date?, saving: Int)
   case empty
@@ -57,9 +58,7 @@ enum BackupHubStatus: Equatable {
     let remaining = input.summary.queued + input.summary.running + input.summary.waiting
       + input.summary.paused + (input.summary.preparation_waiting ?? 0)
     if remaining > 0 {
-      let bytes = input.jobs.filter { ["queued", "running", "waiting"].contains($0.state) }
-        .reduce(UInt64(0)) { $0 + ($1.totalBytes > $1.confirmedBytes ? $1.totalBytes - $1.confirmedBytes : 0) }
-      return .backingUp(remaining: remaining, bytes: bytes)
+      return .backingUp(remaining: remaining, bytes: remainingBytes(input))
     }
     if input.summary.received > 0 || input.summary.published > 0 {
       let saving = max(0, input.summary.received - input.summary.published - input.summary.publication_failed)
@@ -67,6 +66,32 @@ enum BackupHubStatus: Equatable {
       return .caughtUp(lastSaved: nil, saving: saving)
     }
     return .empty
+  }
+
+  private static func remainingBytes(_ input: Inputs) -> UInt64? {
+    // The task feed is paged, while the summary covers the whole receiver queue.
+    // Never label a loaded prefix as the size of every pending photo.
+    guard input.summary.preparation_waiting == 0 else { return nil }
+    let states = ["queued", "running", "waiting", "paused"]
+    let pending = input.jobs.filter { states.contains($0.state) }
+    guard Set(pending.map(\.id)).count == pending.count,
+      states.allSatisfy({ state in pending.filter { $0.state == state }.count == input.summary.count(for: state) })
+    else { return nil }
+    var bytes: UInt64 = 0
+    for job in pending {
+      guard !job.asset.resources.isEmpty else { return nil }
+      var total: UInt64 = 0
+      for resource in job.asset.resources {
+        guard resource.size > 0 else { return nil }
+        let (next, overflow) = total.addingReportingOverflow(resource.size)
+        guard !overflow else { return nil }
+        total = next
+      }
+      let (next, overflow) = bytes.addingReportingOverflow(total > job.confirmedBytes ? total - job.confirmedBytes : 0)
+      guard !overflow else { return nil }
+      bytes = next
+    }
+    return bytes
   }
 }
 
@@ -120,9 +145,11 @@ extension BackupHubStatus {
     case .paused: return text("hub_paused")
     case .caughtUp(_, let saving): return text(Self.caughtUpTitle(saving: saving, earlierPhotosStarted: earlierPhotosStarted, autoBackup: autoBackup))
     case .backingUp(let remaining, let bytes):
-      return bytes > 0
-        ? String(format: text("hub_backing_up"), remaining.formatted(), ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file))
-        : String(format: text("hub_backing_up_count"), remaining.formatted())
+      if let bytes, bytes > 0 {
+        return String(format: text("hub_backing_up"), remaining.formatted(),
+          ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file))
+      }
+      return String(format: text("hub_backing_up_count"), remaining.formatted())
     case .problem(let problem):
       switch problem {
       case .receiverRejected: return text("hub_problem_rejected")

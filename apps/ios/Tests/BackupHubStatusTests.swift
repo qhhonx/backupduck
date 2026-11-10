@@ -4,6 +4,7 @@ import XCTest
 final class BackupHubStatusTests: XCTestCase {
   private func inputs(_ change: (inout BackupHubStatus.Inputs) -> Void = { _ in }) -> BackupHubStatus.Inputs {
     var summary = SenderSummary(); summary.total = 10; summary.received = 10; summary.published = 10
+    summary.preparation_waiting = 0
     var value = BackupHubStatus.Inputs(paired: true, ready: true, paused: false, connection: .ready, receiverUnavailable: false,
       summary: summary, phoneSpaceShort: false, photoAccess: .full, photoLibraryInScope: true, jobs: [])
     change(&value)
@@ -117,21 +118,101 @@ final class BackupHubStatusTests: XCTestCase {
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.published = 0 }),
       .caughtUp(lastSaved: nil, saving: 10))
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.publication_failed = 1 }), .problem(.photosNeedYou(1)))
-    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.preparation_waiting = 2 }), .backingUp(remaining: 2, bytes: 0))
+    XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.preparation_waiting = 2 }), .backingUp(remaining: 2, bytes: nil))
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.preparation_failed = 2 }), .problem(.photosNeedYou(2)))
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.conversion_required = 201 }), .problem(.conversionNeeded(201)))
   }
 
   func testBackingUpCountsQueuedRunningAndWaiting() {
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.summary.queued = 3; $0.summary.running = 1; $0.summary.waiting = 2 }),
-      .backingUp(remaining: 6, bytes: 0))
+      .backingUp(remaining: 6, bytes: nil))
+  }
+
+  private func sizedJob(_ id: Int64, state: String = "queued", sizes: [UInt64] = [1_000],
+    confirmed: UInt64 = 0) -> BackupJob {
+    BackupJob(id: id, asset: .init(kind: "photo", source_id: "synthetic:\(id)", revision: "1",
+      resources: sizes.enumerated().map { .init(filename: "resource-\($0.offset)", size: $0.element) }),
+      state: state, confirmedBytes: confirmed, errorCode: nil)
+  }
+
+  func testPagedQueueRetainsWholeCountWithoutPublishingLoadedSubtotal() {
+    let status = BackupHubStatus.derive(inputs {
+      $0.summary.queued = 201
+      $0.jobs = (1...200).map { sizedJob(Int64($0)) }
+    })
+    XCTAssertEqual(status, .backingUp(remaining: 201, bytes: nil))
+    XCTAssertEqual(status.sentence(receiver: "Pixel"),
+      String(format: NSLocalizedString("hub_backing_up_count", comment: ""), 201.formatted()))
+  }
+
+  func testPendingPreparationMakesOtherwiseCompleteTransferSizeUnknown() {
+    let status = BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.summary.preparation_waiting = 2
+      $0.jobs = [sizedJob(1)]
+    })
+    XCTAssertEqual(status, .backingUp(remaining: 3, bytes: nil))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.summary.preparation_waiting = nil
+      $0.jobs = [sizedJob(1)]
+    }), .backingUp(remaining: 1, bytes: nil))
+  }
+
+  func testCompleteSizeIncludesPausedJobsAndSubtractsConfirmedBytes() {
+    let status = BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.summary.running = 1; $0.summary.waiting = 1; $0.summary.paused = 1
+      $0.jobs = [sizedJob(1, sizes: [1_000, 500]), sizedJob(2, state: "running", confirmed: 200),
+        sizedJob(3, state: "waiting", confirmed: 1_500), sizedJob(4, state: "paused"),
+        sizedJob(5, state: "received", sizes: [9_000])]
+    })
+    XCTAssertEqual(status, .backingUp(remaining: 4, bytes: 3_300))
+    XCTAssertEqual(status.sentence(receiver: "Pixel"),
+      String(format: NSLocalizedString("hub_backing_up", comment: ""), 4.formatted(),
+        ByteCountFormatter.string(fromByteCount: 3_300, countStyle: .file)))
+  }
+
+  func testMissingPausedJobOrMismatchedStateOmitsSize() {
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.summary.paused = 1
+      $0.jobs = [sizedJob(1)]
+    }), .backingUp(remaining: 2, bytes: nil))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.summary.paused = 1
+      $0.jobs = [sizedJob(1), sizedJob(2)]
+    }), .backingUp(remaining: 2, bytes: nil))
+  }
+
+  func testMissingResourcesStayUnknownButKnownZeroRemainsZero() {
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.jobs = [sizedJob(1, sizes: [])]
+    }), .backingUp(remaining: 1, bytes: nil))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.jobs = [sizedJob(1, sizes: [0])]
+    }), .backingUp(remaining: 1, bytes: nil))
+    let zero = BackupHubStatus.derive(inputs {
+      $0.summary.running = 1; $0.jobs = [sizedJob(1, state: "running", confirmed: 1_000)]
+    })
+    XCTAssertEqual(zero, .backingUp(remaining: 1, bytes: 0))
+    XCTAssertEqual(zero.sentence(receiver: "Pixel"),
+      String(format: NSLocalizedString("hub_backing_up_count", comment: ""), 1.formatted()))
+  }
+
+  func testDuplicateJobsAndOverflowCannotInventTotalBytes() {
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 2; $0.jobs = [sizedJob(1), sizedJob(1)]
+    }), .backingUp(remaining: 2, bytes: nil))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 1; $0.jobs = [sizedJob(1, sizes: [.max, 1])]
+    }), .backingUp(remaining: 1, bytes: nil))
+    XCTAssertEqual(BackupHubStatus.derive(inputs {
+      $0.summary.queued = 2; $0.jobs = [sizedJob(1, sizes: [.max]), sizedJob(2, sizes: [1])]
+    }), .backingUp(remaining: 2, bytes: nil))
   }
 
   func testPhotoAccessOnlyBlocksLibraryWork() {
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.photoAccess = .denied; $0.photoLibraryInScope = false }),
       .caughtUp(lastSaved: nil, saving: 0))
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.photoAccess = .denied; $0.photoLibraryInScope = false; $0.summary.queued = 4 }),
-      .backingUp(remaining: 4, bytes: 0))
+      .backingUp(remaining: 4, bytes: nil))
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.photoAccess = .denied; $0.photoLibraryInScope = true }),
       .problem(.photoAccessDenied))
     XCTAssertEqual(BackupHubStatus.derive(inputs { $0.photoAccess = .limited }), .caughtUp(lastSaved: nil, saving: 0))

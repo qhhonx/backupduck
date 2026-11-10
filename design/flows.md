@@ -48,6 +48,16 @@ iPhone connect contract below.
 | 6 | **First photo lands.** The first thumbnail travels between two graphite front-view phone illustrations (Illustrations.xcassets DeviceIPhone / DevicePixel, derived artwork without logos): the iPhone has a Dynamic Island and the Pixel a centred punch-hole camera; both screen openings have the same height, each lit screen sits under its bezel, and the Pixel starts as an empty Photos page because its contents are not known here. Labels use the device kinds iPhone and Pixel above the unchanged destination labels, without generated device names. A thin shared progress bar under the devices uses only the job’s confirmed/total bytes, with Sending and the byte counts; before bytes are known, show Preparing the photo. Symmetric labels and centered title/status share one axis. The done duck appears on confirmed arrival, then "Your first photo is in the Pixel's Photos". Both screens show a library as the library grid does: three columns, oldest first; a library that fits starts under the status bar with any partial row last, and a longer one is scrolled to its newest photos at the bottom. A copy of the sent photo flies from its own iPhone slot into the Pixel's first slot while the original keeps its slot, because a backup copies; the sent photo is always in the iPhone grid. Both screens use one tile size, so a copy keeps its size from slot to slot. While the page stays open, every later photo the Pixel saves to its Photos flies the same way into the Pixel's next slot, one at a time with a 0.6-second pause; photos saved while a copy is in flight appear in place, so the page never falls behind the Pixel, and a photo older than the visible iPhone grid fades in from the top of the iPhone screen. Nothing moves without a saved photo: preparing and sending show only the byte progress, never a loop. Keep the existing 0.75-second curve and 0.15-second hold. One orchestrated motion; crossfade without travel under Reduce Motion | OK | Then one sentence on notifications ("We only notify you when something needs you") and the system prompt |
 | 7 | **Hub.** Progress card for earlier photos, keep-screen-on switch while a large batch runs, Live Activity on the lock screen | — | First run ends here. Only New Photos skips the first-photo step and ends first run on the hub; until an earlier-photo run starts, the hub says new photos are saved (never "all photos") and offers Earlier Photos with one Back Up action, using the Auto Backup scope. |
 
+The iPhone guide uses one system navigation stack. Each forward action pushes
+one page; Back and its interactive gesture return through the pages actually
+visited, including after restart. A previously paired Pixel skips installation
+and connection without adding those pages to Back history. Older saved setup
+records retain their existing step order. Welcome hides only its own navigation
+bar; later pages retain the same system bar and Back button while permissions
+or durable registration are pending. Those operations disable their action,
+without removing navigation or moving content. Returning before an operation
+finishes preserves submitted intent and never advances a page left behind.
+
 ### Mac connection entry
 
 The Mac has no first-run wizard. Its empty Overview says that photos are kept
@@ -56,10 +66,16 @@ Connect Pixel is the primary action.
 
 ### iPhone connect: permission and startup order
 
+While local setup and pairing records are being read, keep the launch background
+until the app can choose between the saved destination and first run. Show a
+startup error with Retry only when opening fails.
+
 The scanner answers one question: connect this iPhone to the Pixel
 whose code is being scanned. Merely entering or restoring the scanner is not
 connection intent. First run and the later Connect/Reconnect sheet use the same
-scanner and recovery states.
+scanner and recovery states. Their native preview fills the available content width.
+QR recognition and the visible preview use the same camera input. If video cannot
+reach the preview, show camera recovery on the current page.
 
 1. **Scan:** request only Camera access. Local queue opening (`open_sender`),
    identity and setup-state reads remain available without networking. Do not
@@ -143,12 +159,18 @@ has been requested, Next lets the person continue with those restrictions.
 The hub answers "are my photos safe?" in one line, then shows only what is
 happening or needs the user.
 
+Apple hubs order their content as overall state, earlier-photo state, recent
+photos and Backup History. The two states remain separate cards. The
+earlier-photo card exposes only its start, pause or resume controls; the card
+itself does not open records. Confirmed completion removes both the progress
+bar and its reserved slot, leaving the completed state as an ordinary card.
+
 ### iPhone hub states
 
 | State | Top line | Below |
 | --- | --- | --- |
 | All caught up | "All your photos are in the Pixel's Photos" · last backup time | Latest photos strip; the all-caught-up duck |
-| Backing up | "Backing up 128 photos · about 2.1 GB" with progress | Current photo thumbnail; keep-screen-on switch above a size threshold; Pause |
+| Backing up | "Backing up 128 photos" with progress; append "about 2.1 GB" only when the complete remaining size is known | Current photo thumbnail; keep-screen-on switch above a size threshold; Pause |
 | Earlier photos | Saved-to-Photos count / frozen membership total once the core has finished counting; otherwise "Counting earlier photos…" | Shared Apple card; Pause / 暂停 pauses scanning and Resume / 继续 resumes it, separately from pausing sending. Paused / 已暂停 names its paused state. Mac places this action trailing in the title row like the running card; iPhone retains the action below the text. Never substitute scanned or prepared counts for saved counts |
 | Waiting for the Pixel | "Continues when the Pixel is back on Wi‑Fi" | New photos are kept in order; no action needed |
 
@@ -188,6 +210,13 @@ appear as one line when they matter.
 - "All your photos are in the Pixel's Photos" appears only when every received
   photo is saved there. Otherwise the hub says the photos reached the Pixel and
   how many are still being saved (P3).
+- Apple pending counts cover queued, running, waiting, paused and preparing
+  originals for the current receiver. Omit the size when tasks are only partly
+  loaded, preparation counts are unavailable, or any pending original has no
+  known size; a loaded subtotal is never the whole pending size. The count-only
+  title uses the same card and reserved
+  progress slot. Earlier-photo counting retains its checked-item count without
+  inventing a percentage before membership is known.
 - The keep-screen-on switch appears only while 50 or more photos remain.
 - The Pixel shows free space only in the space card, or as a hint when less
   than 15% remains and auto cleanup is off. Readings are the device's own.

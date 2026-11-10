@@ -9,14 +9,23 @@ enum LibraryViewMode: String, CaseIterable, Identifiable {
 }
 struct LibraryTimelineGeometry {
   struct Header { let firstItem: Int; let title: String; let frame: CGRect }
+  static func cellSide(width: CGFloat, columns: Int, inset: CGFloat, gap: CGFloat,
+    fillsWidth: Bool = false) -> CGFloat {
+    let side = (width - inset * 2 - CGFloat(columns - 1) * gap) / CGFloat(columns)
+    return max(1, fillsWidth ? side : floor(side))
+  }
   var items: [CGRect] = []
   var headers: [Header] = []
   var height: CGFloat = 0
+  #if os(macOS)
+  var macCaptions = MacTimelineCaptions()
+  #endif
   init(dates: [Date?], mode: LibraryViewMode, width: CGFloat, target: CGFloat,
     inset: CGFloat, gap: CGFloat, headerHeight: CGFloat, calendar: Calendar = .current, columns requestedColumns: Int? = nil,
-    leadingSlots: Int = 0, sectionTitles: [Int: String]? = nil, sectionHeaderHeights: [Int: CGFloat] = [:]) {
+    leadingSlots: Int = 0, sectionTitles: [Int: String]? = nil, sectionHeaderHeights: [Int: CGFloat] = [:],
+    fillsWidth: Bool = false) {
     let columns = requestedColumns ?? max(mode == .months ? 7 : 3, Int((width - inset * 2 + gap) / (target + gap)))
-    let side = max(1, floor((width - inset * 2 - CGFloat(columns - 1) * gap) / CGFloat(columns)))
+    let side = Self.cellSide(width: width, columns: columns, inset: inset, gap: gap, fillsWidth: fillsWidth)
     // Empty slots before the first photo keep a focal photo in its column across
     // a density change, so no whole column slides on screen.
     var y: CGFloat = 4, column = mode == .all ? leadingSlots % max(1, columns) : 0, previous: Date?, hasGroup = false
@@ -89,164 +98,129 @@ enum LibraryMotion {
     return first..<max(first,low)
   }
 }
-#if os(iOS)
-import UIKit
-@MainActor final class LibraryTimelineLayout: UICollectionViewLayout {
-  static let headerKind = "library.timeline.header"
-  let library: PhotoLibraryModel
-  var mode: LibraryViewMode
-  var columns: Int
-  var anchorID: String?
-  var anchorInset: CGFloat = 0
-  /// Transient horizontal focus during a pinch. Release restores the column
-  /// edges while retaining the focused asset's vertical scroll position.
-  var focusTranslationX: CGFloat = 0
-  private var key = ""
-  private var densityPair = ""
-  private var dates: [Date?] = []
-  private var cached: [String: LibraryTimelineGeometry] = [:]
-  private var from = LibraryTimelineGeometry(dates: [], mode: .all, width: 1, target: 135, inset: 0, gap: 2, headerHeight: 44)
-  private var to: LibraryTimelineGeometry?
-  private var fromHeaders: [Int: LibraryTimelineGeometry.Header] = [:]
-  private var toHeaders: [Int: LibraryTimelineGeometry.Header] = [:]
-  private var headerIDs: [Int] = []
-  private(set) var progress: CGFloat = 0
-  private(set) var density: CGFloat = 3
-  init(library: PhotoLibraryModel, mode: LibraryViewMode) {
-    self.library = library; self.mode = mode; columns = mode == .months ? 7 : library.phoneColumns
-    density = CGFloat(columns); super.init()
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  override func prepare() {
-    super.prepare(); guard let view = collectionView else { return }
-    let count = view.numberOfSections > 0 ? view.numberOfItems(inSection: 0) : 0
-    let next = "\(view.bounds.width)|\(count)|\(library.generation)|\(UIFont.preferredFont(forTextStyle: .headline).pointSize)"
-    if key != next {
-      key = next; densityPair = ""; dates = (0..<count).map { library.asset(at: $0)?.creationDate }; cached.removeAll()
-      from = geometry(mode: mode, columns: columns); to = nil; progress = 0; rebuildHeaders()
-    }
-  }
-  private func geometry(mode: LibraryViewMode, columns: Int) -> LibraryTimelineGeometry {
-    let key = "\(mode.rawValue)|\(columns)"
-    if let geometry = cached[key] { return geometry }
-    let geometry = LibraryTimelineGeometry(dates: dates, mode: mode, width: collectionView?.bounds.width ?? 1,
-      target: 135, inset: 0, gap: 2, headerHeight: max(42, UIFont.preferredFont(forTextStyle: .headline).lineHeight + 20), columns: columns)
-    cached[key] = geometry; return geometry
-  }
-  func beginMorph(mode: LibraryViewMode, columns: Int) {
-    prepare(); densityPair = ""; from = snapshot(); to = geometry(mode: mode, columns: columns); progress = 0; rebuildHeaders()
-  }
-  func setProgress(_ value: CGFloat) { progress = min(1, max(0, value)); invalidateLayout() }
-  func updateDensity(_ value: CGFloat, startMode: LibraryViewMode) {
-    prepare(); density = min(9, max(3, value))
-    let stops = [3, 5, 7, 9]
-    let low = stops.last { CGFloat($0) <= density } ?? 3
-    let high = stops.first { CGFloat($0) >= density } ?? 9
-    let lowMode: LibraryViewMode = low == 3 ? (startMode == .all ? .all : .days) : .months
-    let highMode: LibraryViewMode = high == 3 ? lowMode : .months
-    let pair = "\(low)|\(high)|\(startMode.rawValue)"
-    if pair != densityPair {
-      densityPair = pair; from = geometry(mode: lowMode, columns: low); to = geometry(mode: highMode, columns: high); rebuildHeaders()
-    }
-    // Image scale, rather than column count, follows the fingers linearly.
-    let a = from.items.first?.width ?? 1, b = to?.items.first?.width ?? 1
-    let desired = max(1, ((collectionView?.bounds.width ?? 1) - (density - 1)*2)/density)
-    progress = a == b ? 0 : min(1, max(0, (a-desired)/(a-b)))
-    invalidateLayout()
-  }
-  func adopt(mode: LibraryViewMode, columns: Int) {
-    densityPair = ""; self.mode = mode; self.columns = columns; density = CGFloat(columns)
-    from = geometry(mode: mode, columns: columns); to = nil; progress = 0; rebuildHeaders(); invalidateLayout()
-  }
-  private func rebuildHeaders() {
-    fromHeaders = Dictionary(uniqueKeysWithValues: from.headers.map { ($0.firstItem, $0) })
-    toHeaders = Dictionary(uniqueKeysWithValues: (to?.headers ?? from.headers).map { ($0.firstItem, $0) })
-    headerIDs = Set(fromHeaders.keys).union(toHeaders.keys).sorted()
-  }
-  private func snapshot() -> LibraryTimelineGeometry {
-    guard to != nil else { return from }
-    var geometry = from
-    geometry.items = (0..<dates.count).map { frame(at: $0).offsetBy(dx: -focusTranslationX,dy: 0) }
-    geometry.headers = headerIDs.compactMap { id in
-      guard let attributes = header(at: id), attributes.alpha > 0.5 else { return nil }
-      return LibraryTimelineGeometry.Header(firstItem: id, title: title(at: id), frame: attributes.frame)
-    }
-    geometry.height = collectionViewContentSize.height; return geometry
-  }
-  func frame(at index: Int) -> CGRect {
-    guard from.items.indices.contains(index) else { return .zero }
-    let rectangle: CGRect
-    if let to, to.items.indices.contains(index) { rectangle = LibraryMotion.interpolate(from.items[index], to.items[index], progress) }
-    else { rectangle = from.items[index] }
-    return rectangle.offsetBy(dx: focusTranslationX,dy: 0)
-  }
-  override var collectionViewContentSize: CGSize {
-    CGSize(width: collectionView?.bounds.width ?? 0, height: from.height + ((to?.height ?? from.height)-from.height)*progress)
-  }
-  override func layoutAttributesForItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
-    guard from.items.indices.contains(indexPath.item) else { return nil }
-    let result = UICollectionViewLayoutAttributes(forCellWith: indexPath); result.frame = frame(at: indexPath.item); return result
-  }
-  private func header(at id: Int) -> UICollectionViewLayoutAttributes? {
-    guard fromHeaders[id] != nil || toHeaders[id] != nil else { return nil }
-    let a = fromHeaders[id]?.frame ?? CGRect(x: 16, y: from.items.indices.contains(id) ? from.items[id].minY : 0, width: max(0,(collectionView?.bounds.width ?? 0)-32), height: 0)
-    let b = toHeaders[id]?.frame ?? CGRect(x: 16, y: to?.items.indices.contains(id) == true ? to!.items[id].minY : a.minY, width: a.width, height: 0)
-    let result = UICollectionViewLayoutAttributes(forSupplementaryViewOfKind: Self.headerKind, with: IndexPath(item: id, section: 0))
-    result.frame = LibraryMotion.interpolate(a,b,progress)
-    result.frame.origin.x = 0; result.frame.size.width = collectionView?.bounds.width ?? 0
-    result.alpha = fromHeaders[id] == nil ? progress : toHeaders[id] == nil ? 1-progress
-      : fromHeaders[id]?.title == toHeaders[id]?.title ? 1 : abs(1-2*progress)
-    return result
-  }
-  override func layoutAttributesForSupplementaryView(ofKind kind: String, at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
-    kind == Self.headerKind ? header(at: indexPath.item) : nil
-  }
-  override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
-    let items = LibraryMotion.visibleRange(count: from.items.count, in: rect) { frame(at: $0) }
-    var headerIndexes = Set(LibraryMotion.visibleRange(count: headerIDs.count, in: rect) { header(at: headerIDs[$0])?.frame ?? .zero })
-    if to == nil, !headerIDs.isEmpty {
-      let offset = collectionView?.bounds.minY ?? rect.minY
-      var low = 0, high = headerIDs.count
-      while low < high { let mid = (low+high)/2; if (header(at: headerIDs[mid])?.frame.minY ?? 0) <= offset { low = mid+1 } else { high = mid } }
-      if low > 0 { headerIndexes.insert(low-1) }
-    }
-    let headers = headerIndexes.sorted().compactMap { position -> UICollectionViewLayoutAttributes? in
-      guard let attributes = header(at: headerIDs[position]) else { return nil }
-      if to == nil, let view = collectionView {
-        let next = position+1 < headerIDs.count ? header(at: headerIDs[position+1])?.frame.minY ?? .greatestFiniteMagnitude : .greatestFiniteMagnitude
-        attributes.frame.origin.y = min(next-attributes.frame.height,max(attributes.frame.minY,view.bounds.minY+view.adjustedContentInset.top))
-        attributes.zIndex = 100
-      }
-      return attributes
-    }
-    return items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers
-  }
-  override func targetContentOffset(forProposedContentOffset proposedContentOffset: CGPoint) -> CGPoint {
-    guard let index = library.index(of: anchorID), from.items.indices.contains(index), let view = collectionView else { return proposedContentOffset }
-    let maximum = max(-view.adjustedContentInset.top, collectionViewContentSize.height-view.bounds.height+view.adjustedContentInset.bottom)
-    return CGPoint(x: 0, y: min(maximum, max(-view.adjustedContentInset.top, frame(at: index).minY+anchorInset)))
-  }
-  func title(at id: Int) -> String { (progress < 0.5 ? fromHeaders[id]?.title ?? toHeaders[id]?.title : toHeaders[id]?.title ?? fromHeaders[id]?.title) ?? "" }
-  override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool { true }
-}
-@MainActor final class TimelineDateHeader: UICollectionReusableView {
-  private let label = UILabel()
-  override init(frame: CGRect) {
-    super.init(frame: frame); backgroundColor = UIColor.systemBackground; label.font = .preferredFont(forTextStyle: .subheadline)
-    label.adjustsFontForContentSizeCategory = true; label.textColor = DuckRole.primaryTextUIColor; addSubview(label)
-    label.accessibilityIdentifier = "library.timeline.date"
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  override func layoutSubviews() { super.layoutSubviews(); label.frame = bounds.insetBy(dx: 16,dy: 6) }
-  func setTitle(_ title: String) { label.text = title }
-}
-#else
+#if os(macOS)
 import AppKit
+
+/// A folder's identity occupies its existing summary row exactly once. The
+/// overlay uses that same measured row while the rest of the summary scrolls.
+struct MacTimelineFolder: Equatable {
+  let id: String
+  let title: String
+  let identityHeight: CGFloat
+}
+
+struct MacTimelineCaption {
+  enum Kind: String, CaseIterable {
+    case date = "library.timeline.header"
+    case summary = "library.timeline.summary"
+    case folder = "library.timeline.folder"
+    var zIndex: Int { self == .folder ? 30 : self == .date ? 20 : 10 }
+  }
+  struct ID: Hashable { let kind: Kind; let value: String }
+  struct Address: Hashable { let kind: Kind; let firstItem: Int }
+  let id: ID
+  let firstItem: Int
+  let title: String
+  var frame: CGRect
+  var parent: ID?
+  var next: ID?
+  var boundary: ID?
+  var address: Address { Address(kind: id.kind, firstItem: firstItem) }
+}
+
+/// Both AppKit and the zoom reading plane use these natural rectangles and
+/// identical pinning bounds. IDs distinguish repeated dates in different folders.
+struct MacTimelineCaptions {
+  private(set) var ordered: [MacTimelineCaption] = []
+  private(set) var byID: [MacTimelineCaption.ID: MacTimelineCaption] = [:]
+  private var addresses: [MacTimelineCaption.Address: MacTimelineCaption.ID] = [:]
+
+  init() {}
+  init(geometry: LibraryTimelineGeometry, folders: [Int: MacTimelineFolder], dateIDs: [Int: String], flowHeaders: Set<Int> = []) {
+    let starts = folders.keys.sorted()
+    var owner: Int?, folderIndex = 0
+    var dates: [MacTimelineCaption] = []
+    for header in geometry.headers {
+      if flowHeaders.contains(header.firstItem) {
+        ordered.append(MacTimelineCaption(id: .init(kind: .summary, value: "flow|\(header.firstItem)"),
+          firstItem: header.firstItem, title: header.title, frame: header.frame))
+        continue
+      }
+      while folderIndex < starts.count && starts[folderIndex] <= header.firstItem {
+        owner = starts[folderIndex]; folderIndex += 1
+      }
+      let folder = owner.flatMap { folders[$0] }
+      let parent = folder.map { MacTimelineCaption.ID(kind: .folder, value: $0.id) }
+      let nextFolder = folderIndex < starts.count ? folders[starts[folderIndex]] : nil
+      let boundary = nextFolder.map { MacTimelineCaption.ID(kind: .summary, value: $0.id) }
+      var dateFrame = header.frame
+      if let current = folders[header.firstItem] {
+        let summaryHeight = max(0, header.frame.height - 44)
+        let summaryFrame = CGRect(x: header.frame.minX, y: header.frame.minY,
+          width: header.frame.width, height: summaryHeight)
+        ordered.append(MacTimelineCaption(id: .init(kind: .summary, value: current.id),
+          firstItem: header.firstItem, title: current.title, frame: summaryFrame))
+        ordered.append(MacTimelineCaption(id: .init(kind: .folder, value: current.id),
+          firstItem: header.firstItem, title: current.title,
+          frame: CGRect(x: summaryFrame.minX, y: summaryFrame.minY,
+            width: summaryFrame.width, height: current.identityHeight), boundary: boundary))
+        dateFrame.origin.y += summaryHeight; dateFrame.size.height = 44
+      }
+      let identity = dateIDs[header.firstItem] ?? "\(folder?.id ?? "")|\(header.firstItem)"
+      dates.append(MacTimelineCaption(id: .init(kind: .date, value: identity),
+        firstItem: header.firstItem, title: header.title, frame: dateFrame, parent: parent, boundary: boundary))
+    }
+    for index in dates.indices where index + 1 < dates.count {
+      // Only a sibling date can push this date; folder handoff uses its summary.
+      if dates[index].parent == dates[index + 1].parent { dates[index].next = dates[index + 1].id }
+    }
+    ordered += dates
+    ordered.sort {
+      $0.firstItem == $1.firstItem ? $0.id.kind.zIndex < $1.id.kind.zIndex : $0.firstItem < $1.firstItem
+    }
+    byID = Dictionary(uniqueKeysWithValues: ordered.map { ($0.id, $0) })
+    addresses = Dictionary(uniqueKeysWithValues: ordered.map { ($0.address, $0.id) })
+  }
+  func caption(kind: MacTimelineCaption.Kind, at firstItem: Int) -> MacTimelineCaption? {
+    addresses[.init(kind: kind, firstItem: firstItem)].flatMap { byID[$0] }
+  }
+  func frame(for caption: MacTimelineCaption, top: CGFloat, width: CGFloat,
+    contentBottom: CGFloat, natural: (MacTimelineCaption.ID) -> CGRect?) -> CGRect {
+    var frame = natural(caption.id) ?? caption.frame
+    frame.origin.x = 0; frame.size.width = width
+    guard caption.id.kind != .summary else { return frame }
+    let end = caption.boundary.flatMap { natural($0)?.minY }
+      ?? (caption.parent != nil || caption.id.kind == .folder ? contentBottom : .greatestFiniteMagnitude)
+    if caption.id.kind == .folder {
+      frame.origin.y = min(max(frame.minY, top), end - frame.height - 44)
+    } else {
+      var pin = top
+      if let parentID = caption.parent, let parent = byID[parentID] {
+        let parentFrame = self.frame(for: parent, top: top, width: width,
+          contentBottom: contentBottom, natural: natural)
+        pin = parentFrame.maxY
+      }
+      let sibling = caption.next.flatMap { natural($0)?.minY } ?? .greatestFiniteMagnitude
+      frame.origin.y = min(max(frame.minY, pin), min(sibling, end) - frame.height)
+    }
+    return frame
+  }
+}
+
+extension LibraryTimelineGeometry {
+  mutating func configureMacCaptions(folders: [Int: MacTimelineFolder] = [:], dateIDs: [Int: String] = [:], flowHeaders: Set<Int> = []) {
+    macCaptions = MacTimelineCaptions(geometry: self, folders: folders, dateIDs: dateIDs, flowHeaders: flowHeaders)
+  }
+}
 @MainActor final class LibraryTimelineLayout: NSCollectionViewLayout {
-  static let headerKind = "library.timeline.header"
+  static let headerKind = MacTimelineCaption.Kind.date.rawValue
+  static let headerKinds = MacTimelineCaption.Kind.allCases.map(\.rawValue)
   var revision = 0
   var groups: [Int: String] = [:]
+  var flowHeaders: Set<Int> = []
   var headerHeights: [Int: CGFloat] = [:]
+  var folders: [Int: MacTimelineFolder] = [:]
+  var dateIDs: [Int: String] = [:]
   var mode: LibraryViewMode
   var columns: Int
   var target: CGFloat
@@ -262,6 +236,7 @@ import AppKit
   private var fromHeaders: [Int: LibraryTimelineGeometry.Header] = [:]
   private var toHeaders: [Int: LibraryTimelineGeometry.Header] = [:]
   private var headerIDs: [Int] = []
+  private var captionIDs: [MacTimelineCaption.Kind: [MacTimelineCaption.ID]] = [:]
   private(set) var progress: CGFloat = 0
   private(set) var density: CGFloat = 3
   init(mode: LibraryViewMode, target: CGFloat) {
@@ -305,9 +280,11 @@ import AppKit
       dates = Array(repeating: nil, count: count); datesLoaded = true
     }
     let dense = mode == .all && columns >= denseThreshold
-    let geometry = LibraryTimelineGeometry(dates: dates, mode: mode, width: collectionView?.enclosingScrollView?.contentSize.width ?? 1,
+    var geometry = LibraryTimelineGeometry(dates: dates, mode: mode, width: collectionView?.enclosingScrollView?.contentSize.width ?? 1,
       target: 135, inset: dense ? 0 : 2, gap: dense ? 0 : 2, headerHeight: 44, columns: columns,
-      leadingSlots: mode == .all && groups.isEmpty ? leadingSlots : 0, sectionTitles: groups.isEmpty ? nil : groups, sectionHeaderHeights: headerHeights)
+      leadingSlots: mode == .all && groups.isEmpty ? leadingSlots : 0, sectionTitles: groups.isEmpty ? nil : groups,
+      sectionHeaderHeights: headerHeights, fillsWidth: dense)
+    geometry.configureMacCaptions(folders: folders, dateIDs: dateIDs, flowHeaders: flowHeaders)
     cached[key] = geometry; return geometry
   }
   func beginMorph(mode: LibraryViewMode, columns: Int) {
@@ -339,6 +316,10 @@ import AppKit
     fromHeaders = Dictionary(uniqueKeysWithValues: from.headers.map { ($0.firstItem, $0) })
     toHeaders = Dictionary(uniqueKeysWithValues: (to?.headers ?? from.headers).map { ($0.firstItem, $0) })
     headerIDs = Set(fromHeaders.keys).union(toHeaders.keys).sorted()
+    let all = from.macCaptions.byID.merging(to?.macCaptions.byID ?? [:]) { a, _ in a }
+    captionIDs = Dictionary(grouping: all.values, by: { $0.id.kind }).mapValues {
+      $0.sorted { $0.firstItem < $1.firstItem }.map(\.id)
+    }
   }
   private func snapshot() -> LibraryTimelineGeometry {
     guard to != nil else { return from }
@@ -362,48 +343,84 @@ import AppKit
     guard from.items.indices.contains(indexPath.item) else { return nil }
     let result = NSCollectionViewLayoutAttributes(forItemWith: indexPath); result.frame = frame(at: indexPath.item); return result
   }
-  private func header(at id: Int) -> NSCollectionViewLayoutAttributes? {
-    guard fromHeaders[id] != nil || toHeaders[id] != nil else { return nil }
-    let a = fromHeaders[id]?.frame ?? CGRect(x: 28, y: from.items.indices.contains(id) ? from.items[id].minY : 0, width: max(0,(collectionView?.enclosingScrollView?.contentSize.width ?? 0)-56), height: 0)
-    let b = toHeaders[id]?.frame ?? CGRect(x: 28, y: to?.items.indices.contains(id) == true ? to!.items[id].minY : a.minY, width: a.width, height: 0)
-    let result = NSCollectionViewLayoutAttributes(forSupplementaryViewOfKind: Self.headerKind, with: IndexPath(item: id, section: 0))
-    result.frame = LibraryMotion.interpolate(a,b,progress)
-    if !groups.isEmpty, let view = collectionView {
-      let top = view.visibleRect.minY + (view.enclosingScrollView?.contentInsets.top ?? 0)
-      let next = headerIDs.first(where: { $0 > id }).flatMap { fromHeaders[$0]?.frame.minY } ?? .greatestFiniteMagnitude
-      result.frame.origin.y = min(max(result.frame.minY, top), next - result.frame.height)
-      result.zIndex = 20
+  func caption(kind: String, at firstItem: Int) -> MacTimelineCaption? {
+    guard let role = MacTimelineCaption.Kind(rawValue: kind) else { return nil }
+    let preferred = progress < 0.5 ? from.macCaptions : to?.macCaptions ?? from.macCaptions
+    return preferred.caption(kind: role, at: firstItem)
+      ?? from.macCaptions.caption(kind: role, at: firstItem)
+      ?? to?.macCaptions.caption(kind: role, at: firstItem)
+  }
+  private func naturalCaptionFrame(_ id: MacTimelineCaption.ID) -> CGRect? {
+    guard let a = from.macCaptions.byID[id]?.frame ?? to?.macCaptions.byID[id]?.frame else { return nil }
+    return LibraryMotion.interpolate(a, to?.macCaptions.byID[id]?.frame ?? a, progress)
+  }
+  private func captionAttributes(_ id: MacTimelineCaption.ID) -> NSCollectionViewLayoutAttributes? {
+    guard let caption = from.macCaptions.byID[id] ?? to?.macCaptions.byID[id], let view = collectionView else { return nil }
+    let result = NSCollectionViewLayoutAttributes(forSupplementaryViewOfKind: id.kind.rawValue,
+      with: IndexPath(item: caption.firstItem, section: 0))
+    let width = max(0, view.enclosingScrollView?.contentSize.width ?? 0)
+    if groups.isEmpty {
+      result.frame = naturalCaptionFrame(id) ?? caption.frame
+      result.frame.origin.x = 0; result.frame.size.width = width
+    } else {
+      let bottom = (from.items.last?.maxY ?? from.height)
+        + ((to?.items.last?.maxY ?? from.items.last?.maxY ?? from.height) - (from.items.last?.maxY ?? from.height)) * progress
+      result.frame = from.macCaptions.frame(for: caption,
+        top: view.visibleRect.minY + (view.enclosingScrollView?.contentInsets.top ?? 0),
+        width: width, contentBottom: bottom, natural: naturalCaptionFrame)
     }
-    let inset: CGFloat = 28
-    result.frame.origin.x = inset
-    result.frame.size.width = max(0, (collectionView?.enclosingScrollView?.contentSize.width ?? 0) - inset * 2)
-    result.alpha = fromHeaders[id] == nil ? progress : toHeaders[id] == nil ? 1-progress
-      : fromHeaders[id]?.title == toHeaders[id]?.title ? 1 : abs(1-2*progress)
+    result.zIndex = id.kind.zIndex
+    result.alpha = from.macCaptions.byID[id] == nil ? progress : to != nil && to?.macCaptions.byID[id] == nil ? 1 - progress : 1
     return result
+  }
+  private func header(at id: Int) -> NSCollectionViewLayoutAttributes? {
+    caption(kind: Self.headerKind, at: id).flatMap { captionAttributes($0.id) }
   }
   override func layoutAttributesForSupplementaryView(ofKind kind: String, at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
     // AppKit also probes section-only paths while diffing supplementary views.
-    // Those are not one of this layout's item-addressed date headers.
-    guard kind == Self.headerKind, indexPath.count == 2 else { return nil }
-    return header(at: indexPath.item)
+    guard indexPath.count == 2, let caption = caption(kind: kind, at: indexPath.item) else { return nil }
+    return captionAttributes(caption.id)
   }
   override func layoutAttributesForElements(in rect: CGRect) -> [NSCollectionViewLayoutAttributes] {
     if isDense { return [] }
     let items = LibraryMotion.visibleRange(count: from.items.count, in: rect) { frame(at: $0) }
-    let headers = LibraryMotion.visibleRange(count: headerIDs.count, in: rect) { header(at: headerIDs[$0])?.frame ?? .zero }
-    var result = items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) } + headers.compactMap { header(at: headerIDs[$0]) }
-    if !groups.isEmpty, let pinned = headerIDs.last(where: { (fromHeaders[$0]?.frame.minY ?? .infinity) <= rect.minY }),
-      let value = header(at: pinned), !result.contains(where: { $0.representedElementKind == Self.headerKind && $0.indexPath == value.indexPath }) { result.append(value) }
+    var result = items.compactMap { layoutAttributesForItem(at: IndexPath(item: $0, section: 0)) }
+    for kind in MacTimelineCaption.Kind.allCases {
+      let ids = captionIDs[kind] ?? []
+      let visible = LibraryMotion.visibleRange(count: ids.count, in: rect) { captionAttributes(ids[$0])?.frame ?? .zero }
+      result += visible.compactMap { captionAttributes(ids[$0]) }
+    }
     return result
   }
   func title(at id: Int) -> String { (progress < 0.5 ? fromHeaders[id]?.title ?? toHeaders[id]?.title : toHeaders[id]?.title ?? fromHeaders[id]?.title) ?? "" }
   override func shouldInvalidateLayout(forBoundsChange newBounds: CGRect) -> Bool { !groups.isEmpty || newBounds.width != collectionView?.bounds.width }
 }
+/// The same native reading material carries calendar and source-grid dates.
+@MainActor final class MacTimelineReadingSurface: NSVisualEffectView {
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    material = .headerView; blendingMode = .withinWindow; state = .active
+    wantsLayer = true; layer?.masksToBounds = true
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func layout() { super.layout(); layer?.cornerRadius = bounds.height / 2 }
+}
+
 @MainActor final class TimelineDateHeader: NSView, NSCollectionViewElement {
   private let label = NSTextField(labelWithString: "")
-  override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true; layer?.backgroundColor = DuckRole.backgroundNSColor.cgColor; label.font = .systemFont(ofSize: 16, weight: .semibold); label.textColor = DuckRole.primaryTextNSColor; addSubview(label) }
+  private let material = MacTimelineReadingSurface(frame: .zero)
+  var floating = false { didSet { material.isHidden = !floating; needsLayout = true } }
+  var readingReady: Bool { !label.stringValue.isEmpty && (!floating || material.superview === self && !material.isHidden) }
+  override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true; label.font = .systemFont(ofSize: 16, weight: .semibold); label.textColor = DuckRole.primaryTextNSColor; addSubview(material); addSubview(label); material.isHidden = true }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  override func layout() { super.layout(); layer?.backgroundColor = DuckRole.backgroundNSColor.cgColor; label.frame = bounds }
+  override func layout() {
+    super.layout()
+    label.frame = bounds
+    let inset = CGFloat(DuckSpacing.small)
+    material.frame = CGRect(x: -inset, y: -CGFloat(DuckSpacing.xxSmall),
+      width: min(bounds.width, ceil(label.intrinsicContentSize.width)) + inset * 2,
+      height: bounds.height + CGFloat(DuckSpacing.xxSmall) * 2)
+  }
   func setTitle(_ title: String) { label.stringValue = title }
 }
 #endif

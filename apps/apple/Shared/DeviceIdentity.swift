@@ -8,7 +8,7 @@ var senderDeviceType: String {
   #if os(macOS)
     return "Mac"
   #else
-    return UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+    return "iPhone"
   #endif
 }
 

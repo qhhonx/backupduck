@@ -124,7 +124,7 @@ private struct MacFolderDetail: View {
             }
           }
           Section {
-            LabeledContent("settings_auto_backup") {
+            LabeledContent("settings_folders") {
               FolderStopButton(source: selected, folders: folders) { source in
                 Task { if await folders.remove(source.id) { navigator?.back() } }
               }.fixedSize()

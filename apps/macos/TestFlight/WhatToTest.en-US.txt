@@ -1,11 +1,6 @@
-BackupDuck 0.5.0 is a redesign of the whole app. It needs macOS 15 or later. Update the Pixel receiver to 0.5.0 as well.
+BackupDuck 0.6.0 requires macOS 15 or later.
 
 Please try:
-- First run: pair with the Pixel and choose what to back up; start or pause earlier photos in Backup overview.
-- Photo Library, Folders and Backup History: zoom with the toolbar buttons and by pinching, scroll, select, and open photos in the viewer with Info.
-- Add a folder and watch its photos and counts update.
-- The menu bar menu shows backup status.
-- Settings > Auto Backup: choose albums and media types.
-- Light and dark appearance.
-
-Questions and feedback: Settings > Feedback group opens the Telegram tester group. Include the app version, Mac model, steps and error message. Do not include private photos or pairing codes.
+- Pair with the Pixel, choose what to back up, and start or pause earlier photos.
+- Browse Photo Library, Folders and Backup History. Zoom, open a photo, and return to the same place.
+- Search for albums in the automatic backup settings. Add a folder and check that photos and counts update.

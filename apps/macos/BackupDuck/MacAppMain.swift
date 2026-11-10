@@ -8,7 +8,6 @@ import SwiftUI
   @StateObject private var notifier = BackupNotifier.shared
   @StateObject private var library = PhotoLibraryModel()
   @AppStorage("duckAppearance") private var appearance = "system"
-  private var colorScheme: ColorScheme? { appearance == "light" ? .light : appearance == "dark" ? .dark : nil }
   /// Starts the photo list fetch before the first window, as on iPhone. The
   /// redesigned pages are the app.
   init() {
@@ -18,7 +17,10 @@ import SwiftUI
   var body: some Scene {
     Window("brand_name", id: "main") {
       MacWorkspace(model: model, library: library)
-        .preferredColorScheme(colorScheme)
+        .onChange(of: appearance, initial: true) { _, value in
+          NSApp.appearance = value == "light" ? NSAppearance(named: .aqua)
+            : value == "dark" ? NSAppearance(named: .darkAqua) : nil
+        }
         .frame(minWidth: 900, minHeight: 620)
         .task { await model.open(); BackupNotifier.shared.start(model); await AppUpdater.shared.start() }
         .task { await library.open() }

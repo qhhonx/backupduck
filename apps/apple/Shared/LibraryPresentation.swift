@@ -114,6 +114,13 @@ func libraryTileAccessibilityKey(_ state: String?) -> String {
   }
 }
 
+/// A host's view position is independent of asset and transfer ownership.
+struct LibraryBrowseAnchor {
+  let id: String
+  let screenY: CGFloat
+  let leadingSlots: Int
+}
+
 /// Complete immutable browsing membership, prepared away from the UI. Native
 /// hosts adopt rows, raw positions and filter labels in one presentation commit.
 struct LibraryGridAsset: Equatable, Sendable {

@@ -73,12 +73,35 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   }
 }
 
+#if os(iOS)
+/// Reusable PhotoKit presentation snapshots, never receiver-dependent answers.
+struct LibraryMembershipCache {
+  private var entries: [LibraryFilter: (PHFetchResult<PHAsset>, LibraryMembership)] = [:]
+  private(set) var epoch = 0
+  func get(_ filter: LibraryFilter, view: LibraryBackupView) -> (PHFetchResult<PHAsset>, LibraryMembership)? {
+    view == .all ? entries[filter] : nil
+  }
+  mutating func put(_ snapshot: (PHFetchResult<PHAsset>, LibraryMembership), filter: LibraryFilter,
+    view: LibraryBackupView, epoch expected: Int) {
+    guard view == .all, expected == epoch else { return }
+    if entries[filter] == nil && entries.count >= 2 { entries.removeAll() }
+    entries[filter] = snapshot
+  }
+  mutating func invalidate() { entries.removeAll(); epoch &+= 1 }
+}
+#endif
+
 @MainActor final class PhotoLibraryModel: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
   // Resolve current media in the native viewport at presentation/return time.
   var previewFrame: ((String) -> CGRect?)?
   var previewPoster: ((String) -> LibraryImage?)?
   #if os(iOS)
   var previewVisibility: ((String?) -> Void)?
+  /// The source keeps its real thumbnail vacant while the viewer owns it.
+  var previewOwnsVacancy = false
+  var calendarBrowseAnchors: [String: LibraryBrowseAnchor] = [:]
+  var calendarDensityReference: Int?
+  var calendarLevelRawValue: Int?
   #endif
 
   @Published private(set) var total = 0
@@ -90,6 +113,8 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   // library rather than the permission placeholder until `open()` runs.
   @Published private(set) var authorized = BackupEnvironment.usesPhotoLibrary && PhotoLibraryModel.allowed(PHPhotoLibrary.authorizationStatus(for: .readWrite))
   @Published private(set) var authorizationStatus: PHAuthorizationStatus = BackupEnvironment.usesPhotoLibrary ? PHPhotoLibrary.authorizationStatus(for: .readWrite) : .notDetermined
+  /// A creation-time snapshot is not a completed access check for this visit.
+  @Published private(set) var authorizationResolved = false
   @Published private(set) var requestingPermission = false
   @Published private(set) var filter: LibraryFilter = .all
   @Published private(set) var backupView: LibraryBackupView = .all
@@ -103,12 +128,13 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     }
   }
   private var requestedFilter: LibraryFilter = .all
-  @Published var viewMode: LibraryViewMode = .all
-  @Published var phoneColumns = 3
   @Published var selection: Set<String> = []
   @Published var message: String?
   private(set) var fetch: PHFetchResult<PHAsset>?
   private(set) var membership: LibraryMembership?
+  #if os(iOS)
+  private var membershipCache = LibraryMembershipCache()
+  #endif
   /// Catalog fixtures use the same asynchronous preparation and atomic adoption.
   var syntheticFetch: (@Sendable (LibraryFilter, LibraryBackupView) async -> PHFetchResult<PHAsset>?)?
   private(set) var viewGeneration = 0
@@ -126,11 +152,12 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   var scrollAnchorID: String?
   var scrollAnchorInset: CGFloat = 0
   private(set) var scrollResetGeneration = 0
-  let thumbnails = ThumbnailPipeline()
+  let thumbnails: ThumbnailPipeline
   /// When set, the model browses one album (PhotoKit collection) with the same
   /// filter, sort, paging and thumbnail pipeline as the whole library.
   let collectionID: String?
-  init(collection: String? = nil) {
+  init(collection: String? = nil, thumbnails: ThumbnailPipeline? = nil) {
+    self.thumbnails = thumbnails ?? ThumbnailPipeline()
     collectionID = collection
     super.init()
   }
@@ -146,7 +173,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     total = assets.count; loaded = presentation.rows.count
     self.filter = filter; requestedFilter = filter
     self.backupView = backupView; requestedBackupView = backupView
-    authorized = Self.allowed(access); authorizationStatus = access
+    authorized = Self.allowed(access); authorizationStatus = access; authorizationResolved = true
     generation += 1
   }
 
@@ -158,6 +185,7 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   }
 
   var placeholder: LibraryPlaceholderKind? {
+    if !authorizationResolved { return .loading }
     if !authorized { return .permission(authorizationStatus) }
     if fetch == nil { return .loading }
     if total == 0 { return filter != .all || backupView != .all ? .filterEmpty : .empty(filtered: false) }
@@ -196,11 +224,14 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
         let list = try? JSONDecoder().decode([String].self, from: data) else { return nil }
       received = Set(list)
     }
+    if received.isEmpty { return fetch }
     var remaining: [String] = []
     remaining.reserveCapacity(fetch.count)
-    fetch.enumerateObjects { asset, _, _ in
+    fetch.enumerateObjects { asset, _, stop in
+      if Task.isCancelled { stop.pointee = true; return }
       if !received.contains(asset.localIdentifier) { remaining.append(asset.localIdentifier) }
     }
+    guard !Task.isCancelled else { return nil }
     // Same membership and order as the library fetch, so the grid's date groups hold.
     let options = photoLibraryFetchOptions(for: filter)
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
@@ -242,6 +273,9 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     return filter == .all ? earlyFetch : nil
   }
   @discardableResult func applyAuthorization(_ access: PHAuthorizationStatus) -> Bool {
+    #if os(iOS)
+    if Self.allowed(access), authorizationStatus != access { membershipCache.invalidate() }
+    #endif
     authorizationStatus = access
     let allowed = Self.allowed(access)
     if !allowed {
@@ -250,6 +284,9 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       cancelMetadata?(); cancelMetadata = nil
       fetch = nil
       membership = nil
+      #if os(iOS)
+      membershipCache.invalidate()
+      #endif
       presentation = LibraryPresentationIndex()
       groups.removeAll(); groupOrder.removeAll()
       loadingPage = false
@@ -257,14 +294,22 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       loaded = 0
       loading = false
       selection.removeAll()
+      #if os(iOS)
+      calendarBrowseAnchors.removeAll()
+      calendarDensityReference = nil; calendarLevelRawValue = nil
+      #endif
       scrollOffset = .zero
       scrollAnchorID = nil
       scrollAnchorInset = 0
       scrollResetGeneration += 1
       thumbnails.clear()
+      #if os(iOS)
+      thumbnails.invalidateDetailAccess()
+      #endif
       generation += 1
     }
     authorized = allowed
+    authorizationResolved = true
     return allowed
   }
   func changeBackupView(_ next: LibraryBackupView) async {
@@ -308,6 +353,12 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     let collection = collectionID
     let early = collection == nil && selectedView == .all ? Self.takeEarlyFetch(for: selectedFilter) : nil
     let syntheticFetch = syntheticFetch
+    #if os(iOS)
+    let epoch = membershipCache.epoch
+    let cached = syntheticFetch == nil ? membershipCache.get(selectedFilter, view: selectedView) : nil
+    #else
+    let cached: (PHFetchResult<PHAsset>, LibraryMembership)? = nil
+    #endif
     let work = Task.detached(priority: .userInitiated) {
       var fetch: PHFetchResult<PHAsset>
       if let syntheticFetch {
@@ -315,6 +366,8 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
           return (PHFetchResult<PHAsset>(), LibraryPresentationIndex(), Set<String>(), false, LibraryMembership(PHFetchResult<PHAsset>()))
         }
         fetch = prepared
+      } else if let cached {
+        fetch = cached.0
       } else if let (early, token) = await early?.value {
         fetch = early
         // The model's observer is registered by now: a change before that was
@@ -334,7 +387,12 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
       index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
-      let membership = LibraryMembership(fetch)
+      #if os(iOS)
+      let membership = cached?.1 ?? LibraryMembership(fetch)
+      #else
+      // Mac uses the incremental presentation and its own calendar index.
+      let membership = LibraryMembership(PHFetchResult<PHAsset>())
+      #endif
       return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys), true, membership)
     }
     cancelMetadata = { work.cancel() }
@@ -342,6 +400,12 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
     LaunchTrace.mark("library fetch done (\(result.0.count) assets)")
     guard expected == requestGeneration, authorized else { return }
     cancelMetadata = nil
+    #if os(iOS)
+    if epoch != membershipCache.epoch {
+      await reload(resetWindow: resetWindow)
+      return
+    }
+    #endif
     guard result.3 else {
       // The core could not answer: show the whole library rather than a view
       // that would claim photos are or are not backed up.
@@ -352,6 +416,11 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
       return
     }
     let viewChanged = backupView != selectedView || filter != selectedFilter
+    #if os(iOS)
+    if syntheticFetch == nil {
+      membershipCache.put((result.0, result.4), filter: selectedFilter, view: selectedView, epoch: epoch)
+    }
+    #endif
     membership = result.4
     if viewChanged { viewGeneration += 1; scrollResetGeneration += 1 }
     backupView = selectedView
@@ -549,6 +618,9 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
   nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
     Task { @MainActor in
       guard BackupEnvironment.usesPhotoLibrary else { return }
+      #if os(iOS)
+      self.membershipCache.invalidate()
+      #endif
       BackupEnvironment.activeModel().refreshPhotoAccess()
       let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
       guard self.applyAuthorization(access), let fetch = self.fetch,
@@ -581,9 +653,13 @@ enum LibraryBackupView: String, CaseIterable, Identifiable {
 /// Rebuildable renditions only. Originals and transfer preparation have a separate owner.
 actor ThumbnailDiskCache {
   static let shared = ThumbnailDiskCache()
+  private nonisolated static let temporaryPrefix = UUID().uuidString + "-"
   let directory: URL
   private let defaults: UserDefaults
-  private var indexed = false, indexing = false, generation = 0, totalBytes = 0
+  private let detailReader: @Sendable (URL, String) async -> (UIImage, Int, Date)?
+  private var indexed = false, indexing = false, totalBytes = 0
+  private let storage: ThumbnailCacheStorage
+  private var generation: Int { storage.generation }
   private var clearing = false
   private var lastTrim = Date.distantPast
   private var encodingCount = 0
@@ -591,13 +667,22 @@ actor ThumbnailDiskCache {
   private var queuedEncodingBytes = 0
   private var availableWriteBytes: Int64?, capacityChecked = Date.distantPast
   private var entries: [String: (bytes: Int, accessed: Date)] = [:]
+  private var detailTouched: [String: Date] = [:]
+  private var detailPublished: [String: Int] = [:]
+  private var detailReaders: [String: Int] = [:]
+  private var detailMutation = 0
+  private var detailReadCount = 0
+  private var detailReadWaiters: [CheckedContinuation<Void, Never>] = []
+  private var detailQualities: [String: DetailThumbnailQuality] = [:]
   /// The app's cache also owns the decoded bitmap tables; test instances do not.
   private let ownsTables: Bool
-  init(directory: URL? = nil, defaults: UserDefaults = .standard) {
+  init(directory: URL? = nil, defaults: UserDefaults = .standard,
+    detailReader: @escaping @Sendable (URL, String) async -> (UIImage, Int, Date)? = ThumbnailDiskCache.loadDetail) {
     self.directory = directory ?? FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0]
       .appendingPathComponent("LibraryThumbnails-v1",isDirectory:true)
-    self.defaults = defaults
+    self.defaults = defaults; self.detailReader = detailReader
     ownsTables = directory == nil
+    storage = directory == nil ? ThumbnailTables.storage : ThumbnailCacheStorage(directory: self.directory)
   }
   private var tableBytes: Int { ownsTables ? ThumbnailTables.usage : 0 }
   private func name(_ key: String) -> String {
@@ -613,7 +698,11 @@ actor ThumbnailDiskCache {
     let keys: [URLResourceKey] = [.fileSizeKey,.contentModificationDateKey]
     var result: [String: (bytes: Int, accessed: Date)] = [:]
     for file in (try? FileManager.default.contentsOfDirectory(at:directory,includingPropertiesForKeys:keys)) ?? [] {
-      guard file.pathExtension == "jpg",let values = try? file.resourceValues(forKeys:Set(keys)) else { continue }
+      if ["overviewtmp", "detailtmp"].contains(file.pathExtension) {
+        if !file.lastPathComponent.hasPrefix(temporaryPrefix) { try? FileManager.default.removeItem(at: file) }
+        continue
+      }
+      guard ["jpg", "overview", "detail"].contains(file.pathExtension),let values = try? file.resourceValues(forKeys:Set(keys)) else { continue }
       result[file.lastPathComponent] = (values.fileSize ?? 0,values.contentModificationDate ?? .distantPast)
     }
     return result
@@ -651,6 +740,7 @@ actor ThumbnailDiskCache {
   /// Includes the decoded bitmap tables, which share this cache's budget and clearing.
   func usage() -> Int { index(); return totalBytes + tableBytes }
   func setBudget(_ mb: Int) {
+    storage.invalidate()
     defaults.set(mb,forKey:"libraryThumbnailBudgetMB")
     if ownsTables { ThumbnailTables.applyBudget(mb*1024*1024) }
     index(); trim()
@@ -676,6 +766,183 @@ actor ThumbnailDiskCache {
       Task.detached(priority:.utility) { try? FileManager.default.setAttributes([.modificationDate:Date()],ofItemAtPath:url.path) }
     }
     return (image,version)
+  }
+  /// A fitted full-aspect rendition uses the same directory, byte index, LRU,
+  /// budget and clearing epoch as grid thumbnails. Its lossless representation
+  /// must never be read through the grid's JPEG decoder.
+  func detailEpoch() -> Int? { clearing ? nil : generation }
+  private func detailName(_ key: String) -> String { String(name(key).dropLast(4)) + ".detail" }
+  nonisolated static func loadDetail(_ url: URL, key: String) async -> (UIImage, Int, Date)? {
+    await Task.detached(priority: .userInitiated) { () -> (UIImage, Int, Date)? in
+      guard let properties = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
+        let size = properties.fileSize, size <= DetailThumbnailCodec.maximumBytes,
+        let data = try? Data(contentsOf: url),
+        let image = DetailThumbnailCodec.decode(data, key: key) else { return nil }
+      return (image, data.count, properties.contentModificationDate ?? .distantPast)
+    }.value
+  }
+  func touchDetail(_ key: String) {
+    guard !clearing else { return }
+    let filename = detailName(key)
+    guard let entry = entries[filename] else { return }
+    let now = Date(), persisted = detailTouched[filename] ?? entry.accessed
+    entries[filename] = (entry.bytes, now)
+    if now.timeIntervalSince(persisted) >= 60 {
+      try? FileManager.default.setAttributes([.modificationDate: now],
+        ofItemAtPath: directory.appendingPathComponent(filename).path)
+      detailTouched[filename] = now
+    }
+  }
+  func readDetail(_ key: String, touch: Bool = true) async -> (UIImage?, Int) {
+    guard !clearing, !Task.isCancelled else { return (nil, -1) }
+    let requestedGeneration = generation
+    if detailReadCount >= 2 {
+      guard detailReadWaiters.count < 8 else { return (nil, generation) }
+      await withCheckedContinuation { detailReadWaiters.append($0) }
+    } else { detailReadCount += 1 }
+    defer {
+      if detailReadWaiters.isEmpty { detailReadCount -= 1 }
+      else { detailReadWaiters.removeFirst().resume() }
+    }
+    guard !clearing, generation == requestedGeneration, !Task.isCancelled else { return (nil, -1) }
+    indexInBackground()
+    let filename = detailName(key), version = generation, publication = detailPublished[detailName(key)]
+    if indexed, entries[filename] == nil { return (nil, version) }
+    detailReaders[filename, default: 0] += 1
+    defer {
+      if detailReaders[filename] == 1 {
+        detailReaders.removeValue(forKey: filename)
+        if entries[filename] == nil { detailPublished.removeValue(forKey: filename) }
+      } else { detailReaders[filename, default: 1] -= 1 }
+    }
+    let url = directory.appendingPathComponent(filename)
+    let result = await detailReader(url, key)
+    guard !clearing, version == generation, !Task.isCancelled else { return (nil, -1) }
+    // A read owns the bytes it decoded, not the file a concurrent writer may
+    // have replaced. Never publish its stale size or quality into the index.
+    guard publication == detailPublished[filename] else { return (nil, version) }
+    guard let result else {
+      if let removed = entries.removeValue(forKey: filename) { totalBytes -= removed.bytes }
+      detailQualities.removeValue(forKey: filename); detailTouched.removeValue(forKey: filename)
+      detailMutation &+= 1; detailPublished[filename] = detailMutation
+      try? FileManager.default.removeItem(at: url)
+      return (nil, version)
+    }
+    detailQualities[filename] = DetailThumbnailQuality(result.0)
+    let previous = entries[filename]
+    totalBytes += result.1 - (previous?.bytes ?? 0)
+    // Speculative neighbours neither promote disk recency nor populate the
+    // viewed memory tier. A later activation performs a viewed read.
+    entries[filename] = (result.1, touch ? Date() : previous?.accessed ?? result.2)
+    if touch {
+      let now = Date()
+      try? FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: url.path)
+      detailTouched[filename] = now
+    }
+    return (result.0, version)
+  }
+  @discardableResult func storeDetail(_ image: UIImage, key: String, generation expected: Int,
+    valid: @escaping @MainActor @Sendable () async -> Bool) async -> Bool {
+    guard !clearing, expected == generation, !Task.isCancelled else { return false }
+    let bytes = image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+    guard bytes > 0, bytes <= DetailThumbnailCodec.maximumBytes,
+      queuedEncodingBytes + bytes <= DetailThumbnailCodec.maximumBytes else { return false }
+    queuedEncodingBytes += bytes
+    defer { queuedEncodingBytes -= bytes }
+    if encodingCount >= 6 { await withCheckedContinuation { encodingWaiters.append($0) } }
+    else { encodingCount += 1 }
+    defer { releaseEncodingSlot() }
+    guard !clearing, expected == generation, !Task.isCancelled else { return false }
+    let filename = detailName(key), url = directory.appendingPathComponent(filename)
+    let observedPublication = detailPublished[filename]
+    let data = await Task.detached(priority: .utility) { () -> Data? in
+      if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+        size <= DetailThumbnailCodec.maximumBytes, let existing = try? Data(contentsOf: url),
+        let previous = DetailThumbnailCodec.decode(existing, key: key),
+        DetailThumbnailQuality(previous).improves(DetailThumbnailQuality(image)) { return nil }
+      return DetailThumbnailCodec.encode(image, key: key)
+    }.value
+    guard let data, !clearing, expected == generation, !Task.isCancelled else { return false }
+    if !indexed {
+      let directory = directory
+      let scanned = await Task.detached(priority: .utility) { Self.scan(directory) }.value
+      guard !clearing, expected == generation, !Task.isCancelled else { return false }
+      adopt(scanned, generation: expected)
+    }
+    guard data.count <= max(0, budgetMB * 1024 * 1024 - tableBytes) else { return false }
+    if availableWriteBytes == nil || Date().timeIntervalSince(capacityChecked) > 5 {
+      availableWriteBytes = (try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage)
+        .map { max(0, $0 - 128 * 1024 * 1024) }
+      capacityChecked = Date()
+    }
+    if let remaining = availableWriteBytes, remaining < data.count { return false }
+    let temporary = directory.appendingPathComponent(Self.temporaryPrefix + UUID().uuidString + ".detailtmp")
+    let written = await Task.detached(priority: .utility) { () -> Bool in
+      do {
+        try FileManager.default.createDirectory(at: temporary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: temporary)
+        return true
+      } catch { return false }
+    }.value
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    guard written, await valid(), !clearing, expected == generation, !Task.isCancelled else { return false }
+    let quality = DetailThumbnailQuality(image)
+    guard (observedPublication == detailPublished[filename] || detailQualities[filename]?.improves(quality) != true),
+      rename(temporary.path, url.path) == 0 else { return false }
+    detailQualities[filename] = quality; detailMutation &+= 1
+    detailPublished[filename] = detailMutation; detailTouched[filename] = Date()
+    let old = entries[filename]?.bytes ?? 0
+    entries[filename] = (data.count, Date()); totalBytes += data.count - old
+    availableWriteBytes = availableWriteBytes.map { $0 - Int64(data.count) }
+    trim()
+    return entries[filename] != nil
+  }
+  /// One rebuildable overview shares the thumbnail cache's accounting and epoch.
+  func readOverview() async -> (Data?, Int) {
+    guard !clearing else { return (nil, -1) }
+    indexInBackground()
+    let version = generation, url = directory.appendingPathComponent("dense.overview")
+    let data = await Task.detached(priority: .utility) { () -> Data? in
+      guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+        size <= 36 * 1024 * 1024 else { return nil }
+      return try? Data(contentsOf: url)
+    }.value
+    guard !clearing, generation == version else { return (nil, -1) }
+    if let data { entries["dense.overview"] = (data.count, Date()) }
+    return (data, version)
+  }
+  func overviewEpochIsCurrent(_ expected: Int) -> Bool { !clearing && expected == generation }
+  func storeOverview(_ data: Data, generation expected: Int, valid: @escaping @Sendable () -> Bool) async {
+    guard !clearing, expected == generation, valid(), data.count <= 36 * 1024 * 1024 else { return }
+    if !indexed {
+      let directory = directory
+      let scanned = await Task.detached(priority: .utility) { Self.scan(directory) }.value
+      guard !clearing, expected == generation, valid() else { return }
+      adopt(scanned, generation: expected)
+    }
+    guard data.count <= max(0, budgetMB * 1024 * 1024 - tableBytes) else { return }
+    if availableWriteBytes == nil || Date().timeIntervalSince(capacityChecked) > 5 {
+      availableWriteBytes = (try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage)
+        .map { max(0, $0 - 128 * 1024 * 1024) }
+      capacityChecked = Date()
+    }
+    if let remaining = availableWriteBytes, remaining < data.count { return }
+    availableWriteBytes = availableWriteBytes.map { $0 - Int64(data.count) }
+    let temporary = directory.appendingPathComponent(Self.temporaryPrefix + UUID().uuidString + ".overviewtmp")
+    let written = await Task.detached(priority: .utility) { () -> Bool in
+      do {
+        try FileManager.default.createDirectory(at: temporary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: temporary)
+        return true
+      } catch { return false }
+    }.value
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    guard written, !clearing, expected == generation, valid() else { return }
+    let name = "dense.overview", url = directory.appendingPathComponent(name)
+    let old = entries[name]?.bytes ?? 0
+    guard rename(temporary.path, url.path) == 0 else { return }
+    entries[name] = (data.count, Date()); totalBytes += data.count - old
+    trim()
   }
   private func releaseEncodingSlot() {
     if encodingWaiters.isEmpty { encodingCount -= 1 }
@@ -720,14 +987,27 @@ actor ThumbnailDiskCache {
     for (name,entry) in entries.sorted(by: { $0.value.accessed < $1.value.accessed }) {
       guard total > limit || entry.accessed < expiry else { break }
       try? FileManager.default.removeItem(at:directory.appendingPathComponent(name))
-      entries.removeValue(forKey:name); total -= entry.bytes
+      if name.hasSuffix(".detail") {
+        detailMutation &+= 1
+        if detailReaders[name] != nil { detailPublished[name] = detailMutation }
+        else { detailPublished.removeValue(forKey: name) }
+      }
+      entries.removeValue(forKey:name); detailQualities.removeValue(forKey: name)
+      detailTouched.removeValue(forKey: name); total -= entry.bytes
     }
     totalBytes = total
   }
   @discardableResult func removeAll() async -> Bool {
-    guard !clearing else { return false }
+    guard !clearing, let epoch = storage.beginClear() else { return false }
     clearing = true
-    generation += 1
+    await MainActor.run {
+      NotificationCenter.default.post(name: Notification.Name("LibraryDetailThumbnailsCleared"), object: self)
+    }
+    if ownsTables {
+      await MainActor.run {
+        NotificationCenter.default.post(name: Notification.Name("LibraryThumbnailsCleared"), object: nil)
+      }
+    }
     let directory = directory
     let removed = await Task.detached(priority: .userInitiated) {
       do {
@@ -736,11 +1016,12 @@ actor ThumbnailDiskCache {
         return true
       } catch { return false }
     }.value
-    entries.removeAll(); indexing = false; indexed = removed; totalBytes = 0
-    ThumbnailTables.clear()
+    entries.removeAll(); detailQualities.removeAll(); detailPublished.removeAll(); detailTouched.removeAll(); detailMutation &+= 1; indexing = false; indexed = removed; totalBytes = 0
+    let tableFailure = ownsTables ? storage.clearTables(active: [ThumbnailTables.overview, ThumbnailTables.detail]) : nil
+    storage.endClear(epoch)
     clearing = false
     if !removed { index() }
-    return removed
+    return removed && tableFailure == nil
   }
 }
 #endif
@@ -751,43 +1032,91 @@ actor ThumbnailDiskCache {
 /// hashing the key (identifier plus revision) with a short probe window; each
 /// slot's header holds the key tag and a recency tick, so the file needs no
 /// separate index and a torn write simply reads as empty. Rebuildable cache
-/// data: it lives in Caches and is cleared with thumbnails. A table lives for
-/// the process and is never unmapped, because returned images point into it.
+/// data: it lives in Caches and is cleared with thumbnails. Returned images
+/// lease their slots, so reuse and clearing cannot change displayed pixels.
 final class ThumbnailTable: @unchecked Sendable {
   let side: Int, capacity: Int, rowBytes: Int, entryBytes: Int
   private let headerBytes: Int, length: Int
   private let base: UnsafeMutableRawPointer?
   private let fd: Int32
+  private let ownsFile: Bool
   let url: URL
   private let lock = NSLock()
+  private let pixelsLock = NSLock()
   private var tick: UInt32 = 1
   private var used = 0
   private var limitValue: Int
+  private let storage: ThumbnailCacheStorage
+  private let render: @Sendable (CGContext, CGImage, CGRect) -> Void
+  private var leases: [Int: Int] = [:]
+  private var reclaimQueued = false
+  private var pendingReclaims: Set<Int> = []
   private static let probes = 8
+  private final class PixelLease {
+    let table: ThumbnailTable, slot: Int
+    let pointer: UnsafeRawPointer
+    init(table: ThumbnailTable, slot: Int, pointer: UnsafeRawPointer) {
+      self.table = table; self.slot = slot; self.pointer = pointer
+    }
+    deinit { table.release(slot) }
+  }
   nonisolated(unsafe) private static var direct = CGDataProviderDirectCallbacks(version: 0,
-    getBytePointer: { info in info.map { UnsafeRawPointer($0) } }, releaseBytePointer: nil,
-    getBytesAtPosition: nil, releaseInfo: nil)
+    getBytePointer: { info in
+      info.map { Unmanaged<PixelLease>.fromOpaque($0).takeUnretainedValue().pointer }
+    }, releaseBytePointer: nil, getBytesAtPosition: nil,
+    releaseInfo: { info in if let info { Unmanaged<PixelLease>.fromOpaque(info).release() } })
   /// Pixels are stored in this colour space. Core Animation converts any other
   /// space to the display's on every commit, so a host whose display is not
   /// sRGB passes the display's own space and converts once while storing.
   let space: CGColorSpace
   private static let bitmapInfo = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
   let writes = DispatchQueue(label: "app.backupduck.thumbnail-table", qos: .utility)
-  init(url: URL, side: Int, capacity: Int, space: CGColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!) {
+  init(url: URL, side: Int, capacity: Int, space: CGColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!,
+    storage: ThumbnailCacheStorage? = nil,
+    render: @escaping @Sendable (CGContext, CGImage, CGRect) -> Void = { $0.draw($1, in: $2) }) {
+    self.render = render
+    self.storage = storage ?? ThumbnailCacheStorage(directory: url.deletingLastPathComponent())
     self.url = url; self.side = side; self.capacity = capacity; limitValue = capacity; self.space = space
     rowBytes = (side * 4 + 63) / 64 * 64
     entryBytes = rowBytes * side
     headerBytes = (capacity * 16 + 16383) / 16384 * 16384
     length = headerBytes + capacity * entryBytes
     try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-    fd = open(url.path, O_RDWR | O_CREAT, 0o644)
+    // Every owner, including a geometry replacement, first acquires this file.
+    // A busy cache falls back without waiting or changing the other owner's path.
+    var directoryInfo = stat()
+    let regularDirectory = lstat(url.deletingLastPathComponent().path, &directoryInfo) == 0
+      && (directoryInfo.st_mode & S_IFMT) == S_IFDIR
+    var descriptor = regularDirectory ? open(url.path, O_RDWR | O_CREAT | O_NOFOLLOW, 0o600) : -1
+    var owned = descriptor >= 0 && flock(descriptor, LOCK_EX | LOCK_NB) == 0
+    var existing = stat(), pathInfo = stat()
+    if owned, fstat(descriptor, &existing) == 0, existing.st_size != 0, Int(existing.st_size) != length {
+      let temporary = url.appendingPathExtension(UUID().uuidString + ".replacement")
+      let replacement = open(temporary.path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+      if replacement >= 0, flock(replacement, LOCK_EX | LOCK_NB) == 0,
+        ftruncate(replacement, off_t(length)) == 0,
+        lstat(url.path, &pathInfo) == 0, pathInfo.st_ino == existing.st_ino, pathInfo.st_dev == existing.st_dev,
+        rename(temporary.path, url.path) == 0 {
+        close(descriptor); descriptor = replacement
+      } else {
+        if replacement >= 0 { close(replacement) }
+        try? FileManager.default.removeItem(at: temporary)
+        close(descriptor); descriptor = -1; owned = false
+      }
+    }
+    fd = descriptor; ownsFile = owned
     var mapped: UnsafeMutableRawPointer?
-    if fd >= 0 {
+    if ownsFile {
       var info = stat()
-      // A different geometry is a different table; sparse until written.
-      if fstat(fd, &info) == 0, Int(info.st_size) != length { ftruncate(fd, 0); ftruncate(fd, off_t(length)) }
-      let pointer = mmap(nil, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
-      if pointer != MAP_FAILED { mapped = pointer }
+      // Only a new empty file may be resized. If replacing an old geometry
+      // failed, fail closed instead of truncating its still-leased mapping.
+      if fstat(fd, &info) == 0 {
+        let ready = Int(info.st_size) == length || (info.st_size == 0 && ftruncate(fd, off_t(length)) == 0)
+        if ready {
+          let pointer = mmap(nil, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
+          if pointer != MAP_FAILED { mapped = pointer }
+        }
+      }
     }
     base = mapped
     if let base {
@@ -797,6 +1126,10 @@ final class ThumbnailTable: @unchecked Sendable {
       }
     }
   }
+  deinit {
+    if let base { munmap(base, length) }
+    if fd >= 0 { close(fd) }
+  }
   /// The most entries the cache budget allows; when reached, new entries only
   /// replace the least recently used entry in their probe window.
   var limit: Int {
@@ -804,7 +1137,7 @@ final class ThumbnailTable: @unchecked Sendable {
     set { lock.lock(); limitValue = min(capacity, max(0, newValue)); lock.unlock() }
   }
   var count: Int { lock.lock(); defer { lock.unlock() }; return used }
-  var isFull: Bool { lock.lock(); defer { lock.unlock() }; return used >= limitValue }
+  var isFull: Bool { lock.lock(); defer { lock.unlock() }; return retainedCount >= limitValue }
   var available: Bool { base != nil }
   static func tag(_ key: String) -> UInt64 {
     var hash: UInt64 = 0xcbf29ce484222325
@@ -824,35 +1157,62 @@ final class ThumbnailTable: @unchecked Sendable {
     lock.lock(); defer { lock.unlock() }
     return slot(for: Self.tag(key)) != nil
   }
-  /// The stored thumbnail, backed directly by the mapped file.
+  /// A zero-copy hit leases its slot until Core Graphics releases the provider.
   func image(_ key: String) -> CGImage? {
     guard let base else { return nil }
     lock.lock()
     guard let s = slot(for: Self.tag(key)) else { lock.unlock(); return nil }
     tick &+= 1
     base.storeBytes(of: tick, toByteOffset: s * 16 + 8, as: UInt32.self)
+    leases[s, default: 0] += 1
     lock.unlock()
     // A direct provider hands out the mapped bytes as they are. A data provider
     // probed every entry's pages for readability on creation, which cost more
     // than the rest of an overview scroll frame on the main thread.
-    let entry = UnsafeMutableRawPointer(base + headerBytes + s * entryBytes)
+    let lease = PixelLease(table: self, slot: s, pointer: base + headerBytes + s * entryBytes)
+    let info = Unmanaged.passRetained(lease).toOpaque()
     guard let provider = withUnsafePointer(to: &Self.direct, {
-      CGDataProvider(directInfo: entry, size: off_t(entryBytes), callbacks: $0)
-    }) else { return nil }
+      CGDataProvider(directInfo: info, size: off_t(entryBytes), callbacks: $0)
+    }) else { Unmanaged<PixelLease>.fromOpaque(info).release(); return nil }
     return CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: rowBytes,
       space: space, bitmapInfo: CGBitmapInfo(rawValue: Self.bitmapInfo), provider: provider,
       decode: nil, shouldInterpolate: true, intent: .defaultIntent)
   }
+  /// A background reader owns these pixels even if the mapped slot is reused.
+  /// Serializing pixel access also excludes writes that have cleared a slot's
+  /// header but have not yet finished drawing its replacement.
+  func copiedImage(_ key: String) -> CGImage? {
+    guard let base else { return nil }
+    pixelsLock.lock()
+    lock.lock()
+    let slot = slot(for: Self.tag(key))
+    lock.unlock()
+    guard let slot else { pixelsLock.unlock(); return nil }
+    let pointer = (base + headerBytes + slot * entryBytes).assumingMemoryBound(to: UInt8.self)
+    let bytes = CFDataCreate(nil, pointer, entryBytes)
+    pixelsLock.unlock()
+    guard let bytes, let provider = CGDataProvider(data: bytes) else { return nil }
+    return CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32,
+      bytesPerRow: rowBytes, space: space, bitmapInfo: CGBitmapInfo(rawValue: Self.bitmapInfo),
+      provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+  }
   /// Draws an aspect-filled square into the key's slot on the calling thread.
-  func store(_ key: String, image: CGImage) {
+  func store(_ key: String, image: CGImage, generation expected: Int? = nil) {
+    guard let epoch = expected ?? storage.epoch else { return }
+    storePixels(key, image: image, generation: epoch)
+  }
+  private func storePixels(_ key: String, image: CGImage, generation epoch: Int) {
     guard let base else { return }
+    pixelsLock.lock(); defer { pixelsLock.unlock() }
+    guard storage.isCurrent(epoch) else { return }
     let tag = Self.tag(key)
     lock.lock()
     if slot(for: tag) != nil { lock.unlock(); return }
-    let start = Int(tag % UInt64(capacity)), full = used >= limitValue
+    let start = Int(tag % UInt64(capacity)), full = retainedCount >= limitValue
     var empty: Int?, oldestSlot: Int?, oldest = UInt32.max
     for i in 0..<Self.probes {
       let s = (start + i) % capacity
+      if leases[s] != nil { continue }
       if base.load(fromByteOffset: s * 16, as: UInt64.self) == 0 {
         if empty == nil { empty = s }
         continue
@@ -862,7 +1222,8 @@ final class ThumbnailTable: @unchecked Sendable {
     }
     // At the budget limit an entry can only take an occupied slot's place.
     guard let chosen = full ? oldestSlot : empty ?? oldestSlot else { lock.unlock(); return }
-    if chosen == empty { used += 1 }
+    let replacing = base.load(fromByteOffset: chosen * 16, as: UInt64.self) != 0
+    if replacing { used -= 1 }
     // Empty while drawing: a reader never adopts a half-written slot.
     base.storeBytes(of: UInt64(0), toByteOffset: chosen * 16, as: UInt64.self)
     lock.unlock()
@@ -872,48 +1233,120 @@ final class ThumbnailTable: @unchecked Sendable {
     let w = CGFloat(image.width), h = CGFloat(image.height), edge = CGFloat(side)
     let factor = max(edge / max(1, w), edge / max(1, h))
     context.interpolationQuality = .high
-    context.draw(image, in: CGRect(x: (edge - w * factor) / 2, y: (edge - h * factor) / 2,
+    render(context, image, CGRect(x: (edge - w * factor) / 2, y: (edge - h * factor) / 2,
       width: w * factor, height: h * factor))
-    lock.lock()
-    tick &+= 1
-    base.storeBytes(of: tick, toByteOffset: chosen * 16 + 8, as: UInt32.self)
-    base.storeBytes(of: tag, toByteOffset: chosen * 16, as: UInt64.self)
-    lock.unlock()
+    storage.withCurrent(epoch) {
+      lock.lock(); defer { lock.unlock() }
+      tick &+= 1
+      base.storeBytes(of: tick, toByteOffset: chosen * 16 + 8, as: UInt32.self)
+      base.storeBytes(of: tag, toByteOffset: chosen * 16, as: UInt64.self)
+      used += 1
+    }
   }
   /// Bytes held by stored entries. Counted from slot headers: the sparse file's
   /// allocated blocks lag behind dirty mapped pages until they are written back.
   var usage: Int {
     lock.lock(); defer { lock.unlock() }
-    return used == 0 ? 0 : headerBytes + used * entryBytes
+    let count = retainedCount
+    return count == 0 ? 0 : headerBytes + count * entryBytes
   }
-  /// Forgets every entry and returns the pixel blocks to the file system while
-  /// the mapping stays valid for any image still on screen.
-  func clear() {
-    guard let base else { return }
-    lock.lock(); defer { lock.unlock() }
+  private var retainedCount: Int {
+    used + leases.keys.filter { base?.load(fromByteOffset: $0 * 16, as: UInt64.self) == 0 }.count
+  }
+  /// Invalidates identities immediately, but leased pixel pages remain intact.
+  @discardableResult func clear(invalidatingWrites: Bool = true) -> String? {
+    if invalidatingWrites { storage.invalidate() }
+    guard let base else {
+      return fd >= 0 && !ownsFile ? NSError(domain: NSPOSIXErrorDomain, code: Int(EBUSY)).localizedDescription : nil
+    }
+    pixelsLock.lock(); defer { pixelsLock.unlock() }
+    lock.lock()
     memset(base, 0, headerBytes)
     used = 0
-    var hole = fpunchhole_t(fp_flags: 0, reserved: 0, fp_offset: off_t(headerBytes), fp_length: off_t(length - headerBytes))
-    _ = fcntl(fd, F_PUNCHHOLE, &hole)
+    let ranges = clearedPixelRangesLocked()
+    lock.unlock()
+    var failure: String?
+    for (start, end) in ranges {
+      let error = punch(start, end)
+      if failure == nil { failure = error }
+    }
+    return failure
+  }
+  private func release(_ slot: Int) {
+    lock.lock()
+    if leases[slot] == 1 { leases.removeValue(forKey: slot) }
+    else { leases[slot, default: 1] -= 1 }
+    if leases[slot] == nil, base?.load(fromByteOffset: slot * 16, as: UInt64.self) == 0 {
+      pendingReclaims.insert(slot)
+    }
+    let schedule = !pendingReclaims.isEmpty && !reclaimQueued
+    if schedule { reclaimQueued = true }
+    lock.unlock()
+    guard schedule else { return }
+    // Provider release can happen on the UI thread; sparse-file reclamation cannot.
+    writes.async { [self] in
+      pixelsLock.lock(); lock.lock()
+      let slots = pendingReclaims; pendingReclaims.removeAll(); reclaimQueued = false
+      let pages = releasedPixelPagesLocked(slots)
+      lock.unlock()
+      for offset in pages { _ = punch(offset, offset + Int(getpagesize())) }
+      pixelsLock.unlock()
+    }
+  }
+  /// A small slot can share a system page with another slot's retained pixels.
+  private func punch(_ start: Int, _ end: Int) -> String? {
+    let page = Int(getpagesize())
+    let lower = (start + page - 1) / page * page, upper = end / page * page
+    guard upper > lower else { return nil }
+    var hole = fpunchhole_t(fp_flags: 0, reserved: 0, fp_offset: off_t(lower), fp_length: off_t(upper - lower))
+    guard fcntl(fd, F_PUNCHHOLE, &hole) != 0 else { return nil }
+    return NSError(domain: NSPOSIXErrorDomain, code: Int(errno)).localizedDescription
+  }
+  /// After clearing headers, only leased slots protect pages. Work scales with
+  /// displayed images rather than the full library's table capacity.
+  private func clearedPixelRangesLocked() -> [(Int, Int)] {
+    var start = headerBytes, ranges: [(Int, Int)] = []
+    for slot in leases.keys.sorted() {
+      let offset = headerBytes + slot * entryBytes
+      ranges.append((start, offset)); start = offset + entryBytes
+    }
+    ranges.append((start, length))
+    return ranges
+  }
+  /// Releasing an orphaned lease examines only its pages and their neighbours,
+  /// never a full-table scan while a foreground reader waits for the lock.
+  private func releasedPixelPagesLocked(_ slots: Set<Int>) -> [Int] {
+    guard let base else { return [] }
+    let page = Int(getpagesize())
+    var pages: Set<Int> = []
+    for slot in slots {
+      let start = (headerBytes + slot * entryBytes) / page * page
+      let end = min(length, headerBytes + (slot + 1) * entryBytes)
+      for offset in stride(from: start, to: end, by: page) where offset + page <= length { pages.insert(offset) }
+    }
+    return pages.filter { offset in
+      let first = max(0, (offset - headerBytes) / entryBytes)
+      let last = min(capacity - 1, (offset + page - 1 - headerBytes) / entryBytes)
+      return (first...last).allSatisfy { leases[$0] == nil && base.load(fromByteOffset: $0 * 16, as: UInt64.self) == 0 }
+    }
   }
 }
 
 #if os(iOS)
 /// The overview table holds every library item at mosaic size; the detail table
 /// keeps recently used month-overview thumbnails. Entry sizes follow this
-/// device's widest possible grid (iPhone SE to iPad), rounded up to 16 pixels,
+/// phone's portrait grid, rounded up to 16 pixels,
 /// so no device stores more pixels than it shows or upscales its mosaics.
 enum ThumbnailTables {
   /// `-no-thumbnail-table` disables the tables for side-by-side measurement.
   static let enabled = !ProcessInfo.processInfo.arguments.contains("-no-thumbnail-table")
-  static let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("ThumbnailTables", isDirectory: true)
-  /// Pixels of one tile at `columns` across the widest grid this device shows:
-  /// portrait phone width, or the long edge on iPad.
+  static let storage = ThumbnailCacheStorage(directory: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("ThumbnailTables", isDirectory: true))
+  static var directory: URL { storage.directory }
+  /// Pixels of one tile at `columns` across the portrait phone width.
   static func tilePixels(columns: CGFloat) -> Int {
     let screen = UIScreen.main
-    let width = UIDevice.current.userInterfaceIdiom == .pad
-      ? max(screen.bounds.width, screen.bounds.height) : min(screen.bounds.width, screen.bounds.height)
+    let width = min(screen.bounds.width, screen.bounds.height)
     let pixels = width / columns * screen.scale
     return max(32, Int((pixels / 16).rounded(.up)) * 16)
   }
@@ -923,7 +1356,7 @@ enum ThumbnailTables {
   static let detail = table("detail", side: detailSide, capacity: 8_192, share: detailShare)
   static let overviewShare = 0.5, detailShare = 0.2
   private static func table(_ name: String, side: Int, capacity: Int, share: Double) -> ThumbnailTable {
-    let table = ThumbnailTable(url: directory.appendingPathComponent("\(name)-\(side).table"), side: side, capacity: capacity)
+    let table = ThumbnailTable(url: directory.appendingPathComponent("\(name)-\(side).table"), side: side, capacity: capacity, storage: storage)
     table.limit = limit(table, share: share, budget: ThumbnailDiskCache.budgetMB(.standard) * 1024 * 1024)
     return table
   }
@@ -948,6 +1381,12 @@ enum ThumbnailTables {
     if pixels > CGFloat(overviewSide), let sharp = detail.image(key) { return sharp }
     return overview.image(key)
   }
+  /// Only background preparation uses this owning copy; a table hit itself
+  /// does not mean its mapped file pages can be read without waiting.
+  static func copiedOverview(_ id: String, revision: Int64) -> CGImage? {
+    guard enabled else { return nil }
+    return overview.copiedImage(key(id, revision: revision))
+  }
   /// Any stored thumbnail, sharpest first, to show while a larger one loads.
   static func placeholder(_ id: String, revision: Int64) -> CGImage? {
     guard enabled else { return nil }
@@ -956,17 +1395,21 @@ enum ThumbnailTables {
   }
   /// Stores a delivered small thumbnail in each table it is sharp enough for.
   static func remember(_ id: String, revision: Int64, pixels: CGFloat, image: CGImage) {
-    guard enabled, pixels <= CGFloat(detailSide) else { return }
+    guard enabled, pixels <= CGFloat(detailSide), let epoch = storage.epoch else { return }
     let key = key(id, revision: revision), edge = min(image.width, image.height)
     overview.writes.async {
-      if edge * 5 >= overviewSide * 4 { overview.store(key, image: image) }
-      if pixels > CGFloat(overviewSide), edge * 5 >= detailSide * 4 { detail.store(key, image: image) }
+      if edge * 5 >= overviewSide * 4 { overview.store(key, image: image, generation: epoch) }
+      if pixels > CGFloat(overviewSide), edge * 5 >= detailSide * 4 { detail.store(key, image: image, generation: epoch) }
     }
   }
   /// The PhotoKit request size that fills an overview entry from local renditions.
   static var prefillPixels: CGFloat { CGFloat(max(64, overviewSide * 2)) }
-  static var usage: Int { overview.usage + detail.usage }
-  static func clear() { overview.clear(); detail.clear() }
+  static var usage: Int { storage.tableUsage(active: [overview, detail]) }
+  static func clear() {
+    guard let epoch = storage.beginClear() else { return }
+    storage.clearTables(active: [overview, detail])
+    storage.endClear(epoch)
+  }
 }
 
 /// Bounded background bitmap work keeps native image callbacks cheap on the UI
@@ -1053,6 +1496,276 @@ enum LaunchTrace {
   }
 }
 
+#if os(iOS)
+struct DetailPosterTarget: Equatable {
+  let pixels: CGSize
+  let screen: String
+  var displayProfile: String? = nil
+  func fittedPixels(for asset: PHAsset) -> CGSize {
+    let width = CGFloat(max(1, asset.pixelWidth)), height = CGFloat(max(1, asset.pixelHeight))
+    let scale = min(1, pixels.width / width, pixels.height / height)
+    return CGSize(width: ceil(width * scale), height: ceil(height * scale))
+  }
+  func isSatisfied(by image: UIImage, asset: PHAsset) -> Bool {
+    let required = fittedPixels(for: asset)
+    return image.size.width * image.scale >= required.width - 1
+      && image.size.height * image.scale >= required.height - 1
+  }
+}
+
+private enum DetailPosterPreparation {
+  static let queue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.maxConcurrentOperationCount = 2
+    queue.qualityOfService = .userInitiated
+    return queue
+  }()
+  static func resize(_ image: UIImage, to pixels: CGSize) -> UIImage {
+    guard let source = image.cgImage, let colorSpace = source.colorSpace else { return image }
+    // An HDR image whose extra range lives outside its base bitmap cannot be
+    // redrawn into that bitmap's SDR format. Retain its original representation.
+    if image.isHighDynamicRange, !colorSpace.isHDR(), !CGColorSpaceUsesExtendedRange(colorSpace) { return image }
+    let rotated = [.left, .leftMirrored, .right, .rightMirrored].contains(image.imageOrientation)
+    let width = Int(rotated ? pixels.height : pixels.width)
+    let height = Int(rotated ? pixels.width : pixels.height)
+    var bitmapInfo = source.bitmapInfo.rawValue
+    if source.alphaInfo == .last || source.alphaInfo == .first {
+      let alpha: CGImageAlphaInfo = source.alphaInfo == .last ? .premultipliedLast : .premultipliedFirst
+      bitmapInfo = (bitmapInfo & ~CGBitmapInfo.alphaInfoMask.rawValue) | alpha.rawValue
+    }
+    guard let context = CGContext(data: nil, width: width, height: height,
+      bitsPerComponent: source.bitsPerComponent, bytesPerRow: 0, space: colorSpace,
+      bitmapInfo: bitmapInfo) else { return image }
+    context.interpolationQuality = .high
+    context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+    guard var scaled = context.makeImage() else { return image }
+    let headroom = source.contentHeadroom
+    if headroom > 0, let tagged = CGImageCreateCopyWithContentHeadroom(headroom, scaled) { scaled = tagged }
+    let result = UIImage(cgImage: scaled, scale: 1, orientation: image.imageOrientation)
+    guard !image.isHighDynamicRange || result.isHighDynamicRange else { return image }
+    return result
+  }
+}
+/// Prepared Photos display resources share one process-wide budget; source
+/// models, thumbnail requests, selection and transfer work retain their owners.
+@MainActor final class DetailPosterStore {
+  static let shared = DetailPosterStore()
+  private struct DetailPoster {
+    let image: UIImage
+    let cost: Int
+    let assetKey: NSString
+    let assetID: String
+    let source: DetailThumbnailQuality
+  }
+  private struct DetailPending {
+    let ticket: UUID
+    let source: DetailThumbnailQuality
+    let edge: CGFloat
+    let assetKey: NSString
+    let assetID: String
+  }
+  private var detailPosters: [String: DetailPoster] = [:]
+  private var detailOrder: [String] = []
+  private var detailBytes = 0
+  private let detailBudget: Int
+  private var detailPreparation: [String: DetailPending] = [:]
+  private var detailOperations: [String: Operation] = [:]
+  private var detailGeneration = 0
+  private let disk: ThumbnailDiskCache?
+  private var diskTasks: [String: Task<Void, Never>] = [:]
+  private var diskObservation: AnyCancellable?
+  private var memoryObservation: AnyCancellable?
+  private var cacheObservation: AnyCancellable?
+  private var foregroundObservation: AnyCancellable?
+  private var lastAuthorization: PHAuthorizationStatus?
+  private let authorization: () -> PHAuthorizationStatus
+  private let assetRevision: (PHAsset) -> String?
+
+  init(budget: Int = min(128 * 1024 * 1024, max(32 * 1024 * 1024, Int(ProcessInfo.processInfo.physicalMemory / 32))),
+    disk: ThumbnailDiskCache? = .shared,
+    authorization: @escaping () -> PHAuthorizationStatus = {
+      BackupEnvironment.usesPhotoLibrary ? PHPhotoLibrary.authorizationStatus(for: .readWrite) : .notDetermined
+    },
+    assetRevision: @escaping (PHAsset) -> String? = { asset in
+      PHAsset.fetchAssets(withLocalIdentifiers: [asset.localIdentifier], options: nil).firstObject.map(PhotoLibraryModel.revision)
+    }) {
+    detailBudget = max(0, budget)
+    self.disk = disk
+    self.authorization = authorization; self.assetRevision = assetRevision
+    memoryObservation = NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
+      .sink { [weak self] _ in self?.removeAll() }
+    cacheObservation = NotificationCenter.default.publisher(for: Notification.Name("LibraryThumbnailsCleared"))
+      .sink { [weak self] _ in self?.removeAll() }
+    diskObservation = NotificationCenter.default.publisher(for: Notification.Name("LibraryDetailThumbnailsCleared"))
+      .sink { [weak self] notification in
+        guard let self, let cleared = notification.object as? ThumbnailDiskCache, cleared === self.disk else { return }
+        self.removeAll()
+      }
+    foregroundObservation = NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+      .sink { [weak self] _ in self?.synchronizeAuthorization() }
+  }
+  var accessGeneration: Int { synchronizeAuthorization(); return detailGeneration }
+  private func synchronizeAuthorization() {
+    let next = authorization()
+    if let lastAuthorization, lastAuthorization != next { removeAll() }
+    if !PhotoLibraryModel.allowed(next), !detailPosters.isEmpty || !detailPreparation.isEmpty { removeAll() }
+    lastAuthorization = next
+  }
+  private func validatedKey(for asset: PHAsset) -> NSString? {
+    synchronizeAuthorization()
+    guard PhotoLibraryModel.allowed(authorization()) else { return nil }
+    let revision = assetRevision(asset)
+    let currentKey = revision.map { "\(asset.localIdentifier)|\($0)" as NSString }
+    let stale = detailPosters.filter { $0.value.assetID == asset.localIdentifier && $0.value.assetKey != currentKey }
+    let staleWork = detailPreparation.values.contains { $0.assetID == asset.localIdentifier && $0.assetKey != currentKey }
+    if !stale.isEmpty || staleWork {
+      // Revoked limited access or an edit invalidates that asset. Other valid
+      // posters survive, but in-flight publishers must obtain a fresh token.
+      detailGeneration &+= 1
+      cancelPreparations()
+      for (key, entry) in stale {
+        detailPosters.removeValue(forKey: key); detailBytes -= entry.cost
+        detailOrder.removeAll { $0 == key }
+      }
+    }
+    guard revision == PhotoLibraryModel.revision(asset) else { return nil }
+    return currentKey
+  }
+  private func imageCost(_ image: UIImage) -> Int {
+    image.cgImage.map { $0.bytesPerRow * $0.height }
+      ?? Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+  }
+  private func identity(for asset: PHAsset, target: DetailPosterTarget) -> DetailThumbnailIdentity {
+    let pixels = target.fittedPixels(for: asset)
+    return DetailThumbnailIdentity(assetID: asset.localIdentifier, revision: PhotoLibraryModel.revision(asset),
+      width: Int(pixels.width), height: Int(pixels.height), screen: target.displayProfile ?? target.screen)
+  }
+  /// Memory is only the fast tier. Its byte bound and memory-pressure eviction
+  /// do not determine durable retention, which uses the user's thumbnail budget.
+  func loadDetailPoster(for asset: PHAsset, target: DetailPosterTarget, touch: Bool = true) async -> UIImage? {
+    guard let assetKey = validatedKey(for: asset), let disk else { return nil }
+    let expected = detailGeneration, key = identity(for: asset, target: target).key
+    let (image, diskGeneration) = await disk.readDetail(key, touch: touch)
+    guard let image, await disk.overviewEpochIsCurrent(diskGeneration), !Task.isCancelled,
+      expected == detailGeneration, validatedKey(for: asset) == assetKey,
+      expected == detailGeneration, target.isSatisfied(by: image, asset: asset) else { return nil }
+    if touch { storeDetailPoster(image, key: key, assetKey: assetKey, assetID: asset.localIdentifier,
+      source: DetailThumbnailQuality(image)) }
+    return image
+  }
+  /// Synchronous memory seeding never performs disk I/O or image decoding.
+  func detailPoster(for asset: PHAsset, target: DetailPosterTarget? = nil, touch: Bool = true) -> UIImage? {
+    guard let assetKey = validatedKey(for: asset) else { return nil }
+    let key = target.map { identity(for: asset, target: $0).key }
+      ?? detailOrder.last(where: { detailPosters[$0]?.assetKey == assetKey })
+    guard let key, let entry = detailPosters[key] else { return nil }
+    if let target, !target.isSatisfied(by: entry.image, asset: asset) { return nil }
+    if touch {
+      detailOrder.removeAll { $0 == key }; detailOrder.append(key)
+      if let disk { Task { await disk.touchDetail(key) } }
+    }
+    return entry.image
+  }
+  func retainDetailPoster(_ image: UIImage, for asset: PHAsset, target: DetailPosterTarget? = nil, generation: Int? = nil) {
+    guard let assetKey = validatedKey(for: asset), generation == nil || generation == detailGeneration else { return }
+    let aspect = CGFloat(max(1, asset.pixelWidth)) / CGFloat(max(1, asset.pixelHeight))
+    guard abs(log((image.size.width / max(1, image.size.height)) / aspect)) < 0.02 else { return }
+    // Undersized local/degraded previews remain session-owned. They must not
+    // occupy a fitted identity or veto its adequately sized color upgrade.
+    if let target, !target.isSatisfied(by: image, asset: asset) { return }
+    let key = target.map { identity(for: asset, target: $0).key } ?? "\(assetKey)|provisional"
+    let pixels = target?.fittedPixels(for: asset)
+    let imagePixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+    let source = DetailThumbnailQuality(image)
+    let desiredEdge = min(max(imagePixels.width, imagePixels.height),
+      pixels.map { max($0.width, $0.height) } ?? .greatestFiniteMagnitude)
+    if let retained = detailPosters[key],
+      max(retained.image.size.width, retained.image.size.height) * retained.image.scale >= desiredEdge,
+      !source.improves(retained.source) {
+      detailOrder.removeAll { $0 == key }; detailOrder.append(key)
+      if diskTasks[key] == nil { persist(retained.image, for: asset, target: target, key: key, assetKey: assetKey) }
+      return
+    }
+    if let pending = detailPreparation[key] {
+      guard source.improves(pending.source)
+        || (!pending.source.improves(source) && desiredEdge > pending.edge) else { return }
+      detailOperations.removeValue(forKey: key)?.cancel()
+      detailPreparation.removeValue(forKey: key)
+    }
+    guard let pixels, imagePixels.width > pixels.width + 1 || imagePixels.height > pixels.height + 1 else {
+      storeDetailPoster(image, key: key, assetKey: assetKey, assetID: asset.localIdentifier, source: source)
+      persist(image, for: asset, target: target, key: key, assetKey: assetKey); return
+    }
+    // Resize using the source bitmap's color space and component format, not a
+    // display-dependent thumbnail conversion or a standard-range renderer.
+    guard detailPreparation.count < 2 else { return }
+    let ticket = UUID(), expected = detailGeneration
+    detailPreparation[key] = DetailPending(ticket: ticket, source: source, edge: desiredEdge, assetKey: assetKey, assetID: asset.localIdentifier)
+    let operation = BlockOperation()
+    operation.addExecutionBlock { [weak self, weak operation] in
+      guard operation?.isCancelled == false else { return }
+      let thumbnail = DetailPosterPreparation.resize(image, to: pixels)
+      Task { @MainActor in
+        guard let self, self.detailGeneration == expected, self.detailPreparation[key]?.ticket == ticket else { return }
+        guard self.validatedKey(for: asset) == assetKey,
+          self.detailGeneration == expected, self.detailPreparation[key]?.ticket == ticket else { return }
+        self.detailPreparation.removeValue(forKey: key)
+        self.detailOperations.removeValue(forKey: key)
+        self.storeDetailPoster(thumbnail, key: key, assetKey: assetKey, assetID: asset.localIdentifier, source: source)
+        self.persist(thumbnail, for: asset, target: target, key: key, assetKey: assetKey)
+      }
+    }
+    detailOperations[key] = operation
+    DetailPosterPreparation.queue.addOperation(operation)
+  }
+  private func storeDetailPoster(_ image: UIImage, key: String, assetKey: NSString, assetID: String, source: DetailThumbnailQuality) {
+    let cost = imageCost(image)
+    guard cost <= detailBudget else { return }
+    if let previous = detailPosters[key],
+      DetailThumbnailQuality(previous.image).improves(DetailThumbnailQuality(image)) { return }
+    if let previous = detailPosters.removeValue(forKey: key) { detailBytes -= previous.cost }
+    detailOrder.removeAll { $0 == key }
+    while detailBytes + cost > detailBudget {
+      guard let oldest = detailOrder.first else { break }
+      detailOrder.removeFirst()
+      if let removed = detailPosters.removeValue(forKey: oldest) { detailBytes -= removed.cost }
+    }
+    detailPosters[key] = DetailPoster(image: image, cost: cost, assetKey: assetKey, assetID: assetID, source: source)
+    detailOrder.append(key); detailBytes += cost
+  }
+  private func persist(_ image: UIImage, for asset: PHAsset, target: DetailPosterTarget?, key: String, assetKey: NSString) {
+    guard let target, let disk, target.isSatisfied(by: image, asset: asset) else { return }
+    let fitted = target.fittedPixels(for: asset)
+    // A representation that cannot be resized safely remains session/memory
+    // owned; this tier must not accidentally persist an original-size image.
+    guard image.size.width * image.scale <= fitted.width + 1,
+      image.size.height * image.scale <= fitted.height + 1 else { return }
+    diskTasks[key]?.cancel()
+    let expected = detailGeneration, expectedAssetKey = assetKey as String
+    diskTasks[key] = Task { [weak self] in
+      guard let epoch = await disk.detailEpoch(), !Task.isCancelled else { return }
+      await disk.storeDetail(image, key: key, generation: epoch) { [weak self] in
+        guard let self, self.detailGeneration == expected else { return false }
+        return self.validatedKey(for: asset) as String? == expectedAssetKey && self.detailGeneration == expected
+      }
+      // Task cancellation prevents obsolete work from deleting a replacement.
+      if !Task.isCancelled { self?.diskTasks.removeValue(forKey: key) }
+    }
+  }
+  func removeAll() {
+    detailGeneration &+= 1
+    cancelPreparations()
+    detailPosters.removeAll(); detailOrder.removeAll(); detailBytes = 0
+  }
+  private func cancelPreparations() {
+    diskTasks.values.forEach { $0.cancel() }; diskTasks.removeAll()
+    detailOperations.values.forEach { $0.cancel() }; detailOperations.removeAll()
+    detailPreparation.removeAll()
+  }
+}
+
+#endif
+
 @MainActor final class ThumbnailPipeline {
   enum Priority: Int { case prefetch, visible }
   private let manager: PHCachingImageManager?
@@ -1062,6 +1775,9 @@ enum LaunchTrace {
   private let cache = NSCache<NSString, LibraryImage>()
   private let posters = NSCache<NSString, LibraryImage>()
   private let smallPosters = NSCache<NSString, LibraryImage>()
+  #if os(iOS)
+  private var detailStore: DetailPosterStore = .shared
+  #endif
   private var preheated: [String: PHAsset] = [:]
   private var preheatSize = CGSize.zero
   private struct Pending {
@@ -1128,6 +1844,13 @@ enum LaunchTrace {
     cacheObservation = NotificationCenter.default.publisher(for:Notification.Name("LibraryThumbnailsCleared"))
       .sink { [weak self] _ in self?.clear() }
   }
+  #if os(iOS)
+  convenience init(cacheBudget: Int = 64 * 1024 * 1024, manager: PHCachingImageManager? = nil,
+    detailStore: DetailPosterStore) {
+    self.init(cacheBudget: cacheBudget, manager: manager)
+    self.detailStore = detailStore
+  }
+  #endif
   /// PhotoKit cuts thumbnails up to 352 px from its stored small rendition
   /// (about 5 ms each); slightly larger requests decode the original (about
   /// 35 ms each, measured on device by other PhotoKit grids). Requests just
@@ -1146,6 +1869,17 @@ enum LaunchTrace {
     return posters.object(forKey:smallKey(asset)) ?? smallPosters.object(forKey: smallKey(asset))
   }
   #if os(iOS)
+  var detailAccessGeneration: Int { detailStore.accessGeneration }
+  func invalidateDetailAccess() { detailStore.removeAll() }
+  func detailPoster(for asset: PHAsset, target: DetailPosterTarget? = nil, touch: Bool = true) -> UIImage? {
+    detailStore.detailPoster(for: asset, target: target, touch: touch)
+  }
+  func loadDetailPoster(for asset: PHAsset, target: DetailPosterTarget, touch: Bool = true) async -> UIImage? {
+    await detailStore.loadDetailPoster(for: asset, target: target, touch: touch)
+  }
+  func retainDetailPoster(_ image: UIImage, for asset: PHAsset, target: DetailPosterTarget? = nil, generation: Int? = nil) {
+    detailStore.retainDetailPoster(image, for: asset, target: target, generation: generation)
+  }
   /// Synchronous menu seed: prefer the largest decoded uncropped rendition.
   func contextPreview(for asset: PHAsset) -> UIImage? {
     if let sample = asset as? any PreviewSample { return sample.previewImage }
@@ -1514,6 +2248,8 @@ enum LaunchTrace {
     }
     preheated = next
   }
+  /// End this source's grid work. Shared display resources have their own
+  /// explicit-removal, access and memory-pressure invalidation boundaries.
   func clear() {
     epoch &+= 1
     let requests = pending.values.map(\.native)

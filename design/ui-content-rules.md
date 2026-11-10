@@ -282,9 +282,18 @@ iPhone image-based choices share one selection treatment across gallery, album
 covers and selected-item review: a 23 pt blue filled check circle with a white
 backing, inset 6 pt at bottom trailing. Only selected cells show the mark. Selected
 media opacity is 0.72 in the library; selected-photo review keeps original opacity; the cover bounds, caption and image request identity stay
-unchanged. Do not add a second border or top-corner check. Form preference rows
+unchanged. Do not add a second border or top-corner check.
+In selected-photo detail, an unselected media mark uses a white outline over
+the photo; selected media retains the shared blue check and white backing.
+Form preference rows
 retain a trailing plain checkmark and a fixed slot; selection changes neither
 fade the row nor replace it. Pressing a scope choice does not dim its entire label.
+Library cells, History and selected-photo review share the same media decorations; burst counts remain collection metadata beside
+the shared burst mark.
+
+History, recent-photo and problem-card media buttons use the same quiet press
+treatment as album choices; entering a viewer does not fade the source photo
+through a button's generic pressed appearance.
 
 Album cover requests use the gallery thumbnail pipeline: exact, display-density
 size, revision-aware bounded cache, reuse/offscreen cancellation, local first,

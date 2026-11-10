@@ -7,6 +7,7 @@ import UserNotifications
 @MainActor final class IOSFirstRunProgress: ObservableObject {
   struct Record: Codable {
     var step = "welcome"
+    var navigationPath: [String]?
     var autoBackup = true
     var earlierPhotos: Bool?
     var photoAccess: String?
@@ -40,7 +41,7 @@ import UserNotifications
     update {
       $0.completed = legacyDone
       $0.notificationHandled = legacyDone
-      if paired && !legacyDone { $0.step = "photos" }
+      if paired && !legacyDone { $0.step = "photos"; $0.navigationPath = ["photos"] }
     }
   }
   func leave() { update { $0.completed = true } }
@@ -83,6 +84,42 @@ import UserNotifications
   }
 }
 
+/// Presentation history only. UIKit retains ownership of the system push and Back.
+@MainActor final class IOSOnboardingNavigation: ObservableObject {
+  typealias Step = IOSOnboarding.Step
+  @Published var path: [Step] {
+    didSet {
+      if path != oldValue { revision += 1; working = false }
+    }
+  }
+  @Published var working = false
+  private(set) var revision = 0
+  var step: Step { path.last ?? .welcome }
+
+  init(record: IOSFirstRunProgress.Record?) {
+    let step = Step(rawValue: record?.step ?? "") ?? .welcome
+    if let saved = record?.navigationPath,
+      saved.allSatisfy({ Step(rawValue: $0) != nil && $0 != Step.welcome.rawValue }),
+      (saved.last.flatMap(Step.init(rawValue:)) ?? .welcome) == step {
+      path = saved.compactMap(Step.init(rawValue:))
+    } else {
+      // Older installations saved the reached step, before history was recorded.
+      path = step == .welcome ? [] : Array(Step.allCases.dropFirst().prefix { $0 != step }) + [step]
+    }
+  }
+
+  func go(_ next: Step) {
+    if next == step { return }
+    if next == .welcome { path = [] }
+    else if let index = path.firstIndex(of: next) { path = Array(path.prefix(through: index)) }
+    else { path.append(next) }
+  }
+
+  func owns(_ step: Step, revision: Int) -> Bool {
+    self.step == step && self.revision == revision
+  }
+}
+
 /// First run on iPhone (design/flows.md §1), retained through confirmed Photos
 /// publication or explicit departure. Every decision survives process restart.
 struct IOSOnboarding: View {
@@ -91,7 +128,8 @@ struct IOSOnboarding: View {
   @ObservedObject var model: BackupModel
   var finish: () -> Void = {}
   @ObservedObject var progress: IOSFirstRunProgress
-  private var step: Step { Step(rawValue: progress.record?.step ?? "") ?? .welcome }
+  @StateObject private var navigation: IOSOnboardingNavigation
+  private var step: Step { navigation.step }
   @State private var spaceHelp = false
   private var autoBackup: Binding<Bool> {
     Binding(get: { progress.record?.autoBackup ?? true }, set: { value in progress.update { $0.autoBackup = value } })
@@ -99,7 +137,6 @@ struct IOSOnboarding: View {
   @State private var elapsed = false
   @State private var choiceError: String?
   @StateObject private var scanner = IOSPixelScannerState()
-  @State private var working = false
   @State private var landed = false
   /// The title follows the flight, so it never claims the photo landed before the user sees it land.
   @State private var announced = false
@@ -116,33 +153,28 @@ struct IOSOnboarding: View {
 
   static let downloadPage = "https://backupduck.app/#download"
 
-  init(model: BackupModel, progress: IOSFirstRunProgress, scanner: IOSPixelScannerState? = nil, finish: @escaping () -> Void = {}) {
+  init(model: BackupModel, progress: IOSFirstRunProgress, scanner: IOSPixelScannerState? = nil, navigation: IOSOnboardingNavigation? = nil, finish: @escaping () -> Void = {}) {
     self.model = model
     self.finish = finish
     self.progress = progress
     _scanner = StateObject(wrappedValue: scanner ?? IOSPixelScannerState())
-    _path = State(initialValue: Self.path(to: Step(rawValue: progress.record?.step ?? "") ?? .welcome))
-  }
-
-  @State private var path: [Step] = []
-  private static func path(to step: Step) -> [Step] {
-    step == .welcome ? [] : Array(Step.allCases.dropFirst().prefix { $0 != step }) + [step]
+    _navigation = StateObject(wrappedValue: navigation ?? IOSOnboardingNavigation(record: progress.record))
   }
 
   var body: some View {
-    NavigationStack(path: $path) {
+    NavigationStack(path: $navigation.path) {
       page(.welcome)
         .navigationDestination(for: Step.self) { page($0) }
     }
-    .onChange(of: path) { _, value in
-      let next = value.last ?? .welcome
-      if next != step { saveStep(next) }
+    .onChange(of: navigation.path) { previous, value in
+      if (previous.last == .connect && value.last != .connected)
+        || (value.last == .connect && scanner.connectionCompleted) { scanner.scanAgain() }
+      saveStep(value.last ?? .welcome)
     }
     .onChange(of: model.photoAccess) { _, access in
-      if step == .photos && (access == .full || access == .limited) { go(.choose) }
+      if step == .photos && !navigation.working && (access == .full || access == .limited) { go(.choose) }
     }
     .tint(DuckRole.accent)
-    .toolbar(step == .welcome ? .hidden : .visible, for: .navigationBar)
   }
 
   private func page(_ step: Step) -> some View {
@@ -168,7 +200,7 @@ struct IOSOnboarding: View {
     .tint(DuckRole.accent)
     .navigationTitle("")
     .navigationBarTitleDisplayMode(.inline)
-    .navigationBarBackButtonHidden(working || progress.applyingScope)
+    .toolbar(step == .welcome ? .hidden : .visible, for: .navigationBar)
     .sheet(isPresented: $spaceHelp) {
       NavigationStack {
         HelpArticle(topic: HelpCenter.Topic(id: "space", symbol: "externaldrive"))
@@ -228,7 +260,9 @@ struct IOSOnboarding: View {
       VStack(alignment: .leading, spacing: 16) {
         Text("onboarding_connect_title").font(.title2.bold())
         Text("onboarding_connect_body").foregroundStyle(.secondary)
-        IOSPixelScanner(model: model, state: scanner, showsRecoveryActions: false) { go(.connected) }
+        IOSPixelScanner(model: model, state: scanner, showsRecoveryActions: false) {
+          if navigation.step == .connect { go(.connected) }
+        }
       }
     case .connected:
       VStack(spacing: 16) {
@@ -352,12 +386,14 @@ struct IOSOnboarding: View {
           secondary("onboarding_later") { leave() }.accessibilityIdentifier("onboarding.photos.later")
         } else {
           primary("onboarding_continue") {
-            working = true
+            let revision = navigation.revision
+            navigation.working = true
             Task {
               let allowed = await model.authorizePhotos()
               progress.update { $0.photoAccess = model.photoAccess.rawValue }
-              working = false
-              if allowed && step == .photos { go(.choose) }
+              guard navigation.owns(.photos, revision: revision) else { return }
+              navigation.working = false
+              if allowed { go(.choose) }
             }
           }
         }
@@ -387,21 +423,22 @@ struct IOSOnboarding: View {
   private func primary(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
     Button(action: action) { Text(title).frame(maxWidth: .infinity) }
       .buttonStyle(.borderedProminent).controlSize(.large).tint(DuckRole.accentFill)
-      .disabled(working || progress.applyingScope)
+      .disabled(navigation.working || progress.applyingScope)
   }
 
   private func secondary(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
     Button(title, action: action).controlSize(.large)
-      .disabled((working || progress.applyingScope) && step != .first)
+      .disabled((navigation.working || progress.applyingScope) && step != .first)
   }
 
   private func go(_ next: Step) {
-    path = Self.path(to: next)
+    navigation.go(next)
     saveStep(next)
   }
   private func saveStep(_ next: Step) {
     progress.update {
       $0.step = next.rawValue
+      $0.navigationPath = navigation.path.map(\.rawValue)
       if next == .connected { $0.receiver = model.pairing?.receiverID }
       if next == .first && $0.firstPhotoStarted == nil { $0.firstPhotoStarted = Date() }
     }
@@ -497,7 +534,8 @@ struct IOSOnboarding: View {
     return text == key ? NSLocalizedString("error_internal", comment: "") : text
   }
   private func recover(_ blocker: Blocker) async {
-    working = true; choiceError = nil
+    let revision = navigation.revision
+    navigation.working = true; choiceError = nil
     switch blocker.recovery {
     case .retryItem(let id):
       if !(await model.retry(id)) { choiceError = model.message }
@@ -510,7 +548,7 @@ struct IOSOnboarding: View {
       } else if let job = firstJob { _ = await model.retry(job.id) }
       else { await model.processPendingImports(); await model.becameActive() }
     }
-    working = false
+    if navigation.owns(.first, revision: revision) { navigation.working = false }
   }
   private func leave() {
     if step == .photos && model.photoAccess == .denied {
@@ -521,16 +559,21 @@ struct IOSOnboarding: View {
   }
 
   private func choose(earlier: Bool) async {
-    working = true; choiceError = nil
+    let revision = navigation.revision
+    navigation.working = true; choiceError = nil
     progress.update { $0.autoBackup = true; $0.earlierPhotos = earlier; $0.receiver = model.pairing?.receiverID; $0.scopeRegistered = false }
     // Persist choices before registering work. Never recreate an existing run.
     let access = BackupEnvironment.photoAccess()
     if access == .full || access == .limited {
       guard await progress.registerScope(model: model) else {
-        choiceError = progress.scopeError; working = false; return
+        if navigation.owns(.choose, revision: revision) {
+          choiceError = progress.scopeError; navigation.working = false
+        }
+        return
       }
     }
-    working = false
+    guard navigation.owns(.choose, revision: revision) else { return }
+    navigation.working = false
     if earlier { go(.first) } else { leave() }
   }
 
@@ -551,14 +594,8 @@ struct OnboardingLibraryStrip: View {
         let side = (geometry.size.width - gap * CGFloat(count - 1)) / CGFloat(count)
         HStack(spacing: gap) {
           ForEach(assets, id: \.localIdentifier) { asset in
-            AssetThumbnail(sourceID: asset.localIdentifier, size: side, cornerRadius: 0)
-              .overlay(alignment: .bottomTrailing) {
-                if asset.mediaType == .video {
-                  Text(videoDurationLabel(asset.duration)).font(.caption.weight(.semibold)).monospacedDigit()
-                    .foregroundStyle(DuckMedia.onMedia).shadow(color: DuckMedia.shadow, radius: 2)
-                    .padding(DuckSpacing.xSmall)
-                }
-              }
+            AssetThumbnail(sourceID: asset.localIdentifier, size: side, cornerRadius: 0,
+              mediaKind: asset.mediaType == .video ? "video" : asset.mediaSubtypes.contains(.photoLive) ? "motion" : "photo")
               .accessibilityIdentifier("onboarding.sample." + asset.localIdentifier)
           }
         }

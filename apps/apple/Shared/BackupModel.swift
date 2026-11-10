@@ -332,6 +332,7 @@ enum OriginalPreparationFailure {
   private func initialize() async {
     guard !opened else { return }
     opened = true
+    message = nil
     do {
       // The keychain outlives a deleted app; its pairing without the app's own
       // queue is a leftover, so a reinstall starts as a new installation.
@@ -353,12 +354,10 @@ enum OriginalPreparationFailure {
         ])
         queueOpened = true
       }
-      message = NSLocalizedString("pairing_unlock_wait", comment: "")
       if reinstalled { try? BackupEnvironment.credentials.discardLeftover() }
       if let data = try await Keychain.readAsync() {
         pairing = try JSONDecoder().decode(Pairing.self, from: data)
       }
-      message = nil
       // Opening the UI never silently resumes an explicitly paused queue.
       let state = try await Bridge.call(["op": "sender_status"])
       paused =

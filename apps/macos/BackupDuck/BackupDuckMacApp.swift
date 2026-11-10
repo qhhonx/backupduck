@@ -18,13 +18,29 @@ enum MacDestination: String, CaseIterable, Identifiable {
     }
   }
 }
+private enum MacSidebarLocation: Hashable {
+  case page(MacDestination), folder(String)
+}
+
+/// Each sidebar position owns its open detail independently of the active position.
+@MainActor private final class MacRetainedViewer: Identifiable {
+  let id = UUID()
+  let location: MacSidebarLocation
+  let request: MacViewerRequest
+  let navigation = MacLibraryNavigation()
+  init(location: MacSidebarLocation, request: MacViewerRequest) {
+    self.location = location; self.request = request
+  }
+}
+
 struct MacWorkspace: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var library: PhotoLibraryModel
   @ObservedObject private var notifier = BackupEnvironment.activeNotifier()
   @StateObject private var notificationPhotos = BackupPhotoRouter()
   @State private var destination: MacDestination = .backup
-  @State private var sidebarSelection: MacDestination? = .backup
+  @AppStorage("macFoldersSidebarExpanded") private var foldersExpanded = true
+  @State private var sidebarHovered = false
   private var initialSettingsPage: MacSettings.Page?
   private var initialDiagnosticsPage: String?
   private var openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)?
@@ -35,75 +51,96 @@ struct MacWorkspace: View {
   private var initialScopeSearch: String
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
   @State private var toolbarWidth: CGFloat = 1180
-  @State private var density = MacLibraryDensity.remembered
+  @ObservedObject private var gridSize = MacGridSize.shared
   @State private var pairSheet = false
   @StateObject private var backupAction = SelectionBackupAction()
+  @StateObject private var gridToolbar = MacGridToolbarState()
+  @StateObject private var folderToolbarActions = MacFolderToolbarActions()
   @State private var transferFilter = "all"
-  @State private var historyScope = ""
+  @StateObject private var historyVisibleRange = MacVisibleRange()
+  @StateObject private var folderVisibleRange = MacVisibleRange()
+  @State private var historySelectionCount = 0
   @State private var historyCount = 0
-  @State private var historyColumns = MacLibraryDensity.standard
+  @State private var historyLoaded = false
   @State private var historyType: LibraryFilter = .all
   @State private var historySearch = ""
   @State private var historySearchExpanded = false
   @State private var historyFocus: HistoryPhoto?
+  @State private var historyFocusRevision = 0
   @State private var librarySelecting = false
   @State private var previewAsset: PHAsset?
   @State private var reviewAssets: [PHAsset]?
-  @State private var externalViewer: MacViewerRequest?
-  @State private var previewExpanded = false
+  @State private var retainedViewers: [MacSidebarLocation: MacRetainedViewer] = [:]
   @State private var gridFrame = CGRect.zero
-  @State private var previewMediaVisible = false
   /// A reference, so recording a pending flight never re-renders the page.
   @State private var flightMemo = MacFlightMemo()
   @StateObject private var libraryNavigation = MacLibraryNavigation()
   @StateObject private var folders: FolderSources
+  @ObservedObject private var folderBrowser: FolderBrowser
   @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialTransferFilter: String = "all",
     initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
     albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil, openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)? = nil, settingsUpdateSection: MacUpdateSection? = nil) {
     self.openInitialSettingsDetail = openInitialSettingsDetail; self.settingsUpdateSection = settingsUpdateSection
     self.initialDiagnosticsPage = initialDiagnosticsPage
     self.model = model
-    _externalViewer = State(initialValue: initialViewer)
-    let navigation = MacLibraryNavigation(); navigation.viewerInfo = initialViewerInfo
+    if let initialViewer {
+      let session = MacRetainedViewer(location: .page(initialDestination), request: initialViewer)
+      if initialViewerInfo { session.navigation.setInformationPresented(true) }
+      _retainedViewers = State(initialValue: [.page(initialDestination): session])
+    }
+    let navigation = MacLibraryNavigation()
+    if initialViewerInfo { navigation.setInformationPresented(true) }
     _libraryNavigation = StateObject(wrappedValue: navigation)
     self.library = library
     self.initialSettingsPage = initialSettingsPage; self.scopeStore = scopeStore ?? .shared
     self.albumsModel = albumsModel ?? .shared; self.initialScopeDestination = initialScopeDestination
     self.initialScopeSearch = initialScopeSearch
     _destination = State(initialValue: initialDestination)
-    _sidebarSelection = State(initialValue: initialDestination)
     _transferFilter = State(initialValue: initialTransferFilter)
-    _folders = StateObject(wrappedValue: folderSources ?? .shared)
+    let resolvedFolders = folderSources ?? .shared
+    _folders = StateObject(wrappedValue: resolvedFolders)
+    _folderBrowser = ObservedObject(wrappedValue: resolvedFolders.browser)
   }
-  // The body is split into parts so each type-checks on its own: as one
-  // expression it exceeded the compiler's time limit on slower release builders.
-  var body: some View {
+  // Keep independent SwiftUI expressions within the release compiler's type-checking budget.
+  private var workspaceNavigation: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       sidebar
     } detail: {
       detailContent
-        .navigationTitle(windowTitle)
         // The visible capture range (or the selection count) lives in the window
         // subtitle, as in Photos, instead of a strip above the media.
-        .background {
-          if destination != .sources || hasViewer {
-            MacLibrarySubtitle(range: libraryNavigation.visibleRange, fixed: subtitleOverride)
-          }
-        }
+        .modifier(MacLibraryWindowChrome(title: windowTitle, range: chromeRange, fixed: subtitleOverride, dateFormat: destination == .transfers ? "grid_updated_date" : nil, ownsWindow: destination != .settings))
         .background(MacToolbarWidth(width: $toolbarWidth))
         .toolbar { workspaceToolbar }
+        .environment(\.macGridToolbarState, gridToolbar)
     }
-    .environment(\.macViewerPresentation, { request in externalViewer = request })
+  }
+  private var workspaceChrome: some View {
+    workspaceNavigation
+    .background(MacInfoWindowAnchor(navigation: libraryNavigation))
+    .focusedSceneValue(\.windowInfoCommands, MacGridInfoCommands(toggle: { libraryNavigation.toggleInformation() }))
+    .environment(\.macViewerPresentation, presentExternal)
+    .onChange(of: library.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
+    .confirmationDialog("selection_backup_repeat_title", isPresented: $backupAction.confirmingRepeat, titleVisibility: .visible) {
+      Button("selection_backup_repeat_action") { Task { await backupAction.confirm(library: library, model: model) } }
+      Button("cancel", role: .cancel) { backupAction.cancel() }
+    } message: { Text("selection_backup_repeat_note") }
+    .alert("selection_backup_failed_title", isPresented: Binding(get: { backupAction.error != nil }, set: { if !$0 { backupAction.error = nil } })) {
+      Button("settings_done") { backupAction.error = nil }
+    } message: { Text(backupAction.error ?? "") }
     .environment(\.macViewerHistory, { photo in
-      closeViewer(); historyFocus = photo; destination = .transfers
+      // This changes sidebar location, not the source viewer's session.
+      activeViewerNavigation.viewerFlight.suspendPresentation()
+      retainedViewers.removeValue(forKey: .page(.transfers))
+      transferFilter = "all"; historyType = .all; historySearch = ""
+      historyFocus = photo; historyFocusRevision &+= 1; destination = .transfers
     })
     .focusedSceneValue(\.historyZoom, destination == .transfers && !hasViewer ? MacHistoryZoomActions(
-      smaller: { historyColumns = min(9, MacLibraryDensity.step(historyColumns, by: 1)) },
-      larger: { historyColumns = MacLibraryDensity.step(historyColumns, by: -1) },
-      canShrink: historyColumns < 9, canGrow: historyColumns > 3) : nil)
-    .focusedSceneValue(\.gridSearch, destination == .transfers && !hasViewer ? MacGridSearchAction(open: { withAnimation(.snappy(duration: 0.25)) { historySearchExpanded = true } }) : nil)
+      smaller: { gridSize.ordinaryColumns = min(9, MacLibraryDensity.step(gridSize.ordinaryColumns, by: 1)) },
+      larger: { gridSize.ordinaryColumns = MacLibraryDensity.step(gridSize.ordinaryColumns, by: -1) },
+      canShrink: gridSize.ordinaryColumns < 9, canGrow: gridSize.ordinaryColumns > 3) : nil)
     .focusedSceneValue(\.photoViewerCommands, hasViewer ? MacViewerCommands(back: closeViewer,
-      info: { libraryNavigation.viewerInfo.toggle() }, share: { libraryNavigation.viewerShare?() }) : nil)
+      info: { activeViewerNavigation.toggleInformation() }, share: { activeViewerNavigation.viewerShare?() }) : nil)
     // The accent reaches the system as its accent color: selection, switches and
     // the default button use it, while push buttons stay neutral as in System
     // Settings. A tint here would color every bordered button (platform-expression A1).
@@ -112,17 +149,19 @@ struct MacWorkspace: View {
     .background(MacSheetInitialFocus())
     .navigationSplitViewStyle(.balanced)
     .toolbarBackground(.hidden, for: .windowToolbar)
+  }
+  private var workspaceRoutes: some View {
+    workspaceChrome
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowTransfers"))) { _ in showTransfers("all") }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowFolders"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
-      folders.selectedSourceID = nil; destination = .sources; columnVisibility = .all
+      folders.selectedSourceID = nil; folderBrowser.scope = .all; destination = .sources; columnVisibility = .all
     }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowAbout"))) { _ in
       destination = .settings
     }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowSettings"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedSettingsRoute")
-      closeViewer()
       destination = .settings
     }
     .onAppear {
@@ -136,12 +175,27 @@ struct MacWorkspace: View {
         destination = .sources
       }
     }
+  }
+  var body: some View {
+    workspaceRoutes
     .onChange(of: notifier.route, initial: true) { _, _ in consumeNotification() }
     .onChange(of: model.ready) { _, _ in consumeNotification() }
     .onChange(of: model.pairing?.receiverID) { _, _ in consumeNotification() }
     .onChange(of: model.autoBackup) { _, enabled in folders.followAutoBackup(enabled) }
+    .onChange(of: sidebarLocation) { old, _ in
+      retainedViewers[old]?.navigation.viewerFlight.suspendPresentation()
+      if old == .page(.library) { libraryNavigation.viewerFlight.suspendPresentation() }
+    }
     .onChange(of: folders.selectedSourceID) { _, _ in columnVisibility = .all }
-    .task { await model.open(); await folders.open() }
+    .onChange(of: folders.sources.map(\.id)) { _, ids in
+      if folders.loaded || folders.isPreview, case .folder(let id) = folderBrowser.scope, !ids.contains(id) {
+        folderBrowser.scope = .all
+      }
+    }
+    .task { await model.open() }
+    // FolderSources waits for model.ready itself; it need not wait for the
+    // remaining background initialization after the model becomes usable.
+    .task { await folders.open() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
@@ -153,11 +207,32 @@ struct MacWorkspace: View {
   }
   private var sidebar: some View {
     VStack(alignment: .leading, spacing: 0) {
-      List(selection: $sidebarSelection) {
+      List(selection: sidebarSelection) {
         // design/navigation.md: photos, backup, settings. Devices open from Settings.
         Section("mac_section_photos") {
           sidebarRow(.library, title: "mac_nav_photo_library")
-          sidebarRow(.sources)
+          DisclosureGroup(isExpanded: $foldersExpanded) {
+            ForEach(folders.sources) { source in
+              Label(folders.displayName(source), systemImage: "folder")
+                .tag(MacSidebarLocation.folder(source.id))
+                .accessibilityIdentifier("folders.sidebar." + source.id)
+            }
+          } label: {
+            HStack {
+              Label("mac_nav_sources", systemImage: "folder")
+              Spacer(minLength: DuckSpacing.xSmall)
+              if sidebarHovered {
+                Button {
+                  destination = .sources
+                  folderToolbarActions.requestAdd()
+                } label: { Label("folders_add", systemImage: "plus") }
+                  .buttonStyle(.borderless).labelStyle(.iconOnly).help("folders_add")
+                  .disabled(!model.ready || folders.loadFailed)
+                  .accessibilityIdentifier("folders.sidebar.add")
+              }
+            }.accessibilityElement(children: .contain)
+              .accessibilityIdentifier("folders.sidebar.root")
+          }.tag(MacSidebarLocation.page(.sources))
         }
         Section("mac_section_backup") {
           sidebarRow(.backup, title: "mac_nav_overview")
@@ -165,15 +240,29 @@ struct MacWorkspace: View {
         }
         Section { sidebarRow(.settings) }
       }.listStyle(.sidebar)
-        .onChange(of: sidebarSelection) { _, selection in
-          // AppKit can propose deselection on empty space. Keep the page and
-          // reselect its native row without rebuilding the list or its scroll.
-          if let selection { destination = selection }
-          else { sidebarSelection = destination }
-        }
-        .onChange(of: destination) { _, destination in sidebarSelection = destination }
 
-    }.navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 300)
+    }.background(MacSidebarHover { sidebarHovered = $0 })
+      .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 300)
+  }
+  private var sidebarSelection: Binding<MacSidebarLocation?> {
+    Binding(get: {
+      guard destination == .sources else { return .page(destination) }
+      switch folderBrowser.scope {
+      case .all: return .page(.sources)
+      case .folder(let id): return .folder(id)
+      }
+    }, set: { selection in
+      guard let selection, selection != sidebarLocation else { return }
+      activeExternalViewer?.navigation.viewerFlight.suspendPresentation()
+      if destination == .library { libraryNavigation.viewerFlight.suspendPresentation() }
+      switch selection {
+      case .page(let page):
+        if page == .sources { folderBrowser.scope = .all }
+        destination = page
+      case .folder(let id):
+        folderBrowser.scope = .folder(id); destination = .sources; foldersExpanded = true
+      }
+    })
   }
   private var detailContent: some View {
     VStack(spacing: 0) {
@@ -183,130 +272,213 @@ struct MacWorkspace: View {
         libraryPage.opacity(destination == .library ? 1 : 0).allowsHitTesting(
           destination == .library
         ).accessibilityHidden(destination != .library)
-        if destination == .sources {
-          FolderSourcesPage(folders: folders, backup: model, viewerOpen: hasViewer, settings: { id in
+        FolderSourcesPage(folders: folders, backup: model, active: destination == .sources, viewerOpen: hasViewer, visibleRange: folderVisibleRange, toolbarActions: folderToolbarActions, settings: { id in
             folders.initialSettingsFolder = id; destination = .settings
             NotificationCenter.default.post(name: Notification.Name("BackupDuckFolderSettings"), object: id)
           })
-        }
-        if destination == .backup {
-          MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
-        }
+          .opacity(destination == .sources ? 1 : 0).allowsHitTesting(destination == .sources)
+          .accessibilityHidden(destination != .sources)
+        MacHub(model: model, folders: folders, pair: { pairSheet = true }, sources: { destination = .sources }, showTransfers: showTransfers)
+          .opacity(destination == .backup ? 1 : 0).allowsHitTesting(destination == .backup)
+          .accessibilityHidden(destination != .backup)
+          .environment(\.macWorkspaceActive, destination == .backup)
         Group {
-          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, columns: historyColumns, resize: { historyColumns = $0 }, mediaFilter: historyType, search: historySearch, clearFilters: { transferFilter = "all"; historyType = .all; historySearch = "" },
-              active: destination == .transfers, scopeChanged: { historyScope = $0; historyCount = $1 })
+          BackupHistoryView(model: model, filter: transferFilter, initialFocus: historyFocus, initialFocusRevision: historyFocusRevision, columns: gridSize.ordinaryColumns, resize: { gridSize.ordinaryColumns = $0 }, mediaFilter: historyType, search: historySearch, clearFilters: { transferFilter = "all"; historyType = .all; historySearch = "" },
+              active: destination == .transfers, visibleRange: historyVisibleRange, selectionChanged: { historySelectionCount = $0 }, scopeChanged: { _, count in historyCount = count; historyLoaded = true })
             .opacity(destination == .transfers ? 1 : 0).allowsHitTesting(destination == .transfers)
             .accessibilityHidden(destination != .transfers)
         }
-        if destination == .settings {
-          MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
+        MacSettings(model: model, folders: folders, showFolders: { destination = .sources },
             initialPage: initialSettingsPage, scopeStore: scopeStore, albumsModel: albumsModel,
             initialScopeDestination: initialScopeDestination, initialScopeSearch: initialScopeSearch, initialDiagnosticsPage: initialDiagnosticsPage, openInitialDetail: openInitialSettingsDetail, updateSection: settingsUpdateSection)
-        }
+          .opacity(destination == .settings ? 1 : 0).allowsHitTesting(destination == .settings)
+          .accessibilityHidden(destination != .settings)
+          .environment(\.macWorkspaceActive, destination == .settings)
       }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-    .allowsHitTesting(externalViewer == nil)
-    .accessibilityHidden(externalViewer != nil)
-    .overlay {
-      if let externalViewer {
-        switch externalViewer {
-        case let .photo(asset, collection, recorded):
-          if let asset {
-            MacPhotoPreview(asset: asset, library: library, navigation: libraryNavigation, reviewAssets: collection, recorded: recorded) { _ in self.externalViewer = nil }
-              .id(asset.localIdentifier)
-          } else if let recorded {
-            MacRecordedPhotoPreview(photo: recorded, model: model, navigation: libraryNavigation, close: { self.externalViewer = nil })
-          }
-        case let .history(photo, collection, media, returnTo):
-          MacHistoryPreview(photo: photo, collection: collection, library: library, navigation: libraryNavigation,
-            media: media, close: { id in returnTo(id); self.externalViewer = nil })
-        case let .folder(photo, context, sources, returnTo):
-          FolderViewer(photo: photo, context: context, folders: sources, navigation: libraryNavigation, close: { current in
-            returnTo?(current); self.externalViewer = nil
-          })
+      .background {
+        // Toolbar search belongs to the workspace, independently of the
+        // retained history grid's visibility and compositing state.
+        if destination == .transfers && !hasViewer &&
+          (historyCount > 0 || transferFilter != "all" || historyType != .all || !historySearch.isEmpty) {
+          MacToolbarSearch(text: $historySearch, presented: $historySearchExpanded)
         }
       }
     }
+    .environment(\.macGridInformationEnabled, activeExternalViewer == nil)
+    .allowsHitTesting(activeExternalViewer == nil)
+    .accessibilityHidden(activeExternalViewer != nil)
+    .overlay {
+      ForEach(retainedViewers.values.sorted { $0.id.uuidString < $1.id.uuidString }) { session in
+        externalViewerContent(session)
+          .opacity(session.location == sidebarLocation ? 1 : 0)
+          .allowsHitTesting(session.location == sidebarLocation)
+          .accessibilityHidden(session.location != sidebarLocation)
+          .environment(\.macWorkspaceActive, session.location == sidebarLocation)
+      }
+    }
   }
-  private var hasViewer: Bool { externalViewer != nil || (destination == .library && previewAsset != nil && libraryNavigation.viewerOpen) }
+  private var sidebarLocation: MacSidebarLocation {
+    if destination == .sources, case let .folder(id) = folderBrowser.scope { return .folder(id) }
+    return .page(destination)
+  }
+  private var activeExternalViewer: MacRetainedViewer? { retainedViewers[sidebarLocation] }
+  private var activeViewerNavigation: MacLibraryNavigation { activeExternalViewer?.navigation ?? libraryNavigation }
+  private func externalViewerContent(_ session: MacRetainedViewer) -> some View {
+    MacViewerFlightSurface(flight: session.navigation.viewerFlight) {
+      switch session.request {
+      case let .photo(asset, collection, recorded):
+        if let asset {
+          MacPhotoPreview(asset: asset, library: library, navigation: session.navigation, reviewAssets: collection, recorded: recorded) { _ in closeExternal(session, to: { nil }) }
+            .id(asset.localIdentifier)
+        } else if let recorded {
+          MacRecordedPhotoPreview(photo: recorded, model: model, navigation: session.navigation, close: { closeExternal(session, to: { nil }) })
+        }
+      case let .history(photo, collection, media, returnTo):
+        MacHistoryPreview(photo: photo, collection: collection, library: library, navigation: session.navigation,
+          media: media, close: { id in
+            media.selection = [id]
+            returnTo(id)
+            closeExternal(session, to: { media.navigation.coverFlight[.all]?(id) })
+          })
+      case let .folder(photo, context, sources, returnTo, navigation):
+        FolderViewer(photo: photo, context: context, folders: sources, navigation: session.navigation, close: { current in
+          sources.browser.selection = [current.id]
+          returnTo?(current)
+          closeExternal(session, to: { navigation?.coverFlight[.all]?(current.id) })
+        })
+      }
+    }
+  }
+  private func presentExternal(_ request: MacViewerRequest) {
+    let session = MacRetainedViewer(location: sidebarLocation, request: request)
+    var source: MacCoverFlightSource?
+    switch request {
+    case let .history(photo, _, media, _):
+      source = media.navigation.coverFlight[.all]?(photo.id)
+      if let asset = media.assets[photo.source], let poster = MacDetailPosterCache.shared.memoryPoster(asset: asset) {
+        source?.image = poster
+      }
+    case let .folder(photo, _, _, _, navigation): source = navigation?.coverFlight[.all]?(photo.id)
+    case .photo: source = nil
+    }
+    session.navigation.viewerFlight.begin(source)
+    retainedViewers[session.location] = session
+  }
+  private func closeExternal(_ session: MacRetainedViewer, to landing: @escaping () -> MacCoverFlightSource?) {
+    session.navigation.viewerFlight.close(to: landing) {
+      if retainedViewers[session.location]?.id == session.id { retainedViewers.removeValue(forKey: session.location) }
+    }
+  }
+  private var hasViewer: Bool { activeExternalViewer != nil || (destination == .library && previewAsset != nil && libraryNavigation.viewerOpen) }
   private func closeViewer() {
-    if let back = libraryNavigation.viewerBack { back() }
-    else if externalViewer != nil { externalViewer = nil }
-    else if let asset = libraryNavigation.viewerCurrent?() { closeMedia(asset) }
+    let navigation = activeViewerNavigation
+    if let back = navigation.viewerBack { back() }
+    else if let session = activeExternalViewer { retainedViewers.removeValue(forKey: session.location) }
+    else if destination == .library, let asset = navigation.viewerCurrent?() { closeMedia(asset) }
   }
-  private var windowTitle: Text {
-    if hasViewer { return Text(verbatim: "") }
-    if destination == .transfers { return Text("records_title") }
-    if destination == .library { return Text("mac_nav_photo_library") }
-    return Text(LocalizedStringKey(destination.title))
+  private var windowTitle: String {
+    if hasViewer { return "" }
+    if destination == .transfers { return NSLocalizedString("records_title", comment: "") }
+    if destination == .library { return NSLocalizedString("mac_nav_photo_library", comment: "") }
+    if destination == .sources {
+      switch folderBrowser.scope {
+      case .all: return NSLocalizedString("mac_nav_sources", comment: "")
+      case .folder(let id): return folders.sources.first(where: { $0.id == id }).map(folders.displayName) ?? NSLocalizedString("mac_nav_sources", comment: "")
+      }
+    }
+    return NSLocalizedString(destination.title, comment: "")
   }
-  /// A subtitle replacing the visible range: empty outside the library and in
-  /// the viewer, the selection count while photos are selected.
+  private var chromeRange: MacVisibleRange {
+    if destination == .sources { return folderBrowser.visibleRange }
+    if destination == .transfers { return historyVisibleRange }
+    return libraryNavigation.visibleRange
+  }
+  /// Selection replaces location; calendar covers own their period labels.
   private var subtitleOverride: String? {
     if hasViewer { return "" }
-    if destination == .transfers { return historyScope }
-    guard destination == .library && library.authorized else { return "" }
-    if previewAsset != nil && libraryNavigation.viewerOpen { return "" }
-    return librarySubtitle
+    switch destination {
+    case .library:
+      guard library.authorized, library.placeholder == nil else { return "" }
+      if let selected = librarySubtitle { return selected }
+      return libraryNavigation.level == .all && !MacLibraryDensity.isDense(gridSize.columns) ? nil : ""
+    case .sources:
+      if !folderBrowser.selection.isEmpty {
+        return String(format: NSLocalizedString("library_selected_count", comment: ""), folderBrowser.selection.count)
+      }
+      return folders.loadFailed || folders.sources.isEmpty ? "" : nil
+    case .transfers:
+      if historySelectionCount > 0 {
+        return String(format: NSLocalizedString("library_selected_count", comment: ""), historySelectionCount)
+      }
+      return historyCount > 0 || !historyLoaded ? nil : ""
+    default: return ""
+    }
+  }
+  private var historyHasBrowsing: Bool {
+    historyCount > 0 || transferFilter != "all" || historyType != .all || !historySearch.isEmpty
   }
   @ToolbarContentBuilder private var workspaceToolbar: some ToolbarContent {
-  if hasViewer {
-    MacViewerToolbar(navigation: libraryNavigation, back: closeViewer)
-  } else if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen {
-    if library.authorized {
-    MacLibraryScale(columns: $density, enabled: libraryNavigation.level == .all)
+  if !hasViewer && (destination == .library && library.authorized || destination == .sources && !folders.loadFailed && !folders.sources.isEmpty || destination == .transfers && historyHasBrowsing) {
+    MacLibraryScale(columns: Binding(get: { destination != .library ? gridSize.ordinaryColumns : gridSize.columns },
+      set: { if destination != .library { gridSize.ordinaryColumns = $0 } else { gridSize.columns = $0 } }),
+      enabled: destination != .library || libraryNavigation.level == .all,
+      stops: destination != .library ? MacLibraryDensity.grid : MacLibraryDensity.columns)
     MacBrowsingToolbarGap()
-    ToolbarItem(id: "library.viewMode", placement: .primaryAction) {
+  }
+  if !hasViewer, destination == .library, library.authorized {
+    ToolbarItem(id: "browser.viewMode", placement: .primaryAction) {
       if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth {
-        libraryPeriodPicker.pickerStyle(.menu).fixedSize()
-      } else {
-        libraryPeriodPicker.pickerStyle(.segmented).frame(width: MacBrowsingToolbarMetrics.periodWidth)
-          // Choosing All again returns to the newest photo.
-          .simultaneousGesture(TapGesture(count: 2).onEnded {
-            if libraryNavigation.level == .all { libraryNavigation.scrollToNewest() }
+        MacBrowserLevelMenu(selection: MacLibraryLevel.allCases.firstIndex(of: libraryNavigation.level) ?? 0,
+          choose: { index in
+            if MacLibraryLevel.allCases.indices.contains(index) { changeLibraryLevel(MacLibraryLevel.allCases[index]) }
           })
+      } else {
+        MacBrowserLevelControl(labels: MacLibraryLevel.allCases.map(\.title),
+          selection: MacLibraryLevel.allCases.firstIndex(of: libraryNavigation.level) ?? 0,
+          identifier: "library.view_mode", choose: { index in
+            if MacLibraryLevel.allCases.indices.contains(index) { changeLibraryLevel(MacLibraryLevel.allCases[index]) }
+          }).frame(width: MacBrowsingToolbarMetrics.periodWidth)
       }
     }
     MacBrowsingToolbarGap()
-    }
+  }
+  if hasViewer {
+    MacViewerToolbar(navigation: activeViewerNavigation, back: closeViewer)
+  } else if destination == .library, previewAsset == nil || !libraryNavigation.viewerOpen {
     ToolbarItemGroup(placement: .primaryAction) {
       Toggle(isOn: $libraryNavigation.originalAspect) { Image(systemName: "rectangle.arrowtriangle.2.inward") }
         .toggleStyle(.button).help("calendar_original_aspect")
         .accessibilityIdentifier("library.original_aspect")
-        .disabled(!MacLibraryDensity.canChangeAspect(level: libraryNavigation.level, columns: density,
+        .disabled(!MacLibraryDensity.canChangeAspect(level: libraryNavigation.level, columns: gridSize.columns,
           hasPhotos: library.placeholder == nil && library.loaded > 0))
       if library.authorized {
       MacGridFilterMenu(shows: MacGridFilterMenu.backupViews, selected: library.backupView.rawValue,
         choose: { raw in if let view = LibraryBackupView(rawValue: raw) { Task { await library.changeBackupView(view) } } },
         type: Binding(get: { library.filter }, set: { value in Task { await library.changeFilter(value) } }), identifier: "library.filter")
       }
-    }
-    if !library.selection.isEmpty || backupAction.added || backupAction.busy {
-      MacBrowsingToolbarGap()
-      ToolbarItem(id: "library.backupSelected", placement: .primaryAction) {
-        DuckSelectionBackupButton(action: backupAction, library: library, model: model)
-          .buttonStyle(.borderedProminent)
-      }
+      MacGridInfoButton(state: gridToolbar)
+      MacSelectionBackupControl(action: backupAction, count: library.selection.count,
+        identifier: "library.backup_selected",
+        submit: { Task { await backupAction.request(library: library, model: model) } })
     }
   }
-  if !hasViewer, destination == .transfers, historyCount > 0 || transferFilter != "all" || historyType != .all || !historySearch.isEmpty {
-    MacLibraryScale(columns: $historyColumns, stops: MacLibraryDensity.grid)
-    MacBrowsingToolbarGap()
+  if !hasViewer && destination == .sources && !folders.loadFailed && !folders.sources.isEmpty {
+    MacFolderToolbar(folders: folders, backup: model, browser: folderBrowser, actions: folderToolbarActions, information: gridToolbar)
+  }
+  if !hasViewer, destination == .transfers, historyHasBrowsing {
     ToolbarItemGroup(placement: .primaryAction) {
       MacGridFilterMenu(shows: [("all", "grid_filter_all", "photo.on.rectangle"),
         ("attention", "records_needs_you", "exclamationmark.circle")], selected: transferFilter,
         choose: { transferFilter = $0 }, type: $historyType, identifier: "history.filter")
-      MacGridSearch(text: $historySearch, presented: $historySearchExpanded)
+      MacGridInfoButton(state: gridToolbar)
     }
   }
+  if !hasViewer, destination == .backup, gridToolbar.hasSource {
+    ToolbarItemGroup(placement: .primaryAction) { MacGridInfoButton(state: gridToolbar) }
   }
-  private var libraryPeriodPicker: some View {
-    Picker("library_view_mode", selection: Binding(get: { libraryNavigation.level }, set: changeLibraryLevel)) {
-      ForEach(MacLibraryLevel.allCases) { Text(LocalizedStringKey($0.title)).tag($0) }
-    }.labelsHidden().accessibilityIdentifier("library.view_mode")
   }
   private func sidebarRow(_ item: MacDestination, title: String? = nil) -> some View {
-    Label(LocalizedStringKey(title ?? item.title), systemImage: item.icon).tag(item)
+    Label(LocalizedStringKey(title ?? item.title), systemImage: item.icon).tag(MacSidebarLocation.page(item))
   }
   private func consumeNotification() {
     guard model.ready, let route = notifier.route,
@@ -326,7 +498,7 @@ struct MacWorkspace: View {
           ?? model.jobs.first(where: { $0.asset.source_id == source && $0.receiverID == route.receiver })
         guard let job, job.asset.source_id == source,
           job.receiverID == nil || job.receiverID == route.receiver else { destination = .backup; return }
-        notificationPhotos.macPresent = { externalViewer = $0 }
+        notificationPhotos.macPresent = presentExternal
         notificationPhotos.open(HistoryPhoto(job: job), collection: [HistoryPhoto(job: job)], frame: .zero)
       }
     }
@@ -349,10 +521,11 @@ struct MacWorkspace: View {
             MacLibraryGrid(
               library: library, navigation: libraryNavigation,
               preparationRevision: "\(model.pendingImports)|\(model.importingSourceID ?? "")", queueRevision: model.queueRevision,
-              receiverID: model.pairing?.receiverID, columns: density, selecting: true,
-              active: destination == .library,
-              preview: openMedia, enterSelection: { librarySelecting = true }, resize: { density = $0 })
-              .onChange(of: density, initial: false) { _, value in MacLibraryDensity.remember(value) }
+              receiverID: model.pairing?.receiverID, columns: gridSize.columns, selecting: true,
+              active: destination == .library, sharesSize: true,
+              preview: openMedia, enterSelection: { librarySelecting = true }, resize: { gridSize.columns = $0 })
+              .environment(\.macGridInformationEnabled, previewAsset == nil && activeExternalViewer == nil)
+              .onChange(of: gridSize.columns, initial: false) { _, value in MacLibraryDensity.remember(value) }
               .allowsHitTesting(libraryNavigation.level == .all && previewAsset == nil)
               .accessibilityHidden(libraryNavigation.level != .all || previewAsset != nil)
             ForEach([MacLibraryLevel.months, .years]) { level in
@@ -376,30 +549,19 @@ struct MacWorkspace: View {
         }
       }.allowsHitTesting(previewAsset == nil).accessibilityHidden(previewAsset != nil)
       if let previewAsset {
-        GeometryReader { proxy in
-          ZStack {
-            Color(nsColor: .windowBackgroundColor).opacity(previewExpanded ? 1 : 0)
-            // The media appears once the opening flight has landed on it, and
-            // vanishes before the closing flight leaves it.
-            MacPhotoPreview(asset: previewAsset, library: library, navigation: libraryNavigation,
-              reviewAssets: reviewAssets, close: closeMedia)
-              .id(previewAsset.localIdentifier)
-              .opacity(previewMediaVisible ? 1 : 0)
-          }
-          .animation(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil
-            : .easeOut(duration: 0.28), value: previewExpanded)
+        MacViewerFlightSurface(flight: libraryNavigation.viewerFlight) {
+          MacPhotoPreview(asset: previewAsset, library: library, navigation: libraryNavigation,
+            reviewAssets: reviewAssets, close: closeMedia)
+            .id(previewAsset.localIdentifier)
         }
         .zIndex(1)
       }
     }
+    .environment(\.macWorkspaceActive, destination == .library)
     .coordinateSpace(name: "libraryPage")
     .onChange(of: library.generation, initial: true) { _, _ in libraryNavigation.rebuild(library.fetch) }
     .onChange(of: libraryNavigation.level) { old, next in
       startFlight(from: old, to: next)
-    }
-    .onChange(of: destination) { _, next in
-      externalViewer = nil
-      if next != .library { previewAsset = nil; reviewAssets = nil }
     }
   }
   /// The selection count, or nil for the visible range.
@@ -411,6 +573,9 @@ struct MacWorkspace: View {
   /// where it lands; when the destination shows another photo for that period,
   /// the two cross-fade on the way.
   private func startFlight(from old: MacLibraryLevel, to next: MacLibraryLevel) {
+    if flightMemo.suppressNextLevelFlight {
+      flightMemo.suppressNextLevelFlight = false; flightMemo.pending = nil; return
+    }
     guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, destination == .library,
       let token = libraryNavigation.focusToken,
       let source = flightMemo.pending.flatMap({ $0.level == old && $0.token == token ? $0.source : nil })
@@ -430,82 +595,36 @@ struct MacWorkspace: View {
     land(0)
   }
   private func changeLibraryLevel(_ next: MacLibraryLevel) {
-    guard next != libraryNavigation.level else { return }
-    // The focus is decided before the switch: the selection, or the photo
-    // nearest the centre of what is on screen now.
-    if let focus = libraryNavigation.focusCandidate[libraryNavigation.level]?() { libraryNavigation.focusToken = focus }
-    // Capture where the focus is now: All Photos may load before switching,
-    // and a year card can rotate to another photo in the meantime.
-    if let token = libraryNavigation.focusToken, let source = libraryNavigation.coverFlight[libraryNavigation.level]?(token) {
-      flightMemo.pending = (libraryNavigation.level, token, source)
-    }
-    if next != .all { libraryNavigation.level = next; return }
-    guard let token = libraryNavigation.focusToken else { libraryNavigation.level = next; return }
-    let previous = libraryNavigation.level
-    Task {
-      guard await library.preparePreviewWindow(containing: token) != nil,
-        libraryNavigation.level == previous, libraryNavigation.focusToken == token else { return }
-      libraryNavigation.focus(token); libraryNavigation.level = next
-    }
+    flightMemo.pending = nil
+    flightMemo.suppressNextLevelFlight = libraryNavigation.level != next
+    libraryNavigation.selectLevel(next)
   }
   /// The viewer opens as Photos does: the photo grows from its cell to its
   /// fitted rectangle while the background fades in, then the live media takes
   /// over underneath at the same pixels.
   private func present(_ asset: PHAsset) {
     let token = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
-    let source = libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier)
-    let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    var transaction = Transaction(animation: nil)
-    transaction.disablesAnimations = true
-    withTransaction(transaction) {
-      previewExpanded = false; previewAsset = asset; libraryNavigation.viewerOpen = true
-      previewMediaVisible = reduce || source == nil
-    }
-    DispatchQueue.main.async {
-      previewExpanded = true
-      guard !reduce, let source else { previewMediaVisible = true; return }
-      MacCoverFlight.fly(from: source, to: { viewerTarget(asset, image: source.image, clip: source.clip) })
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { previewMediaVisible = true }
-    }
+    var source = libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier)
+    if let poster = MacDetailPosterCache.shared.memoryPoster(asset: asset) { source?.image = poster }
+    libraryNavigation.viewerFlight.begin(source)
+    previewAsset = asset; libraryNavigation.viewerOpen = true
   }
-  /// The fitted rectangle of `asset` inside the viewer's media area.
-  private func viewerTarget(_ asset: PHAsset, image: NSImage?, clip: CGRect) -> MacCoverFlightSource? {
-    guard let area = libraryNavigation.viewerArea?(), asset.pixelWidth > 0, asset.pixelHeight > 0 else { return nil }
-    let aspect = CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
-    var size = CGSize(width: area.width, height: area.width / aspect)
-    if size.height > area.height { size = CGSize(width: area.height * aspect, height: area.height) }
-    let rect = CGRect(x: area.midX - size.width / 2, y: area.midY - size.height / 2, width: size.width, height: size.height)
-    return MacCoverFlightSource(rect: rect, image: image, radius: 0, assetID: asset.localIdentifier,
-      clip: area, window: NSApp.keyWindow)
-  }
-  private func openMedia(_ asset: PHAsset) {
-    present(asset)
-  }
+  private func openMedia(_ asset: PHAsset) { present(asset) }
   private func closeMedia(_ asset: PHAsset) {
     let token = asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier
-    let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    let start = reduce ? nil : viewerTarget(asset, image: library.thumbnails.poster(for: asset), clip: .zero)
     libraryNavigation.viewerOpen = false
-    previewMediaVisible = false
-    previewExpanded = false
-    // Paging can reach photos far beyond the rows the grid has loaded: load the
-    // window around the photo, then bring its cell on screen and land on it.
     Task {
       if library.index(of: token) == nil { _ = await library.preparePreviewWindow(containing: token) }
+      library.selection = [token]
       libraryNavigation.focus(token)
-      guard var start else { return }
-      DispatchQueue.main.async {
-        if let cell = libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier) {
-          start.clip = cell.clip
-          MacCoverFlight.fly(from: start, to: { libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier) })
-        }
+      libraryNavigation.viewerFlight.close(to: {
+        libraryNavigation.coverLanding[.all]?(token, asset.localIdentifier)
+      }) {
+        previewAsset = nil; reviewAssets = nil
       }
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + (reduce ? 0 : 0.3)) {
-      guard !previewExpanded else { return }
-      previewAsset = nil; reviewAssets = nil
-    }
   }
+
 }
 
 @MainActor final class DesktopPairingModel: ObservableObject {
@@ -616,5 +735,6 @@ struct MacWorkspace: View {
 /// cell that is not visible (or Reduce Motion) falls back to a plain fade.
 
 @MainActor final class MacFlightMemo {
+  var suppressNextLevelFlight = false
   var pending: (level: MacLibraryLevel, token: String, source: MacCoverFlightSource)?
 }

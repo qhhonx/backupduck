@@ -10,7 +10,7 @@ final class BackupLiveActivityTests: XCTestCase {
   }
   private func state(total: Int = 110, published: Int = 100, received: Int = 100,
     active: Int = 10, history: HistoricalImportStatus? = nil, paused: Bool = false,
-    status: BackupHubStatus = .backingUp(remaining: 10, bytes: 0), failed: Bool = false) -> BackupActivityAttributes.ContentState {
+    status: BackupHubStatus = .backingUp(remaining: 10, bytes: nil), failed: Bool = false) -> BackupActivityAttributes.ContentState {
     var summary = SenderSummary()
     summary.total = total; summary.published = published; summary.received = received; summary.active = active
     summary.queued = max(0, total - received)

@@ -38,3 +38,15 @@ and devices and storage live in settings.
 - **Names** follow `copy-glossary.zh.md`; the zh-Hans labels are in the
   strings files (`nav_*`, `mac_nav_*`).
 
+
+On iPhone, Backup and Settings each own a native navigation stack. Supporting
+pages are hosted SwiftUI content; a pushed media grid uses that same stack and
+its bars. System Back and leading-edge interactive Back return to the previous
+page, and cancellation preserves the current page, selection and scroll position.
+A pushed page must not embed a one-page navigation stack with a replacement Back
+action. Back uses the system minimal chevron; page titles remain in the title slot.
+
+On iPhone, one native tab controller contains the three retained page owners.
+Each supporting-page navigation stack retains its own items, search configuration
+and pushed controllers when another tab is selected. Library tab reselection and
+scroll-driven minimization remain owned by the shared native library controller.

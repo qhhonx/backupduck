@@ -39,10 +39,17 @@ pub enum Command {
         capture_ms: u64,
         embedded: bool,
     },
+    SelectedRepeatSources {
+        source: String,
+        receiver: String,
+        selections: Vec<(String, String)>,
+    },
     RequestSelected {
         source: String,
         receiver: String,
         selections: Vec<(String, String)>,
+        #[serde(default)]
+        repeat_sources: BTreeSet<String>,
     },
     SelectedPending {
         source: String,
@@ -199,6 +206,10 @@ pub fn call(command: Command) -> Result<Value> {
         )?);
     }
     let index = guard.as_mut().unwrap();
+    call_with_index(&host, index, command)
+}
+
+fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Result<Value> {
     match command {
         Command::PreviewBegin { .. } | Command::PreviewStep | Command::PreviewCancel => {
             unreachable!()
@@ -218,13 +229,44 @@ pub fn call(command: Command) -> Result<Value> {
             index.record_date(&source, &relative, &revision, capture_ms, embedded)?;
             Ok(json!({}))
         }
-        Command::RequestSelected {
+        Command::SelectedRepeatSources {
             source,
             receiver,
             selections,
         } => {
-            index.request_selected(&source, &receiver, &selections)?;
+            let queue = host.sender.lock().map_err(lock)?;
+            Ok(json!(selected_repeat_sources(
+                index,
+                &queue,
+                &source,
+                &receiver,
+                &selections
+            )?
+            .keys()
+            .collect::<Vec<_>>()))
+        }
+        Command::RequestSelected {
+            source,
+            receiver,
+            selections,
+            repeat_sources,
+        } => {
+            let repeats = {
+                let queue = host.sender.lock().map_err(lock)?;
+                selected_repeat_sources(index, &queue, &source, &receiver, &selections)?
+                    .into_iter()
+                    .filter(|(id, _)| repeat_sources.contains(id))
+                    .map(|(_, (relative, job))| (relative, job))
+                    .collect()
+            };
+            index.request_selected_with_repeats(&source, &receiver, &selections, &repeats)?;
             for (relative, revision) in &selections {
+                if index
+                    .selected_repeat_job(&source, relative, revision, &receiver)?
+                    .is_some()
+                {
+                    continue;
+                }
                 if let Some(id) = index
                     .job_id(&source, relative, &receiver)?
                     .filter(|id| *id > 0)
@@ -537,7 +579,34 @@ pub fn call(command: Command) -> Result<Value> {
                 .lock()
                 .map_err(lock)?
                 .source_states(&receiver, &[(source_id.clone(), combined.clone())])?;
-            let job_id = if !states.contains_key(&source_id) {
+            let repeat_job = originals
+                .iter()
+                .map(|(path, revision)| {
+                    index.selected_repeat_job(&source, path, revision, &receiver)
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .flatten()
+                .next();
+            let latest = host
+                .sender
+                .lock()
+                .map_err(lock)?
+                .source_job_id(&receiver, &source_id, &combined)?;
+            let repeat = repeat_job.is_some()
+                && repeat_job == latest
+                && states
+                    .get(&source_id)
+                    .is_some_and(|state| state == "received");
+            if repeat {
+                // Stable across restart and a lost enqueue acknowledgement; the
+                // shared sender keeps the original receipt and deduplicates replay.
+                metadata.insert(
+                    "backupduck_rebackup_id".into(),
+                    format!("folder:{}:{}", source_id, repeat_job.unwrap()),
+                );
+            }
+            let job_id = if !states.contains_key(&source_id) || repeat {
                 let mut random = [0u8; 16];
                 getrandom::fill(&mut random).map_err(|_| Error::Storage("random source".into()))?;
                 let folder = host.export_root.join(digest(&random));
@@ -621,6 +690,48 @@ pub fn call(command: Command) -> Result<Value> {
     }
 }
 
+/// Consent uses the exact indexed revision and current receiver job, including
+/// paired originals whose queue revision represents both files.
+fn selected_repeat_sources(
+    index: &Index,
+    queue: &backupduck_sender::Sender,
+    source: &str,
+    receiver: &str,
+    selections: &[(String, String)],
+) -> Result<BTreeMap<String, (String, i64)>> {
+    if selections.len() > 400 || receiver.is_empty() {
+        return Err(Error::Invalid("folder selection".into()));
+    }
+    let mut repeats = BTreeMap::new();
+    for (relative, revision) in selections {
+        let entry = index.entry(source, relative)?;
+        if entry.revision != *revision {
+            return Err(Error::Conflict("folder selection changed".into()));
+        }
+        if index
+            .selected_repeat_job(source, relative, revision, receiver)?
+            .is_some()
+        {
+            continue;
+        }
+        let Some(id) = index
+            .job_id(source, relative, receiver)?
+            .filter(|id| *id > 0)
+        else {
+            continue;
+        };
+        let job = queue.job(id)?;
+        if job.receiver_id == receiver
+            && job.state == backupduck_sender::JobState::Received
+            && job.processing == Some(ProcessingState::Complete)
+            && queue.source_job_id(receiver, &job.asset.source_id, &job.asset.revision)? == Some(id)
+        {
+            repeats.insert(entry.source_id, (relative.clone(), id));
+        }
+    }
+    Ok(repeats)
+}
+
 /// A verified receipt is still saving until the receiver confirms Photos publication.
 fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Observation> {
     let job = match queue.job(id) {
@@ -646,3 +757,7 @@ fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Obse
         saved_at_ms: queue.publication_time(id)?,
     })
 }
+
+#[cfg(test)]
+#[path = "folders_tests.rs"]
+mod tests;

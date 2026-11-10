@@ -558,6 +558,41 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(HistoryPhoto(job: job(state: "failed")).cause, .notSent)
   }
 
+  func testBackupFactSupportingSlotsRemainWhenRecordedTimesArrive() {
+    let withoutTimes = job(timestamp: nil)
+    var receivedTime = withoutTimes
+    receivedTime.receivedAt = 1700000000000
+    var bothTimes = receivedTime
+    bothTimes.publishedAt = 1700000060000
+    for size in [DynamicTypeSize.large, .xLarge, .accessibility3] {
+      let height = factsHeight(withoutTimes, width: 1000, size: size)
+      XCTAssertEqual(factsHeight(receivedTime, width: 1000, size: size), height, accuracy: 0.5)
+      XCTAssertEqual(factsHeight(bothTimes, width: 1000, size: size), height, accuracy: 0.5,
+        "Known event times replace the existing supporting slots")
+      XCTAssertEqual(factsHeight(job(state: "running", timestamp: nil), width: 1000, size: size), height, accuracy: 0.5,
+        "The pre-receipt explanation must not add a row that disappears while saving")
+      XCTAssertEqual(factsHeight(nil, width: 1000, size: size), height, accuracy: 0.5,
+        "Preparation notes use the same supporting slots")
+    }
+  }
+
+  func testBackupFactSupportingSlotsGrowForNarrowAndLargeText() {
+    var received = job(timestamp: nil)
+    received.receivedAt = 1700000000000
+    received.publishedAt = 1700000060000
+    let ordinary = factsHeight(received, width: 320, size: .large)
+    let large = factsHeight(received, width: 320, size: .accessibility3)
+    let narrow = factsHeight(received, width: 180, size: .accessibility3)
+    XCTAssertGreaterThan(large, ordinary)
+    XCTAssertGreaterThan(narrow, large, "Fact text must wrap rather than clip to the reserved minimum")
+  }
+
+  private func factsHeight(_ job: BackupJob?, width: CGFloat, size: DynamicTypeSize) -> CGFloat {
+    let host = UIHostingController(rootView: PhotoBackupFacts(job: job, receiverName: "Pixel")
+      .dynamicTypeSize(size))
+    return host.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+  }
+
 }
 
 @MainActor final class BackupSummaryFeedbackTests: XCTestCase {

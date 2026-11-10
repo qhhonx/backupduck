@@ -123,6 +123,7 @@ struct ScopeAlbum: Identifiable, Hashable {
   private var lastAuthorization: PHAuthorizationStatus?
   private var loadedSelections = Set<String>()
   @Published var loading = false
+  @Published private(set) var resolved = false
   @Published var denied = false
   @Published private(set) var authorizationStatus: PHAuthorizationStatus = .denied
   private let suppliedAlbums: Bool
@@ -131,6 +132,7 @@ struct ScopeAlbum: Identifiable, Hashable {
     super.init()
     self.albums = albums ?? []
     self.denied = denied
+    resolved = suppliedAlbums || !BackupEnvironment.usesPhotoLibrary
     guard !suppliedAlbums, BackupEnvironment.usesPhotoLibrary else { return }
     // Registering asks for photo access when it has not been decided yet.
     let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
@@ -145,7 +147,7 @@ struct ScopeAlbum: Identifiable, Hashable {
   }
   func load(requestPermission: Bool = false, selectedIDs: Set<String> = []) async {
     guard !suppliedAlbums, BackupEnvironment.usesPhotoLibrary, !loading else { return }; loading = true
-    defer { loading = false }
+    defer { loading = false; resolved = true }
     var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     if requestPermission, status == .notDetermined {
       status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
@@ -212,14 +214,12 @@ struct BackupScopeEditor: View {
       // Search only where there is a list to search; the window toolbar on the Mac.
       if showsAlbumSearch {
         #if os(macOS)
-        // The same collapsed toolbar search as the Mac grids.
-        scopeContent.toolbar {
-          ToolbarItem(placement: .primaryAction) {
-            MacGridSearch(text: $search, presented: $searchPresented, prompt: "scope_search_albums")
-          }
+        scopeContent.background {
+          MacToolbarSearch(text: $search, presented: $searchPresented, prompt: "scope_search_albums")
         }
         #else
         scopeContent.searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("scope_search_albums"))
+          .searchPresentationToolbarBehavior(.avoidHidingContent)
         #endif
       } else { scopeContent }
     }
@@ -241,7 +241,7 @@ struct BackupScopeEditor: View {
 
   @Environment(\.duckSettingsNavigator) private var navigator
   private func view(_ album: ScopeAlbum) {
-    if let navigator { navigator.open(DuckSettingsPage(title: Text(verbatim: album.name), content: AnyView(albumBrowser(album)))) }
+    if let navigator { navigator.open(DuckSettingsPage(title: Text(verbatim: album.name), content: AnyView(albumBrowser(album)), usesMediaCanvas: true)) }
     else { openedAlbum = album }
   }
 
@@ -266,6 +266,8 @@ struct BackupScopeEditor: View {
       .formStyle(.grouped)
       .toggleStyle(DuckPreferenceToggleStyle())
       .accessibilityIdentifier("backup.scope.choices")
+    } else if !model.resolved {
+      DuckLoadingState("library_loading")
     } else if model.denied {
       // The library's own permission state: the right copy and action for
       // denied, restricted or undecided access, at the optical center.
@@ -549,7 +551,12 @@ struct ScopeAlbumCard<Menu: View>: View {
         Text(verbatim: album.name).font(.body).lineLimit(2)
         Text(verbatim: albumItemCount(album.count)).font(.callout).foregroundStyle(.secondary)
       }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-    }.buttonStyle(.plain)
+    }
+      #if os(iOS)
+      .buttonStyle(DuckMediaButtonStyle())
+      #else
+      .buttonStyle(.plain)
+      #endif
       .accessibilityLabel(Text(verbatim: album.name + ", " + albumItemCount(album.count)))
       .accessibilityValue(Text(LocalizedStringKey(selected ? "scope_album_deselect" : "scope_album_choose")))
       .accessibilityAddTraits(selected ? .isSelected : [])

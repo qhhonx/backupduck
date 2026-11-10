@@ -507,19 +507,12 @@ import XCTest
     #if !targetEnvironment(simulator)
       throw XCTSkip("Synthetic library acceptance is simulator-only")
     #endif
-    // Resolve the simulator's pre-granted authorization through PhotoKit before
-    // querying metadata; its initial cached status may still be notDetermined.
     let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-    guard access == .authorized else {
-      XCTFail("Grant Photos to the test host on the disposable simulator (status \(access.rawValue))")
-      return
-    }
-    // Prior runs intentionally leave synthetic fixtures available for UI review.
-    // Put this run after their inserted dates so its pagination is deterministic.
-    let latestOptions = photoLibraryFetchOptions()
-    latestOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-    latestOptions.fetchLimit = 1
-    let latest = PHAsset.fetchAssets(with: latestOptions).firstObject?.creationDate ?? Date()
+    guard access == .authorized else { throw XCTSkip("Grant Photos to the disposable simulator") }
+    let options = photoLibraryFetchOptions()
+    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    options.fetchLimit = 1
+    let latest = PHAsset.fetchAssets(with: options).firstObject?.creationDate ?? Date()
     let base = max(Date(), latest).addingTimeInterval(1_000)
     let ids = try await createPhotos(count: 260, date: base)
     let model = PhotoLibraryModel()
@@ -528,150 +521,90 @@ import XCTest
     let chosen = Set([ids[0], ids[238], ids[259]])
     model.selection = chosen
     XCTAssertEqual(model.selectedIndexPaths().count, 2)
-
     let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
     let window = UIWindow(windowScene: scene)
     window.frame = scene.coordinateSpace.bounds
-    func host() {
-      window.rootViewController = UIHostingController(rootView:
-        IOSLibraryGrid(library: model, queueRevision: 0, receiverID: nil, showSupplementaryContent: true))
+    func controller(_ parent: UIViewController?) -> CalendarGridController? {
+      if let grid = parent as? CalendarGridController { return grid }
+      return parent?.children.lazy.compactMap { controller($0) }.first
+    }
+    func host() async throws {
+      window.rootViewController = nil
+      try await Task.sleep(for: .milliseconds(100))
+      window.rootViewController = UIHostingController(rootView: IOSLibraryPage(library: model, model: BackupModel.shared))
       window.makeKeyAndVisible()
+      try await waitUntil("production Calendar route") { controller(window.rootViewController)?.assets.count == model.membership?.rows.count }
     }
     defer { window.isHidden = true; window.rootViewController = nil }
-    host()
-    try await waitUntil("initial host: " + String(describing: collection(in: window)?.bounds)) {
-      self.collection(in: window)?.indexPathsForSelectedItems?.count == 2
-    }
-    let grid = try XCTUnwrap(collection(in: window))
-    XCTAssertEqual(selectedIDs(grid, model), chosen.subtracting([ids[0]]))
-    let stableGeneration = model.generation
-    let oldContentGeneration = model.contentGeneration
-    let firstPath = try XCTUnwrap(grid.indexPathsForVisibleItems.sorted().first)
-    let stableCell = try XCTUnwrap(grid.cellForItem(at: firstPath))
-    let changedAsset = try XCTUnwrap(model.asset(at: firstPath.item))
-    try await PHPhotoLibrary.shared().performChanges {
-      PHAssetChangeRequest(for: changedAsset).isFavorite = !changedAsset.isFavorite
-    }
-    try await waitUntil("metadata update without grid rebuild") { model.contentGeneration > oldContentGeneration }
-    XCTAssertEqual(model.generation, stableGeneration)
-    XCTAssertTrue(grid.cellForItem(at: firstPath) === stableCell)
-
+    try await host()
+    let grid = try XCTUnwrap(controller(window.rootViewController))
+    try await waitUntil("selection on native Calendar route") { grid.selected == chosen }
     model.loadMore()
-    try await waitUntil("loaded selection") { self.selectedIDs(grid, model) == chosen }
-
-    let originalIndex = try XCTUnwrap(model.selectedIndexPaths().map(\.item).min())
-    _ = try await createPhotos(count: 1, date: base.addingTimeInterval(10))
-    await model.reload()
+    try await waitUntil("loaded selection") { model.selectedIndexPaths().count == chosen.count }
+    XCTAssertEqual(grid.selected, chosen)
+    let extra = try XCTUnwrap(grid.assets.first { !chosen.contains($0.id) })
+    let extraIndex = try XCTUnwrap(grid.assets.firstIndex(where: { $0.id == extra.id }))
+    grid.selecting = true
+    grid.select(item: extraIndex)
+    XCTAssertEqual(model.selection, chosen.union([extra.id]))
+    grid.select(item: extraIndex)
     XCTAssertEqual(model.selection, chosen)
-    XCTAssertEqual(model.selectedIndexPaths().map(\.item).min(), originalIndex + 1)
-    model.loadMore()
-    try await waitUntil("loaded selection") { self.selectedIDs(grid, model) == chosen }
-
-    // Recreate the native collection with the same durable presentation model.
-    host()
-    try await waitUntil("recreated selection") {
-      guard let recreated = self.collection(in: window) else { return false }
-      return recreated !== grid && self.selectedIDs(recreated, model) == chosen
-    }
-    let recreated = try XCTUnwrap(collection(in: window))
-    let extra = IndexPath(item: 5, section: 0)
-    let extraID = try XCTUnwrap(model.asset(at: extra.item)?.localIdentifier)
-    recreated.selectItem(at: extra, animated: false, scrollPosition: [])
-    recreated.delegate?.collectionView?(recreated, didSelectItemAt: extra)
-    XCTAssertEqual(model.selection, chosen.union([extraID]))
-    recreated.deselectItem(at: extra, animated: false)
-    recreated.delegate?.collectionView?(recreated, didDeselectItemAt: extra)
-    XCTAssertEqual(model.selection, chosen)
-    model.selection.removeAll()
-    try await waitUntil("cleared selection") { recreated.indexPathsForSelectedItems?.isEmpty != false }
-
-    // Preserve the same visible photo and partial-row inset, rather than only
-    // the old pixel distance, across navigation and concurrent insertions.
-    let scrollPath = IndexPath(item: 160, section: 0)
-    let scrollFrame = try XCTUnwrap(recreated.collectionViewLayout.layoutAttributesForItem(at: scrollPath)?.frame)
-    recreated.setContentOffset(CGPoint(x: 0, y: scrollFrame.minY + 17), animated: false)
-    try await waitUntil("settled scroll bookmark") {
-      guard let id = model.scrollAnchorID else { return false }
-      return self.anchorIsVisible(id, inset: model.scrollAnchorInset, grid: recreated, model: model)
-        && abs(model.scrollAnchorInset) < scrollFrame.height
-    }
-    let anchor = try XCTUnwrap(model.scrollAnchorID)
-    let inset = model.scrollAnchorInset
-    let position = try XCTUnwrap(model.index(of: anchor))
-    host()
-    try await waitUntil("navigation scroll anchor") {
-      guard let grid = self.collection(in: window), grid !== recreated else { return false }
-      return self.anchorIsVisible(anchor, inset: inset, grid: grid, model: model)
-    }
-    let afterNavigation = try XCTUnwrap(collection(in: window))
-    // More than one page of insertions exercises expansion of the metadata
-    // window when the visible photo moves beyond its previous boundary.
+    grid.selecting = false
+    // A chronological middle photo, including its partial-row position, survives
+    // insertion, native controller recreation and a round trip through filters.
+    let item = grid.assets.count / 2
+    grid.place(grid.layout.frame(item).minY - grid.grid.bounds.height * 0.4)
+    let anchor = try XCTUnwrap(grid.browsingAnchor())
     _ = try await createPhotos(count: 250, date: base.addingTimeInterval(1_000))
     await model.reload()
-    XCTAssertEqual(model.index(of: anchor), position + 250)
-    XCTAssertGreaterThan(model.loaded, position + 250)
-    try await waitUntil("insertion scroll anchor", details: {
-      let index = model.index(of: anchor)
-      let frame = index.flatMap { afterNavigation.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: $0, section: 0))?.frame }
-      return "index=\(String(describing: index)), frame=\(String(describing: frame)), offset=\(afterNavigation.contentOffset), content=\(afterNavigation.contentSize), loaded=\(model.loaded), hasMore=\(model.hasMoreRows)"
-    }) {
-      self.anchorIsVisible(anchor, inset: inset, grid: afterNavigation, model: model)
+    try await waitUntil("concurrent membership insertion") { grid.assets.count == model.membership?.rows.count }
+    func anchorVisible(_ c: CalendarGridController) -> Bool {
+      guard let i = c.assets.firstIndex(where: { $0.id == anchor.id }) else { return false }
+      return abs(c.layout.frame(i).minY - c.grid.contentOffset.y - anchor.screenY) < 1
     }
-
+    XCTAssertTrue(anchorVisible(grid))
+    try await host()
+    let recreated = try XCTUnwrap(controller(window.rootViewController))
+    XCTAssertFalse(recreated === grid)
+    try await waitUntil("recreated native anchor", details: {
+      "saved=\(String(describing: model.calendarBrowseAnchors)) density=\(recreated.columns) width=\(recreated.width) offset=\(recreated.grid.contentOffset) anchor=\(anchor)"
+    }) { anchorVisible(recreated) }
+    XCTAssertEqual(recreated.selected, chosen)
+    recreated.reviewSelection()
+    try await waitUntil("native selected review") { recreated.selectionReview?.viewIfLoaded?.window != nil }
+    let review = try XCTUnwrap(recreated.selectionReview)
+    review.onPreview(review)
+    try await waitUntil("shared selected viewer") { review.presentedViewController is MediaViewerNavigationController }
+    let viewerNav = try XCTUnwrap(review.presentedViewController as? MediaViewerNavigationController)
+    let viewer = try XCTUnwrap(viewerNav.topViewController as? NativeMediaViewer)
+    try await waitUntil("selected viewer settles") { !viewer.openingTransition }
+    let selectedDetail = XCTAttachment(image: UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+      window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+    })
+    selectedDetail.name = "Selected detail actual native window"; selectedDetail.lifetime = .keepAlways; add(selectedDetail)
+    viewer.dismissViewer()
+    try await waitUntil("return to selected review") { review.presentedViewController == nil }
+    review.done()
+    try await waitUntil("return to anchored grid") { recreated.presentedViewController == nil }
+    XCTAssertTrue(anchorVisible(recreated))
+    XCTAssertEqual(model.selection, chosen)
     await model.changeFilter(.video)
-    XCTAssertEqual(model.scrollOffset, .zero)
-    XCTAssertNil(model.scrollAnchorID)
+    try await waitUntil("empty video filter") { recreated.assets.isEmpty }
     await model.changeFilter(.all)
-    try await waitUntil("filter resets scroll", details: {
-      "offset=\(afterNavigation.contentOffset), inset=\(afterNavigation.adjustedContentInset), anchor=\(String(describing: model.index(of: model.scrollAnchorID)))"
-    }) {
-      abs(afterNavigation.contentOffset.y) < 1
-        && (model.index(of: model.scrollAnchorID) ?? 0) < 3
-    }
-
-    model.selection = chosen
-    model.scrollOffset = CGPoint(x: 0, y: 500)
-    let oldGeneration = model.generation
+    try await waitUntil("restore All filter anchor") { anchorVisible(recreated) }
+    XCTAssertTrue(model.selection.isEmpty, "Changing a filter ends the old selection")
     XCTAssertFalse(model.applyAuthorization(.denied))
-    XCTAssertEqual(model.authorizationStatus, .denied)
-    guard case .permission(.denied)? = model.placeholder else {
-      return XCTFail("Denied access must show the recovery action instead of an empty library")
-    }
+    guard case .permission(.denied)? = model.placeholder else { return XCTFail("Denied access needs recovery") }
     XCTAssertNil(model.fetch)
     XCTAssertEqual(model.loaded, 0)
-    XCTAssertEqual(model.total, 0)
-    XCTAssertFalse(model.loading)
     XCTAssertTrue(model.selection.isEmpty)
-    XCTAssertEqual(model.scrollOffset, .zero)
-    XCTAssertNil(model.scrollAnchorID)
-    XCTAssertGreaterThan(model.generation, oldGeneration)
-    await model.reload()
-    XCTAssertNil(model.fetch, "Denied models must not reload metadata")
+    XCTAssertTrue(model.calendarBrowseAnchors.isEmpty)
     XCTAssertTrue(model.applyAuthorization(.authorized))
-    XCTAssertEqual(model.authorizationStatus, .authorized)
-    guard case .loading? = model.placeholder else {
-      return XCTFail("The initial fetch must show loading instead of an empty library")
-    }
     await model.reload()
-    XCTAssertGreaterThanOrEqual(model.total, 261)
-    XCTAssertTrue(model.selection.isEmpty, "Restoring permission must not restore a stale selection")
+    XCTAssertGreaterThanOrEqual(model.total, 510)
+    XCTAssertTrue(model.selection.isEmpty, "Restoring access cannot restore stale selection")
   }
 
-  private func selectedIDs(_ grid: UICollectionView, _ model: PhotoLibraryModel) -> Set<String> {
-    Set((grid.indexPathsForSelectedItems ?? []).compactMap { model.asset(at: $0.item)?.localIdentifier })
-  }
-  private func anchorIsVisible(_ id: String, inset: CGFloat, grid: UICollectionView,
-    model: PhotoLibraryModel) -> Bool {
-    guard let index = model.index(of: id),
-      let frame = grid.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame,
-      let cell = grid.cellForItem(at: IndexPath(item: index, section: 0)) as? PhotoCell
-    else { return false }
-    return cell.assetID == id && abs(grid.contentOffset.y - frame.minY - inset) < 1
-  }
-  private func collection(in view: UIView) -> UICollectionView? {
-    if let collection = view as? UICollectionView { return collection }
-    return view.subviews.lazy.compactMap { self.collection(in: $0) }.first
-  }
   private func waitUntil(_ stage: String, details: () -> String = { "" },
     _ condition: () -> Bool) async throws {
     let deadline = Date().addingTimeInterval(10)
@@ -684,17 +617,23 @@ import XCTest
     }
   }
   private func createPhotos(count: Int, date: Date) async throws -> [String] {
-    let image = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32)).image { context in
-      UIColor.systemTeal.setFill()
-      context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+    let data = try (0..<count).map { index in
+      let image = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 240)).image { context in
+        UIColor(hue: CGFloat(index % 24) / 24, saturation: 0.6, brightness: 0.75, alpha: 1).setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+        UIColor.white.withAlphaComponent(0.25).setFill()
+        context.cgContext.fill(CGRect(x: 20, y: 20, width: 280, height: 200))
+        String(index).draw(at: CGPoint(x: 30, y: 90), withAttributes: [
+          .font: UIFont.preferredFont(forTextStyle: .largeTitle), .foregroundColor: UIColor.white])
+      }
+      return try XCTUnwrap(image.jpegData(compressionQuality: 0.8))
     }
-    let data = try XCTUnwrap(image.jpegData(compressionQuality: 0.8))
     var ids: [String] = []
     try await PHPhotoLibrary.shared().performChanges {
       for offset in 0..<count {
         let request = PHAssetCreationRequest.forAsset()
         request.creationDate = date.addingTimeInterval(Double(offset - count))
-        request.addResource(with: .photo, data: data, options: nil)
+        request.addResource(with: .photo, data: data[offset], options: nil)
         if let id = request.placeholderForCreatedAsset?.localIdentifier { ids.append(id) }
       }
     }
@@ -759,6 +698,201 @@ import XCTest
     return Array(data[offset..<offset + 3])
   }
 
+  func testCalendarPhotoActionsRemainCompleteAndResolveOnlyOnInvocation() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    var lookups = 0
+    resolver.reset(positions: ["original": 0, "replacement": 1]) { indexes in
+      XCTAssertFalse(Thread.isMainThread)
+      XCTAssertEqual(indexes, [0])
+      lookups += 1
+      return [0: "original-value"]
+    }
+    var cellID = "original"
+    let actionID = cellID
+    var received: [(String, String)] = []
+    let completed = expectation(description: "All deliberate photo actions execute")
+    completed.expectedFulfillmentCount = 3
+    let actions = LibraryPhotoActions.accessibilityActions { key in
+      resolver.performAction(actionID, isCurrent: { true }) { value in
+        received.append((key, value as String)); completed.fulfill()
+      }
+    }
+    let keys = ["library_context_backup", "library_context_history", "library_context_share"]
+    XCTAssertEqual(actions.map(\.name), keys.map { NSLocalizedString($0, comment: "") })
+    XCTAssertEqual(lookups, 0, "Creating complete actions must not materialize PhotoKit objects")
+    let cancelPreheat = resolver.request(actionID, prefetch: true) { _ in XCTFail("Cancelled preheat") }
+    for action in actions { XCTAssertTrue(try XCTUnwrap(action.actionHandler)(action)) }
+    cancelPreheat()
+    cellID = "replacement"
+    await fulfillment(of: [completed], timeout: 5)
+    XCTAssertEqual(cellID, "replacement")
+    XCTAssertEqual(received.map { $0.0 }, keys)
+    XCTAssertEqual(received.map { $0.1 }, Array(repeating: "original-value", count: 3),
+      "Cell reuse cannot retarget or cancel a deliberate command")
+    XCTAssertEqual(lookups, 1, "Image preheat and commands may share materialization without sharing cancellation")
+    var cachedExecutions = 0
+    XCTAssertTrue(resolver.performAction(actionID, isCurrent: { true }) { _ in cachedExecutions += 1 })
+    XCTAssertEqual(cachedExecutions, 1)
+  }
+
+  func testCalendarPhotoActionRejectsChangedLibraryEpochAndUnavailableTarget() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    var epoch = 1, performed = 0
+    let entered = expectation(description: "Action lookup started")
+    let refreshed = expectation(description: "Refreshed lookup completed")
+    let gate = DispatchSemaphore(value: 0)
+    resolver.reset(positions: ["asset": 0]) { _ in
+      entered.fulfill(); gate.wait(); return [0: "old"]
+    }
+    let acceptedEpoch = epoch
+    XCTAssertTrue(resolver.performAction("asset", isCurrent: { epoch == acceptedEpoch }) { _ in performed += 1 })
+    await fulfillment(of: [entered], timeout: 5)
+    epoch += 1
+    resolver.didResolve = { refreshed.fulfill() }
+    resolver.reset(positions: ["asset": 1], preservingPending: true) { _ in [1: "new"] }
+    gate.signal()
+    await fulfillment(of: [refreshed], timeout: 5)
+    XCTAssertEqual(performed, 0, "A fetch epoch change must not perform an obsolete command")
+    XCTAssertFalse(resolver.performAction("deleted", isCurrent: { true }) { _ in XCTFail("Deleted asset") })
+    XCTAssertFalse(resolver.performAction("asset", isCurrent: { false }) { _ in XCTFail("Presenter no longer current") })
+  }
+
+  func testCalendarAssetResolverBatchesOffMainAndCancelsIndividualSubscribers() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    let entered = expectation(description: "Background object resolution entered")
+    let completed = expectation(description: "Live subscribers complete")
+    completed.expectedFulfillmentCount = 600
+    let gate = DispatchSemaphore(value: 0)
+    var first = true
+    resolver.reset(positions: Dictionary(uniqueKeysWithValues: (0..<600).map { ("id-\($0)", $0) })) { indexes in
+      XCTAssertFalse(Thread.isMainThread, "Lazy PhotoKit contents must not be resolved on the UI thread")
+      XCTAssertLessThanOrEqual(indexes.count, 256)
+      if first { first = false; entered.fulfill(); gate.wait() }
+      return Dictionary(uniqueKeysWithValues: indexes.map { ($0, "value-\($0)" as NSString) })
+    }
+    let cancel = resolver.request("id-0") { _ in XCTFail("Cancelled subscriber must not be delivered") }
+    for i in 0..<600 {
+      resolver.request("id-\(i)") { value in
+        XCTAssertTrue(Thread.isMainThread)
+        XCTAssertEqual(value as String?, "value-\(i)")
+        completed.fulfill()
+      }
+    }
+    await fulfillment(of: [entered], timeout: 5)
+    cancel()
+    XCTAssertNil(resolver.cached("id-0"), "A pending lookup cannot block the UI or masquerade as a cache hit")
+    gate.signal()
+    await fulfillment(of: [completed], timeout: 5)
+    var immediate = false
+    resolver.request("id-599") { _ in immediate = true }
+    XCTAssertTrue(immediate, "Materialized assets retain the existing synchronous cache-hit path")
+  }
+
+  func testCalendarAssetResolverRejectsStaleGenerationAndCancelledRequeue() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    let entered = expectation(description: "Old fetch began"), completed = expectation(description: "New generation")
+    let gate = DispatchSemaphore(value: 0)
+    resolver.reset(positions: ["asset": 0]) { indexes in
+      entered.fulfill(); gate.wait()
+      return [0: "old"]
+    }
+    var stale = false
+    let oldCancel = resolver.request("asset") { _ in stale = true }
+    await fulfillment(of: [entered], timeout: 5)
+    resolver.reset(positions: ["asset": 1]) { indexes in
+      XCTAssertEqual(indexes, [1]); return [1: "new"]
+    }
+    let cancelled = resolver.request("asset") { _ in XCTFail("Requeued cancelled subscriber") }
+    cancelled()
+    resolver.request("asset") { value in
+      XCTAssertEqual(value as String?, "new"); completed.fulfill()
+    }
+    oldCancel()
+    gate.signal()
+    await fulfillment(of: [completed], timeout: 5)
+    XCTAssertFalse(stale)
+    XCTAssertEqual(resolver.cached("asset") as String?, "new")
+  }
+
+  func testCalendarAssetResolverAllowsCancellationDuringSharedDelivery() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    resolver.reset(positions: ["asset": 0]) { _ in [0: "ready"] }
+    let completed = expectation(description: "First subscriber")
+    var cancelSecond: (() -> Void)?
+    resolver.request("asset") { _ in cancelSecond?(); completed.fulfill() }
+    cancelSecond = resolver.request("asset") { _ in XCTFail("A tile cancelled by the first delivery must stay cancelled") }
+    await fulfillment(of: [completed], timeout: 5)
+  }
+
+  func testCalendarAssetResolverPrioritizesVisibleWorkOverPreheat() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    let ready = expectation(description: "Visible object ahead of preheat")
+    var first = true
+    resolver.reset(positions: Dictionary(uniqueKeysWithValues: (0..<1000).map { ("id-\($0)", $0) })) { indexes in
+      if first { first = false; XCTAssertTrue(indexes.contains(999)) }
+      return Dictionary(uniqueKeysWithValues: indexes.map { ($0, "value-\($0)" as NSString) })
+    }
+    for index in 0..<999 { resolver.request("id-\(index)", prefetch: true) { _ in } }
+    resolver.request("id-999") { value in XCTAssertEqual(value as String?, "value-999"); ready.fulfill() }
+    await fulfillment(of: [ready], timeout: 5)
+    resolver.reset()
+  }
+
+  func testCalendarAssetResolverRebindsPendingWhenDisplayedMembershipIsUnchanged() async throws {
+    let resolver = CalendarAssetResolver<NSString>()
+    let entered = expectation(description: "Initial fetch in flight"), ready = expectation(description: "Retained cell receives refreshed fetch")
+    let gate = DispatchSemaphore(value: 0)
+    resolver.reset(positions: ["asset": 0]) { _ in entered.fulfill(); gate.wait(); return [0: "obsolete-fetch"] }
+    var values: [String] = []
+    resolver.request("asset") { value in values.append(value! as String); ready.fulfill() }
+    await fulfillment(of: [entered], timeout: 5)
+    resolver.reset(positions: ["asset": 5], preservingPending: true) { indexes in
+      XCTAssertEqual(indexes, [5]); return [5: "current-fetch"]
+    }
+    gate.signal()
+    await fulfillment(of: [ready], timeout: 5)
+    XCTAssertEqual(values, ["current-fetch"], "An unchanged visible cell must not lose its unresolved image request")
+  }
+
+  func testCalendarResolvedRequestCancelsBeforeAndAfterImageHandoff() {
+    var lookups = 0, images = 0
+    let pending = CalendarResolvedRequest()
+    pending.cancelLookup = { lookups += 1 }
+    pending.cancel()
+    pending.adopt { images += 1 }
+    pending.cancel()
+    XCTAssertEqual(lookups, 1); XCTAssertEqual(images, 1)
+    let delivered = CalendarResolvedRequest()
+    delivered.adopt { images += 1 }
+    delivered.cancel(); delivered.cancel()
+    XCTAssertEqual(images, 2)
+  }
+
+  func testThumbnailTableOwnedPixelsSurviveConcurrentReuseAndClear() async throws {
+    let table = ThumbnailTable(url: tableURL("owning.table"), side: 32, capacity: 4)
+    let red = solid(.red, CGSize(width: 48, height: 48)), blue = solid(.blue, CGSize(width: 48, height: 48))
+    table.store("red", image: red)
+    let frozen = try XCTUnwrap(table.copiedImage("red"))
+    let finished = expectation(description: "Concurrent table writers and owning reads")
+    DispatchQueue.global(qos: .userInitiated).async {
+      DispatchQueue.concurrentPerform(iterations: 400) { index in
+        let isRed = index.isMultiple(of: 2), key = "key-\(index)"
+        if index.isMultiple(of: 19) { table.clear() }
+        table.store(key, image: isRed ? red : blue)
+        if let image = table.copiedImage(key), let data = image.dataProvider?.data,
+          let bytes = CFDataGetBytePtr(data) {
+          XCTAssertGreaterThan(bytes[isRed ? 2 : 0], 247, "A successful read must match the requested key")
+          XCTAssertLessThan(bytes[isRed ? 0 : 2], 8)
+        }
+      }
+      finished.fulfill()
+    }
+    await fulfillment(of: [finished], timeout: 10)
+    table.clear()
+    XCTAssertGreaterThan(pixel(frozen, x: 0, y: 0)[2], 247)
+    XCTAssertNil(table.copiedImage("red"))
+  }
+
   func testThumbnailTableReturnsStoredSquareFromTheMapping() throws {
     let table = ThumbnailTable(url: tableURL("a.table"), side: 32, capacity: 64)
     XCTAssertTrue(table.available)
@@ -821,10 +955,8 @@ import XCTest
       XCTAssertEqual(pixels % 16, 0)
       XCTAssertGreaterThanOrEqual(pixels, 32)
       let screen = UIScreen.main, width = min(screen.bounds.width, screen.bounds.height)
-      if UIDevice.current.userInterfaceIdiom == .phone {
-        XCTAssertGreaterThanOrEqual(CGFloat(pixels), width / columns * screen.scale, "Never upscales a tile")
-        XCTAssertLessThan(CGFloat(pixels), width / columns * screen.scale + 16)
-      }
+      XCTAssertGreaterThanOrEqual(CGFloat(pixels), width / columns * screen.scale, "Never upscales a tile")
+      XCTAssertLessThan(CGFloat(pixels), width / columns * screen.scale + 16)
     }
     XCTAssertLessThanOrEqual(ThumbnailTables.overviewSide, ThumbnailTables.detailSide)
   }

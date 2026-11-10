@@ -1,32 +1,76 @@
 import AppKit
 import SwiftUI
 
+@MainActor final class MacFolderToolbarActions: ObservableObject {
+  let backupAction = SelectionBackupAction()
+  @Published private(set) var addRequest = 0
+  private var consumedAddRequest = 0
+  func requestAdd() { addRequest &+= 1 }
+  func consumeAddRequest() -> Bool {
+    guard consumedAddRequest != addRequest else { return false }
+    consumedAddRequest = addRequest
+    return true
+  }
+  var choose: () -> Void = {}
+  var backUp: () -> Void = {}
+  var settings: (String) -> Void = { _ in }
+}
+
 /// F0–F9: a photo browser; management lives in Settings › Folders.
 struct FolderSourcesPage: View {
   @ObservedObject var folders: FolderSources
   @ObservedObject var backup: BackupModel
   var settings: (String) -> Void = { _ in }
   @ObservedObject private var browser: FolderBrowser
+  private var active: Bool
   private var viewerOpen: Bool
-  init(folders: FolderSources, backup: BackupModel, viewerOpen: Bool = false, settings: @escaping (String) -> Void = { _ in }) {
-    self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser; self.viewerOpen = viewerOpen
+  private var subtitleChanged: (String) -> Void
+  private var visibleRange: MacVisibleRange?
+  @ObservedObject private var toolbarActions: MacFolderToolbarActions
+  @ObservedObject private var backupAction: SelectionBackupAction
+  @ObservedObject private var gridSize = MacGridSize.shared
+  @MainActor init(folders: FolderSources, backup: BackupModel, active: Bool = true, viewerOpen: Bool = false, subtitleChanged: @escaping (String) -> Void = { _ in }, visibleRange: MacVisibleRange? = nil, toolbarActions: MacFolderToolbarActions? = nil, settings: @escaping (String) -> Void = { _ in }) {
+    self.folders = folders; self.backup = backup; self.settings = settings; self.browser = folders.browser; self.active = active; self.viewerOpen = viewerOpen; self.subtitleChanged = subtitleChanged; self.visibleRange = visibleRange
+    let actions = toolbarActions ?? MacFolderToolbarActions()
+    self.toolbarActions = actions
+    self.backupAction = actions.backupAction
   }
-  @StateObject private var backupAction = SelectionBackupAction()
   @State private var adding: URL?
   @State private var stopping: FolderSource?
   @StateObject private var navigation = MacLibraryNavigation()
-  @State private var toolbarWidth: CGFloat = 1180
   // The page is split into stages so each modifier chain type-checks on its own.
   var body: some View {
     commands
+    .onAppear {
+      toolbarActions.choose = choose
+      toolbarActions.backUp = backUpSelected
+      toolbarActions.settings = settings
+    }
+    .onChange(of: toolbarActions.addRequest, initial: true) { _, _ in
+      if toolbarActions.consumeAddRequest() { choose() }
+    }
+    .onReceive(navigation.visibleRange.$title) { title in
+      if browser.visibleRange.title != title { browser.visibleRange.title = title }
+      if visibleRange?.title != title { visibleRange?.title = title }
+    }
+    .onChange(of: browser.key) { _, _ in
+      navigation.visibleRange.title = browser.visibleRange.title
+    }
+    .onChange(of: folders.sources.map(\.id)) { _, ids in
+      if case .folder(let id) = browser.scope, !ids.contains(id) { browser.scope = .all }
+    }
     .onChange(of: browser.selection) { _, ids in if !ids.isEmpty { backupAction.selectionChanged() } }
+    .confirmationDialog("selection_backup_repeat_title", isPresented: $backupAction.confirmingRepeat, titleVisibility: .visible) {
+      Button("selection_backup_repeat_action") { Task { await backupAction.confirm() } }
+      Button("cancel", role: .cancel) { backupAction.cancel() }
+    } message: { Text("selection_backup_repeat_note") }
     .alert("selection_backup_failed_title", isPresented: backupFailed) {
       Button("settings_done") { backupAction.error = nil }
     } message: { Text(backupAction.error ?? "") }
     .task {
       if !browser.configured {
         browser.configured = true; browser.filter = folders.initialFilter
-        if folders.initialFilter != .all { browser.byFolder = false }
+        if folders.initialFilter != .all { browser.scope = .all; browser.filter = folders.initialFilter }
         openInitialSheet()
       }
     }
@@ -35,7 +79,7 @@ struct FolderSourcesPage: View {
       await folders.refreshFacts(); await browser.reload(folders)
     }
     .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
-      if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup) { self.adding = nil } }
+      if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup, added: { id in browser.scope = .folder(id) }) { self.adding = nil } }
     }
     .background {
       FolderStopAlert(source: $stopping, folders: folders) { source in
@@ -68,12 +112,25 @@ struct FolderSourcesPage: View {
               Button("retry_task") { Task { await browser.reload(folders); await folders.refreshFacts() } }
             }.font(.callout).padding(DuckSpacing.small)
           }
-          if browser.loading { ProgressView("folders_counting").frame(maxWidth: .infinity, maxHeight: .infinity) }
-          else if filteredEmpty {
-            MacGridFilterEmpty { browser.filter = .all; browser.type = .all; browser.search = "" }
-          } else {
-            MacFolderGrid(folders: folders, browser: browser, navigation: navigation, columns: browser.columns, resize: { browser.columns = $0 }, settings: settings, stop: { stopping = $0 })
-              .allowsHitTesting(!backupAction.busy)
+          Group {
+            // The native collection stays mounted across scope/loading changes.
+            // Membership readiness belongs to its data source, not view identity.
+            MacFolderGrid(folders: folders, browser: browser, navigation: navigation, columns: gridSize.ordinaryColumns, active: active, resize: { gridSize.ordinaryColumns = $0 }, settings: settings, stop: { stopping = $0 })
+              .allowsHitTesting(!backupAction.busy && browser.resultKey == browser.key)
+              .overlay {
+            switch browser.contentState {
+            case .loading:
+              ProgressView("folders_counting").frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .filterEmpty:
+              MacGridFilterEmpty(clear: browser.clearFilters)
+            case .empty:
+              if case .folder(let id) = browser.scope, let source = folders.sources.first(where: { $0.id == id }), folderScopeHasNotice(folders.facts[id]) {
+                ScrollView { FolderScopeNotice(folders: folders, source: source).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, DuckSpacing.medium) }
+              } else { ContentUnavailableView("folders_no_photos", systemImage: "photo") }
+            case .photos, .failed:
+              EmptyView()
+            }
+              }
           }
         }
       }
@@ -82,55 +139,21 @@ struct FolderSourcesPage: View {
   private var chrome: some View {
     content
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .navigationSubtitle(viewerOpen || hidesBrowsing ? "" : subtitle)
-    .background(MacToolbarWidth(width: $toolbarWidth))
-    .toolbar {
-      if !viewerOpen && !hidesBrowsing {
-        MacLibraryScale(columns: $browser.columns, stops: MacLibraryDensity.grid)
-        MacBrowsingToolbarGap()
-        ToolbarItem(id: "folders.view", placement: .primaryAction) {
-          if toolbarWidth < MacBrowsingToolbarMetrics.compactWidth {
-            viewPicker.pickerStyle(.menu).fixedSize()
-          } else { viewPicker.pickerStyle(.segmented).fixedSize() }
-        }
-        MacBrowsingToolbarGap()
-        ToolbarItemGroup(placement: .primaryAction) {
-          FolderFilterMenu(browser: browser)
-          Button(action: choose) { Label("folders_add", systemImage: "folder.badge.plus") }
-            .labelStyle(.iconOnly).help("folders_add")
-            .disabled(!backup.ready || folders.loadFailed)
-          if let source = contextualSource {
-            Menu {
-              Button("folder_reveal") { folders.reveal(source) }.disabled(folders.isPreview)
-              Button("folders_settings") { settings(source.id) }
-            } label: { Label("folder_more", systemImage: "ellipsis") }
-              .menuIndicator(.hidden).help("folder_more")
-          }
-        }
-        if !browser.selected.isEmpty || backupAction.added || backupAction.busy {
-          MacBrowsingToolbarGap()
-          ToolbarItem(id: "folders.backupSelected", placement: .primaryAction) {
-            Button(action: backUpSelected) {
-              Text(backupAction.title.isEmpty
-                ? String(format: NSLocalizedString("selection_backup_count", comment: ""), browser.selected.count)
-                : backupAction.title)
-            }.buttonStyle(.borderedProminent).disabled(backupAction.busy || backupAction.added)
-              .accessibilityIdentifier("folders.backup_selected")
-          }
-        }
-        ToolbarItem(placement: .primaryAction) { MacGridSearch(text: $browser.search, presented: $browser.searchExpanded) }
-      }
-    }
+    .onChange(of: hidesBrowsing ? "" : subtitle, initial: true) { _, value in subtitleChanged(value) }
   }
   private var commands: some View {
     chrome
-    .focusedSceneValue(\.gridSearch, !viewerOpen && !hidesBrowsing ? MacGridSearchAction(open: beginSearch) : nil)
-    .focusedSceneValue(\.historyZoom, !viewerOpen && !hidesBrowsing ? MacHistoryZoomActions(
-      smaller: { browser.columns = min(9, MacLibraryDensity.step(browser.columns, by: 1)) },
-      larger: { browser.columns = MacLibraryDensity.step(browser.columns, by: -1) }, canShrink: browser.columns < 9, canGrow: browser.columns > 3) : nil)
-    .focusedSceneValue(\.folderCommands, viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, view: { browser.byFolder = $0 }, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !browser.selected.isEmpty && !backupAction.busy))
+    .background {
+      if active && !viewerOpen && !hidesBrowsing {
+        MacToolbarSearch(text: $browser.search, presented: $browser.searchExpanded, prompt: "folders_search")
+      }
+    }
+    .focusedSceneValue(\.historyZoom, active && !viewerOpen && !hidesBrowsing ? MacHistoryZoomActions(
+      smaller: { gridSize.ordinaryColumns = min(9, MacLibraryDensity.step(gridSize.ordinaryColumns, by: 1)) },
+      larger: { gridSize.ordinaryColumns = MacLibraryDensity.step(gridSize.ordinaryColumns, by: -1) }, canShrink: gridSize.ordinaryColumns < 9, canGrow: gridSize.ordinaryColumns > 3) : nil)
+    .focusedSceneValue(\.folderCommands, !active || viewerOpen ? nil : FolderCommandActions(add: choose, search: beginSearch, filter: { browser.filter = $0 }, backUp: backUpSelected, canBackUp: !selectedPhotos.isEmpty && !backupAction.busy && !backupAction.added))
   }
-  private func beginSearch() { withAnimation(.snappy(duration: 0.25)) { browser.searchExpanded = true } }
+  private func beginSearch() { browser.searchExpanded = true }
   /// Empty and unavailable pages show only their title (A10): there is nothing to
   /// view, filter or search, and the empty state offers Add Folder itself.
   private var hidesBrowsing: Bool { folders.loadFailed || folders.sources.isEmpty }
@@ -144,50 +167,36 @@ struct FolderSourcesPage: View {
     return [sources, "\(browser.key)", "\(folders.indexRevision)", "\(backup.queueRevision)",
             "\(folders.revision)", receiver].joined(separator: "|")
   }
-  private var filteredEmpty: Bool {
-    let narrowed = !browser.search.isEmpty || browser.filter != .all || browser.type != .all
-    return narrowed && browser.sections.allSatisfy { $0.photos.isEmpty }
-  }
-  private var viewPicker: some View {
-    Picker("folders_show", selection: $browser.byFolder) {
-      Text("folders_by_folder").tag(true)
-      Text("mac_library_all_photos").tag(false)
-    }.labelsHidden().accessibilityIdentifier("folders.view_mode")
-  }
-  private var contextualSource: FolderSource? {
-    let ids = Set(browser.sections.flatMap(\.photos).filter { browser.selection.contains($0.id) }.map(\.folder_id))
-    if ids.count == 1 { return folders.sources.first { ids.contains($0.id) } }
-    return folders.sources.count == 1 ? folders.sources.first : nil
-  }
   private var subtitle: String {
-    if browser.loading { return NSLocalizedString("folders_counting", comment: "") }
-    if !browser.search.isEmpty {
-      let scope = NSLocalizedString(browser.search.isEmpty ? browser.filter.title : "folders_search_results", comment: "")
-      // Grouped sections contain only bounded cover samples, never a total.
-      guard browser.resultKey == browser.key,
-        !browser.search.isEmpty || !browser.byFolder,
-        !browser.sections.contains(where: \.hasMore) else { return scope }
-      return String(format: NSLocalizedString("folders_scope_count", comment: ""), scope, folderMediaCount(browser.sections.flatMap(\.photos).reduce(FolderMediaCounts()) { counts, photo in
-        counts + (photo.media_type.hasPrefix("video/") ? .init(videos: 1) : .init(photos: 1))
-      }))
-    }
-    guard folders.loaded || folders.isPreview, folders.sources.allSatisfy({ folders.facts[$0.id] != nil }) else {
-      return NSLocalizedString("folders_counting", comment: "")
-    }
-    let count = folders.sources.compactMap { folders.facts[$0.id] }.reduce(FolderMediaCounts()) { result, facts in
-      result + facts.media(browser.filter == .notBackedUp ? "not_backed_up" : "supported")
-    }
-    if browser.filter != .all {
-      return String(format: NSLocalizedString("folders_scope_count", comment: ""), NSLocalizedString(browser.filter.title, comment: ""), folderMediaCount(count))
-    }
-    return String(format: NSLocalizedString("folders_inventory_count", comment: ""), UInt64(folders.sources.count), folderMediaCount(count))
+    browser.selection.isEmpty ? "" : String(format: NSLocalizedString("grid_selected_count", comment: ""), browser.selection.count)
+  }
+  private var selectedPhotos: [FolderPhoto] {
+    browser.sections.flatMap(\.photos).filter { browser.selection.contains($0.id) }
   }
   private func backUpSelected() {
-    let photos = browser.selected, tokens = browser.selection
-    guard !photos.isEmpty, !backupAction.busy else { return }
+    let photos = selectedPhotos
+    let tokens = Set(photos.map(\.id))
+    guard !photos.isEmpty, !backupAction.busy, !backupAction.confirmingRepeat else { return }
+    let receiver = backup.pairing?.receiverID
     Task {
-      await backupAction.perform({
-        guard await folders.backUp(photos) else { return false }
+      var repeats = Set<String>()
+      await backupAction.request(prepare: {
+        guard let receiver, backup.pairing?.receiverID == receiver else {
+          throw NSError(domain: "FolderSelection", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("apple_selected_receiver_needed", comment: "")])
+        }
+        repeats = try await folders.selectedBackupRepeatSources(photos, receiver: receiver)
+        guard backup.pairing?.receiverID == receiver else {
+          throw NSError(domain: "FolderSelection", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("apple_selected_receiver_needed", comment: "")])
+        }
+        return !repeats.isEmpty
+      }, submit: {
+        guard let receiver, backup.pairing?.receiverID == receiver else {
+          folders.error = NSLocalizedString("apple_selected_receiver_needed", comment: "")
+          return false
+        }
+        guard await folders.backUp(photos, receiver: receiver, repeatSources: repeats) else { return false }
         browser.completeSelection(tokens)
         Task { await browser.reload(folders) }
         return true
@@ -218,22 +227,55 @@ struct FolderFilterMenu: View {
   }
 }
 
-struct FolderSectionHeader: View {
+struct MacFolderToolbar: ToolbarContent {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  @ObservedObject var browser: FolderBrowser
+  @ObservedObject var actions: MacFolderToolbarActions
+  @ObservedObject var information: MacGridToolbarState
+  var body: some ToolbarContent {
+    ToolbarItemGroup(placement: .primaryAction) {
+      FolderFilterMenu(browser: browser)
+      Button(action: { actions.choose() }) { Label("folders_add", systemImage: "folder.badge.plus") }
+        .labelStyle(.iconOnly).help("folders_add")
+        .disabled(!backup.ready || folders.loadFailed)
+      Menu {
+        if let source = contextualSource {
+          if let facts = folders.facts[source.id], facts.not_backed_up > 0 || facts.needs_you > 0 {
+            Button("folders_back_up_remaining") { Task { await folders.start(source.id) } }
+              .disabled(!folders.canBackUp || source.pendingControl != nil)
+          }
+          Button("folder_reveal") { folders.reveal(source) }.disabled(folders.isPreview)
+          Button("folders_settings") { actions.settings(source.id) }
+        }
+      } label: { Label("folder_more", systemImage: "ellipsis") }
+        .menuIndicator(.hidden).help("folder_more").disabled(contextualSource == nil)
+      MacGridInfoButton(state: information)
+      MacSelectionBackupControl(action: actions.backupAction, count: browser.selection.count,
+        identifier: "folders.backup_selected", submit: { actions.backUp() })
+    }
+  }
+  private var contextualSource: FolderSource? {
+    if case .folder(let id) = browser.scope { return folders.sources.first { $0.id == id } }
+    guard browser.scope == .all else { return nil }
+    let ids = Set(browser.sections.flatMap(\.photos).filter { browser.selection.contains($0.id) }.map(\.folder_id))
+    return ids.count == 1 ? folders.sources.first { ids.contains($0.id) } : nil
+  }
+}
+
+
+/// The in-flow summary and pinned parent share exact text, menu and wrapping.
+struct FolderIdentityRow: View {
   @ObservedObject var folders: FolderSources
   let source: FolderSource
   var settings: (String) -> Void
   var stop: (FolderSource) -> Void
-  @State private var explaining = false
   private var facts: FolderFacts? { folders.facts[source.id] }
   var body: some View {
-    VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-      HStack(alignment: .top) {
-        VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
-          Text(folders.displayName(source)).font(.headline).fixedSize(horizontal: false, vertical: true)
-          Text(folders.location(source)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-          Text(folderSentence(facts)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.opacity(facts?.available == false ? 0.5 : 1)
-        Spacer()
+    HStack(alignment: .top) {
+      Text(folders.displayName(source)).font(.headline).fixedSize(horizontal: false, vertical: true)
+        .opacity(facts?.available == false ? 0.5 : 1)
+      Spacer()
         Menu {
           if let facts, facts.not_backed_up > 0 || facts.needs_you > 0 {
             Button("folders_back_up_remaining") { Task { await folders.start(source.id) } }.disabled(!folders.canBackUp || source.pendingControl != nil)
@@ -244,7 +286,27 @@ struct FolderSectionHeader: View {
           Button("folders_stop_title") { stop(source) }.disabled(source.pendingControl != nil && source.pendingControl?.action != "remove")
         } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
           .accessibilityLabel(Text("folder_more"))
-      }
+    }.padding(.vertical, DuckSpacing.small)
+      .frame(minHeight: DuckSettingsMetrics.rowHeight, alignment: .center)
+  }
+}
+
+struct FolderSectionHeader: View {
+  @ObservedObject var folders: FolderSources
+  let source: FolderSource
+  var settings: (String) -> Void
+  var stop: (FolderSource) -> Void
+  var identityAccessibilityHidden = false
+  @State private var explaining = false
+  private var facts: FolderFacts? { folders.facts[source.id] }
+  var body: some View {
+    VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+      FolderIdentityRow(folders: folders, source: source, settings: settings, stop: stop)
+        .accessibilityHidden(identityAccessibilityHidden)
+      VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+        Text(folders.location(source)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        Text(folderSentence(facts)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+      }.opacity(facts?.available == false ? 0.5 : 1)
       if let facts, !facts.unsupported_by_kind.isEmpty {
         HStack(spacing: DuckSpacing.xSmall) {
           Text(String(format: NSLocalizedString("folders_unsupported", comment: ""), facts.unsupported_by_kind.values.reduce(0, +)))
@@ -259,7 +321,7 @@ struct FolderSectionHeader: View {
             }
         }.font(.caption).foregroundStyle(.secondary)
       }
-    }.padding(.vertical, DuckSpacing.medium)
+    }.padding(.bottom, DuckSpacing.medium)
   }
 }
 
@@ -348,6 +410,7 @@ struct AddFolderSheet: View {
   let url: URL
   @ObservedObject var folders: FolderSources
   @ObservedObject var backup: BackupModel
+  var added: (String) -> Void = { _ in }
   var close: () -> Void
   @State private var existing = true
   @State private var adding = false
@@ -357,7 +420,7 @@ struct AddFolderSheet: View {
     DuckSheetLayout(title: LocalizedStringKey(String(format: NSLocalizedString("folders_add_named", comment: ""), url.lastPathComponent)), busy: adding, error: error, desktopFitsContent: true, form: true) {
       if let count {
         Text(String(format: NSLocalizedString("folders_count_size", comment: ""), folderMediaCount(count.media_kinds ?? .init(photos: count.files)), ByteCountFormatter.string(fromByteCount: Int64(clamping: count.bytes), countStyle: .file))).foregroundStyle(.secondary)
-      } else { Text("folders_counting").foregroundStyle(.secondary) }
+      } else { Text(error == nil ? "folders_counting" : "folders_count_failed").foregroundStyle(.secondary) }
       Picker("folders_add_decision", selection: $existing) {
         Text("folders_include_existing").tag(true)
         Text("folders_only_new").tag(false)
@@ -369,12 +432,14 @@ struct AddFolderSheet: View {
         adding = true
         Task {
           do {
+            let previous = Set(folders.sources.map(\.id))
             if !folders.isPreview { try await folders.add(url, automatic: backup.autoBackup, existing: existing) }
+            if let source = folders.sources.first(where: { !previous.contains($0.id) }) ?? (folders.isPreview ? folders.sources.first : nil) { added(source.id) }
             close()
           } catch { self.error = error.localizedDescription }
           adding = false
         }
-      }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(adding)
+      }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(adding || count == nil)
     }
     .task { await countFolder() }
   }
@@ -389,7 +454,9 @@ struct AddFolderSheet: View {
         if !result.scanning { count = result; break }
         try await Task.sleep(for: .milliseconds(10))
       }
-    } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    } catch {
+      if !Task.isCancelled { self.error = NSLocalizedString("folders_scan_failed", comment: "") }
+    }
     _ = try? await Bridge.call(["op": "folder", "command": ["action": "preview_cancel"]])
   }
 }
@@ -425,6 +492,41 @@ struct FolderStopButton: NSViewRepresentable {
         self.alert = nil
         if response == .alertFirstButtonReturn { self.parent.confirm(source) }
       }
+    }
+  }
+}
+
+func folderScopeHasNotice(_ facts: FolderFacts?) -> Bool {
+  guard let facts else { return false }
+  return facts.available == false || facts.needs_you > 0 || !facts.unsupported_by_kind.isEmpty
+}
+
+struct FolderScopeNotice: View {
+  @ObservedObject var folders: FolderSources
+  let source: FolderSource
+  @State private var explaining = false
+  var body: some View {
+    if let facts = folders.facts[source.id] {
+      VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+        if facts.available == false || facts.needs_you > 0 {
+          Text(folderSentence(facts)).font(.callout).foregroundStyle(.secondary)
+        }
+        if !facts.unsupported_by_kind.isEmpty {
+          HStack(spacing: DuckSpacing.xSmall) {
+            Text(String(format: NSLocalizedString("folders_unsupported", comment: ""), facts.unsupported_by_kind.values.reduce(0, +)))
+            Button { explaining = true } label: { Image(systemName: "info.circle") }.buttonStyle(.plain)
+              .accessibilityLabel(Text("folders_unsupported_info"))
+              .popover(isPresented: $explaining) {
+                VStack(alignment: .leading, spacing: DuckSpacing.small) {
+                  Text("folders_unsupported_note")
+                  Text(facts.unsupported_by_kind.sorted { $0.key < $1.key }.map { "\($0.key.uppercased()): \($0.value)" }.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
+                  Button("folder_reveal") { folders.reveal(source) }.disabled(folders.isPreview)
+                }.padding(DuckSpacing.medium).frame(width: 320)
+              }
+          }.font(.caption).foregroundStyle(.secondary)
+        }
+      }.frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, DuckSpacing.medium)
     }
   }
 }

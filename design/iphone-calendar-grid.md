@@ -1,6 +1,6 @@
 # iPhone calendar browsing
 
-This contract defines phone calendar browsing and independent grid density.
+This contract defines iPhone calendar browsing and independent grid density.
 Desktop calendar behavior is separate. The iOS catalog (`apps/ios/Catalog`,
 scenarios in `apps/apple/Catalog`) uses generated media for repeatable checks.
 
@@ -43,8 +43,9 @@ and each arriving thumbnail draws only its own tile; the main thread adopts at
 most one image per strip per frame. Strips abut on whole device pixels and tile
 edges snap to bitmap pixels, so no seams appear. The collection keeps scrolling,
 content size and period pills; taps and pinch anchors use geometry hit testing.
-Adoption from a pinch draws the target strips synchronously from the adopted
-pixels. Dense preheat is throttled and limited to half a screen ahead.
+Adoption from a pinch retains the presented stage while target strips draw
+off the main thread, and waits for visible replacement bitmaps to publish.
+Dense preheat is throttled and limited to half a screen ahead.
 The original aspect option preserves fitting without changing membership.
 Display-option zoom actions keep their menu open and can be repeated, as in
 Photos; each step starts from the density being settled toward, and the menu
@@ -100,10 +101,11 @@ existing filter; update the items with the animated navigation-item API.
 The system owns group materials, sizing and transitions; custom button containers
 must not imitate them. The app still owns selection state, wording and menus.
 
-A compact centered count/review control retains the app action surface while the
-tab bar is hidden for selection. Zero selection displays Select Items; only selected
-media have a check mark. Backup stays beside the filter in the native header. The app owns its readable material, count,
-presentation timing and review destination. Systems before iOS 26 retain an interruptible
+A native bottom-toolbar count/review item is centered between flexible spaces
+while the tab bar is hidden for selection. UIKit owns its placement, safe-area
+inset and material. Zero selection displays Select Items; only selected
+media have a check mark. Backup stays beside the filter in the native header.
+The app owns the count and review destination. Systems before iOS 26 retain an interruptible
 navigation/browsing/selection fallback with readable material or solid controls.
 Semantic text and surface colors preserve the BackupDuck theme. Reduced
 transparency and motion preserve state and location.
@@ -149,15 +151,21 @@ destination pixel tier; a late image never leaves a painted-blank tile. While a
 face is smaller than its resting width, materialize the neighboring chronological
 slots beyond each row's resting crop, with cancellation and reuse. Its logical
 column count must not clip the animated viewport into empty side strips.
-Choose each destination's leading row phase around the focal photo, keep it
-stable through reversals, and adopt that same phase in the collection. Only the
-remaining sub-cell horizontal alignment settles on release; an entire column
-must not slide across the screen to restore a zero-leading-slot layout.
+Every settled ordinary density begins at the leading edge without empty slots.
+Keep that row phase through reversals and adoption; preserve the focal photo's
+vertical position when membership or density changes.
 Ordinary faces use the collection's shared video-duration, Live Photo, selection
 and backup-state decorations laid out at native cell size, then transformed
 with the whole cell throughout motion. Font size, padding, corners and icon
 strokes scale together; visibility follows the native density, not a changing
-on-screen width threshold. Dense faces omit
+on-screen width threshold. Newly materialized small ordinary tiles reuse
+artwork rendered by those native components, including their existing shadows,
+instead of constructing a separate view hierarchy for each repeated slot.
+Artwork retains the same mark positions and state, scales with the tile, and
+restores native decoration views as the tile approaches its ordinary size.
+Common mark images use an evictable cache bounded to 16 MiB and 512 entries;
+visible tiles own their presented artwork independently of cache eviction.
+Dense faces omit
 these badges as their resting cells do. The stage and collection agree on badge
 visibility, placement and selected-photo opacity before handoff. Pitch is
 the starting pitch times the finger-distance ratio after a dead zone of about 13%
@@ -176,7 +184,18 @@ their images to the gap of the face being shown, scaled with the lattice and
 switched in one frame when the preview changes, as in Photos: dividers never thin
 below a pixel or blink line by line while photos crossfade. Tile edges snap to
 device pixels from the lattice, so every divider in a frame has one pixel width
-and adjacent dense tiles never show seams; minification uses mipmaps.
+and adjacent dense tiles never show seams. Large retained photos use mipmaps;
+already-small renditions use linear filtering without per-photo mipmap generation.
+New slots request their projected display size, bounded by the face's resting
+size. Surviving tiles upgrade only when entering a larger rendition tier;
+shrinking an ordinary face must not acquire thousands of large resting-size
+photos. Existing sharper pixels remain available for reversal and adoption.
+Image-readiness counts update with tile arrivals and recycling; an arriving
+image must not scan every tile in a dense face.
+Thumbnail arrivals use the tile layers' disabled actions and the native display
+transaction, so a burst of images does not explicitly commit the entire layer
+tree for each photo. Retained gapless tiles keep their native geometry when
+viewport coverage grows; only new members need that local layout.
 
 The date subtitle follows the nearest natural pitch, independently of the photo
 fade. Release commits the current preview target rather than rounding the size;
@@ -211,8 +230,14 @@ Low Power Mode and Reduce Motion retain static posters. Cover candidates warm
 with calendar metadata; no full-library image/movie prefetch occurs.
 
 Calendar metadata and year/month geometry warm in background tasks with generation
-checks. No full-library image prefetch is allowed. Native visible-rectangle lookup,
+checks. Calendar grouping reuses the current period's start and end while dates
+remain inside that half-open interval, preserving missing-date and boundary groups
+without repeated calendar queries for each photo. No full-library image prefetch
+is allowed. Native visible-rectangle lookup,
 cell reuse, cancellation and bounded image/geometry caches remain mandatory.
+A tile stage budgets materialized nodes from its visible row/column range and
+existing overscan; a wider window cannot clip visible photos at a phone-sized
+item count. The library's total size never determines that viewport budget.
 Selection range gestures retain a baseline, reverse without retoggling outside
 items, and scroll near viewport edges. Changing authorization/membership cancels
 obsolete work. Queue-state badges come from the existing source-state projection.
@@ -249,7 +274,10 @@ the original (verify this rendition boundary per device and release). Dense cell
 the normal cache retains the requested size tier. Dense transition layers retain
 their own small images rather than pinning a previously cached large bitmap in
 every tiny tile; sharper return images remain separately bounded. These caches
-are cleared together on policy changes. Nearby PhotoKit preheat is capped at 3072 small or 48 larger assets. A rebuildable
+are cleared together on policy changes. Transition pixels are invalidated for
+edited or removed asset identities; explicit thumbnail clearing rejects late
+transition-image publishers without erasing pixels owned by a live gesture.
+Nearby PhotoKit preheat is capped at 3072 small or 48 larger assets. A rebuildable
 rendition disk cache retains asset/revision/pixel/crop keys, defaults to 1 GiB
 (256 MiB to 4 GiB), expires old entries and shares usage, budget and clear actions
 with cache settings. Settings shows usage and budget in the same binary units.
@@ -264,20 +292,28 @@ requests, while larger renditions keep 24 active and four speculative.
 
 Each decoded thumbnail table is one
 memory-mapped file of fixed-size square slots holding already decoded,
-64-byte-row-aligned BGRX pixels; a hit returns a `CGImage` that points into the
-mapping, with no PhotoKit request, decode or copy. Slots are found by hashing the
+64-byte-row-aligned BGRX pixels; a hit returns a `CGImage` that leases its slot
+in the mapping, with no PhotoKit request, decode or copy. A writer skips held
+slots; if every candidate is held, it skips that cache write. Clearing forgets
+the entry immediately but retains its displayed pixels until the last image
+releases them. The image also retains the mapping's lifetime. Slots are found by hashing the
 asset identifier and revision over an eight-slot probe window; a slot header
 stores the key tag and a recency tick, and is cleared while its pixels are
 written, so a torn write reads as a miss. Slot sizes follow this device rather
 than one model: the tile pixels of the widest grid the device shows (portrait
-width on iPhone, long edge on iPad) at 31 and 15 columns, rounded up to 16
+width) at 31 and 15 columns, rounded up to 16
 pixels. The overview table serves the 31-column mosaic and is filled for the
 whole library in the background from local renditions, newest first, after the
 library is published; the detail table keeps recently delivered 15-column
 thumbnails. Both count toward the thumbnail cache budget (at most 50% and 20%;
 renditions use the rest). At its limit a table only replaces the least recently
 used entry in a probe window, and lowering the budget below a table's usage
-starts that table over. Dense strips look tables up on their render queue and
+starts that table over. Queued deliveries and prefill retain the storage epoch
+from before their work began; clearing or resizing invalidates that epoch before
+removing entries, so an old callback cannot refill either table. Usage and clear
+include managed files from older tile sizes and display profiles; unrelated
+files and symbolic-link targets remain outside cache ownership.
+Dense strips look tables up on their render queue and
 resolve only misses on the main thread, and nearby PhotoKit preheat skips mosaic
 tiles the overview table already holds, avoiding asset faults and redundant
 PhotoKit preheat work on the main thread while scrolling the 31-column mosaic. Larger cropped cells show a table entry,
@@ -319,11 +355,30 @@ comparing only adjacent display callbacks. Slow motion must reach the same stop
 at high and low callback cadences. Reset direction at each new gesture and consume
 the recognized first pose even when release follows without a changed event.
 
-Library changes arrive continuously while iCloud syncs. An identical rebuild is
-ignored; a change during any motion waits for it to end. Applying a change keeps
-cached pixels and the focused photo's screen position, or stays at the newest
-edge; history indexed before the oldest edge keeps every existing row's
-composition. The loading subtitle appears only before the first items exist.
+Library changes arrive continuously while iCloud syncs. Identical snapshots are
+ignored. In the visible ordinary All grid, a same-view change involving at most
+64 insertions, deletions and moves uses one native collection batch. Existing
+photos travel to their new slots; inserted and removed photos fade at their own
+slots. Old and new layout attributes resolve by stable photo identity, including
+when an item changes index. Date or media metadata changes update retained cells
+without an insertion animation. Unchanged revisions keep their displayed pixels
+and requests; an edited revision rejects callbacks from the previous rendition.
+
+Each update preserves the focused photo's screen position, or retains the newest
+edge. If the focus was removed, the nearest surviving visible photo becomes the
+anchor, preferring the newer neighbour on a tie; when none survives on screen,
+the nearest surviving item in the previous ordering supplies the anchor.
+The native layout applies the offset with the batch. Completion never starts a
+second scroll or takes scrolling back from the person's pan or deceleration.
+Updates received during a batch, density/period motion, range selection, viewer
+return or scrolling coalesce to the latest snapshot and resume when that owner
+finishes. Context changes retain their own restoration intent while queued.
+
+Initial population, changed filters or scope, completely replaced membership,
+hidden grids, larger changes, Years, Months, dense overviews and Reduce Motion
+adopt membership silently while retaining the appropriate browsing anchor.
+These paths share the same native grid, stable identities and bounded thumbnail
+pipeline. The loading subtitle appears only before the first items exist.
 Launch publishes the newest 600 items (first screen plus one pinch into the
 month overview) before indexing the remaining library. When the app leaves the
 foreground, the newest edge of the remembered density is rendered from cached
@@ -401,7 +456,44 @@ Native scroll-to-top is suspended during selection so header taps cannot change
 the collection anchor. Ordinary browsing retains system scroll-to-top.
 
 Dense canvas strips retain their published bitmap independently of thumbnail
-cache eviction. Starting another pinch seeds its source from those displayed
+cache eviction. Recently displayed strips use a separate evictable cache capped
+at 32 MiB and 32 entries; geometry resets invalidate it. Returning to a cached
+strip adopts its pixels before starting background refinement. A fresh strip
+covers prepared local images with temporary low-resolution pixel atlases.
+The active grid prepares an owning overview set on a background worker, bounded
+to 16 MiB of pixels regardless of library size. Thumbnail side length adapts to
+that budget. Hidden grids cancel unfinished work and release their active set.
+One completed, evictable recent set may survive a temporary viewer; starting an
+unrelated active grid replaces it, and reuse requires unchanged asset identities
+and revisions. Memory pressure releases it and lowers subsequent preparation to
+4 MiB. A rebuildable disk copy shares thumbnail cache accounting, limits and
+clearing. Background validation matches each stored pixel to its asset identifier
+and revision; library insertions, deletions and reordering retain matching pixels,
+while missing, changed or invalid entries use normal preparation. Disk reads,
+checksums and writes remain off the scroll thread; old work cannot restore a
+cleared or resized cache. Missing local entries are retried
+after host prefill. Before preparation reaches an entry, its normal background
+strip and existing request/placeholder behavior remain responsible for display.
+The scroll callback only composes already-prepared pixels; it never reads a mapped
+image provider or waits for a thumbnail's file pages. The table freezes source
+pixels under the same exclusion used by writers and cache clearing. Temporary
+atlases own their bytes, so slot reuse cannot alter the presented photo. Each
+atlas disappears after its represented tiles are included in a published sharp
+replacement bitmap; unavailable media
+still follows the existing request and placeholder behavior. A fresh strip
+publishes decoded-table hits directly from the raster queue, without waiting
+behind later raster work after a main-thread round trip. Obsolete generations
+stop drawing between tiles. Decoding, native image drawing and mapped-file reads
+never run on the scroll thread. Aspect-fit overview rows retain their individual
+positions and transparent padding in the temporary image layers. Stage tiles
+use already-owned overview or previously displayed pixels immediately; a
+background owning copy can refine them without exposing a cold mapped provider
+to the display transaction. Release-only tiles outside the target viewport keep
+the same native-rendered compact marks through the settle; the target viewport
+uses native decoration views and the final collection restores its own views.
+Small static decoration marks in an animated ordinary face use Core Animation's
+raster cache at display scale, including their existing shadows; photo layers
+remain independent. Starting another pinch seeds its source from those displayed
 pixels, and adoption keeps the animation cover until replacement visible strips
 have committed. Synchronous image callbacks follow context creation; recycled
 strip publications are generation-specific. Gapless dense faces transform a

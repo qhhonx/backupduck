@@ -13,7 +13,7 @@ Three positions on every platform (`navigation.md`):
 | Positions | Tab bar: Photos, Backup, Settings | Sidebar: Photos (Photo Library, Folders), Backup (Overview, History), Settings | Navigation bar: Receive, Photos, Settings |
 | One level down | Push | Replace the main area; History has its own sidebar row | Push |
 | Detail, explanation, chooser | Per `platform-expression.md` (A4–A8) | Same | Same |
-| One photo | Zoom from the tile into a full-screen viewer | Its own dark window | Full-screen viewer |
+| One photo | Zoom from the tile into the viewer; a sheet source retains its sheet bounds | Its own dark window | Full-screen viewer |
 | Devices | Identity header in Settings and a Settings row | Same | Same |
 
 ## I2 Page types
@@ -41,7 +41,7 @@ up or receiving, caught up, empty (`flows.md` § Hub rules).
 | Opening | Values read "—" | The final geometry | Guess values, move the layout |
 | Empty | "Nothing here yet", one sentence | The duck and one action | Merge with no access or a read failure |
 | No access | The cause | "Open Settings" | Show the duck, block other features |
-| Working | Count and size, real progress | A 2–3 pt bar inside the stable card | Add rows, invent remaining time |
+| Working | Count, size when fully known, real progress | A 2–3 pt bar inside the stable card | Add rows, invent remaining time |
 | Problem | Cause, what happens by itself | At most one action | Color the title, stack warnings |
 | Calm | "All your photos are in the Pixel's Photos" | Recently saved photos | Say "all" before every photo is saved |
 

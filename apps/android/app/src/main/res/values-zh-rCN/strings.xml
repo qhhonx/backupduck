@@ -208,6 +208,7 @@
     <string name="photos_empty_note">iPhone 或 Mac 发来的照片会出现在这里。</string>
     <string name="photos_load_failed">没能载入照片</string>
     <string name="photos_tile_description">%1$s，%2$s</string>
+    <string name="photos_video_tile_description">视频，%1$s，%2$s</string>
     <string name="photos_state_pending">还没存进 Pixel 相册</string>
     <string name="photos_taken_unknown">拍摄时间未知</string>
     <string name="photos_received_from">已从 %1$s 收到</string>
