@@ -252,7 +252,7 @@ enum MacDetailBitmap {
         bitsPerPixel: record.pixelBits, bytesPerRow: record.rowBytes, space: space,
         bitmapInfo: CGBitmapInfo(rawValue: record.bitmapInfo), provider: provider,
         decode: nil, shouldInterpolate: true, intent: intent) else { return nil }
-    if record.headroom > 0 {
+    if record.headroom > 0, image.contentHeadroom != record.headroom {
       guard let tagged = CGImageCreateCopyWithContentHeadroom(record.headroom, image) else { return nil }
       image = tagged
     }
