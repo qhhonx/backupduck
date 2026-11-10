@@ -117,3 +117,42 @@ for name in [CGColorSpace.sRGB, CGColorSpace.displayP3] {
     restored.contentHeadroom == image.contentHeadroom else { fatalError("SDR bitmap did not round-trip") }
   print("encoded=\(record.count)")
 }
+
+enum DuckSpacing { static let large: CGFloat = 24 }
+enum MacGridFooter {
+  static let minimumHeight: CGFloat = 56
+  static let topInset: CGFloat = 14
+  static func attributed(total: String, notes: [String]) -> NSAttributedString {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center; paragraph.lineBreakMode = .byWordWrapping
+    paragraph.firstLineHeadIndent = DuckSpacing.large; paragraph.headIndent = DuckSpacing.large
+    paragraph.tailIndent = -DuckSpacing.large
+    // An empty paragraph can take a different font metric on older AppKit.
+    let countLine = total.isEmpty && !notes.isEmpty ? "\u{00A0}" : total
+    let text = ([countLine] + notes).joined(separator: "\n")
+    let result = NSMutableAttributedString(string: text, attributes: [
+      .font: NSFont.preferredFont(forTextStyle: .caption1),
+      .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph])
+    if !total.isEmpty {
+      result.addAttribute(.foregroundColor, value: NSColor.labelColor, range: NSRange(location: 0, length: (total as NSString).length))
+    }
+    return result
+  }
+  static func textHeight(_ text: NSAttributedString, width: CGFloat) -> CGFloat {
+    let cell = NSTextFieldCell(textCell: "")
+    cell.attributedStringValue = text
+    cell.wraps = true; cell.isScrollable = false; cell.usesSingleLineMode = false
+    cell.lineBreakMode = .byWordWrapping
+    return ceil(cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: max(1, width),
+      height: .greatestFiniteMagnitude)).height)
+  }
+  static func height(_ text: NSAttributedString, width: CGFloat) -> CGFloat {
+    max(minimumHeight, textHeight(text, width: width) + topInset * 2)
+  }
+}
+
+let notes = ["To a receiver with a long device name", "Check cloud backup after reviewing the receiving device."]
+let waiting = MacGridFooter.height(MacGridFooter.attributed(total: "", notes: notes), width: 220)
+let ready = MacGridFooter.height(MacGridFooter.attributed(total: "150 items", notes: notes), width: 220)
+print("footer waiting=\(waiting) ready=\(ready)")
+precondition(waiting == ready, "The footer must reserve the same count line while waiting")
