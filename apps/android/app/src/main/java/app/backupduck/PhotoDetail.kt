@@ -106,17 +106,20 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             }
                 .onFailure { message(R.string.photos_open_failed) }
         }
-        if (item.kind == "video") {
-            val play = icon(R.drawable.ic_play, R.string.viewer_open_photos, ::openPhotos).apply {
+        val play = if (item.kind == "video") {
+            icon(R.drawable.ic_play, R.string.viewer_open_photos, ::openPhotos).apply {
+                // A media action overlays a decoded cover only, never the unavailable glyph.
+                visibility = View.GONE
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL; setColor(getColor(R.color.duck_media_scrim_duration))
                 }
                 val inset = token(R.dimen.duck_space_medium)
                 setPadding(inset, inset, inset, inset)
+            }.also {
+                // design-exception: the approved video-play touch target is 64 dp.
+                root.addView(it, CoordinatorLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER })
             }
-            // design-exception: the approved video-play touch target is 64 dp.
-            root.addView(play, CoordinatorLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER })
-        }
+        } else null
         val pill = lookButton(getString(R.string.viewer_save_failed), LookButton.TONAL) {}.apply {
             setText(R.string.viewer_save_failed); visibility = if (item.cause == PhotoCause.NOT_SAVED) View.VISIBLE else View.GONE
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -394,12 +397,13 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
         }
         date.setOnClickListener { showDetails() }
         action(R.drawable.ic_info, R.string.viewer_details, ::showDetails)
+        var hasPreview = false
         val zoom = PhotoZoom(preview, tap = {
             if (sheetOpen) setSheetState(BottomSheetBehavior.STATE_HIDDEN)
             else { immersive = !immersive; chrome(0f); bars() }
         }, swipeUp = ::showDetails, swipeDown = {
             if (sheetOpen) setSheetState(BottomSheetBehavior.STATE_HIDDEN) else dismiss()
-        }, canZoom = { !sheetOpen })
+        }, canZoom = { !sheetOpen }, hasMedia = { hasPreview })
         resetMedia = zoom::reset
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val safe = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
@@ -418,16 +422,20 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
             val h = (root.height * .65f).toInt().coerceAtMost(root.height - systemTop - dp(96))
             if (h > 0 && h != sheetHeight) { sheetHeight = h; sheet.layoutParams = sheet.layoutParams.apply { height = h } }
         }
-        var hasPreview = false
         (poster ?: images.cached(item, (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384),
-            (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)))?.let { preview.setImageBitmap(it); hasPreview = true }
+            (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)))?.let {
+            preview.setImageBitmap(it); hasPreview = true; play?.visibility = View.VISIBLE
+        }
         fun load() {
             work = images.load(item, resources.displayMetrics.widthPixels.coerceAtMost(1440), resources.displayMetrics.heightPixels.coerceAtMost(2560), signal) paint@ { bitmap ->
                 val hadPreview = hasPreview
                 if (bitmap != null && isShowing()) {
                     val displayed = (preview.drawable as? BitmapDrawable)?.bitmap
                     if (hadPreview && displayed != null && bitmap.width <= displayed.width && bitmap.height <= displayed.height) return@paint
-                    fun publish() { if (isShowing()) { preview.showPhotoBitmap(bitmap); zoom.refresh() } }
+                    fun publish() { if (isShowing()) {
+                        preview.showPhotoBitmap(bitmap); hasPreview = true
+                        zoom.refresh(); play?.visibility = View.VISIBLE
+                    } }
                     if (hadPreview) afterEnter(::publish) else publish()
                     hasPreview = true
                 } else if (!hasPreview && isShowing()) {
@@ -437,6 +445,7 @@ internal class PhotoDetail(private val activity: androidx.appcompat.app.AppCompa
                     preview.imageTintList = null
                     preview.setImageDrawable(PhotoGlyphs.drawable(this, unavailableIcon(item), 56))
                     preview.contentDescription = getString(R.string.photos_preview_unavailable)
+                    zoom.reset()
                 }
                 if (!hadPreview) preview.doOnPreDraw { ready(bitmap != null) }
             }

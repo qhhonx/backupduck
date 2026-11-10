@@ -58,13 +58,19 @@ class TileThumbnailResolver : ShadowContentResolver() {
 
 class TileEvidenceProvider : ContentProvider() {
     var queries = 0
+    var mime = "image/jpeg"
+    var durationQueryFails = false
     override fun onCreate() = true
     override fun getType(uri: Uri) = "image/jpeg"
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?,
         args: Array<out String>?, sort: String?): Cursor {
         queries++
+        if (projection?.toList() == listOf(MediaStore.Video.Media.DURATION)) {
+            if (durationQueryFails) throw IOException("Synthetic duration unavailable")
+            return MatrixCursor(arrayOf(MediaStore.Video.Media.DURATION)).apply { addRow(arrayOf<Any>(83_000L)) }
+        }
         return MatrixCursor(arrayOf(MediaStore.MediaColumns.MIME_TYPE, MediaStore.MediaColumns.IS_PENDING,
-            MediaStore.MediaColumns.SIZE)).apply { addRow(arrayOf<Any>("image/jpeg", 0, 100)) }
+            MediaStore.MediaColumns.SIZE)).apply { addRow(arrayOf<Any>(mime, 0, 100)) }
     }
     override fun insert(uri: Uri, values: ContentValues?): Uri? = error("Read only fixture")
     override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = error("Read only fixture")
@@ -214,6 +220,19 @@ class PhotoImagesTest {
         val bitmap = Bitmap.createBitmap(17, 23, Bitmap.Config.ARGB_8888)
         cache.put("accounting-fixture", bitmap)
         assertEquals(bitmap.allocationByteCount, cache.size())
+    }
+    @Test fun optionalDurationFailureDoesNotMakeAPublishedVideoCopyUnreadable() {
+        val provider = TileEvidenceProvider().apply {
+            mime = "video/mp4"; durationQueryFails = true
+            attachInfo(activity, ProviderInfo().apply { authority = "media" })
+        }
+        ShadowContentResolver.registerProviderInternal("media", provider)
+        val video = item("optional-duration").copy(kind = "video")
+        val copy = GalleryPreview.resolve(activity, video, Uri.parse("content://media/external/video/media/43"), CancellationSignal())
+        assertNotNull(copy); assertNull(copy!!.durationMs)
+        assertNotNull(GalleryPreview.decode(activity, copy, android.util.Size(160, 160), CancellationSignal()))
+        assertSame(copy, GalleryPreview.resolve(activity, video, null, CancellationSignal()))
+        assertEquals(2, provider.queries)
     }
     @Test fun refinementHasNoBlankFrameAndPreservesPosterContract() {
         val old = Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }

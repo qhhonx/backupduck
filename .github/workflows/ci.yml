@@ -66,6 +66,7 @@ jobs:
       - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
       - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
       - run: scripts/test-folder-native.sh
+      - run: scripts/test-macos-controls.sh
       - name: Compile the sandboxed TestFlight target without distribution credentials
         run: >-
           xcodebuild -project apps/macos/BackupDuck.xcodeproj

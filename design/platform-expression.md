@@ -74,7 +74,7 @@ in a checklist share one column width so titles align.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| Push a searchable, virtualized album card grid: two columns on phone widths, adaptive on iPad. All Albums is alone in a 52 pt preference group; its summary is the footer. Shared square-cover cards show name, count and included checkmark; tap toggles and View Album opens the read-only native library grid. Choose/Deselect Album is a trailing text button. Unavailable albums retain their rows below. Changes apply at once; no Save | The same shared adaptive album cards with search in the settings detail; from a task, a sheet with Done | A full-screen pushed page with a search bar and checkbox rows |
+| Push a searchable, virtualized album card grid: three columns on iPhone. All Albums is alone in a 52 pt preference group; its summary is the footer. Shared square-cover cards show name, count and included checkmark; tap toggles and View Album opens the read-only native library grid. The native navigation bar owns inline title, system Back and a persistent selection item. Its system selected state and short action labels distinguish the saved choice; UIKit owns the material, touch feedback and state transition. It chooses/deselects the whole album without dismissing it. Unavailable albums retain their rows below. Changes apply at once; no Save | The same shared adaptive album cards with search in the settings detail; from a task, a sheet with Done. Album browsing uses a native toolbar button toggle with explicit Choose/Deselect Album text and the system selected appearance | A full-screen pushed page with a search bar and checkbox rows |
 
 ## A7 Explanation, Learn more, help
 
@@ -98,18 +98,31 @@ copying, wrapping and scrolling.
 
 | iPhone | Mac | Pixel |
 | --- | --- | --- |
-| An information panel that slides up inside the viewer, as in the system photo library. A photo opened from backup history opens the same viewer; there is no separate photo-detail sheet | A trailing inspector in the viewer window (SwiftUI `inspector`), toggled with the toolbar info button and ⌘I, named "Show Info" in the View menu; the window remembers whether it is shown | A bottom panel inside the viewer |
+| An information panel that slides up inside the viewer. A photo opened from backup history opens the same viewer and retains the source sheet bounds when history is in a sheet; there is no separate photo-detail sheet | One native floating Info utility panel per workspace window, toggled with the toolbar info button and ⌘I, named "Show Info" in the View menu; it follows the grid selection or active viewer photo without resizing the workspace, retains the user's open choice across grid, detail and sidebar navigation until explicitly closed | A bottom panel inside the viewer |
 
 An in-viewer information panel is docked to the bottom edge: only its top
 corners are rounded and it extends under the home indicator or navigation
 bar, like a system sheet.
 
-The iPhone and iPad viewer's chrome is the system photo library's: system
+The iPhone viewer's chrome is the system photo library's: system
 background (white in light appearance, black in dark), a back button, a centered
 date-and-time title (which also opens Info) and a More menu at the top, and a
 bottom toolbar with Share and Info, above which the filmstrip sits while
 browsing. State is not an action: the backup state is a quiet mark on Info
-(none when normal), and its details and Back Up / Retry are in the panel. One tap on the photo hides the
+(none when normal), and its details and Back Up / Retry are in the panel.
+Info keeps its original glyph and hit target throughout backup. Its byte-progress
+ring and quiet dot retain their established geometry; status does not replace
+the dot with an action or stage glyph. Once transfer ends, receipt confirmation
+and gallery-saving work leave the button unmarked, including the native-request
+queue handoff after all media bytes have been acknowledged, with their current
+state in the information panel. Preparation, queue scheduling, pause and
+automatic retry retain their own wording without a working dot, including
+before a transfer job or byte fraction exists. Failure restores an attention-colored dot and the
+available recovery action. The accessible name distinguishes each
+observed stage; an unknown gallery result says it awaits confirmation, never
+that saving has begun. Only confirmed gallery completion says the photo is
+saved. All feedback stays inside the same button and adds no content row.
+One tap on the photo hides the
 bars and filmstrip and turns the background black; another tap restores them.
 Opening and closing fly the photo from and back into its tile while the grid
 stays still. On iPhone, rendition preparation and delayed media-local loading
@@ -120,8 +133,15 @@ photo at its own aspect ratio as the preview; selection starts from Select.
 
 One photo has one viewer and one information layout on each platform: date and
 time, the backup facts with their times (`interaction.md` I2 Detail), at most
-one action, and a quiet file line. The trailing inspector follows the platform's
+one action, and a quiet file line. The native information surface follows the platform's
 convention for showing details of the current item next to it.
+
+On Mac, the overview shows up to eight recent photos in at most two rows of
+the same native square cells, spacing and media marks used by the photo grids.
+Opening a photo uses its visible cell as the viewer flight source and returns to
+the same collection. Single click, Command-click, Shift-click, keyboard movement
+and rectangle selection use the shared native collection behavior. Double click,
+Return or Space opens the selected photo.
 
 History and recent-photo entry points retain their collection and scroll while
 the viewer is open. If the local asset is unavailable, recorded information
@@ -151,6 +171,12 @@ An iPhone filter with zero matches keeps its filter menu and active-view chip
 available so the person can leave that view. Show All Photos clears both the
 backup view and media-type filter.
 
+Pixel Receive, Photos and Devices use the same full-content empty-state
+composition. A standalone Photos state fills the viewport with the shared page
+insets; grid tail padding does not shift its optical center. A failed request
+for another page stays inline beneath the existing photos rather than taking
+over a viewport.
+
 ## A11 More actions and context menus
 
 | iPhone | Mac | Pixel |
@@ -173,6 +199,11 @@ with the selected count, system cancellation leading, the browse button beside
 it, and checkmark confirmation trailing. The native bottom toolbar has Deselect All / 取消全选
 leading and prominent Back Up N Photos / 备份 N 张 trailing. Closing preserves
 selection; the backup action registers the same durable intent as the library.
+The detail viewer retains the prominent backup action for the complete selected
+set in its native trailing toolbar position. Its on-photo mark toggles only the
+current photo. Deselect All remains in the grid; entering detail does not turn
+that secondary global action into the sole available action. Count, feedback
+and enabled state come from the same review action, without another queue.
 
 ## Pixel task recovery and transient handoff
 

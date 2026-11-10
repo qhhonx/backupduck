@@ -1,0 +1,13 @@
+{
+  "id": "library.membership-motion",
+  "extends": "base-paired",
+  "page": "library",
+  "step": "membershipMotion",
+  "title": "Library membership motion",
+  "expect": [
+    "One mounted production calendar grid starts at three columns and a middle anchor among 120 synthetic photos.",
+    "The native toolbar inserts or deletes three nearby photos and sends two successive membership observations with Rapid.",
+    "More offers nearby reordering, a 1,000-photo insertion, Middle, Newest and Reset 120.",
+    "Stable synthetic IDs and local sample thumbnails require no Photos access, network or transfer work."
+  ]
+}

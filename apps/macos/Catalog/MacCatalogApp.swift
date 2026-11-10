@@ -26,7 +26,9 @@ import UserNotifications
   var body: some Scene {
     Window("Design catalog", id: "main") {
       MacCatalogRoot().frame(minWidth: min(900, max(640, Double(MacCatalogLaunch.value("-window-width") ?? "") ?? 900)), minHeight: 620)
-    }.defaultSize(width: 1180, height: 800).commands {
+    }.defaultLaunchBehavior(ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+      ? .suppressed : .automatic)
+    .defaultSize(width: 1180, height: 800).commands {
       MacFolderCommands()
       if MacCatalogLaunch.value("-viewer-grid") != nil {
         CommandMenu("Viewer Checks") {
@@ -36,6 +38,18 @@ import UserNotifications
         }
       }
       MacSettingsCommands()
+      if MacCatalogLaunch.value("-snapshot-mode") == "manual", MacCatalogLaunch.value("-snapshot") != nil {
+        CommandMenu("Catalog Checks") {
+          Button("Capture Current Window") { MacCatalogLifecycle.capture() }
+            .accessibilityIdentifier("catalog.snapshot")
+          Button("Focus Photo Info Window") {
+            NSApp.windows.first { $0.identifier?.rawValue == "photo.info" && $0.isVisible }?.makeKeyAndOrderFront(nil)
+          }.accessibilityIdentifier("catalog.photo-info.focus")
+          Button("Focus Main Window") {
+            NSApp.windows.first { $0.canBecomeMain && !($0 is NSPanel) && $0.isVisible }?.makeKeyAndOrderFront(nil)
+          }.accessibilityIdentifier("catalog.main-window.focus")
+        }
+      }
       CommandGroup(replacing: .appInfo) {
         Button("about_title") { MacAboutNavigation.open {} }
       }
@@ -65,8 +79,11 @@ import UserNotifications
     if MacCatalogLaunch.value("-route-timing") != "warm" { notifier.route = Self.route(scenario) }
     scope = scenario.id.hasPrefix("settings.scope.") ? ScopeCatalogFixture(id: scenario.id) : nil
     model = scenario.makeModel(core: MacCatalogApp.core, credentials: MacCatalogApp.credentials)
-    if scenario.id == "library.synthetic" || (scenario.page == "library" && scenario.sparseGridCount != nil) {
+    if scenario.id == "library.synthetic" || (scenario.page == "library" && scenario.sparseGridCount != nil) || ProcessInfo.processInfo.arguments.contains("-unified-browsing") {
       let assets: [PHAsset] = (0..<(scenario.sparseGridCount ?? 90)).map { index in
+        if ProcessInfo.processInfo.arguments.contains("-mixed-media") {
+          return CatalogLibraryAsset(index)
+        }
         let job = BackupJob(id: Int64(9000 + index),
           asset: .init(metadata: ["created_at_ms": String(1792495800000 - Int64(index) * 3_600_000)],
             kind: "photo", source_id: "catalog-library-\(index)", revision: "1",
@@ -76,7 +93,7 @@ import UserNotifications
       }
       library.installSyntheticAssets(CatalogAssetCollection(assets))
     }
-    if scenario.id == "records.running-grid" { MacHistoryMotionFixture.install(core: MacCatalogApp.core, tick: 0) }
+    if scenario.id == "records.running-grid" || ProcessInfo.processInfo.arguments.contains("-unified-browsing") { MacHistoryMotionFixture.install(core: MacCatalogApp.core, tick: 0) }
     let made = model
     BackupEnvironment.activeModel = { made }
     folders = FolderSources(backup: model)
@@ -85,6 +102,8 @@ import UserNotifications
     FolderSources.catalog = folders
     if scenario.id.hasPrefix("folders.") || scenario.id.hasPrefix("settings.folder") || scenario.id.hasSuffix("folder-media") {
       FolderCatalog.install(scenario.id, folders: folders, sheet: MacCatalogLaunch.value("-sheet"))
+    } else if ProcessInfo.processInfo.arguments.contains("-unified-browsing") {
+      FolderCatalog.install("folders.sections", folders: folders, sheet: nil)
     }
     if scenario.id == "records.running-grid" {
       Task { @MainActor [weak model] in
@@ -126,7 +145,14 @@ private enum MacCatalogLaunch {
     // Direct CLI launches must participate in normal foreground activation.
     NSApp.setActivationPolicy(.regular)
     Task { @MainActor in
+      var activatedManualWindow = false
       for _ in 0..<40 {
+        if !activatedManualWindow, MacCatalogLaunch.value("-snapshot-mode") == "manual",
+          let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
+          activatedManualWindow = true
+          NSApp.activate(ignoringOtherApps: true)
+          window.makeKeyAndOrderFront(nil)
+        }
         Self.sizeWindow()
         try? await Task.sleep(for: .milliseconds(100))
       }
@@ -148,6 +174,34 @@ private enum MacCatalogLaunch {
             seconds: Double(MacCatalogLaunch.value("-record-seconds") ?? "") ?? 68)
           if ProcessInfo.processInfo.arguments.contains("-record-exit") { NSApp.terminate(nil) }
         } catch { fputs("Catalog recording failed: \(error)\n", stderr) }
+      }
+    }
+    if ProcessInfo.processInfo.arguments.contains("-toolbar-search-motion") {
+      Task { @MainActor in
+        try? await Task.sleep(for: .seconds(7))
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }),
+          let item = window.toolbar?.items.compactMap({ $0 as? NSSearchToolbarItem }).first else {
+          fputs("Catalog search motion: no active search item.\n", stderr)
+          return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        // Event choreography for a native recording, not an animation frame loop.
+        item.beginSearchInteraction()
+        try? await Task.sleep(for: .seconds(2))
+        print("Catalog search expanded: width=\(item.searchField.frame.width), editing=\(item.searchField.currentEditor() != nil)")
+        item.endSearchInteraction()
+        try? await Task.sleep(for: .seconds(2))
+        print("Catalog search ended: width=\(item.searchField.frame.width), editing=\(item.searchField.currentEditor() != nil)")
+        item.beginSearchInteraction()
+        try? await Task.sleep(for: .seconds(2))
+        item.endSearchInteraction()
+        try? await Task.sleep(for: .seconds(2))
+        item.beginSearchInteraction()
+        try? await Task.sleep(for: .seconds(2))
+        let cancelled = window.firstResponder?.tryToPerform(#selector(NSResponder.cancelOperation(_:)), with: nil)
+        try? await Task.sleep(for: .seconds(2))
+        print("Catalog search cancelled: handled=\(String(describing: cancelled)), width=\(item.searchField.frame.width), editing=\(item.searchField.currentEditor() != nil)")
       }
     }
   }
@@ -338,8 +392,12 @@ private struct MacScenarioRun: View {
       navigator.open(DuckSettingsPage(title: Text(topic.title), content: AnyView(HelpArticle(topic: topic))))
     } else if scenario.id == "settings.scope.browser", let scope = session.scope,
       let album = scope.albums.albums.first(where: { $0.name == "Family" }) {
+      if let selected = MacCatalogLaunch.value("-album-selected"),
+        (selected == "yes") != scope.store.rule.choosesAlbum(album.id) {
+        scope.store.save(scope.store.rule.toggling(album: album.id, name: album.name))
+      }
       navigator.open(DuckSettingsPage(title: Text(verbatim: album.name),
-        content: AnyView(MacScopeAlbumBrowser(album: album, store: scope.store, library: albumLibrary()))))
+        content: AnyView(MacScopeAlbumBrowser(album: album, store: scope.store, library: albumLibrary())), usesMediaCanvas: true))
     } else if scenario.step == "thirdPartyLicenses" {
       navigator.open(DuckSettingsPage(title: Text("settings_third_party_licenses"), content: AnyView(DuckThirdPartyLicensesPage())))
     } else if scenario.step == "licenses" || MacCatalogLaunch.value("-start-route") == "licenses" {
@@ -766,6 +824,22 @@ enum MacWindowSnapshot {
     let recorder = MacCatalogRecording(); active = recorder
     defer { active = nil }
     guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { return }
+    // Record the active native window rather than a throttled background surface.
+    for _ in 0..<30 {
+      NSApp.activate(ignoringOtherApps: true)
+      window.makeMain(); window.makeKeyAndOrderFront(nil)
+      try await Task.sleep(for: .milliseconds(100))
+      if NSApp.isActive && window.isKeyWindow { break }
+    }
+    guard NSApp.isActive && window.isKeyWindow else {
+      throw NSError(domain: "CatalogRecording", code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "The catalog window could not become active."])
+    }
+    let activation: [String: Any] = ["active": NSApp.isActive, "key": window.isKeyWindow,
+      "main": window.isMainWindow, "bundle": Bundle.main.bundleIdentifier ?? "",
+      "requestedFrameRate": 60]
+    try JSONSerialization.data(withJSONObject: activation, options: [.prettyPrinted, .sortedKeys])
+      .write(to: URL(fileURLWithPath: path).deletingPathExtension().appendingPathExtension("activation.json"))
     let content = try await SCShareableContent.currentProcess
     guard let target = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else { return }
     let filter = SCContentFilter(desktopIndependentWindow: target)

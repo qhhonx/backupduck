@@ -264,6 +264,7 @@ class ReceiverService : Service() {
             val success = try {
                 val copy = MediaPublisher.publish(this, item)
                 NativeBridge.request(JSONObject().put("op", "gallery_publication").put("id", cursor).put("copy", copy.json()))
+                VideoDurations.get(this).published(scope, this, item.getString("id"), item.getJSONObject("asset").getString("kind"), copy.locator)
                 ReceiptThumbnails.capture(this, item.getString("id"), copy.locator)
                 ReceiverState.mutable.update { it.copy(error = null) }
                 true

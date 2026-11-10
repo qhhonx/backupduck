@@ -209,7 +209,6 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
     }
     .interactiveDismissDisabled(busy)
     .presentationDetents(textSize.isAccessibilitySize ? [.large] : expandable ? [.height(fittedHeight), .large] : [.height(fittedHeight)])
-    .iosPrototypeSheetHost()
     .onPreferenceChange(DuckSheetHeightPreference.self) { measuredHeights = $0 }
     #else
     VStack(alignment: .leading, spacing: DuckSpacing.medium) {
@@ -248,6 +247,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   @Published private(set) var added = false
   @Published var confirmingRepeat = false
   @Published var error: String?
+  private var pendingSubmission: (submit: () async -> Bool, failure: () -> String?)?
   private var pending: (tokens: Set<String>, ids: [String], repeats: Set<String>, receiver: String)?
 
   var title: String {
@@ -255,7 +255,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
       : busy ? NSLocalizedString("apple_selected_submitting", comment: "") : ""
   }
   func selectionChanged() { if !busy { added = false } }
-  func cancel() { pending = nil; confirmingRepeat = false }
+  func cancel() { pending = nil; pendingSubmission = nil; confirmingRepeat = false }
 
   func request(library: PhotoLibraryModel, model: BackupModel, sources: [String]? = nil) async {
     guard !busy, !confirmingRepeat, !(sources?.isEmpty ?? library.selection.isEmpty) else { return }
@@ -298,6 +298,33 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
     } else {
       error = model.message ?? NSLocalizedString("apple_selected_backup_failed", comment: "")
     }
+  }
+  /// Other native sources share the same repeat confirmation and registration
+  /// feedback while their source adapter owns durable request semantics.
+  func request(prepare: () async throws -> Bool, submit: @escaping () async -> Bool,
+    failure: @escaping () -> String?) async
+  {
+    guard !busy, !confirmingRepeat else { return }
+    busy = true; added = false; error = nil
+    defer { busy = false }
+    do {
+      let repeats = try await prepare()
+      pendingSubmission = (submit, failure)
+      if repeats { confirmingRepeat = true }
+      else { await registerSubmission() }
+    } catch { self.error = error.localizedDescription }
+  }
+  func confirm() async {
+    guard !busy, pendingSubmission != nil else { return }
+    confirmingRepeat = false; busy = true
+    defer { busy = false }
+    await registerSubmission()
+  }
+  private func registerSubmission() async {
+    guard let submission = pendingSubmission else { return }
+    pendingSubmission = nil
+    if await submission.submit() { showAdded() }
+    else { error = submission.failure() ?? NSLocalizedString("apple_selected_backup_failed", comment: "") }
   }
   /// Folders use the same in-place feedback with their existing durable endpoint.
   func perform(_ submit: () async -> Bool, failure: () -> String?) async {
@@ -380,13 +407,21 @@ extension View {
 #endif
 
 #if os(iOS)
+/// Media choices respond through their selection mark and native preview.
+struct DuckMediaButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View { configuration.label }
+}
+
 /// Shared image-choice treatment for gallery, album covers and selected review.
 /// The photo grid's selection mark, for SwiftUI tiles.
 struct DuckMediaSelectionMark: View {
+  var selected = true
+  var outline = DuckMedia.onMedia
   var body: some View {
-    Image(systemName: "checkmark.circle.fill").resizable()
-      .foregroundStyle(DuckRole.accent)
-      .background(Circle().fill(DuckMedia.onMedia).padding(1))
+    Image(systemName: selected ? "checkmark.circle.fill" : "circle").resizable()
+      .foregroundStyle(selected ? DuckRole.accent : outline)
+      .background(Circle().fill(selected ? DuckMedia.onMedia : .clear).padding(1))
+      .contentTransition(.symbolEffect(.replace))
       .frame(width: DuckMediaSelection.size, height: DuckMediaSelection.size)
       .padding(DuckMediaSelection.inset)
       .accessibilityHidden(true)

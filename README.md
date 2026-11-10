@@ -25,7 +25,7 @@ licensing requests.
 
 ## What is available
 
-- Native iPhone, iPad and Mac senders built on UIKit and AppKit: the photo
+- Native iPhone and Mac senders built on UIKit and AppKit: the photo
   library with backup marks and one photo viewer, automatic backup of new photos,
   backup of earlier photos, Backup History and notifications, with a Live
   Activity on iPhone and a menu bar status on Mac.

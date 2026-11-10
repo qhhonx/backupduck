@@ -72,24 +72,7 @@ enum MacAboutNavigation {
     preparing = model.importing
     earlierPhotosStarted = model.earlierPhotosStarted
     autoBackup = model.autoBackup
-    let hub = model.hubStatus
-    if case .backingUp(let remaining, _) = hub {
-      let jobs = model.jobs.filter {
-        ($0.receiverID == nil || $0.receiverID == model.pairing?.receiverID)
-          && ["queued", "running", "waiting", "paused"].contains($0.state)
-      }
-      // The job list can be paged and preparations have no size yet. Only show
-      // a batch size when every remaining photo has a recorded resource size.
-      let complete = jobs.count == remaining && jobs.allSatisfy {
-        !$0.asset.resources.isEmpty && $0.asset.resources.allSatisfy { $0.size > 0 }
-      }
-      let bytes = complete ? jobs.reduce(UInt64(0)) {
-        $0 + ($1.totalBytes > $1.confirmedBytes ? $1.totalBytes - $1.confirmedBytes : 0)
-      } : 0
-      status = .backingUp(remaining: remaining, bytes: bytes)
-    } else {
-      status = hub
-    }
+    status = model.hubStatus
   }
 
   var isBackingUp: Bool {

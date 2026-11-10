@@ -46,14 +46,25 @@ struct DuckSettingsLabel: View {
 struct DuckSettingsPage {
   let title: Text
   let content: AnyView
+  var usesMediaCanvas = false
 }
 
-/// Opens pages inside the Mac Settings detail pane, so the category list and
-/// its selection stay while Back returns (design/settings.md, Mac dialect). A
-/// NavigationStack nested in the window's split view would push over the list.
+/// Opens supporting pages in the platform's owning navigation container:
+/// the iPhone native stack or the Mac Settings detail pane. The surrounding
+/// tab or category selection stays while system Back returns.
 struct DuckSettingsNavigator {
   let open: (DuckSettingsPage) -> Void
   let back: () -> Void
+}
+
+private struct DuckNativeNavigationKey: EnvironmentKey {
+  static let defaultValue = false
+}
+extension EnvironmentValues {
+  var duckNativeNavigation: Bool {
+    get { self[DuckNativeNavigationKey.self] }
+    set { self[DuckNativeNavigationKey.self] = newValue }
+  }
 }
 
 private struct DuckSettingsNavigatorKey: EnvironmentKey {
@@ -66,8 +77,8 @@ extension EnvironmentValues {
   }
 }
 
-/// A row that opens a page below it: inside the Mac Settings detail pane when
-/// one is present, otherwise an ordinary navigation push.
+/// A row that opens a page in its native navigation owner when one is
+/// present, otherwise an ordinary navigation push.
 struct DuckSettingsLink<Label: View, Destination: View>: View {
   let title: Text
   @ViewBuilder var destination: () -> Destination
@@ -89,7 +100,7 @@ struct DuckSettingsLink<Label: View, Destination: View>: View {
   }
 }
 
-/// One in-place footer for temporary-file cleanup on both Apple hosts.
+/// One in-place footer for cache cleanup failures on both Apple hosts.
 /// The group's existing Clear Now action also retries a failed cleanup.
 struct DuckCacheCleanupFooter: View {
   let error: String?

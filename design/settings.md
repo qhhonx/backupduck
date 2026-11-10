@@ -57,7 +57,7 @@ in production at all, with no placeholder; the design catalogs can show it with
 sample content (`*-reserved` scenarios) for review. Add the value, review the
 catalog scenario, and the part appears.
 
-## Sender (iPhone, iPad, Mac)
+## Sender (iPhone, Mac)
 
 Transfers, storage and log settings are automatic,
 so they have no rows.
@@ -73,12 +73,22 @@ so they have no rows.
 | Rate BackupDuck | — | The store's review page (reserved) |
 | About BackupDuck | "0.4.1" | About |
 
+On iPhone, appearance applies immediately to the current content and
+its presented sheets, including after media navigation installs its native container.
+System removes the app override; Light and Dark retain the saved choice across
+launches without changing the device's appearance setting.
+
 Footer links: "Diagnostics" (export and recent activity) · "Advanced Settings" (clear temporary files,
 only specific albums).
 
 In Advanced Settings, a failed clear replaces the group's footer with one line
 in the failure tone, "Couldn't clear: <reason>". The row's own Clear Now is the
-retry; there is no second Retry button.
+retry; there is no second Retry button. Cache rows retain one trailing clear
+action; cache directories are not exposed as navigation destinations.
+Notification permission and the app preference use one
+row: a request shows progress inside the action's retained slot, and the
+preference switch replaces that action after authorization. Returning from
+system settings refreshes the same row.
 
 Backing up earlier photos, pausing and keeping the screen on during a large
 batch belong to the hub.
@@ -126,7 +136,7 @@ person's words, read-only (it explains and names the page where the action
 lives; it starts nothing). Engineering detail and identifiers stay in
 Diagnostics.
 
-| Group | Sender (iPhone, iPad, Mac) | Receiver (Pixel) |
+| Group | Sender (iPhone, Mac) | Receiver (Pixel) |
 | --- | --- | --- |
 | Things to do | Check that photos are safe · Back up faster · Switch to another Pixel · Back up only some photos · Free up space on the Pixel | Check that photos are saved · Keep receiving in the background · Free up space on this Pixel · Connect another iPhone or Mac |
 | When something's wrong | Can't reach the Pixel · Some photos aren't backed up · A Live Photo can't be saved · Backup stopped | An iPhone or Mac can't connect · A photo wasn't saved to Photos · Storage is full and receiving paused · Receiving stopped · Auto cleanup didn't run |
@@ -171,10 +181,18 @@ Experiments page.
   navigation bar. The tiles only help users find rows; they never carry state.
 - **Mac:** the Settings position shows a list column (identity header,
   category rows) and a detail pane with a grouped form, as System Settings
-  does. ⌘, opens it. Pages below a category (media types, albums, album
-  browsing, folder details, help articles and updates) replace only the detail
-  pane. The list column and its selected category stay visible. Back in the
-  window toolbar (⌘[) returns one level with the category still selected.
+  does. ⌘, opens it. Supporting pages replace the detail pane. Album photo
+  browsing uses the full content area, temporarily hiding the category list so
+  its grid has the same usable width and density as other photo sources.
+  Switching to another sidebar position preserves the category, detail
+  stack, album grid and any open album photo viewer. Returning restores that
+  same content without a new entry or exit transition. Hidden settings pages do
+  not contribute search, toolbar actions or keyboard commands to another position.
+  The category selection is retained while browsing photos. Back in the
+  window toolbar and the menu-bar Back command (⌘[) return one level with the
+  category still selected. An open photo viewer replaces the settings title
+  and Back button with its own chrome; Escape cancels active search or closes the viewer rather than
+  acting as a general settings-back key. Backspace retains text editing.
   Diagnostics opens in this pane as an ordinary category detail, like Advanced
   Settings; it is not a sheet and has no separate close button. Media types use
   leading-label/trailing-switch rows. Album search lives in the native toolbar;
@@ -223,10 +241,16 @@ graph. Both Xcode and command-line Apple build paths bundle these resources.
 
 ### Apple preference details
 
-On iPhone and Mac, Auto Backup orders the automatic switch, Includes (Media
-Types and Albums), then Notifications. Includes explains once that the same
-scope applies when backing up earlier photos. Avoid "one-time import" in the
-automatic-backup footer; name the Backup or Overview destination instead.
+Auto Backup begins with one automatic switch and ends with Notifications.
+On iPhone, Includes holds Media Types and Albums. On Mac, a Photo Library
+section holds Media Types and Albums, followed by a Folders summary that opens
+the canonical folder preferences category. Photo Library choices apply only to
+the system library; folder file rules remain in each folder's settings. The one
+Mac automatic switch covers both sources, explained in one short footer; neither
+the folder list nor a folder detail adds another switch. The library scope
+footer explains once that the same choices apply when backing up earlier photos.
+Avoid "one-time import" in the automatic-backup footer; name the Backup or
+Overview destination instead when an earlier-photo action is described.
 
 Both Apple About pages begin with the original platform app icon, app name and
 one sentence about backing up to the person's Pixel. iPhone uses the continuous
@@ -240,5 +264,27 @@ Help on iPhone, Mac and Pixel uses the shared groups I want to… / 我想… an
 When something's wrong / 遇到问题时. Mac uses a grouped Form; iPhone uses the system searchable
 grouped list. Both iPhone album and Help searches explicitly use the always-visible
 native navigation drawer placement, inline title and visible navigation bar.
+The title and system Back button remain visible while search is active; cancelling
+search restores the unfiltered content without hiding and restoring the title bar.
 The iPhone Language row shows its secondary value and the outgoing
-arrow for the system-settings destination.
+arrow for the system-settings destination. The Mac Language detail retains the
+current language beside one named Open System Settings action.
+
+### Mac toolbar search and album choice
+
+Albums and Help use the same native toolbar search configuration as Folders
+and History. The system item starts as a compact magnifier; clicking it or ⌘F
+expands the native field and begins editing. AppKit owns rendering and editing
+feedback. The shared Mac preferred search width is 240 pt, with native toolbar
+compression when space is limited. Expansion and contraction retain the trailing
+edge and move neighbouring items through the native search item's transition;
+Reduce Motion adopts the settled layout directly. Escape cancels search and restores the compact item. Clicking content
+ends editing and restores the compact item without discarding the query; the
+query reappears when search is reopened. The original click continues to its
+content control. Permission and empty-library states
+retain their existing search visibility rules.
+
+The album browser uses one native toolbar button toggle. Choose This Album /
+Deselect This Album describes the action, and the system's selected appearance
+reflects the saved whole-album scope. Toggling saves immediately, keeps the
+browser open and retains the toolbar item's identity.

@@ -1,6 +1,10 @@
 import XCTest
 
+#if canImport(BackupDuckCatalog)
+@testable import BackupDuckCatalog
+#else
 @testable import BackupDuck
+#endif
 
 final class GridZoomTests: XCTestCase {
   // 402 pt wide phone grid: 1, 3, 5, 15 and 31 columns, gap 2 (0 when dense).
@@ -151,6 +155,31 @@ final class GridZoomTests: XCTestCase {
     let after = screen(probe, focus: moved, stage: CGPoint(x: 160, y: 260))
     XCTAssertEqual(before.x, after.x, accuracy: 1e-9)
     XCTAssertEqual(before.y, after.y, accuracy: 1e-9)
+  }
+
+  func testBlendReversalRetainsTheVisibleMixtureAndPhase() {
+    let outgoing = GridZoom.Blend(from: [3: 1, 5: 0], target: 5, curved: true, at: 0)
+    let held = outgoing.weights(at: 0.4)
+    XCTAssertEqual(held[3]!, 0.36, accuracy: 1e-9)
+    let reverse = GridZoom.Blend(from: held, target: 3, curved: true, at: 0.48)
+    XCTAssertEqual(reverse.weights(at: 0)[3]!, held[3]!, accuracy: 1e-9)
+    XCTAssertEqual(reverse.duration, 0.48, accuracy: 1e-9)
+    XCTAssertEqual(reverse.weights(at: 1)[3], 1)
+    let third = GridZoom.Blend(from: held.merging([15: 0]) { a, _ in a }, target: 15, curved: false, at: 0.48)
+    let halfway = third.weights(at: 0.5)
+    XCTAssertEqual(halfway.values.reduce(0, +), 1, accuracy: 1e-9)
+    XCTAssertEqual(halfway[3]!, held[3]! / 2, accuracy: 1e-9)
+    XCTAssertEqual(halfway[15], 0.5)
+  }
+
+  func testSettleDurationReachesSubpixelPoseAcrossLongAndInterruptedMoves() {
+    for target: CGFloat in [22, 80, 400, 1400] {
+      let model = GridZoom.Settle(start: 10, pitch: 134, focus: CGPoint(x: 200, y: 900), velocity: -300,
+        targetPitch: target, targetFocus: CGPoint(x: 100, y: 10))
+      let end = model.state(at: model.start + model.duration)
+      XCTAssertLessThan(abs(end.pitch - target), 0.05)
+      XCTAssertLessThan(hypot(end.focus.x - 100, end.focus.y - 10), 0.25)
+    }
   }
 
   func testOffsetClampsToContentAndInsets() {

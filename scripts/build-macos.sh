@@ -22,6 +22,10 @@ rm -f "$app/Contents/Resources/ThirdPartyLicenses-mac.json" "$app/Contents/Resou
 cp apps/apple/Resources/ThirdPartyNotices-mac-sparkle.txt "$app/Contents/Resources/"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
 cp apps/apple/Resources/DuckBrand.png "$app/Contents/Resources/"
+xcrun --sdk macosx actool --platform macosx --target-device mac \
+  --minimum-deployment-target "$MACOSX_DEPLOYMENT_TARGET" \
+  --compile "$PWD/$app/Contents/Resources" "$PWD/apps/apple/Resources/Illustrations.xcassets"
+test -s "$app/Contents/Resources/Assets.car"
 xcrun swift -module-cache-path build/SwiftModuleCache-mac scripts/export-menu-bar-icon.swift
 cp apps/apple/Resources/DuckMenuBar.pdf "$app/Contents/Resources/"
 xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \

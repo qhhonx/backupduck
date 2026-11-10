@@ -9,6 +9,10 @@ struct FolderRuleError: LocalizedError {
   var errorDescription: String? { detail }
 }
 
+struct FolderOverlapError: LocalizedError {
+  var errorDescription: String? { NSLocalizedString("folders_already_included", comment: "") }
+}
+
 struct FolderIssue: Codable {
   let reason: String
   let detail: String?
@@ -164,7 +168,7 @@ struct FolderSummary: Decodable, Equatable {
       if let other = try? URL(resolvingBookmarkData: source.bookmark, options: [.withSecurityScope, .withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale) {
         let otherPath = other.resolvingSymlinksInPath().standardizedFileURL.path
         guard path != otherPath, !path.hasPrefix(otherPath + "/"), !otherPath.hasPrefix(path + "/") else {
-          throw Bridge.Failure(code: "conflict")
+          throw FolderOverlapError()
         }
       }
     }
@@ -690,21 +694,45 @@ struct FolderSummary: Decodable, Equatable {
     if let id { command["source"] = id }
     return try JSONDecoder().decode(FolderPhotoPage.self, from: await call(command))
   }
+  func selectedBackupRepeatSources(_ photos: [FolderPhoto], receiver: String) async throws -> Set<String> {
+    guard backup.pairing?.receiverID == receiver else { throw Bridge.Failure(code: "conflict") }
+    if isPreview { return Set(photos.filter { $0.backup == "saved" }.map(\.source_id)) }
+    var repeats = Set<String>()
+    for (id, rows) in Dictionary(grouping: photos, by: \.folder_id) {
+      for offset in stride(from: 0, to: rows.count, by: 400) {
+        let data = try await call(["action": "selected_repeat_sources", "source": id, "receiver": receiver,
+          "selections": rows.dropFirst(offset).prefix(400).map { [$0.relative, $0.revision] }])
+        repeats.formUnion(try JSONDecoder().decode([String].self, from: data))
+      }
+    }
+    guard backup.pairing?.receiverID == receiver else { throw Bridge.Failure(code: "conflict") }
+    return repeats
+  }
   func backUp(_ photos: [FolderPhoto]) async -> Bool {
     guard let receiver = backup.pairing?.receiverID else { error = NSLocalizedString("folder_pair_first", comment: ""); return false }
+    return await backUp(photos, receiver: receiver)
+  }
+  func backUp(_ photos: [FolderPhoto], receiver: String, repeatSources: Set<String> = []) async -> Bool {
+    guard backup.pairing?.receiverID == receiver else { error = NSLocalizedString("folder_receiver_changed", comment: ""); return false }
     do {
       if isPreview { return true }
       for (id, rows) in Dictionary(grouping: photos, by: \.folder_id) {
         guard let source = sources.first(where: { $0.id == id }), source.receiver == nil || source.receiver == receiver else { throw Bridge.Failure(code: "conflict") }
         for offset in stride(from: 0, to: rows.count, by: 400) {
-          _ = try await call(["action": "request_selected", "source": id, "receiver": receiver, "selections": rows.dropFirst(offset).prefix(400).map { [$0.relative, $0.revision] }])
+          guard backup.pairing?.receiverID == receiver else { throw Bridge.Failure(code: "conflict") }
+          _ = try await call(["action": "request_selected", "source": id, "receiver": receiver,
+            "selections": rows.dropFirst(offset).prefix(400).map { [$0.relative, $0.revision] },
+            "repeat_sources": Array(repeatSources)])
         }
         if let i = sources.firstIndex(where: { $0.id == id }), sources[i].receiver == nil { sources[i].receiver = receiver; save() }
       }
       // Durable membership is already saved. Refresh and transfer execution must
       // not hold the selection action open or delay its registration feedback.
       error = nil; revision += 1
-      Task { await refreshFacts(); await backup.refresh(); await BackgroundTransfer.shared.kick() }
+      Task {
+        if backup.pairing?.receiverID == receiver { _ = await backup.setPaused(false, discoverAfterResume: false) }
+        await refreshFacts(); await backup.refresh(); await BackgroundTransfer.shared.kick()
+      }
       return true
     } catch { self.error = error.localizedDescription; return false }
   }

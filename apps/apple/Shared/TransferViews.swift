@@ -5,6 +5,11 @@ struct AssetThumbnail: View {
   let sourceID: String
   var size: CGFloat = 56
   var cornerRadius: CGFloat = 8
+  /// Opt in when this thumbnail is a browsable photo, rather than a small cover.
+  var mediaKind: String? = nil
+  #if os(iOS)
+  @State private var mediaAsset: PHAsset?
+  #endif
   #if os(macOS)
     @AppStorage("macListThumbnails") private var enabled = true
   #endif
@@ -36,10 +41,22 @@ struct AssetThumbnail: View {
             .font(.system(size: 22)).symbolVariant(.none)
           #endif
       }
-    }.frame(width: size, height: size).clipped().clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    }.frame(width: size, height: size).clipped()
+      #if os(iOS)
+      .overlay {
+        if let mediaKind {
+          NativeThumbnailMediaMarks(kind: mediaKind, asset: mediaAsset)
+            .allowsHitTesting(false).accessibilityHidden(true)
+        }
+      }
+      #endif
+      .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
       .task(id: requestKey) {
         Self.pipeline.cancel(request)
         image = nil
+        #if os(iOS)
+        mediaAsset = nil
+        #endif
         requestToken = UUID()
         let token = requestToken
         #if os(macOS)
@@ -49,6 +66,9 @@ struct AssetThumbnail: View {
           let asset = PHAsset.fetchAssets(withLocalIdentifiers: [sourceID], options: photoLibraryFetchOptions())
             .firstObject
         else { return }
+        #if os(iOS)
+        mediaAsset = asset
+        #endif
         request = Self.pipeline.request(asset, pixels: size * 2) { value, _ in
           guard requestToken == token else { return }
           if let value { image = value }

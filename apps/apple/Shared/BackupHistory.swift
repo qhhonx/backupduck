@@ -14,6 +14,7 @@ struct HistoryPhoto: Identifiable, Equatable {
   let sortValue: Int64?
   let source: String
   let job: BackupJob?
+  let preparationRevision: String?
   let preparationError: String?
   /// The preparation request to retry when there is no transfer yet.
   let preparationRequest: String?
@@ -21,16 +22,16 @@ struct HistoryPhoto: Identifiable, Equatable {
   init?(_ item: BackupTaskItem) {
     id = item.id; cursor = item.cursor; sortValue = item.sort_value
     if let job = item.job {
-      self.job = job; source = job.asset.source_id; preparationError = nil; preparationRequest = nil
+      self.job = job; source = job.asset.source_id; preparationRevision = nil; preparationError = nil; preparationRequest = nil
     } else if let preparation = item.preparation {
-      job = nil; source = preparation.source; preparationError = preparation.error_code
+      job = nil; source = preparation.source; preparationRevision = preparation.revision; preparationError = preparation.error_code
       preparationRequest = preparation.id
     } else { return nil }
   }
 
   init(job: BackupJob) {
     id = "job-\(job.id)"; cursor = job.id; sortValue = job.sortValue
-    source = job.asset.source_id; self.job = job; preparationError = nil; preparationRequest = nil
+    source = job.asset.source_id; self.job = job; preparationRevision = nil; preparationError = nil; preparationRequest = nil
   }
 
   enum Mark: Equatable { case saved, sending, saving, needsYou }
@@ -117,6 +118,7 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
   @Published private(set) var hasMore = false
   @Published private(set) var loading = false
   @Published private(set) var failed = false
+  @Published private(set) var resolved = false
   private var receiver: String?
   private var state = "all"
   private var generation = 0
@@ -125,18 +127,16 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
   private struct Page: Decodable { let items: [BackupTaskItem]; let summary: SenderSummary }
 
   func reload(receiver: String?, state: String = "all") async {
-    #if os(macOS)
     let sameContext = self.receiver == receiver && self.state == state
-    #endif
     self.receiver = receiver
     self.state = state
     generation += 1
     let current = generation
-    guard let receiver else { photos = []; attention = []; total = 0; return }
+    guard let receiver else { photos = []; attention = []; total = 0; hasMore = false; failed = false; loading = false; resolved = true; return }
     loading = true; failed = false
+    defer { if current == generation { loading = false; if !Task.isCancelled { resolved = true } } }
     do {
       var first = try await page(receiver: receiver, state: state, after: nil)
-      #if os(macOS)
       // A background state observation refreshes the loaded window, rather than
       // discarding older pages underneath the person's scroll anchor.
       let depth = sameContext ? photos.count : 0
@@ -150,19 +150,27 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
         items += fresh; pageCount = fresh.isEmpty ? 0 : next.items.count
       }
       first = Page(items: items, summary: first.summary)
-      #endif
       let problems = state == "attention" ? first : try await page(receiver: receiver, state: "attention", after: nil)
-      guard current == generation else { return }
+      guard current == generation, !Task.isCancelled else { return }
       photos = first.items.compactMap(HistoryPhoto.init)
       attention = problems.items.compactMap(HistoryPhoto.init)
       total = first.summary.count(for: state)
-      #if os(macOS)
       hasMore = pageCount == Self.pageSize
-      #else
-      hasMore = first.items.count == Self.pageSize
-      #endif
-    } catch { if current == generation { failed = true } }
-    if current == generation { loading = false }
+    } catch { if current == generation && !Task.isCancelled { failed = true } }
+  }
+
+  func matching(_ target: HistoryPhoto) -> HistoryPhoto? {
+    let candidates = photos.filter { candidate in
+      guard candidate.source == target.source else { return false }
+      if let expected = target.job?.receiverID, let actual = candidate.job?.receiverID { return expected == actual }
+      return true
+    }
+    if let revision = target.job?.asset.revision ?? target.preparationRevision {
+      if let exact = candidates.first(where: { $0.id == target.id && ($0.job?.asset.revision ?? $0.preparationRevision) == revision }) { return exact }
+      if let matchingRevision = candidates.first(where: { ($0.job?.asset.revision ?? $0.preparationRevision) == revision }) { return matchingRevision }
+      return nil
+    }
+    return candidates.first(where: { $0.id == target.id }) ?? candidates.first
   }
 
   func loadMore() async {
@@ -174,9 +182,10 @@ enum HistoryCause: Int, CaseIterable, Identifiable {
       let next = try await page(receiver: receiver, state: state, after: (last.cursor, last.sortValue ?? 0))
       guard current == generation else { return }
       let known = Set(photos.map(\.id))
-      photos += next.items.compactMap(HistoryPhoto.init).filter { !known.contains($0.id) }
+      let fresh = next.items.compactMap(HistoryPhoto.init).filter { !known.contains($0.id) }
+      photos += fresh
       if state == "attention" { attention = photos }
-      hasMore = next.items.count == Self.pageSize
+      hasMore = !fresh.isEmpty && next.items.count == Self.pageSize
     } catch { if current == generation { failed = true } }
   }
 
@@ -203,119 +212,95 @@ struct BackupHistoryView: View {
   @ObservedObject var model: BackupModel
   var filter = "all"
   var initialFocus: HistoryPhoto? = nil
+  var initialFocusRevision = 0
   var columns: Int? = nil
   var resize: (Int) -> Void = { _ in }
   var mediaFilter: LibraryFilter = .all
   var search = ""
   var clearFilters: () -> Void = {}
-  /// The Mac keeps the page mounted for its scroll anchor; it observes only while shown.
+  /// The Mac keeps the page mounted for its scroll anchor.
   var active = true
   #if os(macOS)
   @StateObject private var gridState = MacHistoryGridState()
+  var visibleRange: MacVisibleRange? = nil
+  var selectionChanged: (Int) -> Void = { _ in }
   #endif
   var scopeChanged: (String, Int) -> Void = { _, _ in }
   @StateObject private var history = BackupHistoryModel()
   @StateObject private var photoRouter = BackupPhotoRouter()
   @State private var retrying: HistoryCause?
   @State private var livePhotoHelp = false
-  @State private var didFocus = false
+  @State private var focusedHistoryID: String?
+  @State private var nativePhotoPresented = false
   @Environment(\.dynamicTypeSize) private var textSize
-  #if os(iOS)
-    private let spacing: CGFloat = 2
-    private let minimumTile: CGFloat = 86
-  #else
-    private let spacing: CGFloat = 4
-    private let minimumTile: CGFloat = 112
-  #endif
+
 
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
 
   var body: some View {
     #if os(macOS)
     MacHistoryGrid(history: history, state: gridState, filter: filter, type: mediaFilter, search: search,
-      columns: columns ?? MacLibraryDensity.standard, initialFocus: initialFocus, clearFilters: clearFilters,
+      columns: columns ?? MacLibraryDensity.standard, initialFocus: initialFocus, initialFocusRevision: initialFocusRevision, clearFilters: clearFilters,
       resize: resize, retry: { Task { await reload() } }, active: active)
-      .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(filter)|\(active)") {
-        if active { await reload() }
+      .onReceive(gridState.navigation.visibleRange.$title) { title in
+        if visibleRange?.title != title { visibleRange?.title = title }
+      }
+      .onReceive(gridState.$selection) { selectionChanged($0.count) }
+      .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(filter)") {
+        await reload()
       }
     #else
-    ScrollViewReader { position in
-    ScrollView {
-      LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-        #if os(iOS)
-        if !history.photos.isEmpty {
+    IOSHistoryGrid(history: history, router: photoRouter, model: model, columns: columns,
+      focus: focusedHistoryID, support: AnyView(historySupport), dayTitle: dayTitle,
+      presented: { nativePhotoPresented = $0 })
+      .ignoresSafeArea(.container)
+      .background(Color(uiColor: MediaGridSurface.background))
+      .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") {
+        await reload()
+        if focusedHistoryID == nil, let initialFocus, history.resolved, !history.loading {
+          while history.matching(initialFocus) == nil, history.hasMore, !Task.isCancelled {
+            let count = history.photos.count
+            await history.loadMore()
+            if history.photos.count == count { break }
+          }
+          if !Task.isCancelled { focusedHistoryID = history.matching(initialFocus)?.id }
+        }
+      }
+      .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
+      .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
+    #endif
+  }
+
+  #if os(iOS)
+  private var historySupport: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      if !history.photos.isEmpty {
         Text(String(format: NSLocalizedString(filter == "attention" ? "records_attention_scope" : "records_scope", comment: ""), receiverName, history.total.formatted()))
           .font(.subheadline).foregroundStyle(.secondary)
           .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
-        }
-        #endif
-        if !history.attention.isEmpty { needsYou }
-        if history.failed && history.photos.isEmpty {
-          ContentUnavailableView {
-            Label("records_load_failed", systemImage: "exclamationmark.triangle")
-          } description: { Text("records_empty_note") } actions: {
-            Button("records_try_again") { Task { await reload() } }
-          }.duckFillsScrollHeight()
-        } else if !history.loading && history.photos.isEmpty {
-          ContentUnavailableView {
-            DuckIllustration(pose: .empty, size: 112)
-            Text("records_empty")
-          } description: { Text("records_empty_note") }.duckFillsScrollHeight()
-        }
-        ForEach(history.days, id: \.0) { day, photos in
-          Section {
-            LazyVGrid(columns: columns.map { Array(repeating: GridItem(.flexible(), spacing: spacing), count: $0) } ?? [GridItem(.adaptive(minimum: minimumTile), spacing: spacing)], spacing: spacing) {
-              ForEach(photos) { photo in
-                BackupPhotoButton(photo: photo, collection: history.photos, router: photoRouter) { HistoryTile(photo: photo) }
-                  .buttonStyle(.plain)
-                  .id(photo.id)
-                  .accessibilityIdentifier("history.photo.\(photo.id)")
-                  .accessibilityLabel(Text(tileLabel(photo)))
-                  .onAppear { if photo.id == history.photos.last?.id { Task { await history.loadMore() } } }
-              }
-            }
-            .padding(.bottom, 20)
-          } header: {
-            Text(dayTitle(day)).font(.headline)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.horizontal, 16).padding(.vertical, 8)
-              .background(DuckRole.background)
-          }
-        }
-        if history.loading && history.photos.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(40) }
-        if !history.photos.isEmpty {
-          // Said once for every photo: cloud backup is Google Photos' fact, not ours (P3).
-          Text("records_cloud_footer").font(.footnote).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16).padding(.vertical, 20)
-        }
       }
-    }
-    .background(DuckRole.background)
-    .task(id: "\(model.pairing?.receiverID ?? "")|\(model.queueRevision)") {
-      await reload()
-      if !didFocus, let initialFocus {
-        // A deep entry may be beyond the first page; retain the core's ordering.
-        while !history.photos.contains(where: { $0.id == initialFocus.id }), history.hasMore, !Task.isCancelled {
-          let count = history.photos.count
-          await history.loadMore()
-          if history.photos.count == count { break }
+      if !history.attention.isEmpty { needsYou }
+      if history.failed && history.photos.isEmpty {
+        ContentUnavailableView {
+          Label("records_load_failed", systemImage: "exclamationmark.triangle")
+        } description: { Text("records_empty_note") } actions: {
+          Button("records_try_again") { Task { await reload() } }
         }
-        await Task.yield()
-        position.scrollTo(initialFocus.id, anchor: .top)
-        didFocus = true
+      } else if history.resolved && !history.loading && history.photos.isEmpty {
+        ContentUnavailableView {
+          DuckIllustration(pose: .empty, size: 112)
+          Text("records_empty")
+        } description: { Text("records_empty_note") }
       }
+      if (!history.resolved || history.loading) && history.photos.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(40) }
     }
-    .modifier(BackupPhotoPresentation(router: photoRouter, model: model))
-    .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
-    }
-    #endif
   }
+  #endif
 
   private func reload() async {
     #if os(iOS)
     // Do not replace paged history membership under a presented photo.
-    guard photoRouter.preview == nil, photoRouter.fallback == nil else { return }
+    guard !nativePhotoPresented, photoRouter.preview == nil, photoRouter.fallback == nil else { return }
     #endif
     await history.reload(receiver: model.pairing?.receiverID, state: filter)
     // An empty page shows only its title; the empty state says the rest.
@@ -352,7 +337,7 @@ struct BackupHistoryView: View {
         Text(cause.note).font(.footnote).foregroundStyle(.secondary)
         HStack(spacing: 6) {
           ForEach(photos.prefix(5)) { photo in
-            BackupPhotoButton(photo: photo, collection: photos, router: photoRouter) { HistoryTile(photo: photo, showsMark: false).frame(width: 40, height: 40) }
+            BackupPhotoButton(photo: photo, collection: photos, router: photoRouter, surface: .card) { HistoryTile(photo: photo).frame(width: 40, height: 40) }
               .buttonStyle(.plain)
           }
         }.padding(.top, 4)
@@ -405,22 +390,12 @@ struct BackupHistoryView: View {
     return day.formatted(sameYear ? .dateTime.month().day().weekday() : .dateTime.year().month().day())
   }
 
-  private func tileLabel(_ photo: HistoryPhoto) -> String {
-    let state: String
-    switch photo.mark {
-    case .saved: state = "records_fact_saved"
-    case .sending: state = "records_mark_sending"
-    case .saving: state = "records_fact_saving"
-    case .needsYou: state = "records_needs_you"
-    }
-    return NSLocalizedString(state, comment: "")
-  }
+
 }
 
-/// A square photo with its backup mark in the corner.
+/// A compact problem-card cover; full timeline tiles use the native media cell.
 struct HistoryTile: View {
   let photo: HistoryPhoto
-  var showsMark = true
 
   var body: some View {
     GeometryReader { geometry in
@@ -435,31 +410,8 @@ struct HistoryTile: View {
       #endif
     }
     .aspectRatio(1, contentMode: .fit)
-    .clipShape(RoundedRectangle(cornerRadius: showsMark ? 2 : 6))
-    .overlay(alignment: .bottomTrailing) { if showsMark { mark.padding(5) } }
-    .overlay(alignment: .bottomLeading) {
-      if showsMark, photo.job?.asset.kind == "video" || photo.job?.asset.kind == "motion" {
-        Image(systemName: photo.job?.asset.kind == "video" ? "video.fill" : "livephoto")
-          .font(.caption2.weight(.semibold)).foregroundStyle(.white).shadow(radius: 2) // design-exception: glyph over a photo
-          .padding(5)
-      }
-    }
+    .clipShape(RoundedRectangle(cornerRadius: 6))
     .contentShape(Rectangle())
-  }
-
-  /// design/library.md § Tile marks: white glyphs with a soft shadow, like the
-  /// media marks; nothing once the Pixel has the photo.
-  @ViewBuilder private var mark: some View {
-    switch photo.mark {
-    case .saved: EmptyView()
-    case .sending, .saving: glyph(photo.mark == .sending ? "arrow.up" : "clock")
-    case .needsYou: glyph("exclamationmark.triangle.fill")
-    }
-  }
-
-  private func glyph(_ symbol: String) -> some View {
-    Image(systemName: symbol).font(.caption.weight(.semibold))
-      .foregroundStyle(.white).shadow(color: .black.opacity(0.45), radius: 2, y: 0.5)  // design-exception: tile marks on photos (library.md)
   }
 }
 
@@ -512,6 +464,13 @@ struct PhotoBackupFacts: View {
   let job: BackupJob?
   let receiverName: String
   var needsYou = false
+  var awaitingReceipt = false
+
+  var isAwaitingReceipt: Bool {
+    guard let job, ["queued", "running"].contains(job.state),
+      job.processing != "failed", !needsYou else { return false }
+    return awaitingReceipt || (job.totalBytes > 0 && job.confirmedBytes >= job.totalBytes)
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -525,12 +484,17 @@ struct PhotoBackupFacts: View {
   @ViewBuilder private var sentFact: some View {
     let name = receiverName
     if let job {
-      switch job.state {
-      case "received": fact(.done, format("records_fact_sent", name), symbol: "clock", time: job.receivedAt ?? job.stateChangedAt)
-      case "failed": fact(.problem, format("records_fact_not_sent", name), status: errorText(job.errorCode))
-      case "running": fact(.active, format("records_fact_sending", name))
-      case "waiting": fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("state_waiting", comment: ""))
-      default: fact(.active, format("records_fact_waiting", name))
+      if isAwaitingReceipt {
+        fact(.active, NSLocalizedString("photo_viewer_confirming_receipt", comment: ""))
+      } else {
+        switch job.state {
+        case "received": fact(.done, format("records_fact_sent", name), symbol: "clock", time: job.receivedAt ?? job.stateChangedAt)
+        case "failed": fact(.problem, format("records_fact_not_sent", name), status: errorText(job.errorCode))
+        case "running": fact(.active, format("records_fact_sending", name))
+        case "waiting": fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("state_waiting", comment: ""))
+        case "paused": fact(.active, format("records_fact_waiting", name), status: NSLocalizedString("state_paused", comment: ""))
+        default: fact(.active, format("records_fact_waiting", name))
+        }
       }
     } else if needsYou {
       // A preparation failure without its error code does not establish the cause.
@@ -546,7 +510,8 @@ struct PhotoBackupFacts: View {
     case ("received", "failed"):
       fact(.problem, NSLocalizedString("records_fact_not_saved", comment: ""),
         status: NSLocalizedString(job?.processingError == "conversion_required" ? "state_conversion_required" : "records_fact_not_saved_note", comment: ""))
-    case ("received", _): fact(.active, NSLocalizedString("records_fact_saving", comment: ""))
+    case ("received", "pending"): fact(.active, NSLocalizedString("records_fact_saving", comment: ""))
+    case ("received", _): fact(.active, NSLocalizedString("photo_viewer_confirming_photos", comment: ""))
     default: fact(.unknown, NSLocalizedString("records_fact_not_yet_saved", comment: ""), status: NSLocalizedString("records_after_sent", comment: ""))
     }
   }
@@ -561,7 +526,10 @@ struct PhotoBackupFacts: View {
   }
 
   private func fact(_ state: FactState, _ title: String, status: String? = nil, symbol: String? = nil, time: Int64? = nil) -> some View {
-    HStack(alignment: .firstTextBaseline, spacing: 12) {
+    let detail = [status, time.map {
+      Date(timeIntervalSince1970: Double($0) / 1000).formatted(date: .abbreviated, time: .shortened)
+    }].compactMap { $0 }.joined(separator: "\n")
+    return HStack(alignment: .firstTextBaseline, spacing: 12) {
       Group {
         switch state {
         case .done: Image(systemName: symbol ?? "checkmark.circle.fill").foregroundStyle(symbol == "clock" ? DuckRole.accent : DuckRole.saved)
@@ -572,11 +540,11 @@ struct PhotoBackupFacts: View {
       }.font(.body)
       VStack(alignment: .leading, spacing: 3) {
         Text(title).font(.body.weight(.medium))
-        if let status { Text(status).font(.subheadline).foregroundStyle(.secondary) }
-        if let time {
-          Text(Date(timeIntervalSince1970: Double(time) / 1000).formatted(date: .abbreviated, time: .shortened))
-            .font(.subheadline).foregroundStyle(.secondary)
-        }
+        // A space retains the same font metrics as a populated supporting line.
+        // An empty Text can reserve a shorter line, especially with Dynamic Type.
+        Text(verbatim: detail.isEmpty ? " " : detail).font(.subheadline).foregroundStyle(.secondary)
+          .lineLimit(1...).fixedSize(horizontal: false, vertical: true)
+          .accessibilityHidden(detail.isEmpty)
       }
     }
   }
@@ -595,6 +563,7 @@ struct PhotoInformationLayout: View {
   var unavailable = false
   var unpaired = false
   var preparing = false
+  var awaitingReceipt = false
   var allowsRetry = true
   var showHistory: (() -> Void)? = nil
   var actionKey: String? = nil
@@ -647,7 +616,7 @@ struct PhotoInformationLayout: View {
         else if unavailable { Text("records_load_failed").font(.subheadline).foregroundStyle(.secondary) }
         else if unpaired { Text("hub_not_paired").font(.subheadline).foregroundStyle(.secondary) }
         else if let backupFacts { backupFacts }
-        else if job != nil || needsYou || preparing { PhotoBackupFacts(job: job, receiverName: receiverName, needsYou: needsYou) }
+        else if job != nil || needsYou || preparing { PhotoBackupFacts(job: job, receiverName: receiverName, needsYou: needsYou, awaitingReceipt: awaitingReceipt) }
         else { Label("library_info_not_backed_up", systemImage: "circle.dashed").font(.subheadline).foregroundStyle(.secondary) }
         if let actionKey, let performAction {
           Button(LocalizedStringKey(actionKey), action: performAction)
@@ -734,12 +703,21 @@ struct PhotoBackupInfo: View {
 }
 
 /// History keeps its lazy timeline mounted while the library viewer owns the media.
+enum BackupPhotoSurface {
+  case page, card
+  #if os(iOS)
+  var background: UIColor { self == .card ? DuckRole.groupedSurfaceUIColor : DuckRole.backgroundUIColor }
+  #endif
+}
+
 @MainActor final class BackupPhotoRouter: ObservableObject {
   let library = PhotoLibraryModel()
   @Published var fallback: HistoryPhoto?
   #if os(iOS)
   @Published var preview: IOSPreviewItem?
+  @Published var hiddenSource: String?
   var assets: [PHAsset] = []
+  private(set) var surface: BackupPhotoSurface = .page
   #endif
   var frames: [String: CGRect] = [:]
   #if os(macOS)
@@ -778,7 +756,14 @@ struct PhotoBackupInfo: View {
   }
   #endif
 
-  func open(_ photo: HistoryPhoto, collection: [HistoryPhoto], frame: CGRect) {
+  func open(_ photo: HistoryPhoto, collection: [HistoryPhoto], frame: CGRect, surface: BackupPhotoSurface = .page, ownsSourceVacancy: Bool = false) {
+    #if os(iOS)
+    self.surface = surface
+    library.previewOwnsVacancy = ownsSourceVacancy
+    if ownsSourceVacancy {
+      library.previewVisibility = { [weak self] in self?.hiddenSource = $0 }
+    } else { library.previewVisibility = nil }
+    #endif
     #if os(macOS)
     if photo.job?.asset.metadata?["source_type"] == "folder" {
       Task { await openFolder(photo, collection: collection) }
@@ -796,7 +781,7 @@ struct PhotoBackupInfo: View {
     #if os(iOS)
     assets = context.isEmpty ? [asset] : context
     library.previewFrame = { [weak self] in self?.frames[$0] }
-    preview = IOSPreviewItem(asset: asset, frame: frame, poster: library.thumbnails.poster(for: asset))
+    preview = IOSPreviewItem(asset: asset, frame: frame, poster: library.thumbnails.poster(for: asset), background: surface.background)
     #else
     if let macPresent { macPresent(.photo(asset, context.isEmpty ? [asset] : context, photo)) }
     else { MacPhotoViewerWindow.open(asset: asset, library: library, collection: context.isEmpty ? [asset] : context) }
@@ -812,12 +797,13 @@ struct BackupPhotoButton<Content: View>: View {
   let photo: HistoryPhoto
   let collection: [HistoryPhoto]
   @ObservedObject var router: BackupPhotoRouter
+  var surface: BackupPhotoSurface = .page
   @ViewBuilder var content: () -> Content
   @State private var frame = CGRect.zero
   var body: some View {
     #if os(iOS)
-    Button { router.open(photo, collection: collection, frame: frame) } label: { content() }
-      .buttonStyle(.plain).background(geometry)
+    Button { router.open(photo, collection: collection, frame: frame, surface: surface) } label: { content() }
+      .buttonStyle(DuckMediaButtonStyle()).background(geometry)
     #else
     content().contentShape(Rectangle()).onTapGesture(count: 2, perform: openMacPhoto)
       .accessibilityAddTraits(.isButton)
@@ -839,7 +825,7 @@ struct BackupPhotoPresentation: ViewModifier {
   let model: BackupModel
   func body(content: Content) -> some View {
     #if os(iOS)
-    content.background(IOSRecordedPhotoPresentation(photo: router.fallback, model: model, frame: { router.frames[$0] }) { router.fallback = nil })
+    content.background(IOSRecordedPhotoPresentation(photo: router.fallback, model: model, frame: { router.frames[$0] }, background: router.surface.background) { router.fallback = nil })
       .background(IOSPreviewPresentation(item: router.preview, library: router.library, collection: router.assets) { router.preview = nil })
     #else
     content.sheet(item: $router.fallback) { PhotoBackupDetail(photo: $0, model: model) }

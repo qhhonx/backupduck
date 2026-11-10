@@ -47,6 +47,9 @@ internal class CatalogScenario(json: JSONObject) {
     val showReserved: Boolean = json.optBoolean("show_reserved", false)
     /** Explicit update-check result, never a network request or downloadable package. */
     val updates: JSONObject = json.optJSONObject("updates") ?: JSONObject().put("state","current")
+    /** Explicit synthetic observations for grid-duration and unavailable-preview review. */
+    val videoDurations: JSONObject = json.optJSONObject("video_durations") ?: JSONObject()
+    val unavailablePreviews: List<String> = json.optJSONArray("unavailable_previews").strings()
     val core: Map<String, List<Answer>> = (json.optJSONObject("core") ?: JSONObject()).let { core ->
         core.keys().asSequence().associateWith { op ->
             val entry = core.get(op)
@@ -93,7 +96,13 @@ internal object CatalogRuntime {
         ReceiverEnvironment.openGalleryPhoto = { context, intent ->
             File(context.getExternalFilesDir(null), "viewer-photos-intent.txt").writeText(intent.toUri(0))
         }
-        ReceiverEnvironment.previewImage = CatalogMedia::draw
+        ReceiverEnvironment.previewImage = { item, width, height ->
+            if (item.id in current?.unavailablePreviews.orEmpty()) null else CatalogMedia.draw(item, width, height)
+        }
+        ReceiverEnvironment.videoDuration = { item, signal ->
+            signal.throwIfCanceled()
+            current?.videoDurations?.optLong(item.id)?.takeIf { it > 0 }
+        }
         ReceiverEnvironment.metadataFiles = CatalogMedia::originals
         ReceiverEnvironment.openPhotoLocation = { context, intent ->
             File(context.getExternalFilesDir(null), "metadata-geo-intent.txt").writeText(intent.toUri(0))

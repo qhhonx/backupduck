@@ -54,7 +54,6 @@
 "state_not_queued" = "尚未加入备份";
 "task_filter" = "状态";
 
-"pair_receiver_desktop" = "连接接收设备";
 
 "desktop_pair_no_network" = "这台 Mac 没连上网络，连上 Wi‑Fi 后再试。";
 "desktop_pair_failed" = "没能准备好连接码，再试一次。";
@@ -65,7 +64,6 @@
 "error_low_space" = "Pixel 空间不足，释放空间后会自动重试。";
 "error_local_free_space" = "本机空间不足，释放空间后会自动继续准备原片。";
 "error_local_cache_budget" = "临时文件已达上限，传完一批后会自动继续，也可以在设置中调高上限。";
-"pairing_unlock_wait" = "正在读取已连接的设备。如 macOS 请求访问钥匙串，请在系统弹窗中完成授权。";
 
 
 "nav_backup" = "备份";
@@ -75,11 +73,9 @@
 // Structured background diagnostics
 
 // Desktop navigation and settings states
-"sidebar_manage" = "管理";
 "storage_settings_invalid" = "请选择支持的空间或日志保留范围。";
 
 
-"device_identity" = "设备身份";
 "device_name" = "设备名称";
 "device_rename" = "修改设备名称";
 "device_name_note" = "选择容易辨认的名字。修改名称不会改变已连接的设备和备份记录。";
@@ -112,7 +108,6 @@
 
 "state_scanned" = "已扫描";
 "history_state_not_started" = "尚未开始图库扫描";
-"source_photo_unavailable" = "照片暂不可用";
 
 
 "updates_title" = "版本与更新";
@@ -149,7 +144,6 @@
 // Desktop folder sources
 "nav_sources" = "备份来源";
 "folder_choose" = "选择文件夹";
-"folder_remove" = "移除来源";
 "folder_automatic" = "自动备份";
 "folder_scan_note" = "包含子文件夹中的照片和视频。";
 "folder_scanning" = "检查中…";
@@ -167,7 +161,6 @@
 "folder_settling" = "正在检查待备份文件…";
 "folder_unsupported_media" = "此文件无法读取为支持的照片或视频。";
 
-"sidebar_tasks" = "备份任务";
 
 "folder_more" = "更多";
 
@@ -197,8 +190,6 @@
 
 "mac_nav_backup" = "备份概览";
 
-"mac_sidebar_library" = "来源";
-"list_thumbnails" = "显示照片和视频缩略图";
 "folder_list_layout" = "文件列表显示方式";
 "folder_list_flat" = "平铺";
 "folder_list_tree" = "按文件夹";
@@ -209,7 +200,6 @@
 "folder_global_wait" = "已安排；请恢复全局备份以继续。";
 "folder_issue_missing" = "文件已移动或删除，原路径不再可用。";
 "folder_retry_requested" = "已安排文件重试";
-"mac_library_existing_note" = "扫描你允许访问的已有照片、视频、实况和连拍。只暂停扫描时，已排队文件继续传输。";
 
 "folder_auto_enabled" = "自动备份已开启";
 
@@ -244,7 +234,6 @@
 
 "close" = "关闭";
 
-"design_saved_count" = "%d / %d 个文件已保存到 Pixel 相册";
 
 "error_conversion_required" = "此文件需要兼容转换。可在 Pixel 设置中开启后重试；转换可能重新编码媒体。";
 
@@ -265,7 +254,6 @@
 "apple_language" = "语言";
 "apple_language_open_settings" = "在系统设置中更改";
 "mac_receiver_connection_note" = "让 Mac 与 Pixel 连接可互通的同一局域网；VPN 需允许局域网连接。";
-"design_cloud_boundary" = "已保存表示文件已加入 Pixel 相册，Google 相册云端备份需另行确认。";
 "apple_retry_failed" = "重试请求未提交，请在当前窗口重试。";
 "apple_selected_backup_failed" = "未能加入备份，选择已保留。请重试。";
 "apple_selected_receiver_needed" = "请先连接 Pixel 再备份所选，选择已保留。";
@@ -294,12 +282,6 @@
 "mac_folder_recover_operation" = "恢复未完成操作";
 "mac_folder_ignore_applied_recovery" = "忽略已生效，但记录尚未保存。请恢复未完成操作；原片保留。";
 
-"apple_display_language" = "显示与语言";
-"apple_local_storage" = "本机存储";
-"apple_help_about" = "帮助与关于";
-
-
-"mac_backup_album_failed_count" = "%d 个文件未保存到 Pixel 相册";
 
 
 
@@ -315,29 +297,6 @@
 
 
 
-"mac_fidelity_help_connection" = "连接";
-
-"mac_fidelity_help_library" = "图库备份";
-
-"mac_fidelity_help_folders" = "文件夹与规则";
-
-"mac_fidelity_help_background" = "后台与暂停";
-
-"mac_fidelity_help_results" = "接收、保存与云端";
-
-"mac_fidelity_help_recovery" = "失败恢复与诊断";
-
-"mac_fidelity_help_permissions" = "权限与空间";
-
-
-
-
-
-
-
-"mac_fidelity_phase_received" = "原片持久保存并校验，相册处理尚未结束。";
-
-"mac_fidelity_phase_published" = "文件已加入 Pixel 系统相册。";
 
 
 
@@ -346,17 +305,30 @@
 
 
 
-"apple_history_progress_title" = "历史备份进度";
 
 
 
 
-"mac_fidelity_existing_photos_title" = "备份已有照片";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 "mac_fidelity_thumbnail_title" = "显示缩略图";
 
-"mac_fidelity_thumbnail_note" = "仅加载可见项，关闭可减少读取和解码。";
 
 
 
@@ -385,71 +357,40 @@
 
 
 
-"mac_fidelity_help_pair_direction" = "连接方向";
-
-"mac_fidelity_help_pair_title" = "Mac 显示码，Pixel 扫描";
-
-"mac_fidelity_help_pair_note" = "操作路径：接收设备 → 显示 Mac 连接码。二维码有效期来自真实协议。";
-
-"mac_fidelity_help_network" = "网络与 VPN";
-
-"mac_fidelity_help_lan" = "同一局域网";
 
 
 
-"mac_fidelity_help_new_existing" = "新增与已有";
 
 
-"mac_fidelity_help_frozen_history" = "独立扫描冻结范围，扫描过程中新增资产不混入已有范围。";
-
-"mac_fidelity_help_selected" = "手动备份所选";
-
-"mac_fidelity_help_selected_note" = "默认跳过已接收且未变化项目；强制重传选项只影响所选项目。";
-
-"mac_fidelity_help_source_independent" = "每个来源独立";
-
-"mac_fidelity_help_existing_auto" = "现有文件与自动备份";
-
-"mac_fidelity_help_existing_auto_note" = "添加时选择备份现有文件；自动备份负责以后新增和修改。";
-
-"mac_fidelity_help_rules_note" = "白名单为空包含所有支持媒体；黑名单优先，保存后重新扫描。";
-
-"mac_fidelity_help_remove_note" = "不会删除原文件或 Pixel 接收记录。";
-
-"mac_fidelity_help_keep_running" = "保持应用运行";
-
-"mac_fidelity_help_close_window" = "关闭窗口不退出应用";
-
-"mac_fidelity_help_history_pause" = "历史扫描暂停";
-
-"mac_fidelity_help_history_pause_note" = "只暂停扫描，不停止已排队发送。";
-
-"mac_fidelity_help_three_facts" = "三个事实";
-
-"mac_fidelity_help_google" = "Google 相册云端";
-
-"mac_fidelity_help_recovery_paths" = "恢复路径";
-
-"mac_fidelity_help_send_retry" = "操作路径：传输任务 → 失败 → 单项详情 → 重试。";
-
-"mac_fidelity_help_album_retry" = "原片保留；处理重试请求不代表已经成功。";
-
-"mac_fidelity_help_export_path" = "操作路径：设置 → 诊断信息 → 导出诊断报告。";
-
-"mac_fidelity_help_update_path" = "操作路径：设置 → 帮助与关于 → 检查更新。";
 
 
-"mac_fidelity_help_local_access" = "本机访问";
 
-"mac_fidelity_help_photo_access" = "只有你允许的系统图库项目可扫描、预览和备份。";
 
-"mac_fidelity_help_folder_access" = "文件夹权限";
 
-"mac_fidelity_help_folder_access_note" = "使用系统选择器建立只读访问；拔出设备或撤销权限不会当作照片失败。";
 
-"mac_fidelity_help_cache_pressure" = "达到预算或剩余空间不足，暂停准备更多原片；空间恢复后继续。";
 
-"mac_fidelity_help_photo_permission" = "照片权限";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 "library_select" = "选择";
 "library_preview" = "照片预览";
@@ -465,15 +406,6 @@
 
 
 
-"ios_cache_preparation_group" = "备份临时文件";
-
-"ios_cache_reserve_group" = "设备可用空间";
-
-"ios_cache_reclaim_group" = "临时文件回收";
-
-"ios_cache_budget_note" = "发送前准备的原片副本会占用这里的空间，达到上限时暂停准备，释放后继续。";
-
-"ios_cache_reserve_note" = "低于保留空间时会暂停准备原片，不会删除其他文件。";
 
 
 
@@ -491,7 +423,10 @@
 
 
 
-"mac_settings_simple_note" = "显示、传输与本机设置。";
+
+
+
+
 
 
 "mac_library_preview_unavailable" = "这台 Mac 上暂时无法预览完整媒体。";
@@ -509,7 +444,6 @@
 
 
 "about_title" = "关于备份鸭";
-"about_app_version" = "应用版本";
 
 "mac_list_display_settings" = "列表显示";
 
@@ -525,7 +459,6 @@
 
 
 "preview_cloud_setting" = "从 iCloud 加载预览";
-"preview_cloud_title" = "从 iCloud 加载预览";
 "preview_previous" = "上一项";
 "preview_next" = "下一项";
 "preview_file_size" = "文件大小";
@@ -548,7 +481,6 @@
 "scope_album_unavailable" = "相簿不可用或访问受限";
 "scope_albums_empty" = "没有可访问的相簿";
 "scope_load_failed" = "无法读取备份范围，请重新选择需要备份的范围。";
-"library_request_access" = "允许照片访问";
 
 "library_view_mode" = "图库视图";
 "library_view_all" = "全部照片";
@@ -599,30 +531,26 @@
 "scope_album_view" = "查看相簿";
 "scope_album_choose" = "选择此相簿";
 "scope_album_deselect" = "取消选择此相簿";
+"scope_album_select_short" = "选择";
+"scope_album_deselect_short" = "取消选择";
 "scope_album_no_photos" = "这个相簿中没有可访问的照片或视频。";
 
 "library_browse_selected" = "逐张浏览所选照片";
 "library_deselect_item" = "取消选择此项目";
 "library_select_item" = "选择此项目";
 
-"library_thumbnail_cache" = "浏览缩略图";
 
-"library_thumbnail_clear" = "清理缩略图";
 
-"library_thumbnail_cache_help" = "用于图库浏览和封面显示。超过上限时自动清理较久未使用的缩略图；手动清理后，浏览时会重新生成，不删除照片原片或备份文件。";
 
-"library_thumbnail_used" = "已占用";
 
 "preview_resolution" = "分辨率";
 "preview_video_duration" = "视频时长";
 
-"library_thumbnail_clearing" = "正在清理缩略图";
 
 
 
 
 
-"storage_settings_unavailable" = "暂时无法读取设置，请重试。";
 
 "calendar_backup_short" = "备份";
 
@@ -637,7 +565,6 @@
 "mac_library_back" = "返回图库";
 
 "library_filter" = "筛选";
-"settings_feedback_group" = "用户反馈群";
 "settings_auto_backup" = "自动备份";
 "settings_on" = "开启";
 "settings_off" = "关闭";
@@ -653,7 +580,7 @@
 "settings_open_failed" = "备份鸭打不开它的数据";
 "settings_auto_switch" = "自动备份新照片";
 "settings_auto_footer" = "新拍或新存的照片会自动送到 %@。以前的照片可在“备份”中选择备份。";
-"settings_auto_footer_mac" = "新拍或新存的照片会自动送到 %@。以前的照片可在“备份概览”中选择备份。";
+"settings_auto_footer_mac" = "将照片图库和已添加文件夹中的新照片自动备份到 %@。";
 "settings_auto_footer_unpaired" = "先连接 Pixel，才能开启自动备份。";
 "settings_includes" = "包含";
 "settings_includes_footer" = "备份以前的照片时也按这个范围。";
@@ -681,7 +608,6 @@
 "onboarding_photos_direct" = "原片直接送到你的 Pixel";
 "onboarding_photos_private" = "不经过备份鸭的服务器";
 "onboarding_photos_quality" = "原画质，不压缩";
-"onboarding_choose_title" = "以前的照片";
 "onboarding_choose_auto" = "自动备份新照片";
 "onboarding_choose_auto_note" = "新照片会自动备份，可稍后在设置中关闭。";
 "onboarding_choose_earlier" = "也备份以前的 %@ 项照片和视频吗？";
@@ -720,7 +646,6 @@
 "hub_paused" = "备份已暂停";
 "hub_paused_note" = "新照片会先排好，继续后接着传。";
 "hub_earlier" = "以前的照片";
-"hub_earlier_progress" = "已清点 %1$@ 项 · 还有 %2$@ 项待备份";
 "hub_earlier_done" = "以前的照片都已加入备份";
 "hub_problem_offline" = "连不上 %@";
 "hub_problem_offline_note" = "新照片会先排好，Pixel 回来后自动继续。";
@@ -809,7 +734,6 @@
 "mac_connect_code" = "连接码";
 "mac_connect_try_again" = "重试";
 "hub_recent" = "最近备份";
-"hub_see_all" = "查看全部";
 "hub_needs_you_count" = "%@ 项需要处理";
 "library_view_pill" = "%1$@ · %2$@ 项";
 "library_view_clear" = "显示全部照片";
@@ -862,6 +786,9 @@
 "folders_add_button" = "添加文件夹";
 "folders_add_named" = "添加“%@”";
 "folders_add_confirm" = "添加";
+"folders_already_included" = "这个文件夹包含已添加的文件夹，或位于其中。请选择其他文件夹，或先移除已添加的文件夹。";
+"folders_scan_failed" = "无法读取这个文件夹。请检查硬盘是否已连接，然后重新选择。";
+"folders_count_failed" = "无法统计照片";
 "folders_show" = "显示方式";
 "folders_by_folder" = "按文件夹";
 "folders_search" = "搜索";
@@ -877,11 +804,11 @@
 "folders_settings" = "文件夹设置…";
 "folders_back_up_remaining" = "备份剩余照片";
 "folders_back_up_selected" = "备份所选照片";
-"folders_stop_title" = "停止备份此文件夹…";
-"folders_stop_button" = "停止备份此文件夹";
-"folders_stop" = "停止备份";
-"folders_stop_question" = "停止备份“%@”？";
-"folders_stop_note" = "此文件夹里的新照片将不再备份。Mac 上的文件和已存进 Pixel 相册的照片都不会删除。";
+"folders_stop_title" = "移除文件夹…";
+"folders_stop_button" = "移除文件夹";
+"folders_stop" = "移除文件夹";
+"folders_stop_question" = "移除“%@”？";
+"folders_stop_note" = "此文件夹将从备份鸭中移除，并停止备份。Mac 上的文件和已存进 Pixel 相册的照片不会删除。";
 "folders_count_size" = "%@ · %@";
 "folders_add_decision" = "要备份哪些照片？";
 "folders_include_existing" = "文件夹里已有的照片和以后的新照片";
@@ -889,7 +816,6 @@
 "folders_add_note" = "新照片会按“自动备份”的设置备份。Mac 上的文件保持原样。";
 "folders_settings_note" = "这些文件夹里的新照片会按“自动备份”的设置备份。停止备份文件夹，不会删除 Mac 上的文件或 Pixel 相册里的照片。";
 "folders_file_rules" = "文件规则";
-"folders_rules_hint" = "大多数人不需要设置。";
 "folders_skip" = "跳过这些";
 "folders_only" = "只备份这些（留空表示全部）";
 "folders_rules_note" = "规则会在下次查看文件夹时生效，已存进 Pixel 相册的照片不受影响。";
@@ -913,7 +839,6 @@
 
 "notifications_permission_failed" = "未能请求通知权限，请重试。";
 
-"hub_earlier_preparation_progress" = "已清点 %1$@ 项 · 正在准备 %2$@ 项";
 
 "hub_problem_photos_need_you" = "%@ 项需要你处理";
 
@@ -987,6 +912,8 @@
 // Selected backup: durable intent and in-place toolbar feedback.
 "selection_backup_count" = "备份 %d 张照片";
 "selection_backup_added" = "已加入备份";
+"grid_info_no_selection" = "未选择照片";
+"grid_info_select_photo" = "选择一张照片以查看其信息。";
 "selection_backup_repeat_title" = "要再次备份这些照片吗？";
 "selection_backup_repeat_action" = "再次备份";
 "selection_backup_repeat_note" = "部分所选照片已在 Pixel 的相册中。再次备份可能会在相册中创建另一份副本。";
@@ -1016,7 +943,6 @@
 "settings_source_license_note" = "备份鸭源码采用 PolyForm Noncommercial 许可，允许非商业使用；商业使用需另行获得许可。";
 "settings_license" = "许可";
 "settings_license_online" = "在线查看许可";
-"settings_dependencies" = "第三方软件";
 
 "updates_not_checked" = "尚未检查";
 "updates_checking" = "正在检查…";
@@ -1027,6 +953,8 @@
 
 /* Photo viewer backup capsule. */
 "photo_viewer_received" = "已送到 Pixel";
+"photo_viewer_confirming_receipt" = "等待 Pixel 确认接收";
+"photo_viewer_confirming_photos" = "等待相册保存确认";
 "photo_viewer_backing_up" = "正在备份";
 "photo_viewer_not_backed_up" = "未备份";
 "photo_viewer_failed" = "备份失败";
@@ -1051,7 +979,6 @@
 "notifications_settings_failed" = "未能打开通知设置，请重试。";
 
 // First-run waiting and recovery.
-"onboarding_first_sending" = "正在把第一张照片送到 Pixel…";
 "onboarding_first_saving" = "Pixel 已收到，正在存进相册…";
 "onboarding_background" = "在后台继续";
 "onboarding_pixel_unreachable" = "Pixel 不在同一个 Wi‑Fi 上";
@@ -1133,7 +1060,6 @@
 "diagnostics_event_processing_finished" = "后台准备已结束";
 "diagnostics_event_preparation_storage_blocked" = "照片准备正在等待空间";
 
-"onboarding_notify_title" = "打开通知";
 
 "onboarding_pixel_photos" = "Pixel 相册";
 
@@ -1196,7 +1122,6 @@
 
 "hub_not_paired_note_mac" = "照片会保存在你的 Pixel 上。\n连接后会请求访问 Mac 的照片图库。";
 
-"records_clear_filter" = "显示全部备份记录";
 
 "onboarding_choose_learn_more" = "了解释放空间的条件";
 
@@ -1277,3 +1202,29 @@
 "grid_filter_all" = "全部";
 
 "grid_filter_bursts" = "连拍";
+
+"folders_search_folders" = "搜索文件夹";
+"folders_overview_count" = "%ld 个文件夹";
+"grid_updated_date" = "更新于 %@";
+"grid_selected_count" = "已选择 %ld 项";
+"folders_no_photos" = "没有照片";
+"folders_all_photos" = "全部文件夹照片";
+"folders_back_overview" = "返回文件夹";
+
+"mac_library_period_years" = "按年";
+"mac_library_period_months" = "按月";
+
+"grid_footer_photo" = "%@ 张照片";
+"grid_footer_photos" = "%@ 张照片";
+"grid_footer_video" = "%@ 个视频";
+"grid_footer_videos" = "%@ 个视频";
+"grid_footer_receiver" = "接收设备：%@";
+
+"grid_info_multiple_note" = "选择一张照片以查看详情。";
+
+"settings_photo_library" = "照片图库";
+
+
+
+
+"notifications_requesting" = "正在请求通知权限";

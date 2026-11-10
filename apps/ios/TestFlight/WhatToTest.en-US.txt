@@ -1,11 +1,6 @@
-BackupDuck 0.5.0 is a redesign of the whole app. It needs iOS 18 or later. Update the Pixel receiver to 0.5.0 as well.
+BackupDuck 0.6.0 requires an iPhone with iOS 18 or later.
 
 Please try:
-- First run: pair with the Pixel, choose what to back up, then start or pause earlier photos on the Backup tab.
-- Photos tab: open photos from the library, Backup History and the selection review; drag down to close; swipe through many photos; check Info.
-- Select photos and back them up; the review sheet should show your selection.
-- Lock the phone during a backup to see the Live Activity.
-- Settings > Auto Backup: choose albums and media types.
-- Light and dark appearance, and larger text.
-
-Questions and feedback: Settings > Feedback group opens the Telegram tester group. Include the app version, device model, steps and error message. Do not include private photos or pairing codes.
+- Pair with the Pixel, choose what to back up, and start or pause earlier photos.
+- Browse photos from the library, an album and backup history. Zoom, open a photo, and return to the same place.
+- Open a video and a Live Photo. Check that the preview stays in place as playback starts.

@@ -158,10 +158,11 @@ import UIKit
     if authorization != value { authorization = value }
   }
   func requestPermission() async {
-    await refreshAuthorization()
-    guard authorization == .notDetermined, !requestingPermission else { return }
+    guard !requestingPermission else { return }
     requestingPermission = true
     defer { requestingPermission = false }
+    await refreshAuthorization()
+    guard authorization == .notDetermined else { return }
     permissionError = nil
     permissionRequests += 1
     if !usesSystem { authorization = .authorized; return }
@@ -275,7 +276,7 @@ struct BackupNotificationPreferences: View {
           .accessibilityIdentifier("notifications.preference")
       } else {
         LabeledContent(notifier.authorization == .denied ? "notifications_off" : "notifications_title") {
-          Button(notifier.authorization == .notDetermined ? "notifications_allow" : "notifications_settings") {
+          Button {
             if notifier.authorization == .notDetermined {
               if notifier.explained { Task { await notifier.requestPermission() } }
               else { explanation = true }
@@ -284,7 +285,13 @@ struct BackupNotificationPreferences: View {
               guard notifier.usesSystem else { return }
               openURL(url) { accepted in settingsFailure = !accepted }
             }
+          } label: {
+            Text(notifier.authorization == .notDetermined ? "notifications_allow" : "notifications_settings")
+              .opacity(notifier.requestingPermission ? 0 : 1)
+              .overlay { if notifier.requestingPermission { ProgressView().controlSize(.small) } }
           }
+          .accessibilityLabel(notifier.requestingPermission ? Text("notifications_requesting")
+            : Text(notifier.authorization == .notDetermined ? "notifications_allow" : "notifications_settings"))
           #if os(macOS)
           .buttonStyle(.bordered)
           #else

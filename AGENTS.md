@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-The current UI covers the iPhone/iPad sender, macOS sender and Android
+The current UI covers the iPhone sender, macOS sender and Android
 receiver. Android and Windows sender hosts remain separate, unfinished work.
 Do not expand a focused change into those platforms without an explicit scope.
 

@@ -54,7 +54,6 @@
 "state_not_queued" = "Not queued";
 "task_filter" = "Status";
 
-"pair_receiver_desktop" = "Pair receiver";
 
 "desktop_pair_no_network" = "This Mac isn’t on a network. Join Wi‑Fi, then try again.";
 "desktop_pair_failed" = "The connection code couldn’t be made ready. Try again.";
@@ -65,7 +64,6 @@
 "error_low_space" = "The Pixel is low on space. Retries automatically once space is freed.";
 "error_local_free_space" = "Not enough free space to prepare originals. Free up disk space to continue automatically.";
 "error_local_cache_budget" = "Temporary files are at their limit. Backup continues as transfers finish, or raise the limit in Settings.";
-"pairing_unlock_wait" = "Reading your connected devices. If macOS asks for Keychain access, authorize it in the system dialog.";
 
 
 "nav_backup" = "Backup";
@@ -75,11 +73,9 @@
 // Structured background diagnostics
 
 // Desktop navigation and settings states
-"sidebar_manage" = "Manage";
 "storage_settings_invalid" = "Choose a supported storage or log-retention limit.";
 
 
-"device_identity" = "Device identity";
 "device_name" = "Device name";
 "device_rename" = "Rename device";
 "device_name_note" = "Choose a recognizable name. Renaming doesn’t change your connected devices or backup history.";
@@ -112,7 +108,6 @@
 
 "state_scanned" = "Scanned";
 "history_state_not_started" = "Library scan has not started";
-"source_photo_unavailable" = "Photo unavailable";
 
 
 "updates_title" = "Version & Updates";
@@ -149,7 +144,6 @@
 // Desktop folder sources
 "nav_sources" = "Backup sources";
 "folder_choose" = "Choose folder";
-"folder_remove" = "Remove source";
 "folder_automatic" = "Automatic Backup";
 "folder_scan_note" = "Includes Photos and Videos in Subfolders.";
 "folder_scanning" = "Checking…";
@@ -167,7 +161,6 @@
 "folder_settling" = "Checking files ready for backup…";
 "folder_unsupported_media" = "This file couldn’t be read as a supported photo or video.";
 
-"sidebar_tasks" = "Backup tasks";
 
 "folder_more" = "More";
 
@@ -197,8 +190,6 @@
 
 "mac_nav_backup" = "Backup overview";
 
-"mac_sidebar_library" = "Sources";
-"list_thumbnails" = "Show photo and video thumbnails";
 "folder_list_layout" = "File list layout";
 "folder_list_flat" = "Flat";
 "folder_list_tree" = "Folders";
@@ -209,7 +200,6 @@
 "folder_global_wait" = "Scheduled. Resume all backups to continue.";
 "folder_issue_missing" = "The file was moved or deleted; the original path is unavailable.";
 "folder_retry_requested" = "File retry scheduled";
-"mac_library_existing_note" = "Scan existing photos, videos, Live Photos and bursts you allow access to. Pausing the scan leaves queued transfers running.";
 
 "folder_auto_enabled" = "Automatic backup is on";
 
@@ -244,7 +234,6 @@
 
 "close" = "Close";
 
-"design_saved_count" = "%d / %d files saved in Pixel gallery";
 
 "error_conversion_required" = "This file needs compatibility conversion. You can enable it in Pixel settings, then retry; conversion may re-encode media.";
 
@@ -265,7 +254,6 @@
 "apple_language" = "Language";
 "apple_language_open_settings" = "Change in Settings";
 "mac_receiver_connection_note" = "Connect Mac and Pixel to the same reachable local network. Your VPN must allow local network connections.";
-"design_cloud_boundary" = "Saved means the files are in Pixel’s gallery. Confirm cloud backup separately in Google Photos.";
 "apple_retry_failed" = "The retry request wasn’t submitted. Keep this window open and try again.";
 "apple_selected_backup_failed" = "Couldn’t add these to the backup. Your selection is kept; try again.";
 "apple_selected_receiver_needed" = "Connect a Pixel before backing up your selection. Your selection is kept.";
@@ -294,12 +282,6 @@
 "mac_folder_recover_operation" = "Recover unfinished operation";
 "mac_folder_ignore_applied_recovery" = "Ignoring has taken effect, but its record has not been saved. Recover the unfinished operation; originals are retained.";
 
-"apple_display_language" = "Display and language";
-"apple_local_storage" = "Local storage";
-"apple_help_about" = "Help and about";
-
-
-"mac_backup_album_failed_count" = "%d files weren’t saved to the Pixel gallery";
 
 
 
@@ -315,29 +297,6 @@
 
 
 
-"mac_fidelity_help_connection" = "Connection";
-
-"mac_fidelity_help_library" = "Photo library backup";
-
-"mac_fidelity_help_folders" = "Folders and rules";
-
-"mac_fidelity_help_background" = "Background work and pausing";
-
-"mac_fidelity_help_results" = "Receipt, gallery and cloud";
-
-"mac_fidelity_help_recovery" = "Recovery and diagnostics";
-
-"mac_fidelity_help_permissions" = "Permissions and storage";
-
-
-
-
-
-
-
-"mac_fidelity_phase_received" = "Originals are durably stored and verified; gallery processing is still pending.";
-
-"mac_fidelity_phase_published" = "The file has been published to the Pixel gallery.";
 
 
 
@@ -346,17 +305,30 @@
 
 
 
-"apple_history_progress_title" = "Backup history";
 
 
 
 
-"mac_fidelity_existing_photos_title" = "Back up existing photos";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 "mac_fidelity_thumbnail_title" = "Show thumbnails";
 
-"mac_fidelity_thumbnail_note" = "Load only visible items. Turning this off reduces reads and decoding.";
 
 
 
@@ -385,71 +357,40 @@
 
 
 
-"mac_fidelity_help_pair_direction" = "Pairing direction";
-
-"mac_fidelity_help_pair_title" = "Mac displays the code; Pixel scans it";
-
-"mac_fidelity_help_pair_note" = "Open Receiving device → Show Mac pairing code. The protocol determines when the code expires.";
-
-"mac_fidelity_help_network" = "Network and VPN";
-
-"mac_fidelity_help_lan" = "Same local network";
 
 
 
-"mac_fidelity_help_new_existing" = "New and existing photos";
 
 
-"mac_fidelity_help_frozen_history" = "The separate scan freezes its scope. Assets added during it aren’t mixed into that scope.";
-
-"mac_fidelity_help_selected" = "Back up selected manually";
-
-"mac_fidelity_help_selected_note" = "Skips unchanged received items by default. Force resend affects only the selection.";
-
-"mac_fidelity_help_source_independent" = "Each source is independent";
-
-"mac_fidelity_help_existing_auto" = "Existing files and automatic backup";
-
-"mac_fidelity_help_existing_auto_note" = "Choose existing files when adding the source. Automatic backup handles later additions and changes.";
-
-"mac_fidelity_help_rules_note" = "An empty inclusion list includes all supported media. Exclusions take priority; saving rescans the source.";
-
-"mac_fidelity_help_remove_note" = "Does not delete original files or Pixel receipts.";
-
-"mac_fidelity_help_keep_running" = "Keep the app running";
-
-"mac_fidelity_help_close_window" = "Closing a window doesn’t quit the app";
-
-"mac_fidelity_help_history_pause" = "Pause the history scan";
-
-"mac_fidelity_help_history_pause_note" = "Pauses scanning only. Queued transfers continue.";
-
-"mac_fidelity_help_three_facts" = "Three separate facts";
-
-"mac_fidelity_help_google" = "Google Photos cloud";
-
-"mac_fidelity_help_recovery_paths" = "Recovery paths";
-
-"mac_fidelity_help_send_retry" = "Open Transfers → Failed → Item details → Retry.";
-
-"mac_fidelity_help_album_retry" = "Originals are retained. Requesting a processing retry doesn’t establish success.";
-
-"mac_fidelity_help_export_path" = "Open Settings → Diagnostics → Export diagnostic report.";
-
-"mac_fidelity_help_update_path" = "Open Settings → Help and About → Check for updates.";
 
 
-"mac_fidelity_help_local_access" = "Local access";
 
-"mac_fidelity_help_photo_access" = "Only permitted system-library items can be scanned, previewed and backed up.";
 
-"mac_fidelity_help_folder_access" = "Folder permissions";
 
-"mac_fidelity_help_folder_access_note" = "The system picker grants read-only access. Disconnecting a drive or revoking permission isn’t a photo failure.";
 
-"mac_fidelity_help_cache_pressure" = "Preparation waits when the cache budget or free-space limit is reached, then continues when space recovers.";
 
-"mac_fidelity_help_photo_permission" = "Photo permissions";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 "library_select" = "Select";
 "library_preview" = "Photo preview";
@@ -465,15 +406,6 @@
 
 
 
-"ios_cache_preparation_group" = "Temporary backup files";
-
-"ios_cache_reserve_group" = "Device free space";
-
-"ios_cache_reclaim_group" = "Temporary file cleanup";
-
-"ios_cache_budget_note" = "Original copies prepared for sending use this space. Preparation waits at the limit and resumes after space is freed.";
-
-"ios_cache_reserve_note" = "Preparation waits below the reserve. Other files are kept.";
 
 
 
@@ -491,7 +423,10 @@
 
 
 
-"mac_settings_simple_note" = "Display, transfers and local settings.";
+
+
+
+
 
 
 "mac_library_preview_unavailable" = "The full media isn’t available to preview on this Mac.";
@@ -509,7 +444,6 @@
 
 
 "about_title" = "About BackupDuck";
-"about_app_version" = "App version";
 
 "mac_list_display_settings" = "List display";
 
@@ -525,7 +459,6 @@
 
 
 "preview_cloud_setting" = "Load previews from iCloud";
-"preview_cloud_title" = "Load previews from iCloud";
 "preview_previous" = "Previous";
 "preview_next" = "Next";
 "preview_file_size" = "File size";
@@ -548,7 +481,6 @@
 "scope_album_unavailable" = "Album unavailable or access restricted";
 "scope_albums_empty" = "No accessible albums";
 "scope_load_failed" = "Backup scope couldn’t be read. Select the intended scope before continuing.";
-"library_request_access" = "Allow photo access";
 
 "library_view_mode" = "Library view";
 "library_view_all" = "All photos";
@@ -599,30 +531,26 @@
 "scope_album_view" = "View Album";
 "scope_album_choose" = "Choose Album";
 "scope_album_deselect" = "Deselect Album";
+"scope_album_select_short" = "Select";
+"scope_album_deselect_short" = "Deselect";
 "scope_album_no_photos" = "This album has no accessible photos or videos.";
 
 "library_browse_selected" = "Browse Selected Photos";
 "library_deselect_item" = "Deselect Item";
 "library_select_item" = "Select Item";
 
-"library_thumbnail_cache" = "Browsing thumbnails";
 
-"library_thumbnail_clear" = "Clear thumbnails";
 
-"library_thumbnail_cache_help" = "Used for gallery browsing and covers. Older thumbnails are removed above the limit. After clearing, browsing generates them again. Original photos and backup files are kept.";
 
-"library_thumbnail_used" = "Used";
 
 "preview_resolution" = "Resolution";
 "preview_video_duration" = "Video length";
 
-"library_thumbnail_clearing" = "Clearing thumbnails";
 
 
 
 
 
-"storage_settings_unavailable" = "Settings couldn’t be loaded. Try again.";
 
 "calendar_backup_short" = "Back Up";
 
@@ -637,7 +565,6 @@
 "mac_library_back" = "Back to library";
 
 "library_filter" = "Filter";
-"settings_feedback_group" = "Feedback group";
 "settings_auto_backup" = "Auto Backup";
 "settings_on" = "On";
 "settings_off" = "Off";
@@ -653,7 +580,7 @@
 "settings_open_failed" = "BackupDuck couldn’t open its data";
 "settings_auto_switch" = "Back Up New Photos";
 "settings_auto_footer" = "New photos are sent to %@ automatically. Choose to back up earlier photos in Backup.";
-"settings_auto_footer_mac" = "New photos are sent to %@ automatically. Choose to back up earlier photos in Overview.";
+"settings_auto_footer_mac" = "Automatically back up new photos from Photo Library and added folders to %@.";
 "settings_auto_footer_unpaired" = "Connect a Pixel to turn on Auto Backup.";
 "settings_includes" = "Includes";
 "settings_includes_footer" = "Backing up earlier photos uses the same choices.";
@@ -681,7 +608,6 @@
 "onboarding_photos_direct" = "Originals go directly to your Pixel";
 "onboarding_photos_private" = "Never through BackupDuck’s servers";
 "onboarding_photos_quality" = "Full quality, never compressed";
-"onboarding_choose_title" = "Earlier Photos";
 "onboarding_choose_auto" = "Back up new photos";
 "onboarding_choose_auto_note" = "New photos back up automatically. You can turn this off later in Settings.";
 "onboarding_choose_earlier" = "Also back up your %@ earlier photos and videos?";
@@ -720,7 +646,6 @@
 "hub_paused" = "Backup is paused";
 "hub_paused_note" = "New photos wait in order and continue when you resume.";
 "hub_earlier" = "Earlier photos";
-"hub_earlier_progress" = "%1$@ counted · %2$@ to back up";
 "hub_earlier_done" = "All earlier photos are in the backup";
 "hub_problem_offline" = "Can’t reach %@";
 "hub_problem_offline_note" = "New photos wait in order and continue when the Pixel is back.";
@@ -809,7 +734,6 @@
 "mac_connect_code" = "Connection code";
 "mac_connect_try_again" = "Try Again";
 "hub_recent" = "Recently Backed Up";
-"hub_see_all" = "See All";
 "hub_needs_you_count" = "%@ items need you";
 "library_view_pill" = "%1$@ · %2$@";
 "library_view_clear" = "Shows all photos";
@@ -862,6 +786,9 @@
 "folders_add_button" = "Add Folder";
 "folders_add_named" = "Add “%@”";
 "folders_add_confirm" = "Add";
+"folders_already_included" = "This folder is inside an added folder, or contains one. Choose a different folder or remove the existing one first.";
+"folders_scan_failed" = "Couldn’t read this folder. Check that the drive is connected and try selecting it again.";
+"folders_count_failed" = "Couldn’t count photos";
 "folders_show" = "Show";
 "folders_by_folder" = "By Folder";
 "folders_search" = "Search";
@@ -877,11 +804,11 @@
 "folders_settings" = "Folder Settings…";
 "folders_back_up_remaining" = "Back Up Remaining Photos";
 "folders_back_up_selected" = "Back Up Selected";
-"folders_stop_title" = "Stop Backing Up This Folder…";
-"folders_stop_button" = "Stop Backing Up This Folder";
-"folders_stop" = "Stop Backing Up";
-"folders_stop_question" = "Stop backing up “%@”?";
-"folders_stop_note" = "New photos in this folder will no longer be backed up. Files on your Mac and photos already in the Pixel’s Photos won’t be deleted.";
+"folders_stop_title" = "Remove Folder…";
+"folders_stop_button" = "Remove Folder";
+"folders_stop" = "Remove Folder";
+"folders_stop_question" = "Remove “%@”?";
+"folders_stop_note" = "This folder will be removed from BackupDuck and stop backing up. Files on your Mac and photos already in the Pixel’s Photos won’t be deleted.";
 "folders_count_size" = "%@ · %@";
 "folders_add_decision" = "Which photos would you like to back up?";
 "folders_include_existing" = "Everything in this folder, including new photos";
@@ -889,7 +816,6 @@
 "folders_add_note" = "New photos follow Auto Backup. Files on your Mac stay where they are.";
 "folders_settings_note" = "New photos in these folders follow Auto Backup. Stopping a folder deletes nothing on your Mac or in the Pixel’s Photos.";
 "folders_file_rules" = "File Rules";
-"folders_rules_hint" = "Most people don’t need this.";
 "folders_skip" = "Skip these";
 "folders_only" = "Only back up these (empty means everything)";
 "folders_rules_note" = "Rules apply to later checks. Photos already in the Pixel’s Photos are unaffected.";
@@ -913,7 +839,6 @@
 
 "notifications_permission_failed" = "Notification access couldn’t be requested. Try again.";
 
-"hub_earlier_preparation_progress" = "%1$@ counted · preparing %2$@";
 
 "hub_problem_photos_need_you" = "%@ items need you";
 
@@ -987,6 +912,8 @@
 // Selected backup: durable intent and in-place toolbar feedback.
 "selection_backup_count" = "Back Up %d Photos";
 "selection_backup_added" = "Added to Backup";
+"grid_info_no_selection" = "No Photos Selected";
+"grid_info_select_photo" = "Select a photo to view its information.";
 "selection_backup_repeat_title" = "Back up these photos again?";
 "selection_backup_repeat_action" = "Back Up Again";
 "selection_backup_repeat_note" = "Some selected photos are already in your Pixel’s Photos. Backing them up again can create another copy in Photos.";
@@ -1016,7 +943,6 @@
 "settings_source_license_note" = "BackupDuck’s source is available under the PolyForm Noncommercial license. It permits noncommercial use; commercial use requires separate permission.";
 "settings_license" = "License";
 "settings_license_online" = "Read License Online";
-"settings_dependencies" = "Third-Party Software";
 
 "updates_not_checked" = "Not checked yet";
 "updates_checking" = "Checking…";
@@ -1027,6 +953,8 @@
 
 /* Photo viewer backup capsule. */
 "photo_viewer_received" = "On the Pixel";
+"photo_viewer_confirming_receipt" = "Waiting for the Pixel to Confirm Receipt";
+"photo_viewer_confirming_photos" = "Waiting for Save Confirmation";
 "photo_viewer_backing_up" = "Backing Up";
 "photo_viewer_not_backed_up" = "Not Backed Up";
 "photo_viewer_failed" = "Backup Failed";
@@ -1051,7 +979,6 @@
 "notifications_settings_failed" = "Notification settings couldn’t be opened. Try again.";
 
 // First-run waiting and recovery.
-"onboarding_first_sending" = "Sending your first photo to the Pixel…";
 "onboarding_first_saving" = "Pixel received it; saving to Photos…";
 "onboarding_background" = "Continue in the Background";
 "onboarding_pixel_unreachable" = "The Pixel isn’t on the same Wi‑Fi";
@@ -1133,7 +1060,6 @@
 "diagnostics_event_processing_finished" = "Background preparation finished";
 "diagnostics_event_preparation_storage_blocked" = "Photo preparation waiting for space";
 
-"onboarding_notify_title" = "Turn On Notifications";
 
 "onboarding_pixel_photos" = "Pixel Photos";
 
@@ -1196,7 +1122,6 @@
 
 "hub_not_paired_note_mac" = "Your photos are kept on your Pixel.\nAfter connecting, BackupDuck will ask to access your Mac’s photo library.";
 
-"records_clear_filter" = "Show All Backup History";
 
 "onboarding_choose_learn_more" = "Learn About Freeing Up Space";
 
@@ -1273,3 +1198,29 @@
 "grid_filter_all" = "All";
 
 "grid_filter_bursts" = "Bursts";
+
+"folders_search_folders" = "Search Folders";
+"folders_overview_count" = "%ld folders";
+"grid_updated_date" = "Updated %@";
+"grid_selected_count" = "%ld selected";
+"folders_no_photos" = "No Photos";
+"folders_all_photos" = "All Folder Photos";
+"folders_back_overview" = "Back to Folders";
+
+"mac_library_period_years" = "Years";
+"mac_library_period_months" = "Months";
+
+"grid_footer_photo" = "%@ photo";
+"grid_footer_photos" = "%@ photos";
+"grid_footer_video" = "%@ video";
+"grid_footer_videos" = "%@ videos";
+"grid_footer_receiver" = "To %@";
+
+"grid_info_multiple_note" = "Select one photo to see its details.";
+
+"settings_photo_library" = "Photo Library";
+
+
+
+
+"notifications_requesting" = "Requesting Notification Permission";

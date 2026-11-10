@@ -1204,7 +1204,7 @@
     }
   },
   "expect": [
-    "Count and approximate size of what is left, with a progress bar.",
+    "Pending photo count with a progress bar; show size only when the complete remaining total is known.",
     "Keep-screen-awake switch appears because 50 or more photos remain.",
     "Earlier photos shows how many were checked and how many wait."
   ],

@@ -9,7 +9,11 @@ import SwiftUI
     folders.previewSettings = id.hasPrefix("settings.folder")
     guard id != "folders.empty" && id != "settings.folders-empty" else { return }
     let chinese = Bundle.main.preferredLocalizations.first?.hasPrefix("zh") == true
-    let names = chinese ? ["相机导出", "周末", "旅行照片"] : ["Camera Exports", "Weekend", "Travel Photos"]
+    var names = chinese ? ["相机导出", "周末", "旅行照片"] : ["Camera Exports", "Weekend", "Travel Photos"]
+    if id == "folders.header-wrapping" {
+      names[0] = "Camera Exports — Family trips, shared originals and scanned photographs"
+      names[1] = "Weekend photographs from the coast and mountains"
+    }
     folders.sources = names.enumerated().map { index, name in
       FolderSource(id: "fixture-\(index)", name: name, bookmark: Data(), automatic: true, enabled: true,
         receiver: "catalog-pixel", lastCheck: nil, lastKnownPath: index == 2 ? "/Volumes/SanDisk/\(name)" : "/Synthetic/Pictures/\(name)")
@@ -23,7 +27,8 @@ import SwiftUI
     for folder in 0..<3 {
       for index in 0..<[18, 24, 48][folder] {
         let sourceID = "fixture-photo-\(folder)-\(index)"
-        let fallback = Scenario.fixtureNow.addingTimeInterval(-Double(folder * 86400 + index * 3600))
+        let elapsed = id == "folders.header-wrapping" ? folder * 3 * 86400 + (index / 6) * 86400 : folder * 86400 + index * 3600
+        let fallback = Scenario.fixtureNow.addingTimeInterval(-Double(elapsed))
         let capture = id == "folders.viewer-received" && sourceID == "fixture-photo-0-4"
           ? Date(timeIntervalSince1970: 1_792_495_800) : SampleImages.takenDate(for: sourceID) ?? fallback
         let date = UInt64(max(0, capture.timeIntervalSince1970 * 1000))
@@ -67,7 +72,7 @@ import SwiftUI
       folders.facts["fixture-2"]?.available = true
       folders.initialFilter = .notBackedUp
       folders.browser.filter = .notBackedUp
-      folders.browser.byFolder = false
+      folders.browser.scope = .all
       folders.browser.selection = ["fixture-2|fixture-photo-2-40"]
     }
     if id == "folders.all-not-backed-up" { folders.initialFilter = .notBackedUp }

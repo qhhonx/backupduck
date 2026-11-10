@@ -251,8 +251,8 @@ internal fun Context.lookEmpty(parent: ViewGroup, @DrawableRes duck: Int, title:
 }
 
 /** Unavailable content uses a system glyph, a sentence and the existing recovery action. */
-internal fun Context.lookUnavailable(parent: LinearLayout, title: String, note: String, action: Pair<String, () -> Unit>) {
-    lookEmpty(parent, R.drawable.ic_alert, title, note, action, card = false, centered = true)
+internal fun Context.lookUnavailable(parent: LinearLayout, title: String, note: String, action: Pair<String, () -> Unit>, centered: Boolean = true) {
+    lookEmpty(parent, R.drawable.ic_alert, title, note, action, card = false, centered = centered)
 }
 
 // ---- Buttons and pills ----
@@ -434,35 +434,33 @@ internal class LookSheet(context: Context) : BottomSheetDialog(context) {
  * radius outside): four columns, two rows when there are eight, one row
  * otherwise, never an empty cell.
  */
-internal class PhotoMosaic(context: Context) : ViewGroup(context) {
-    private val gap = context.dp(2)
-    private var jobs = emptyList<Pair<Job, CancellationSignal>>()
+internal class PhotoMosaic(private val activity: MainActivity) : ViewGroup(activity) {
+    private val gap = activity.dp(2)
+    private var tiles = emptyList<PhotoTile>()
+    private var shownPhotos = emptyList<HistoryItem>()
 
     init {
-        background = GradientDrawable().apply { cornerRadius = context.token(R.dimen.duck_radius_card).toFloat(); setColor(context.getColor(R.color.duck_role_grouped_surface)) }
+        background = GradientDrawable().apply { cornerRadius = activity.token(R.dimen.duck_radius_card).toFloat(); setColor(activity.getColor(R.color.duck_role_grouped_surface)) }
         clipToOutline = true
     }
 
     fun bind(items: List<HistoryItem>, images: PhotoImages, describe: (HistoryItem) -> String, open: (HistoryItem, ImageView, List<HistoryItem>) -> Unit) {
         val shown = items.take(if (items.size >= 8) 8 else if (items.size >= 4) 4 else items.size)
-        val ids = shown.map { "${it.id}:${it.receipt}:${it.processing}" }
-        if (ids == tag) return
-        tag = ids
-        jobs.forEach { (job, signal) -> signal.cancel(); job.cancel() }
-        removeAllViews()
-        val size = (resources.displayMetrics.widthPixels / 3).coerceIn(160, 480)
-        jobs = shown.map { item ->
-            val image = ImageView(context).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP; contentDescription = describe(item)
-                setBackgroundColor(context.getColor(R.color.duck_role_elevated_surface)); foreground = context.selectableBackground()
-                transitionName = photoTransitionName(item.id)
-                setOnClickListener { open(item, this, shown) }
-            }
-            addView(image)
-            val signal = CancellationSignal()
-            images.load(item, size, size, signal) { bitmap -> if (bitmap != null) {
-                image.showPhotoBitmap(bitmap); image.setTag(R.id.photo_transition_ready, item.id)
-            } } to signal
+        if (shown == shownPhotos) return
+        val sameSlots = shown.map { it.id } == shownPhotos.map { it.id }
+        shownPhotos = shown
+        val size = (resources.displayMetrics.widthPixels / 4).coerceIn(160, 384)
+        if (!sameSlots) {
+            tiles.forEach { it.cancel() }
+            removeAllViews()
+            tiles = shown.map { PhotoTile(activity, images).also(::addView) }
+        }
+        tiles.zip(shown).forEach { (tile, item) ->
+            tile.contentDescription = describe(item)
+            tile.foreground = activity.selectableBackground()
+            tile.isClickable = true; tile.isFocusable = true
+            tile.setOnClickListener { open(item, tile.image, shown) }
+            tile.bind(item, size)
         }
         requestLayout()
     }

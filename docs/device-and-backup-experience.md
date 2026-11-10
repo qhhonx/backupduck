@@ -402,7 +402,7 @@ networks may require a fresh QR scan. Discovery does not force iOS wakeups.
 ## Sender management, task attribution and library feedback
 
 Receiver device rows show the last observed connection IP and optional native
-platform category (iPhone, iPad or Mac for current Apple clients). IP comes from
+platform category (iPhone or Mac for current Apple clients). IP comes from
 connection metadata, not a client-supplied address. It is historical information,
 not a claim that the device is online. Device names remain display identities.
 

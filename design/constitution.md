@@ -70,7 +70,7 @@ refinement makes this a gate.
 
 | Platform | Sender | Receiver | Dialect |
 | --- | --- | --- | --- |
-| iPhone / iPad | Shipped | Possible | Apple HIG |
+| iPhone | Shipped | Possible | Apple HIG |
 | Mac | Shipped | Possible | Apple HIG (macOS) |
 | Android | Possible | Shipped (Pixel) | Material 3 on Views and Material Components |
 | Windows | Possible | — | Fluent |
@@ -337,7 +337,7 @@ few complete representative interactions. It is not a second finished product.
 Every catalog review and large change considers:
 
 - **Input and navigation**: VoiceOver and TalkBack order, keyboard and focus,
-  Android system back, iPad split views and window resizing.
+  Android system back and Mac window resizing.
 - **Continuity**: restart, revoked permission, missing source, offline peer and
   switching peers; existing work keeps its owner.
 - **Counts and progress**: scope is explicit; received and saved stay distinct.

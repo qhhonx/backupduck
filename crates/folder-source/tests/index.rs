@@ -256,6 +256,56 @@ fn initial_baseline_is_independent_of_pairing_and_explicit_import_preserves_rece
 }
 
 #[test]
+fn case_insensitive_directory_hints_preserve_enumerated_spelling() {
+    let t = Temp::new();
+    let root = t.root();
+    if !root.join("NESTED").is_dir() {
+        // This temporary volume uses case-sensitive lookup.
+        return;
+    }
+    fs::write(root.join("nested/old.jpg"), b"old").unwrap();
+    let mut index = t.index();
+    scan(&mut index, "source", &root, 1);
+    fs::write(root.join("nested/new.jpg"), b"new").unwrap();
+    index
+        .begin_scoped("source", &root, 2, &["NESTED".into()])
+        .unwrap();
+    while index.step(2, 2).unwrap().scanning {}
+    assert_eq!(index.summary("source", 0).unwrap().files, 2);
+    assert!(index.entry("source", "nested/new.jpg").is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn scan_rejects_a_directory_ancestor_replaced_by_a_link() {
+    let t = Temp::new();
+    let root = t.root();
+    fs::create_dir(root.join("nested/photos")).unwrap();
+    let mut index = t.index();
+    index
+        .begin_scoped("source", &root, 1, &["nested/photos".into()])
+        .unwrap();
+    fs::rename(root.join("nested"), root.join("moved")).unwrap();
+    std::os::unix::fs::symlink("moved", root.join("nested")).unwrap();
+    assert!(index.step(1, 1).is_err());
+    assert!(index
+        .begin_scoped("source", &root, 2, &["nested/photos".into()])
+        .is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn scan_rejects_a_root_replaced_by_a_link() {
+    let t = Temp::new();
+    let root = t.root();
+    let mut index = t.index();
+    index.begin("source", &root, 1).unwrap();
+    fs::rename(&root, t.0.join("moved")).unwrap();
+    std::os::unix::fs::symlink("moved", &root).unwrap();
+    assert!(index.step(1, 1).is_err());
+}
+
+#[test]
 fn children_are_complete_scoped_and_independently_paginated() {
     let t = Temp::new();
     for folder in ["a_%", "a_X", "nested/deeper"] {

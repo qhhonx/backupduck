@@ -15,7 +15,8 @@
   "id": "hub.history-saved",
   "title": "Earlier photos confirmed in Photos",
   "expect": [
-    "One hub state card; earlier photos is a summary row below recent photos, never a second state card.",
+    "Overall state and earlier-photo state are separate cards above recent photos; Backup History is the record entry below.",
+    "Completed earlier photos has no progress bar or record shortcut.",
     "Earlier photos says saved only when every frozen member has confirmed gallery publication.",
     "Preparing and received photos never show a green completion check."
   ]

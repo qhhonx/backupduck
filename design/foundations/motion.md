@@ -82,21 +82,106 @@ have no interval line to make room for. The header's legibility backdrop and
 light title appear only while photos actually lie behind the header, and
 fade in or out over 250 ms.
 
-Mac grid zoom also hands its release to Core Animation, using the shared
-critically damped pitch/focus spring. Tile geometry springs keep ordinary
-gaps at 2 pt and source-cell marks at native size. Dense pooled photos share
-a photo-only layer transform, with native-size period-label tracks outside
-that transform. A fractional release whose quantized edges cannot share one
-transform retains tile springs. Grouped source tiles retain tile springs for
-native-size marks. Shared section
-captions follow the weighted first-row position on release-time keyframes.
-Opacity keyframes preserve the existing composite weights, pixel-ready hold
-and release fade; while magnify is held without new events the fade stays
-paused, as during event-driven tracking. The native collection takes over
-only after both geometry and opacity complete. A native stage animation owns
-completion independently of virtualized off-screen tile layers. The exact target
-pose covers the native update pass, then the next main-queue turn releases the
-stage; dense mosaics retain displayed pixels while their own renditions arrive.
+Mac grid zoom uses the shared photo-mixture curve and critically damped
+pitch/focus spring. Ordinary photo pairs retain their phase when reversed;
+rapidly reaching a third density retains the existing composite. Core Animation
+continues the photo blend while magnification rests, with a bounded wait for
+incoming pixels. Gesture events update geometry without restarting that blend.
+Gapless overview tiles share unsoftened edges during fractional scaling; their
+individual edges never antialias into the background and reveal a grid of seams.
+Their pitch spans the available viewport width; shared edges snap to device
+pixels without accumulating a rounding remainder beside the last column.
+While zooming, each overview face covers the viewport with chronological photo
+copies beside its native columns, including the complete release trajectory.
+These copies keep their asset identity and in-photo focus when input takes over;
+they do not add rows beyond the first or last photo. Settled browsing keeps the
+native column bounds.
+Scrolling takes ownership before the viewport moves: a running density change
+commits its chosen density and anchor, transfers retained pixels, and reveals
+native browsing in the same input event. Native bounds changes, including delayed
+wheel movement, update photo coverage and newest-edge intent before display.
+Old release or adoption callbacks cannot
+restore the previous viewport after that handoff.
+Release shortens its remainder and uses the same subpixel completion thresholds
+as the phone grid. Both geometry and opacity finish before native adoption.
+Release layout, backing content and animation tracks are prepared together.
+Core Animation starts the complete batch on its transaction timeline.
+Every track holds its captured source value before that start, so a prepared
+target pose cannot leak into an earlier frame. Its native
+start event synchronizes the analytic input model, photo blend and totals track;
+construction and submission work do not consume visible spring time. Input that
+arrives before this event retains the unstarted pose, and an obsolete release's
+start or completion event cannot affect its replacement. Deferred native adoption
+and cleanup belong to that release too; reusing the same stage for new input
+invalidates the old handoff before it can remove or update the replacement.
+Repeated toolbar input retargets the existing stage from its current pose and
+pitch velocity. A new magnification resolves the photo through the shown
+section geometry and preserves every visible density face and caption in place
+while moving the input focus. Chronological copies exposed beside a scaled
+ordinary face retain the displayed copy's asset identity and in-photo fraction
+when input takes over.
+Toolbar zoom retains the chosen top or newest edge even when an intermediate
+density fits the viewport; zero scroll offset alone does not change that intent.
+The first or last photo edge supplies the matching toolbar anchor, keeping the
+reading surfaces attached to their respective content edges across density faces.
+For a newly introduced density, a toolbar zoom retaining the newest edge places
+the last photo in the last column. Returning to an already shown face preserves
+that face's row phase; an interrupted release cannot derive a new phase from an
+intermediate horizontal spring position.
+The native totals label remains mounted on the stage during zoom, with its
+reading size and facts unchanged. Its own geometric position track follows the
+content extent and rejoins the settled collection without disappearing.
+Every photo face is clipped above the totals' reading margin on the same event
+or native release timeline. Overview period captions stay outside this photo-only
+boundary. A short library changing row count or a fitting overview changing
+density cannot leave an outgoing photo tail in that reading region.
+Media marks follow the visible photo edge without cutting their glyphs. A mark
+fades as the remaining photo becomes too short to contain its full reading size.
+Ordinary-face marks occupy an independent, native-size reading plane, outside
+the photos' clipping container. Their safe region ends one x-small spacing token
+above the totals and stays within the viewport. Hidden poses retain safe
+coordinates, so an interpolated fade cannot pass a glyph through a clipping
+edge. Position, plate geometry and glyph alignment share the totals' release
+timeline; restoring native ownership preserves their final reading geometry.
+Ordinary media marks and overview period captions hand off reading ownership
+without painting different text over the same area. The outgoing reading family
+fades away before the incoming one becomes legible; month and year overviews
+follow the same rule. This handoff uses the photo mixture's existing timeline,
+preserves its phase on reversal, and leaves ordinary-to-ordinary zoom unchanged.
+
+Tile geometry springs keep ordinary gaps at 2 pt and source-cell marks at native
+size. Photo-library duration text and media marks remain outside the image's
+scale transform, retaining their reading size while following the photo edge.
+Newly attached marks adopt bitmap scale and backing color immediately; native
+handoff must not introduce an implicit glyph-size or background fade.
+Dense pooled photos share a photo-only layer transform, with native-size
+period-label tracks outside that transform and a fixed viewport reading margin;
+fractional edges that cannot share
+one transform retain tile springs. Ordinary Photo Library, folder and History
+grids keep date positioning in the native window subtitle. The Folders parent
+and individual folder scopes use this same flat-grid behavior, retaining each
+scope's photo anchor on navigation and Back. They never introduce
+inline date captions, floating date capsules or nested folder headers during
+tracking, reversal or adoption. Folder notices and History cause headings are
+ordinary flow content, not sticky reading overlays. Any flow text retained by a
+density stage keeps its measured native size and follows document geometry
+independently of the photo blend. The stage resolves its background in the
+inherited appearance. Gapless overview period captions retain their separate
+native-size reading tracks; the subtitle does not duplicate their periods.
+Ungrouped content that fits at the largest ordinary density stays at its first
+slot and zooms about its top-left corner, with no leading empty slots.
+
+The stage starts with already displayed native pixels, including source-backed
+cells. Native adoption retains those pixels before removing the stage. A visible
+stage animation owns completion independently of virtualized off-screen tiles.
+The exact target remains over the native update until the current viewport's
+expected cells and captions match their actual identities and layout frames.
+Already displayed stage pixels transfer to those replacement cells before the
+cover is removed in the same transaction. Native layout and cell-ready events
+resume a pending adoption; a main-queue turn alone does not establish readiness.
+Unavailable thumbnails do not block adoption when the stage had no image for
+them. Dense mosaics retain displayed pixels while their own renditions arrive.
+A renewed gesture can take over the retained stage during pending adoption.
 
 Cancellation restores the initial density; Reduce Motion adopts state without
 spatial animation. Native bottom-bar minimization remains system-owned. The period capsule is
@@ -113,10 +198,20 @@ sizing. Chrome before iOS 26 uses an interruptible 300 ms transition. Media deta
 separate. Calendar cover videos are muted and only one is active; reduce motion,
 low power, scrolling and background pause cover motion.
 
-The library viewer is presented full screen by a UIKit custom transition
-(`MediaViewerTransition`), as the system photo library presents its viewer.
-The viewer page is opaque and stays put. A snapshot of the grid above it
-crossfades out on opening and back in on closing. Only the photo flies: a
+The library viewer uses a UIKit custom transition. Native grid and History
+sources push the viewer on their own navigation controller, retaining the same
+system navigation bar and toolbar throughout entry, return and cancellation.
+Bar items use semantic identifiers: the same action may morph across states,
+while unrelated source and viewer actions remain separate system transitions.
+A source without an app-owned native stack presents the shared viewer container.
+Sheet sources keep their native sheet frame and clipping. The viewer's vertical
+pan decides before the horizontal pager and page zoom scroll; zoom returns
+input to the native page scroll. System sheet recognizers remain system-owned.
+
+The shared `MediaViewerTransition` keeps the page fixed. The source grid remains
+below the viewer content, and the backdrop and filmstrip follow the photo's
+property animator. The flight sits above the media stage but below the filmstrip
+and system bars. Only the photo flies: a
 snapshot of the fitted media moves between its tile and its fitted frame, with
 one uniform transform and crop on the same property animator, and the live
 media takes over at identical pixels. Bars, filmstrip and background therefore
@@ -142,6 +237,20 @@ detail parameters are implementation approximations, not measured private APIs.
 
 Media loading must not replace a flying node. Use a synchronously laid out native
 page and retain the displayed poster until AVKit reports its first frame ready.
+Offscreen preparation leaves the source tile visible until the opening snapshot
+is installed. Shared presentation has its own opening state: media-local loading
+is hidden throughout that transition, while native chrome keeps its normal fade.
+Freeze the live page's displayed rendition during the flight and refresh it only
+at the handoff. Reopening uses the shared Photos revision-aware, bounded cache
+of prepared full-aspect display pixels across library, recent-photo and history entry points
+before requesting another rendition. Source owners keep independent requests
+and browsing state; leaving one source does not clear shared display pixels. The
+display cache fits the current window and screen, retains asset revision and
+color range, and uses an explicit bounded replacement order. Larger zoom
+renditions remain session-owned. Local neighbour preparation cannot displace
+recently viewed display pixels. Explicit cache removal, revoked access and memory
+pressure invalidate shared display pixels and obsolete publishers; edited assets
+use their current revision.
 Suspend zoom/layout resets during a flight. One media-local ring owns loading
 feedback; header dates do not turn into loading messages. Information travel
 updates native photo geometry and panel geometry in the same animation owner,
@@ -207,7 +316,15 @@ Mac library calendar covers and All Photos use independent navigation. Trackpad
 magnification updates All Photos size without crossing into date grouping. The
 in-window viewer grows from its grid cell and returns to the current asset's
 cell on a critically damped spring (about 0.2 s), preserving the native grid
-beneath. A cell that is not visible falls back to a fade. Reduce Motion adopts
+beneath. Selecting a photo or laying out its viewer does not change the source's
+scroll intent. Only actual browsing movement adopts an edge; an empty or loading
+source does not acquire a newest-edge pin from an unrelated input event. The
+viewer retains its source's native clip origin before entry; layout and visibility
+requests cannot scroll it while the viewer is open. Return releases that ownership
+before resolving the current photo's landing, without replaying deferred scrolls.
+Removing or replacing the viewer also releases the source. Native viewport sizing
+continues throughout, and normal scrolling resumes after return.
+A cell that is not visible falls back to a fade. Reduce Motion adopts
 immediately. The viewer uses the system window background; EXIF and maps remain
 on demand. Years, Months and All Photos are live layers whose scale and opacity
 follow the current level on one spring (stiffness 400, damping 40): a coarser
@@ -231,19 +348,22 @@ cancel completes; late cropped covers and smaller renditions cannot replace it.
 The adjacent two items in each direction are prepared locally, with bounded
 model retention and unchanged network ownership for the visible page.
 
-Ordinary detail loading feedback waits until the current page has settled for
-600 ms, then fades in place over 200 ms; completion fades it out over 200 ms.
-Paging or changing asset cancels the pending reveal. Download byte progress and
-failure recovery retain their existing meaning. The loading surface never
+Local rendition preparation, including Live Photo assembly, retains the photo
+without a loading ring. Live Photos first resolve local resources; only a
+confirmed need for cloud resources starts the allowed network request. Real
+download progress, cloud actions and failures use the media-local indicator;
+the opening flight suppresses it until the live page takes over. Appearance and
+completion fade in place over 200 ms. Download byte progress and failure recovery
+retain their existing meaning. The loading surface never
 changes the image frame or contributes layout space. Filmstrip paging updates
 focus and selection on retained cells; only collection membership changes reload
 the strip. Offscreen request cancellation keeps an unchanged thumbnail's pixels.
 
 
-Mac grouped-grid density faces crossfade photos only. One stage-owned section
-caption follows the section's first-row position continuously, retaining its
-native text and summary geometry. The final caption pose uses the settled
-collection's header insets, width, height and sticky bounds.
+Mac ordinary density faces crossfade photos only. Source notices and cause
+headings retain their ordinary flow geometry and native reading size. Their
+final poses use the settled collection's measured insets, width and height;
+there is no folder/date pinning or date-style change at handoff.
 
 A grid stage starts at the photo point that its focal fractions describe, even
 when a toolbar anchor was requested in empty space. Overview entry uses the

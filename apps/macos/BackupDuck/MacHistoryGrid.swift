@@ -13,7 +13,7 @@ extension LibraryFilter {
   let navigation = MacLibraryNavigation()
   let thumbnails = ThumbnailPipeline()
   var scrolls: [String: MacGridScrollState] = [:]
-  var selection = Set<String>()
+  @Published var selection = Set<String>()
   @Published private(set) var imageRevision = 0
   private(set) var assets: [String: PHAsset] = [:]
   private(set) var files: [String: FolderPhoto] = [:]
@@ -68,21 +68,23 @@ struct MacHistoryGrid: View {
   var search: String
   var columns: Int
   var initialFocus: HistoryPhoto?
+  var initialFocusRevision = 0
   var clearFilters: () -> Void
   var resize: (Int) -> Void
   var retry: () -> Void
   var active = true
-  @State private var focused: String?
+  @State private var focusedRevision = -1
   var body: some View {
     let source = MacHistoryGridSource(history: history, state: state, filter: filter, type: type, search: search)
     MacMediaGrid(source: source, navigation: state.navigation, queueRevision: Int64(state.imageRevision),
-      receiverID: nil, columns: columns, active: active, prefillsTables: false, preview: { id in
+      receiverID: nil, columns: columns, active: active, sharedSize: .shared, prefillsTables: false, preview: { id in
         guard let photo = source.photos[id] else { return }
         let context = source.identifiers.compactMap { source.photos[$0] }
         present?(.history(photo, context, state, { state.navigation.focus($0) }))
       }, resize: resize)
+      .modifier(MacGridInspector(navigation: state.navigation, source: source, active: active))
       .overlay {
-        if source.identifiers.isEmpty && history.loading { ProgressView("library_loading") }
+        if source.identifiers.isEmpty && (!history.resolved || history.loading || history.hasMore && !history.failed) { ProgressView("library_loading") }
         else if source.identifiers.isEmpty && history.failed {
           ContentUnavailableView { Label("records_load_failed", systemImage: "exclamationmark.triangle") }
             actions: { Button("retry_task", action: retry) }.duckOpticalCenter()
@@ -98,13 +100,17 @@ struct MacHistoryGrid: View {
       .task(id: "\(source.contextID)|\(history.photos.count)") {
         if source.identifiers.isEmpty, history.hasMore { await history.loadMore() }
       }
-      .task(id: initialFocus?.id) {
-        guard let initialFocus, focused != initialFocus.id else { return }
-        while !history.photos.contains(where: { $0.id == initialFocus.id }), history.hasMore, !Task.isCancelled {
-          let count = history.photos.count; await history.loadMore()
-          if count == history.photos.count { break }
+      .task(id: "\(initialFocus?.id ?? "")|\(initialFocusRevision)|\(history.resolved)|\(history.loading)|\(history.failed)|\(history.photos.map(\.id).joined(separator: ","))") {
+        guard let initialFocus, focusedRevision != initialFocusRevision, history.resolved, !history.loading, !history.failed else { return }
+        if history.matching(initialFocus) == nil, history.hasMore {
+          // Loading changes this task's identity; the independent page request
+          // can finish, then the next observation resumes the search.
+          Task { await history.loadMore() }
+          return
         }
-        state.navigation.focus(initialFocus.id); focused = initialFocus.id
+        guard !Task.isCancelled, let found = history.matching(initialFocus), source.identifiers.contains(found.id) else { return }
+        state.selection = [found.id]
+        state.navigation.focus(found.id); focusedRevision = initialFocusRevision
       }
   }
 }
@@ -115,36 +121,56 @@ struct MacHistoryGrid: View {
   let photos: [String: HistoryPhoto]
   let identifiers: [String]
   let groups: [Int: String]
+  var flowHeaders: Set<Int> { Set(groups.keys) }
+  private var measured: (width: CGFloat, heights: [Int: CGFloat])?
   let contextID: String
+  private let locallyFiltered: Bool
+  private let receiverName: String?
   var previewPoster: ((String) -> NSImage?)?
   var previewFrame: ((String) -> CGRect?)?
   init(history: BackupHistoryModel, state: MacHistoryGridState, filter: String, type: LibraryFilter, search: String) {
     self.history = history; self.state = state
+    locallyFiltered = type != .all || !search.isEmpty
+    receiverName = BackupEnvironment.activeModel().peerDevice?.name
     contextID = "\(filter)|\(type.rawValue)|\(search)"
     func matches(_ photo: HistoryPhoto) -> Bool {
       type.matches(kind: photo.job?.asset.kind ?? "photo") && (search.isEmpty
         || (photo.job?.asset.resources.first?.filename ?? "").localizedCaseInsensitiveContains(search))
     }
-    let problems = history.causes.map { ($0.0, $0.1.filter(matches)) }
+    func newestFirst(_ lhs: HistoryPhoto, _ rhs: HistoryPhoto) -> Bool {
+      let left = lhs.changedAt ?? .distantPast, right = rhs.changedAt ?? .distantPast
+      return left == right ? lhs.id < rhs.id : left > right
+    }
+    let problems = history.causes.map { ($0.0, $0.1.filter(matches).sorted(by: newestFirst)) }
     var rows = problems.flatMap(\.1)
     let known = Set(rows.map(\.id))
-    rows += history.photos.filter { !known.contains($0.id) && matches($0) }
+    rows += history.photos.filter { !known.contains($0.id) && matches($0) }.sorted(by: newestFirst)
     photos = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) }); identifiers = rows.map(\.id)
     var headers: [Int: String] = [:], index = 0
     for (cause, items) in problems where !items.isEmpty {
       headers[index] = String(format: NSLocalizedString(cause.title, comment: ""), items.count.formatted())
       index += items.count
     }
-    var previous: Date?
-    for (offset, photo) in rows.dropFirst(index).enumerated() {
-      let day = Calendar.current.startOfDay(for: photo.changedAt ?? .distantPast)
-      if day != previous {
-        headers[index + offset] = day == .distantPast ? NSLocalizedString("design_capture_unknown", comment: "")
-          : day.formatted(date: .long, time: .omitted)
-        previous = day
+    // A source-neutral separator starts the ordinary records after the final
+    // reason group without inventing a date heading or mixing the two rows.
+    if index > 0, index < rows.count { headers[index] = "" }
+    groups = headers
+  }
+  func introduction(at index: Int) -> AnyView? {
+    guard let title = groups[index] else { return nil }
+    if title.isEmpty { return AnyView(Color.clear.frame(height: DuckSpacing.medium)) }
+    return AnyView(Text(title).font(.body.weight(.semibold)).foregroundStyle(DuckRole.primaryText)
+      .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, DuckSpacing.small))
+  }
+  func headerHeights(width: CGFloat) -> [Int: CGFloat] {
+    if let measured, measured.width == width { return measured.heights }
+    let heights = groups.keys.reduce(into: [Int: CGFloat]()) { result, index in
+      if let content = introduction(at: index) {
+        result[index] = MacGridSectionHeader.fittingContentHeight(content, width: width)
       }
     }
-    groups = headers
+    measured = (width, heights)
+    return heights
   }
   var contentRevision: String { "\(state.imageRevision)" }
   var selection: Set<String> { get { state.selection } set { state.selection = newValue } }
@@ -153,8 +179,23 @@ struct MacHistoryGrid: View {
     if let value = state.scrolls[contextID] { return value }
     let value = MacGridScrollState(); state.scrolls[contextID] = value; return value
   }
-  var footer: String { NSLocalizedString("records_cloud_footer", comment: "") }
+  var footer: String {
+    guard !history.failed, !history.loading else { return "" }
+    if !history.hasMore {
+      return MacGridTotals.complete(kinds: identifiers.map { photos[$0]?.job?.asset.kind }).text()
+    }
+    return locallyFiltered ? "" : MacGridTotals(total: history.total).text()
+  }
+  var footerNotes: [String] {
+    receiverName.map { [String(format: NSLocalizedString("grid_footer_receiver", comment: ""), $0)] } ?? []
+  }
   func asset(_ id: String) -> PHAsset? { photos[id].flatMap { state.assets[$0.source] } }
+  func informationTarget(_ id: String) -> MacPhotoInformationTarget {
+    guard let photo = photos[id] else { return .selection(0) }
+    if let file = state.files[id] { return .folder(file, FolderSources.active, photo.job) }
+    if let asset = asset(id) { return .library(asset, nil, photo.job) }
+    return .recorded(photo)
+  }
   func date(_ id: String) -> Date? { photos[id]?.changedAt }
   func configure(_ cell: PhotoCell, id: String, pixels: CGFloat, originalAspect: Bool) {
     guard let photo = photos[id] else { return }
@@ -175,19 +216,14 @@ struct MacHistoryGrid: View {
 struct MacGridFilterEmpty: View {
   var clear: () -> Void
   var body: some View {
-    ContentUnavailableView {
-      Label { Text("library_filter_empty").foregroundStyle(DuckRole.primaryText) }
-        icon: { Image(systemName: "line.3.horizontal.decrease") }
-    }
-      description: { Text("library_filter_empty_note") }
-      actions: { Button("library_filter_show_all", action: clear).duckPrimaryButton() }
-      .duckOpticalCenter()
+    LibraryPlaceholder(kind: .filterEmpty, clearFilter: clear)
   }
 }
 
 /// History retains its mixed-source collection while the existing media adapters
 /// own decoding, security-scoped access, zoom and the information inspector.
 struct MacHistoryPreview: View {
+  @Environment(\.macWorkspaceActive) private var active
   @State var photo: HistoryPhoto
   let collection: [HistoryPhoto]
   @ObservedObject var library: PhotoLibraryModel
@@ -195,28 +231,51 @@ struct MacHistoryPreview: View {
   /// The grid's resolved media: previous/next never waits for a lookup.
   @ObservedObject var media: MacHistoryGridState
   var close: (String) -> Void
-  private var paging: MacCollectionPaging {
-    MacCollectionPaging(index: collection.firstIndex(where: { $0.id == photo.id }) ?? 0,
-      count: collection.count, move: { step in
-        let index = (collection.firstIndex(where: { $0.id == photo.id }) ?? 0) + step
-        if collection.indices.contains(index) { photo = collection[index] }
-      })
+  @State private var animated = false
+  @StateObject private var fileMedia = MacFolderMediaDirectory()
+  private var index: Int { collection.firstIndex { $0.id == photo.id } ?? 0 }
+  private func move(_ step: Int, animated: Bool) {
+    let next = index + step
+    guard collection.indices.contains(next) else { return }
+    self.animated = animated; photo = collection[next]
   }
   var body: some View {
+    MacViewerLayout(navigation: navigation) {
+      MacCollectionPager(count: collection.count, selectedIndex: index, animated: animated,
+        selected: { next in photo = collection[next]; animated = false }, page: { position, _ in
+          let item = collection[position]
+          let paging = MacCollectionPaging(index: position, count: collection.count,
+            move: { move($0, animated: false) }, native: true, swipe: { move($0, animated: true) })
+          return AnyView(page(item, paging: paging).id(item.id))
+        })
+    }
+    .onAppear { installBack() }
+    .onChange(of: photo.id) { _, _ in installBack() }
+    .onChange(of: active) { _, visible in if visible { installBack() } }
+    .onDisappear { fileMedia.stop(); navigation.viewerCurrent = nil; navigation.viewerShare = nil; navigation.viewerBack = nil }
+  }
+  private func installBack() {
+    guard active else { return }
+    navigation.viewerBack = { close(photo.id) }
+  }
+  @ViewBuilder private func page(_ item: HistoryPhoto, paging: MacCollectionPaging) -> some View {
     Group {
-      if let file = media.files[photo.id] {
-        FolderViewer(photo: file, context: [file], folders: FolderSources.active, navigation: navigation,
-          close: { _ in close(photo.id) }, collectionPaging: paging, recorded: photo.job)
-      } else if let asset = media.assets[photo.source] {
-        MacPhotoPreview(asset: asset, library: library, navigation: navigation, reviewAssets: [asset], recorded: photo,
-          collectionPaging: paging, close: { _ in close(photo.id) })
+      if let file = media.files[item.id] {
+        MacFolderPreviewPage(photo: file, context: [file], folders: FolderSources.active,
+          navigation: navigation, media: fileMedia.model(for: file,
+            keeping: collection[max(0, index - 1)...min(collection.count - 1, index + 1)].compactMap { media.files[$0.id] },
+            folders: FolderSources.active, poster: navigation.viewerFlight.poster(for: file.source_id)),
+          close: { _ in close(item.id) }, collectionPaging: paging, recorded: item.job)
+      } else if let asset = media.assets[item.source] {
+        MacPhotoPreview(asset: asset, library: library, navigation: navigation, reviewAssets: [asset],
+          recorded: item, collectionPaging: paging, close: { _ in close(item.id) })
       } else {
-        MacRecordedPhotoPreview(photo: photo, model: BackupEnvironment.activeModel(), navigation: navigation,
-          close: { close(photo.id) }, collectionPaging: paging)
+        MacRecordedPhotoPreview(photo: item, model: BackupEnvironment.activeModel(), navigation: navigation,
+          close: { close(item.id) }, collectionPaging: paging)
       }
-    }.id(photo.id)
-      .task(id: photo.id) {
-        if media.files[photo.id] == nil && media.assets[photo.source] == nil { await media.resolve([photo], merging: true) }
-      }
+    }
+    .task(id: item.id) {
+      if media.files[item.id] == nil && media.assets[item.source] == nil { await media.resolve([item], merging: true) }
+    }
   }
 }

@@ -35,9 +35,12 @@ internal fun receiverHubState(enabled: Boolean, paused: Boolean, pending: Boolea
     else -> ReceiverHubState.WAITING
 }
 
+internal fun recentlyReceivedPhotos(items: List<HistoryItem>): List<HistoryItem> =
+    items.filter { it.receipt == "received" }.take(8)
+
 /**
  * The receive hub (design/interaction.md I2 task center, design/flows.md §
- * Pixel hub states): one state card said once, recently saved photos as the
+ * Pixel hub states): one state card said once, recently received photos as the
  * evidence, and the devices that send here while calm. Built from the shared
  * components (DuckLook.kt).
  */
@@ -79,16 +82,23 @@ internal class ReceiverHub(private val activity: MainActivity, private val actio
 
     override fun history(state: HistoryState) {
         state.counts?.let { totals(it.published, it.total, it.failed) }
-        // Only photos already in the Pixel's Photos have a picture to show.
-        photos = state.items.filter { it.processing == "complete" }.take(8)
-        mosaic.bind(photos, images, { tileDescription(activity, it) }) { item, tile, collection ->
-            NativePhotoViewerActivity.open(activity, item, tile, mosaic, collection)
-        }
+        // A received original can already have a receipt preview while saving.
+        photos = recentlyReceivedPhotos(state.items)
+        bindRecent()
         rendered = null
         render(ReceiverState.snapshot.value, null, false)
     }
 
-    override fun progress(values: Map<String, ReceiverByteProgress>) { /* The mosaic shows settled photos only. */ }
+    private fun bindRecent() {
+        mosaic.bind(photos, images, { tileDescription(activity, it) }) { item, tile, collection ->
+            NativePhotoViewerActivity.open(activity, item, tile, mosaic, collection)
+        }
+    }
+
+    override fun progress(values: Map<String, ReceiverByteProgress>) {
+        val current = photos.map { it.withLive(values[it.id]) }
+        if (current != photos) { photos = current; bindRecent() }
+    }
 
     override fun totals(saved: Int, total: Int, failed: Int) {
         if (saved == this.saved && total == this.total && failed == this.failed) return

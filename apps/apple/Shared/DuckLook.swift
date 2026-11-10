@@ -190,6 +190,7 @@ struct DuckSectionHeader: View {
 struct DuckPhotoMosaic: View {
   let sources: [String]
   var twoRows = false
+  var hiddenSource: String? = nil
   var thumbnail: ((String, CGFloat) -> AnyView)? = nil
   var frameChanged: ((String, CGRect) -> Void)? = nil
   var open: ((String, CGRect) -> Void)? = nil
@@ -213,12 +214,12 @@ struct DuckPhotoMosaic: View {
       VStack(alignment: .leading, spacing: DuckLook.photoGap) {
         HStack(spacing: DuckLook.photoGap) {
           ForEach(Array(sources.prefix(firstCount)), id: \.self) { source in
-            DuckMosaicPhoto(source: source, side: firstSide, frameChanged: frameChanged, open: open, image: thumbnail)
+            DuckMosaicPhoto(source: source, side: firstSide, frameChanged: frameChanged, open: open, image: thumbnail, hidden: source == hiddenSource)
           }
         }
         HStack(spacing: DuckLook.photoGap) {
           ForEach(Array(sources.dropFirst(firstCount).prefix(secondCount)), id: \.self) { source in
-            DuckMosaicPhoto(source: source, side: secondSide, frameChanged: frameChanged, open: open, image: thumbnail)
+            DuckMosaicPhoto(source: source, side: secondSide, frameChanged: frameChanged, open: open, image: thumbnail, hidden: source == hiddenSource)
           }
         }
       }
@@ -230,7 +231,7 @@ struct DuckPhotoMosaic: View {
       let count = CGFloat(max(min(sources.count, 4), 1))
       let side = (geometry.size.width - DuckLook.photoGap * (count - 1)) / count
       HStack(spacing: DuckLook.photoGap) {
-        ForEach(sources.prefix(4), id: \.self) { source in DuckMosaicPhoto(source: source, side: side, frameChanged: frameChanged, open: open, image: thumbnail) }
+        ForEach(sources.prefix(4), id: \.self) { source in DuckMosaicPhoto(source: source, side: side, frameChanged: frameChanged, open: open, image: thumbnail, hidden: source == hiddenSource) }
       }
     }
     .aspectRatio(CGFloat(max(min(sources.count, 4), 1)), contentMode: .fit)
@@ -243,7 +244,7 @@ struct DuckPhotoMosaic: View {
       let small = (geometry.size.width - gap * 3) / 4
       let large = small * 2 + gap
       HStack(spacing: gap) {
-        DuckMosaicPhoto(source: sources[0], side: large, frameChanged: frameChanged, open: open, image: thumbnail)
+        DuckMosaicPhoto(source: sources[0], side: large, frameChanged: frameChanged, open: open, image: thumbnail, hidden: sources[0] == hiddenSource)
         VStack(spacing: gap) {
           HStack(spacing: gap) { tile(1, small); tile(2, small) }
           HStack(spacing: gap) { tile(3, small); tile(4, small) }
@@ -254,7 +255,7 @@ struct DuckPhotoMosaic: View {
   }
 
   private func tile(_ index: Int, _ side: CGFloat) -> some View {
-    DuckMosaicPhoto(source: sources[index], side: side, frameChanged: frameChanged, open: open, image: thumbnail)
+    DuckMosaicPhoto(source: sources[index], side: side, frameChanged: frameChanged, open: open, image: thumbnail, hidden: sources[index] == hiddenSource)
   }
 }
 
@@ -265,15 +266,22 @@ private struct DuckMosaicPhoto: View {
   let frameChanged: ((String, CGRect) -> Void)?
   let open: ((String, CGRect) -> Void)?
   let image: ((String, CGFloat) -> AnyView)?
+  var hidden = false
   @State private var frame = CGRect.zero
   var body: some View {
     Group {
       if let open {
-        Button { open(source, frame) } label: { thumbnail }.buttonStyle(.plain)
+        Button { open(source, frame) } label: { thumbnail }
+          #if os(iOS)
+          .buttonStyle(DuckMediaButtonStyle())
+          #else
+          .buttonStyle(.plain)
+          #endif
           .accessibilityLabel(Text("library_preview"))
           .accessibilityIdentifier("hub.recent.\(source)")
       } else { thumbnail }
     }
+    .opacity(hidden ? 0 : 1)
     .background(GeometryReader { proxy in
       Color.clear.onAppear { update(proxy.frame(in: .global)) }
         .onChange(of: proxy.frame(in: .global)) { _, value in update(value) }
@@ -316,7 +324,7 @@ struct DuckEarlierPhotosCard: View {
   private var notStarted: Bool { !history.hasStarted }
   private var paused: Bool { history.state == "paused" }
   private var progress: Double? {
-    guard history.state == "scanned", let published = history.published, history.checked > 0 else { return nil }
+    guard !history.isSaved, history.state == "scanned", let published = history.published, history.checked > 0 else { return nil }
     return Double(min(published, history.checked)) / Double(history.checked)
   }
   private var note: Text {

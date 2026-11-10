@@ -59,7 +59,7 @@ internal object GalleryPreview {
                     if(!c.moveToFirst()||c.getInt(1)!=0||(!c.isNull(2)&&c.getLong(2)<=0))return@use null
                     val mime=c.getString(0) ?: resolver.getType(uri) ?: if(item.kind=="video")"video/mp4" else "image/jpeg"
                     if(!mime.startsWith("image/")&&!mime.startsWith("video/"))return@use null
-                    val duration=if(mime.startsWith("video/"))resolver.query(uri,arrayOf(MediaStore.Video.Media.DURATION),null,null,null,signal)?.use { d -> if(d.moveToFirst()&&!d.isNull(0))d.getLong(0).takeIf {it>0} else null } else null
+                    val duration=if(mime.startsWith("video/"))indexedVideoDuration(context,uri,signal) else null
                     GalleryPreviewCopy(uri,mime,duration)
                 }
             }.getOrNull().also { signal.throwIfCanceled() }

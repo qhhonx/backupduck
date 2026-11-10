@@ -11,7 +11,7 @@ import kotlin.math.abs
 /** The fitted photo yields horizontal input to paging; magnified media owns both axes. */
 internal class PhotoZoom(private val image: ImageView, tap: () -> Unit,
     private val swipeUp: () -> Unit, private val swipeDown: () -> Unit,
-    private val canZoom: () -> Boolean) {
+    private val canZoom: () -> Boolean, private val hasMedia: () -> Boolean) {
     private var scale = 1f
     private var x = 0f
     private var y = 0f
@@ -24,10 +24,10 @@ internal class PhotoZoom(private val image: ImageView, tap: () -> Unit,
 
     fun reset() {
         scale = 1f; x = 0f; y = 0f
-        image.scaleType = ImageView.ScaleType.FIT_CENTER
+        image.scaleType = if (hasMedia()) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.CENTER
         image.parent?.requestDisallowInterceptTouchEvent(false)
     }
-    fun refresh() { if (scale > 1f) apply() }
+    fun refresh() { if (scale > 1f && hasMedia()) apply() else reset() }
     private fun apply() {
         val drawable = image.drawable ?: return
         // The first native scale callback can be neutral. Keep both pointers
@@ -51,7 +51,7 @@ internal class PhotoZoom(private val image: ImageView, tap: () -> Unit,
         image.imageMatrix = matrix
     }
     private val pinch = ScaleGestureDetector(image.context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean = canZoom()
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean = hasMedia() && canZoom()
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val next = (scale * detector.scaleFactor).coerceIn(1f, 5f)
             val ratio = next / scale
@@ -65,7 +65,7 @@ internal class PhotoZoom(private val image: ImageView, tap: () -> Unit,
         override fun onDown(e: MotionEvent) = true
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean { tap(); return true }
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (!canZoom()) { tap(); return true }
+            if (!hasMedia() || !canZoom()) { tap(); return true }
             if (scale > 1f) reset() else {
                 scale = 2.5f
                 x = (image.width/2f-e.x)*(scale-1f); y = (image.height/2f-e.y)*(scale-1f)
@@ -88,7 +88,7 @@ internal class PhotoZoom(private val image: ImageView, tap: () -> Unit,
                     image.parent?.requestDisallowInterceptTouchEvent(scale > 1f)
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
-                    multiple = true; image.parent?.requestDisallowInterceptTouchEvent(true)
+                    multiple = true; image.parent?.requestDisallowInterceptTouchEvent(hasMedia() && canZoom())
                 }
                 MotionEvent.ACTION_MOVE -> if (!multiple && scale == 1f && abs(event.y-downY) > slop &&
                     abs(event.y-downY) > abs(event.x-downX)) {

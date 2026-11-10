@@ -87,6 +87,17 @@ impl Index {
             )
             .map_err(db)?;
         }
+        let has_repeat: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('selected_requests') WHERE name='repeat_job')",
+            [], |row| row.get(0),
+        ).map_err(db)?;
+        if !has_repeat {
+            conn.execute(
+                "ALTER TABLE selected_requests ADD COLUMN repeat_job INTEGER",
+                [],
+            )
+            .map_err(db)?;
+        }
         Ok(Self { conn, scan: None })
     }
     pub fn begin(&mut self, source: &str, root: &Path, generation: u64) -> Result<()> {
@@ -142,11 +153,13 @@ impl Index {
         for relative in &scopes {
             let path = canonical.join(relative);
             if path.exists() {
-                if !path.is_dir()
-                    || fs::symlink_metadata(&path)?.file_type().is_symlink()
-                    || path.canonicalize()? != path
-                {
+                if !unlinked_directory(&path)? {
                     return Err(Error::Invalid("folder scope link".into()));
+                }
+                // An event can spell a case-insensitive directory differently
+                // from read_dir. Enumerate from the root to retain inventory keys.
+                if !relative.is_empty() && path.canonicalize()? != path {
+                    return self.begin(source, &canonical, generation);
                 }
                 self.conn
                     .execute(
@@ -220,9 +233,7 @@ impl Index {
                     )
                     .map_err(db)?;
                 let path = scan.root.join(dir);
-                if fs::symlink_metadata(&path)?.file_type().is_symlink()
-                    || path.canonicalize()? != path
-                {
+                if !unlinked_directory(&path)? {
                     return Err(Error::Invalid("folder directory changed".into()));
                 }
                 scan.current = Some(fs::read_dir(path)?);
@@ -369,7 +380,7 @@ impl Index {
         relative: Option<&str>,
         max_created: Option<u64>,
     ) -> Result<Vec<Entry>> {
-        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND (?7 IS NULL OR created<=?7 OR EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2)) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source AND d.relative=f.relative AND d.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR (s.receiver='@baseline' AND NOT EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2))) AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
+        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND (?7 IS NULL OR created<=?7 OR EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2)) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source AND d.relative=f.relative AND d.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR (s.receiver='@baseline' AND NOT EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2))) AND s.revision=f.revision AND NOT EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2 AND q.repeat_job=s.job)) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
         let rows = stmt
             .query_map(
                 params![
@@ -450,6 +461,27 @@ pub fn media_type(path: &Path) -> Option<&'static str> {
         _ => None,
     }
 }
+// The path is absolute and built from a canonical root and normal components.
+// Volumes can return different case from canonicalize and read_dir for the
+// same directory. Check the actual components for links before descending.
+fn unlinked_directory(path: &Path) -> Result<bool> {
+    // Joining an empty scope adds a trailing slash, which would make lstat
+    // follow a link replacing the selected root.
+    let path = path.components().as_path();
+    if !fs::symlink_metadata(path)?.is_dir() {
+        return Ok(false);
+    }
+    if path.canonicalize()? == path {
+        return Ok(true);
+    }
+    for ancestor in path.ancestors().skip(1) {
+        if !fs::symlink_metadata(ancestor)?.is_dir() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Reject symbolic links even inside the selected root; never follow an escaped path.
 pub fn resolve(root: &Path, relative: &str) -> Result<PathBuf> {
     let relative = Path::new(relative);

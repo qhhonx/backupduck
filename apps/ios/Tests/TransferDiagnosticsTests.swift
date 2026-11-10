@@ -25,32 +25,26 @@ import XCTest
     XCTAssertEqual(TransferDiagnostics.milliseconds(Date(timeIntervalSince1970: 123.456)), 123456)
   }
   func testColdSnapshotRefreshesPreparationBacklogEvenWhenStorageBlocksExport() async throws {
-    let model = BackupModel.shared
-    await model.open()
-    // Exercise the already-open durable store with an isolated receiver.
-    // Photo-library and Keychain startup are outside this regression.
+    await BackupModel.shared.open()
     _ = try await Bridge.call(["op": "sender_status"])
-    let previousReady = model.ready
-    model.ready = true
-    let previousPaused = model.paused
-    await model.setPaused(true)
-    let previous = model.pairing
-    let previousStorage = model.storage
-    let previousPending = model.pendingImports
-    let previousReason = model.preparationReason
+    // Keep the durable store, but isolate the storage snapshot from the host
+    // application's periodic refresh while the diagnostic awaits the queue.
     let receiver = "preparation-test-" + UUID().uuidString
-    // A completed first run restores networking for saved trust; the hosted
-    // runner never ran first run, so stand in for it here.
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(receiver)
+    let model = BackupModel(root: root)
+    model.ready = true
+    let activeModel = BackupEnvironment.activeModel
     let restoresNetwork = BackupEnvironment.restoresSenderNetwork
+    BackupEnvironment.activeModel = { model }
     BackupEnvironment.restoresSenderNetwork = { true }
+    defer {
+      model.stop()
+      model.pairing = nil
+      BackupEnvironment.activeModel = activeModel
+      BackupEnvironment.restoresSenderNetwork = restoresNetwork
+    }
     model.pairing = Pairing(version: 2, receiverID: receiver,
       endpoint: "https://127.0.0.1:1", certificate: "fixture", token: "fixture")
-    defer {
-      model.pairing = previous; model.storage = previousStorage
-      BackupEnvironment.restoresSenderNetwork = restoresNetwork
-      model.pendingImports = previousPending; model.preparationReason = previousReason
-      model.ready = previousReady
-    }
     _ = try await Bridge.call(["op": "schedule_sources", "receiver_id": receiver,
       "sources": ["fixture-a", "fixture-b", "fixture-c"]])
     let queued = try await Bridge.call(["op": "pending_sources", "receiver_id": receiver])
@@ -73,6 +67,5 @@ import XCTest
       _ = try await Bridge.call(["op": "source_result", "receiver_id": receiver,
         "source": source, "complete": true])
     }
-    await model.setPaused(previousPaused)
   }
 }

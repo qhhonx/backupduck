@@ -41,7 +41,7 @@ a visitor asks: what is this, is it true for me, how do I start, is it safe.
    drives and SD cards; frees space on the Pixel automatically.
 6. **Private by design.** Photos travel only between your own devices;
    BackupDuck has no cloud of its own. Link to the privacy page.
-7. **Download**: iPhone / iPad, Mac, Pixel (Android receiver), each with its
+7. **Download**: iPhone, Mac, Pixel (Android receiver), each with its
    requirement line and install route as today; the community link.
 8. **Questions**: a few short answers in the apps' words (iCloud needed?,
    does "received" mean in Google Photos?, what if the Pixel fills up?, overnight

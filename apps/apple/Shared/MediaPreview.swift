@@ -25,6 +25,11 @@ protocol PreviewSample {
 }
 
 enum PreviewDownloadState { case available, downloading, failed }
+/// A poster remains visible while its full rendition is prepared. Only a
+/// reported download fraction is determinate; zero is a valid observation.
+enum MediaPreviewIndicatorState: Equatable {
+  case hidden, indeterminate, progress(Double), cloud, failed
+}
 extension PreviewSample {
   var previewDownloadState: PreviewDownloadState { .available }
 }
@@ -37,7 +42,14 @@ extension PreviewSample {
   @Published private(set) var loading = false
   @Published private(set) var cloudNeeded = false
   @Published private(set) var failure = false
-  @Published private(set) var progress: Double = 0
+  @Published private(set) var progress: Double?
+  var indicatorState: MediaPreviewIndicatorState {
+    if failure { return .failed }
+    if cloudNeeded { return .cloud }
+    guard loading else { return .hidden }
+    if let progress, progress.isFinite { return .progress(min(1, max(0, progress))) }
+    return image == nil ? .indeterminate : .hidden
+  }
   @Published private(set) var metadata: [(String, String)] = []
   @Published private(set) var burstIndex = 0
   @Published private(set) var burstCount = 0
@@ -49,14 +61,121 @@ extension PreviewSample {
   private var metadataGeneration = UUID()
   private(set) var metadataRequested = false
   private var generation = UUID()
+  // Quality belongs to the delivered pixels, not their nominal dimensions.
+  private var posterQuality = 0
   private var cloudPoster = false
   private var promptForCloud = true
   private var networkRequested = false
   private let manager: PHImageManager?
-  init(asset: PHAsset, poster: LibraryImage? = nil, manager: PHImageManager? = nil) {
-    self.asset = asset; image = poster; self.manager = BackupEnvironment.usesPhotoLibrary ? (manager ?? .default()) : nil
+  private weak var renditions: ThumbnailPipeline?
+  #if os(macOS)
+  @Published private(set) var macLocalPosterResolved = false
+  /// A crop is usable after the local attempt finishes, including an offline
+  /// failure. Network requests never gate the opening flight.
+  var macEntryPosterReady: Bool {
+    guard let image else { return false }
+    let aspect = CGFloat(max(1, asset.pixelWidth)) / CGFloat(max(1, asset.pixelHeight))
+    let fullAspect = abs(log((image.size.width / max(1, image.size.height)) / aspect)) < 0.02
+    return fullAspect || macLocalPosterResolved || failure || cloudNeeded
   }
-  private func adoptPoster(_ incoming: LibraryImage) {
+  private var macDetailTarget: MacDetailPosterTarget?
+  private var macDetailRead: Task<Void, Never>?
+  private var macDetailGeneration = 0
+  private var macPosterPixelsRequested: CGFloat = 0
+  func setMacDisplayTarget(_ target: MacDetailPosterTarget) {
+    guard macDetailTarget != target else { return }
+    macDetailTarget = target
+    readMacDetailPoster()
+    if promptForCloud, posterQuality >= 2, let image {
+      MacDetailPosterCache.shared.retain(image, asset: asset, target: target, generation: macDetailGeneration)
+    }
+    let fitted = target.fitted(for: asset)
+    let edge = max(fitted.width, fitted.height)
+    if promptForCloud, macPosterPixelsRequested > 0, edge > macPosterPixelsRequested, let manager {
+      macPosterPixelsRequested = edge
+      let expected = generation, options = PHImageRequestOptions()
+      options.isNetworkAccessAllowed = PreviewNetworkPolicy.shared.allowed
+      options.deliveryMode = .opportunistic; options.resizeMode = .exact
+      requests.append(manager.requestImage(for: asset, targetSize: CGSize(width: edge, height: edge),
+        contentMode: .aspectFit, options: options) { [weak self] value, info in
+        Task { @MainActor in
+          guard let self, self.generation == expected, let value else { return }
+          self.preparePoster(value, expected: expected, quality: info?[PHImageResultIsDegradedKey] as? Bool == true ? 1 : 2)
+        }
+      })
+    }
+  }
+  private func readMacDetailPoster() {
+    macDetailRead?.cancel()
+    guard let target = macDetailTarget else { return }
+    let expected = generation, asset = asset
+    macDetailRead = Task { [weak self] in
+      let image = await MacDetailPosterCache.shared.load(asset: asset, target: target)
+      guard let self, !Task.isCancelled, self.generation == expected,
+        self.asset.localIdentifier == asset.localIdentifier, self.macDetailTarget == target,
+        let image else { return }
+      self.adoptPoster(image, retain: false, quality: 2)
+    }
+  }
+  #endif
+  #if os(iOS)
+  private var detailCacheGeneration: Int?
+  private var displayTarget: DetailPosterTarget?
+  private var posterPixelsRequested: CGFloat = 0
+  private var detailRead: Task<Void, Never>?
+  private func readDetailPoster() {
+    detailRead?.cancel()
+    guard let target = displayTarget, let renditions else { return }
+    let expected = generation, asset = asset, viewed = promptForCloud
+    detailRead = Task { [weak self] in
+      let retained = await renditions.loadDetailPoster(for: asset, target: target, touch: viewed)
+      guard let self, !Task.isCancelled, self.generation == expected,
+        self.asset.localIdentifier == asset.localIdentifier, self.displayTarget == target,
+        let retained else { return }
+      self.adoptPoster(retained, retain: false, quality: 2)
+    }
+  }
+  func setDisplayTarget(_ target: DetailPosterTarget) {
+    guard displayTarget != target else { return }
+    displayTarget = target
+    readDetailPoster()
+    if let retained = renditions?.detailPoster(for: asset, target: target, touch: promptForCloud) { adoptPoster(retained, retain: false, quality: 2) }
+    if let image, promptForCloud, posterQuality >= 2, let detailCacheGeneration {
+      renditions?.retainDetailPoster(image, for: asset, target: target, generation: detailCacheGeneration)
+    }
+    let pixels = target.fittedPixels(for: asset)
+    let edge = min(4096, max(2400, pixels.width, pixels.height))
+    // A larger window can need more pixels without restarting a playing video
+    // or Live Photo. Keep the displayed face while only its poster is upgraded.
+    if promptForCloud, posterPixelsRequested > 0, edge > posterPixelsRequested, let manager {
+      posterPixelsRequested = edge
+      let expected = generation, options = PHImageRequestOptions()
+      options.isNetworkAccessAllowed = promptForCloud && PreviewNetworkPolicy.shared.allowed
+      options.deliveryMode = .opportunistic; options.resizeMode = .exact
+      requests.append(manager.requestImage(for: asset, targetSize: CGSize(width: edge, height: edge),
+        contentMode: .aspectFit, options: options) { [weak self] value, info in
+        Task { @MainActor in
+          guard let self, self.generation == expected, let value else { return }
+          self.preparePoster(value, expected: expected, quality: info?[PHImageResultIsDegradedKey] as? Bool == true ? 1 : 2)
+        }
+      })
+    }
+  }
+  #endif
+  init(asset: PHAsset, poster: LibraryImage? = nil, manager: PHImageManager? = nil,
+    renditions: ThumbnailPipeline? = nil, isCurrent: Bool = true) {
+    self.asset = asset; image = poster; self.manager = BackupEnvironment.usesPhotoLibrary ? (manager ?? .default()) : nil
+    self.renditions = renditions
+    promptForCloud = isCurrent
+    #if os(macOS)
+    if let retained = MacDetailPosterCache.shared.memoryPoster(asset: asset) { adoptPoster(retained, retain: false, quality: 2) }
+    #endif
+    #if os(iOS)
+    detailCacheGeneration = renditions?.detailAccessGeneration
+    if let retained = renditions?.detailPoster(for: asset, touch: isCurrent) { adoptPoster(retained, retain: false, quality: 2) }
+    #endif
+  }
+  private func adoptPoster(_ incoming: LibraryImage, retain: Bool = true, quality: Int = 0) {
     if let current = image {
       #if os(iOS)
       let edge: (LibraryImage) -> CGFloat = { max($0.size.width,$0.size.height) * $0.scale }
@@ -72,19 +191,49 @@ extension PreviewSample {
       let fullAspect: (LibraryImage) -> Bool = {
         abs(log(($0.size.width / max(1, $0.size.height)) / mediaAspect)) < 0.02
       }
+      if fullAspect(current), quality < posterQuality { return }
       #if os(iOS)
       // Once the full composition is visible, a late cropped cover cannot
       // replace it, even when that cover has a larger nominal pixel edge.
       if fullAspect(current), !fullAspect(incoming) { return }
+      let incomingFits = displayTarget?.isSatisfied(by: incoming, asset: asset) == true
+      let currentFits = displayTarget?.isSatisfied(by: current, asset: asset) == true
+      // A small full-aspect seed can establish composition, but its color does
+      // not veto a later rendition that actually fills the display target.
+      if quality <= posterQuality, fullAspect(current), fullAspect(incoming), !(incomingFits && !currentFits),
+        DetailThumbnailQuality(current).improvesColor(DetailThumbnailQuality(incoming)) { return }
+      let colorUpgrade = fullAspect(incoming)
+        && DetailThumbnailQuality(incoming).improvesColor(DetailThumbnailQuality(current))
+        && (incomingFits || edge(incoming) >= edge(current))
+      #else
+      if fullAspect(current), !fullAspect(incoming) { return }
+      let oldBitmap = current.cgImage(forProposedRect: nil, context: nil, hints: nil)
+      let newBitmap = incoming.cgImage(forProposedRect: nil, context: nil, hints: nil)
+      let fitted = macDetailTarget?.fitted(for: asset)
+      if quality <= posterQuality, fullAspect(current), fullAspect(incoming), let oldBitmap, let newBitmap,
+        MacDetailBitmap.keepsCurrentColor(oldBitmap, incoming: newBitmap, fitted: fitted) { return }
+      let incomingFits = newBitmap.map { bitmap in
+        fitted.map { CGFloat(bitmap.width) >= $0.width - 1 && CGFloat(bitmap.height) >= $0.height - 1 } ?? false
+      } ?? false
+      let colorUpgrade = fullAspect(incoming) && (incomingFits || edge(incoming) >= edge(current))
+        && (oldBitmap.flatMap { old in newBitmap.map { MacDetailBitmap.improvesColor($0, over: old) } } ?? false)
       #endif
-      if fullAspect(incoming), !fullAspect(current) {
-        image = incoming; return
-      }
-      guard edge(incoming) >= edge(current) else { return }
+      if quality <= posterQuality, !colorUpgrade, !(fullAspect(incoming) && !fullAspect(current)), edge(incoming) < edge(current) { return }
     }
     image = incoming
+    posterQuality = quality
+    #if os(macOS)
+    if retain, quality >= 2, promptForCloud, let target = macDetailTarget {
+      MacDetailPosterCache.shared.retain(incoming, asset: asset, target: target, generation: macDetailGeneration)
+    }
+    #endif
+    #if os(iOS)
+    if retain, quality >= 2, promptForCloud, let detailCacheGeneration {
+      renditions?.retainDetailPoster(incoming, for: asset, target: displayTarget, generation: detailCacheGeneration)
+    }
+    #endif
   }
-  private func preparePoster(_ incoming: LibraryImage, expected: UUID,
+  private func preparePoster(_ incoming: LibraryImage, expected: UUID, quality: Int = 1,
     completion: (@MainActor (Bool) -> Void)? = nil) {
     #if os(iOS)
     // UIKit prepares the bitmap away from the main thread. Keep the displayed
@@ -92,12 +241,12 @@ extension PreviewSample {
     incoming.prepareForDisplay { [weak self] prepared in
       Task { @MainActor in
         guard let self, self.generation == expected else { return }
-        if let prepared { self.adoptPoster(prepared) }
+        if let prepared { self.adoptPoster(prepared, quality: quality) }
         completion?(prepared != nil)
       }
     }
     #else
-    adoptPoster(incoming); completion?(true)
+    adoptPoster(incoming, quality: quality); completion?(true)
     #endif
   }
   var kind: String {
@@ -112,13 +261,26 @@ extension PreviewSample {
   }
   func load(_ next: PHAsset? = nil, pixels: CGFloat = 2400, promptForCloud: Bool = true) {
     cancel()
+    #if os(macOS)
+    macLocalPosterResolved = false
+    macDetailGeneration = MacDetailPosterCache.shared.accessGeneration
+    #endif
+    #if os(iOS)
+    detailCacheGeneration = renditions?.detailAccessGeneration
+    #endif
     self.promptForCloud = promptForCloud
-    if let next, next.localIdentifier != asset.localIdentifier { asset = next; image = nil }
+    if let next, next.localIdentifier != asset.localIdentifier { asset = next; image = nil; posterQuality = 0 }
+    #if os(macOS)
+    readMacDetailPoster()
+    #endif
     if let sample = asset as? any PreviewSample {
       image = sample.previewImage
       loading = sample.previewDownloadState == .downloading
       failure = sample.previewDownloadState == .failed || image == nil
-      cloudNeeded = false; progress = 0
+      cloudNeeded = false; progress = nil
+      #if os(macOS)
+      macLocalPosterResolved = true
+      #endif
       return
     }
     guard BackupEnvironment.usesPhotoLibrary, let manager else { loading = false; failure = true; return }
@@ -131,7 +293,7 @@ extension PreviewSample {
       burstIndex = index == NSNotFound ? 0 : index
     } else { burstFetch = nil; burstCount = 0; burstIndex = 0 }
     livePhoto = nil; player = nil; metadata = []
-    cloudPoster = false; cloudNeeded = false; failure = false; loading = true; progress = 0
+    cloudPoster = false; cloudNeeded = false; failure = false; loading = true; progress = nil
     let expected = generation
     let network = promptForCloud && PreviewNetworkPolicy.shared.allowed
     networkRequested = network
@@ -150,13 +312,34 @@ extension PreviewSample {
     local.isNetworkAccessAllowed = false
     local.deliveryMode = .opportunistic; local.resizeMode = .fast
     requests.append(manager.requestImage(for: asset, targetSize: CGSize(width: 512, height: 512),
-      contentMode: .aspectFit, options: local) { [weak self] value, _ in
+      contentMode: .aspectFit, options: local) { [weak self] value, info in
       Task { @MainActor in
-        guard let self, self.generation == expected, let value else { return }
-        self.preparePoster(value, expected: expected)
+        guard let self, self.generation == expected else { return }
+        if let value { self.preparePoster(value, expected: expected) }
+        #if os(macOS)
+        // A terminal local miss is a real readiness event for the retained
+        // source crop. Do not keep waiting for a network-backed full image.
+        if info?[PHImageResultIsDegradedKey] as? Bool != true { self.macLocalPosterResolved = true }
+        #endif
       }
     })
-    let size = CGSize(width: min(4096, max(1600, pixels)), height: min(4096, max(1600, pixels)))
+    var edge = min(4096, max(1600, pixels))
+    #if os(macOS)
+    if promptForCloud, let target = macDetailTarget {
+      let fitted = target.fitted(for: asset)
+      edge = min(4096, max(edge, fitted.width, fitted.height))
+    }
+    macPosterPixelsRequested = edge
+    #endif
+    #if os(iOS)
+    if promptForCloud, let target = displayTarget {
+      let fitted = target.fittedPixels(for: asset)
+      edge = min(4096, max(edge, fitted.width, fitted.height))
+    }
+    posterPixelsRequested = edge
+    readDetailPoster()
+    #endif
+    let size = CGSize(width: edge, height: edge)
     requests.append(manager.requestImage(for: asset, targetSize: size,
       contentMode: .aspectFit, options: options) { [weak self] value, info in
       Task { @MainActor in
@@ -165,7 +348,7 @@ extension PreviewSample {
         let final = info?[PHImageResultIsDegradedKey] as? Bool != true
           && self.asset.mediaType != .video && !self.asset.mediaSubtypes.contains(.photoLive)
         if let value {
-          self.preparePoster(value, expected: expected) { [weak self] available in
+          self.preparePoster(value, expected: expected, quality: info?[PHImageResultIsDegradedKey] as? Bool == true ? 1 : 2) { [weak self] available in
             if final { self?.finish(available, info: info) }
           }
         } else if final { self.finish(false, info: info) }
@@ -183,19 +366,39 @@ extension PreviewSample {
         }
       })
     } else if asset.mediaSubtypes.contains(.photoLive) {
-      let options = PHLivePhotoRequestOptions(); options.isNetworkAccessAllowed = network
-      options.deliveryMode = .highQualityFormat
+      requestLivePhoto(size: size, expected: expected, networkAllowed: false, mayDownload: network)
+    }
+  }
+  private func requestLivePhoto(size: CGSize, expected: UUID, networkAllowed: Bool, mayDownload: Bool) {
+    guard let manager else { return }
+    // PhotoKit reports progress for assembling entirely local Live Photos too.
+    // Only a confirmed cloud fallback owns download feedback; the still poster
+    // remains visible while local motion is prepared.
+    let options = PHLivePhotoRequestOptions()
+    options.isNetworkAccessAllowed = networkAllowed
+    options.deliveryMode = .highQualityFormat
+    if networkAllowed {
       options.progressHandler = { [weak self] value, _, _, _ in Task { @MainActor in
         guard self?.generation == expected else { return }; self?.progress = value
       } }
-      requests.append(manager.requestLivePhoto(for: asset, targetSize: size,
-        contentMode: .aspectFit, options: options) { [weak self] value, info in
-        Task { @MainActor in
-          guard let self, self.generation == expected, info?[PHLivePhotoInfoIsDegradedKey] as? Bool != true else { return }
-          self.livePhoto = value; self.finish(value != nil, info: info)
-        }
-      })
     }
+    requests.append(manager.requestLivePhoto(for: asset, targetSize: size,
+      contentMode: .aspectFit, options: options) { [weak self] value, info in
+      Task { @MainActor in
+        guard let self, self.generation == expected else { return }
+        let error = info?[PHImageErrorKey] as? NSError
+        let needsNetwork = info?[PHImageResultIsInCloudKey] as? Bool == true
+          || (error?.domain == PHPhotosErrorDomain && error?.code == PHPhotosError.Code.networkAccessRequired.rawValue)
+        if value == nil, needsNetwork {
+          if !networkAllowed, mayDownload {
+            self.requestLivePhoto(size: size, expected: expected, networkAllowed: true, mayDownload: false)
+          } else { self.finish(false, info: info) }
+          return
+        }
+        guard info?[PHImageResultIsDegradedKey] as? Bool != true else { return }
+        self.livePhoto = value; self.finish(value != nil, info: info)
+      }
+    })
   }
   private func finish(_ available: Bool, info: [AnyHashable: Any]?) {
     loading = false
@@ -208,6 +411,13 @@ extension PreviewSample {
   func activate() {
     if !networkRequested { load() }
     promptForCloud = true
+    #if os(iOS)
+    // Prefetched neighbours keep their pixels in the session. Only a viewed
+    // page enters the cross-session cache so local preparation cannot evict it.
+    if let image, posterQuality >= 2, let detailCacheGeneration {
+      renditions?.retainDetailPoster(image, for: asset, target: displayTarget, generation: detailCacheGeneration)
+    }
+    #endif
   }
   func deactivate() { promptForCloud = false; player?.pause() }
   func moveBurst(_ direction: Int) {
@@ -219,6 +429,14 @@ extension PreviewSample {
     return burstFetch.object(at: index)
   }
   func cancel() {
+    #if os(macOS)
+    macDetailRead?.cancel(); macDetailRead = nil
+    macPosterPixelsRequested = 0
+    #endif
+    #if os(iOS)
+    posterPixelsRequested = 0
+    detailRead?.cancel(); detailRead = nil
+    #endif
     generation = UUID()
     metadataGeneration = UUID()
     requests.forEach { manager?.cancelImageRequest($0) }; requests = []
@@ -323,6 +541,27 @@ extension PreviewSample {
   @Published var fitRevision = 0
   func fitMedia() { zoomed = false; fitRevision &+= 1 }
   private var models: [String: MediaPreviewModel] = [:]
+  #if os(macOS)
+  private var macDisplayTarget: MacDetailPosterTarget?
+  func setMacDisplayTarget(_ target: MacDetailPosterTarget) {
+    guard macDisplayTarget != target else { return }
+    macDisplayTarget = target
+    models.values.forEach { $0.setMacDisplayTarget(target) }
+  }
+  #endif
+  #if os(iOS)
+  private var displayTarget: DetailPosterTarget?
+  func setDisplayViewport(_ bounds: CGSize, screen: UIScreen) {
+    guard bounds.width > 0, bounds.height > 0 else { return }
+    let target = DetailPosterTarget(pixels: CGSize(width: ceil(bounds.width * screen.scale),
+      height: ceil(bounds.height * screen.scale)),
+      screen: "\(ObjectIdentifier(screen))",
+      displayProfile: "native-hdr-v1|\(screen.traitCollection.displayGamut.rawValue)|\(screen.scale)")
+    guard displayTarget != target else { return }
+    displayTarget = target
+    models.values.forEach { $0.setDisplayTarget(target) }
+  }
+  #endif
   init(asset: PHAsset, library: PhotoLibraryModel, poster: LibraryImage? = nil, reviewAssets: [PHAsset]? = nil) {
     self.library = library
     #if os(iOS)
@@ -335,12 +574,19 @@ extension PreviewSample {
     #endif
     self.reviewAssets = reviewAssets
     reviewIndices = Dictionary((reviewAssets ?? []).enumerated().map { ($0.element.localIdentifier,$0.offset) },uniquingKeysWith: { first,_ in first })
-    current = MediaPreviewModel(asset: asset, poster: poster ?? library.thumbnails.poster(for: asset))
+    current = MediaPreviewModel(asset: asset, poster: poster ?? library.thumbnails.poster(for: asset), renditions: library.thumbnails)
     models[asset.localIdentifier] = current
   }
   func model(for asset: PHAsset) -> MediaPreviewModel {
     if let cached = models[asset.localIdentifier] { return cached }
-    let model = MediaPreviewModel(asset: asset, poster: library.thumbnails.poster(for: asset))
+    let model = MediaPreviewModel(asset: asset, poster: library.thumbnails.poster(for: asset),
+      renditions: library.thumbnails, isCurrent: false)
+    #if os(macOS)
+    if let macDisplayTarget { model.setMacDisplayTarget(macDisplayTarget) }
+    #endif
+    #if os(iOS)
+    if let displayTarget { model.setDisplayTarget(displayTarget) }
+    #endif
     models[asset.localIdentifier] = model
     model.load(promptForCloud: false)
     return model

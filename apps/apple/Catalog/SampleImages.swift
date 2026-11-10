@@ -25,14 +25,14 @@ final class InformationSampleAsset: PHAsset, PreviewSample, @unchecked Sendable 
   override var duration: TimeInterval { 0 }
   override var pixelWidth: Int {
     #if os(macOS)
-    return SampleImages.cgImage(for: localIdentifier, maxPixelSize: 2048)?.width ?? 480
+    return SampleImages.dimensions(for: localIdentifier).width
     #else
     return 480
     #endif
   }
   override var pixelHeight: Int {
     #if os(macOS)
-    return SampleImages.cgImage(for: localIdentifier, maxPixelSize: 2048)?.height ?? 480
+    return SampleImages.dimensions(for: localIdentifier).height
     #else
     return 480
     #endif
@@ -104,6 +104,30 @@ enum SampleImages {
   }
   private static let bitmaps = Bitmaps()
   private static let pool: Pool? = loadPool()
+  private final class Dimensions: @unchecked Sendable {
+    let lock = NSLock()
+    var values: [URL: (width: Int, height: Int)] = [:]
+  }
+  private static let dimensions = Dimensions()
+
+  /// Read dimensions once per pool file without decoding display pixels.
+  /// Match the orientation applied when ImageIO creates the thumbnail.
+  static func dimensions(for id: String) -> (width: Int, height: Int) {
+    guard let photo = pool?.photo(for: id) else { return (480, 480) }
+    return dimensions.lock.withLock {
+      if let value = dimensions.values[photo.url] { return value }
+      var value = (width: 480, height: 480)
+      if let source = CGImageSourceCreateWithURL(photo.url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+        let width = properties[kCGImagePropertyPixelWidth] as? Int,
+        let height = properties[kCGImagePropertyPixelHeight] as? Int, width > 0, height > 0 {
+        let orientation = properties[kCGImagePropertyOrientation] as? Int ?? 1
+        value = (5...8).contains(orientation) ? (height, width) : (width, height)
+      }
+      dimensions.values[photo.url] = value
+      return value
+    }
+  }
 
   static func stableHash(_ id: String) -> UInt64 {
     id.utf8.reduce(UInt64(1469598103934665603)) { ($0 ^ UInt64($1)) &* 1099511628211 }
@@ -281,13 +305,31 @@ final class CatalogLibraryAsset: PHAsset, PreviewSample, @unchecked Sendable {
   override var burstIdentifier: String? { nil }
   override var representsBurst: Bool { false }
   override var duration: TimeInterval { mediaType == .video ? 83 : 0 }
-  override var pixelWidth: Int { 480 }
-  override var pixelHeight: Int { 480 }
+  private var imageID: String { "catalog-cover-\(number % 32)" }
+  override var pixelWidth: Int {
+    #if os(macOS)
+    return SampleImages.dimensions(for: imageID).width
+    #else
+    return 480
+    #endif
+  }
+  override var pixelHeight: Int {
+    #if os(macOS)
+    return SampleImages.dimensions(for: imageID).height
+    #else
+    return 480
+    #endif
+  }
   override var location: CLLocation? { nil }
   var previewFilename: String { mediaType == .video ? "Example.mov" : "Example.jpg" }
   var previewMetadata: [(String, String)] { [] }
   var previewImage: LibraryImage? {
-    guard let cg = SampleImages.cgImage(for: "catalog-cover-\(number % 32)", maxPixelSize: 480) else { return nil }
+    #if os(macOS)
+    let edge = 2048
+    #else
+    let edge = 480
+    #endif
+    guard let cg = SampleImages.cgImage(for: imageID, maxPixelSize: edge) else { return nil }
     #if os(iOS)
     return UIImage(cgImage: cg)
     #else

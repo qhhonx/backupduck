@@ -341,7 +341,7 @@ internal class DevicesPage(private val activity: MainActivity, private val conne
         val body = page.body
         if (groups.sending.isEmpty() && groups.stopped.isEmpty()) {
             lookEmpty(body, R.drawable.duck_empty, getString(R.string.devices_empty_title), getString(R.string.devices_intro),
-                getString(R.string.devices_connect) to connect)
+                getString(R.string.devices_connect) to connect, card = false, centered = true)
             return@with
         }
         body.addView(lookText(getString(R.string.devices_intro), M.style.TextAppearance_Material3_BodyMedium, secondary = true).apply {

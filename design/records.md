@@ -26,9 +26,12 @@ receipt, original, receiver, processing or task.
 
 **Records page** (opened from the hub; the Mac lists it in the sidebar):
 
-On iPhone the hub pushes this page inside the Backup tab's NavigationStack.
-Backup History opens `all`, the Needs You card's View action opens `attention`,
-and the earlier-photos card opens `saved`. The system push/back transition
+On iPhone the hub pushes this page inside the Backup tab's native navigation stack.
+Backup History opens `all`, and the Needs You card's View action opens `attention`.
+The earlier-photo card has no record shortcut: `saved` contains all confirmed
+photos for the receiver, not the frozen membership of an earlier-photo run.
+The earlier-photo completion notification may still open `saved` explicitly.
+The system push/back transition
 retains the Backup tab. Recently backed up and Needs You live only here; the
 Photos tab offers All and Not backed up. Hub attention and History Needs You
 use the same core attention jobs and preparations. Waiting for an original is active;
@@ -52,16 +55,28 @@ anywhere.
    - Photos the Pixel could not save to Photos for another reason. Action: View
      (the fix is on the Pixel).
 2. **Timeline**: every backed-up or in-progress photo as a thumbnail grid,
-   grouped by the day of its latest change (Today, Yesterday, then dates), newest
-   first, paged as the user scrolls. Tile marks:
+   newest change first, paged as the user scrolls. iPhone and Pixel group by
+   the day of the latest change (Today, Yesterday, then dates). Mac uses a
+   continuous grid and the native subtitle date rule below. Tile marks:
    - none: in the Pixel's Photos
    - arrow: sending or waiting to send
    - clock: received by the Pixel, being saved to Photos
    - exclamation: needs you (the same items as the cards)
    - all media marks over photos are white with a soft shadow (V5); attention
      icons in cause cards and photo facts use `attentionGlyph`
-3. On iPhone records use a timeline. On Mac the shared native grid (`library.md` §5) has Zoom, Filter and collapsed Search. Filter has Show (All, Needs You) and Type (All Types, Photos, Live Photos, Videos, Bursts), with no separate Needs You capsule. There is no sort menu or status guide. The header line states the scope:
-   "1,284 photos backed up to Pixel 8 Pro".
+3. On iPhone records use a timeline. On Mac the shared native grid
+   (`library.md` section 5) has Zoom, Filter and collapsed Search. Filter has
+   Show (All, Needs You) and Type (All Types, Photos, Live Photos, Videos,
+   Bursts), with no separate Needs You capsule. There is no sort menu or status
+   guide. The native title is Backup History. Its subtitle contains only the
+   visible record-update date, explicitly labeled Updated; selection replaces
+   it with one selected-item count. The grid has no inline day headings or
+   floating date capsules. Cause headings remain ordinary flow content and
+   never become date captions. Below the final photo row, the shared footer
+   shows the exact current collection total, then the known receiving device
+   in secondary text. Missing media types use an item
+   count; incomplete locally filtered results omit the total. These counts
+   describe records, not confirmed publication or cloud backup.
 
 **Photo detail** (the shared viewer on Apple platforms, a bottom panel on Pixel):
 
@@ -72,10 +87,28 @@ anywhere.
    - In the Pixel's Photos · today 10:43 (or Saving to Photos… / the cause)
 
    Google Photos backup is never shown per photo: it is always unknown to
-   BackupDuck, so repeating it on every detail is noise. The history page says it once, as a footer.
+   BackupDuck, so repeating it on every detail is noise. On Mac, backup help
+   carries this guidance instead of a permanent browsing footer.
+   Apple fact rows retain a supporting-text slot of at least one semantic line
+   as a status note or recorded time appears and disappears. Empty slots have no
+   spoken content. Wrapped text and larger text sizes can grow the slot; no
+   fixed height clips it, and missing times remain unknown.
 4. At most one action, only when the user can act: Try again, or the
    explanation of where the fix is.
 5. Quiet footer: file name, size, kind (photo, Live Photo, video).
+
+Pixel recently received tiles and the Photos timeline use the same receipt-preview,
+center-crop, loading/unavailable presentation, duration and status-mark component.
+Recently received includes fully received originals that are still being saved or
+need attention; it does not imply gallery publication. Status changes update the
+existing tile without clearing an available picture. An unavailable grid preview
+shows its type once in the center and retains any known duration without a second
+type glyph. Available thumbnails use one fixed-size corner type glyph.
+
+An unavailable video in the Pixel viewer has one centered, intrinsic-size type
+placeholder and no central play action. The existing Photos action remains
+available under its normal publication rules. Paging, reset and gesture handling
+never scale or zoom this placeholder; fitted media keeps native zoom ownership.
 
 **Pixel**: the same page as "Received photos", with the sending device on each
 day group when there is more than one, and "Needs you" limited to what the Pixel
@@ -107,9 +140,10 @@ English below; the zh-Hans strings (`records_*` keys in
 - Problem cards group by cause and are computed from the attention items the
   core returns (bounded by its page size). A count above the page size reads
   "200+".
-- Day groups use the time of the latest change, so a photo backed up today
-  appears under Today even if it was taken years ago. The detail shows when it
-  was taken.
+- Timeline order and its date labels use the time of the latest change, so a
+  photo backed up today appears at Today even if it was taken years ago. On Mac
+  that date is explicitly an update in the native subtitle. The viewer shows
+  the recorded capture date separately; missing capture dates remain unknown.
 
 ## Pixel records
 
@@ -147,6 +181,29 @@ English below; the zh-Hans strings (`records_*` keys in
   the app memory class, with a 32 MB minimum. Resolved copy locations are retained
   until processing changes or a read fails. The grid prefetches the next row;
   cancellation remains owned by the requesting view.
+- **Video duration.** Pixel timeline and problem-detail grids show a known
+  duration immediately left of the video glyph at the top trailing corner;
+  selection remains top leading and processing state remains bottom trailing.
+  Use the caption style, semibold white text with a soft shadow and no pill over
+  photos; unavailable previews use the secondary-text role on the solid surface.
+  The clock rounds real positive milliseconds to the nearest second. Below one
+  hour it uses `m:ss`; from one to 99 hours it uses `1h02` (hours and minutes,
+  omitting seconds); from 100 hours it uses `100h` (hours only). Detail and the
+  tile's accessibility description retain the full recorded duration, including
+  fractional seconds. Selection does not hide, move or shrink the duration.
+  Unknown durations keep the existing video glyph without
+  inventing `0:00`. Duration and its accessibility description load independently
+  of thumbnail cache hits or decoding failures, with at most two concurrent
+  independent duration reads and cancellation owned by each visible cell. A private
+  display-metadata table retains positive durations by core asset ID across
+  restarts and gallery-copy removal, with a 20,000-record cap and oldest-use
+  eviction; a bounded memory cache holds 256 observations. Missing observations
+  retry on a later binding after state changes or a short expiry. Publication schedules an optional
+  index read without waiting or accumulating a backlog. No original-resource
+  scan, frame extraction or location lookup runs for grid durations. Old failed
+  publications without a readable indexed copy remain unknown. Retained or
+  evicted duration metadata says nothing about playback, publication or cloud
+  availability; an evicted duration can be recovered only from a present copy.
 - **Scope line.** "1,284 photos · 1,277 in the Pixel's Photos"; it names the
   sending device only when one device sent everything shown.
 - **Ordering.** The core pages a fixed read snapshot by latest recorded state
@@ -194,12 +251,42 @@ independent of observation timestamps and event deduplication.
 ## Mac engine and continuity
 
 Mac Backup History remains a cross-source page backed by the existing paged
-`backup_tasks` query. Needs You groups precede latest-change day groups; an item
-appears once. Stable task identities drive animated membership differences.
+`backup_tasks` query. It includes Photo Library and folder records; the Folders
+parent browser is a separate aggregate of added folder media only. Needs You cause groups precede the continuous
+latest-change timeline; an item appears once. Cause headings stay in the
+document flow without date-capsule styling or pinning. Stable task identities
+drive animated membership differences.
 Marks and progress observations reconfigure the visible native cell in place,
 without a grid or section reload. Refreshes retain loaded page depth and the
 visible date anchor. Photo-library thumbnails use the existing media pipeline;
 folder thumbnails and originals use the file pipeline and security-scoped access.
 Previous/next retains the current mixed-source collection and the shared backup
 information inspector, including recorded information for unavailable originals.
-iPhone Backup History uses its native timeline list.
+
+Mac Overview recent photos is a bounded native collection of at most eight
+photos in two rows, using the same cells, gaps, media marks and missing-source
+fallbacks as the full grids. It has no nested scrolling, totals footer, density
+controls or multiple selection. A single click opens the shared viewer from the
+visible photo. Opening retains the source cell's frame and displayed rendition;
+returning resolves the current photo by stable identity in that same collection.
+The collection can contain Photo Library and folder photos together; paging
+must not discard the other source type. Recorded facts remain available when a
+local source cannot be opened. Receipt and phone-gallery publication retain
+separate marks and wording, including in this recent-photo collection.
+
+iPhone Backup History use a virtualized UIKit collection with the same
+media cell and decorations as the photo library and selected-photo review.
+The history adapter supplies stable recorded task identity, latest-change day
+groups, backup marks and paged membership; access to a source only enriches its
+thumbnail and media metadata. Missing sources retain their record and fallback
+viewer. Live Photo marks stay at the top leading corner and known video duration
+at the bottom trailing corner, with the same small-tile visibility and selection rules.
+An unknown video duration uses the shared video glyph without inventing a time.
+Scope, problem cards and the cloud note remain supporting content around the
+timeline. State observations retain the loaded page depth and visible anchor;
+opening, paging and returning from the shared native viewer retain the timeline.
+The first lookup remains loading until it resolves; an empty state requires a
+completed lookup. A retained hidden timeline still receives state updates, with
+membership changes applied without animation until it becomes visible. A link
+to a record follows its source if preparation becomes a transfer and selects
+only after the matching item has been found.

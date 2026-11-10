@@ -1,12 +1,18 @@
 import AppKit
 import SwiftUI
 
+struct MacSettingsMediaViewerKey: PreferenceKey {
+  static var defaultValue = false
+  static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
 /// Settings as defined in `design/settings.md`, in the Mac dialect System
 /// Settings uses: a list column (identity header, category rows
 /// with values, help last, quiet footer) and a detail pane with a grouped form.
 struct MacSettings: View {
   enum Page: Hashable { case devices, folders, autoBackup, appearance, language, help, about, diagnostics, advanced }
 
+  @Environment(\.macWorkspaceActive) private var active
   @ObservedObject var model: BackupModel
   @ObservedObject var folders: FolderSources
   var showFolders: () -> Void
@@ -22,6 +28,7 @@ struct MacSettings: View {
   @State private var page: Page? = .autoBackup
   /// Pages opened below the selected category, inside the detail pane.
   @State private var pages: [DuckSettingsPage] = []
+  @State private var mediaViewerOpen = false
   @State private var renaming = false
   @State private var retrying = false
   @State private var connecting = false
@@ -40,10 +47,13 @@ struct MacSettings: View {
 
   var body: some View {
     HStack(spacing: 0) {
-      list.frame(width: DuckSettingsMetrics.listWidth)
-      Divider()
+      if pages.last?.usesMediaCanvas != true {
+        list.frame(width: DuckSettingsMetrics.listWidth)
+        Divider()
+      }
       detail.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+    .onPreferenceChange(MacSettingsMediaViewerKey.self) { mediaViewerOpen = $0 }
     .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
     .onAppear {
       guard !openedInitialDetail else { return }
@@ -142,7 +152,7 @@ struct MacSettings: View {
   private var openFailedCard: some View {
     VStack(alignment: .leading, spacing: 6) {
       DuckNotice(title: "settings_open_failed", tone: .attention, symbol: "exclamationmark.triangle.fill")
-      if let message = model.message, message != NSLocalizedString("pairing_unlock_wait", comment: "") {
+      if let message = model.message {
         Text(message).font(.subheadline).foregroundStyle(.secondary)
       }
       Button("retry_task") {
@@ -162,15 +172,18 @@ struct MacSettings: View {
 
   private var detail: some View {
     Group {
-      if let top = pages.last { top.content.navigationTitle(top.title).id(pages.count) }
+      if let top = pages.last {
+        top.content.navigationTitle(top.usesMediaCanvas && mediaViewerOpen ? Text(verbatim: "") : top.title).id(pages.count)
+      }
       else { detailContent.navigationTitle(pageTitle) }
     }
     .environment(\.duckSettingsNavigator, navigator)
+    .focusedSceneValue(\.settingsBack, !active || pages.isEmpty || mediaViewerOpen ? nil : MacSettingsBackAction(back: navigator.back))
     .toolbar {
-      if !pages.isEmpty {
+      if active, !pages.isEmpty, !mediaViewerOpen {
         ToolbarItem(placement: .navigation) {
           Button(action: navigator.back) { Label("mac_fidelity_back", systemImage: "chevron.left") }
-            .labelStyle(.iconOnly).keyboardShortcut("[", modifiers: .command)
+            .labelStyle(.iconOnly)
             .accessibilityIdentifier("settings.secondary.back")
         }
       }
@@ -200,7 +213,7 @@ struct MacSettings: View {
       DevicePage(model: model) { connecting = true }
         .sheet(isPresented: $connecting) { MacConnectSheet(model: model) }
     case .autoBackup:
-      MacAutoBackupSettings(model: model, scope: scopeStore, albums: albumsModel, initialSearch: initialScopeSearch)
+      MacAutoBackupSettings(model: model, folders: folders, scope: scopeStore, albums: albumsModel, initialSearch: initialScopeSearch) { page = .folders }
     case .appearance: MacAppearanceSettings()
     case .language: MacLanguageSettings(languageName: languageName)
     case .help: HelpCenter()
@@ -218,9 +231,11 @@ struct MacSettings: View {
 
 private struct MacAutoBackupSettings: View {
   @ObservedObject var model: BackupModel
+  @ObservedObject var folders: FolderSources
   @ObservedObject var scope: BackupScopeStore
   var albums: ScopeAlbumsModel
   var initialSearch: String
+  var openFolders: () -> Void
   var body: some View {
     Form {
       Section {
@@ -243,9 +258,23 @@ private struct MacAutoBackupSettings: View {
         DuckSettingsLink(title: Text(LocalizedStringKey(BackupScopeDestination.albums.title))) { editor(.albums) } label: {
           LabeledContent("settings_specific_albums", value: scope.albumsSummary)
         }.accessibilityIdentifier("backup.scope.albums")
-      } header: { Text("settings_includes") } footer: {
+      } header: { Text("settings_photo_library") } footer: {
         if scope.loadFailed { DuckNotice(title: "scope_load_failed", tone: .failure, symbol: "exclamationmark.circle") }
         else { Text("settings_includes_footer") }
+      }
+      Section {
+        Button(action: openFolders) {
+          LabeledContent("settings_folders") {
+            HStack(spacing: DuckSpacing.small) {
+              Text(!folders.loadFailed && (folders.loaded || folders.isPreview)
+                ? String(format: NSLocalizedString("settings_folders_value", comment: ""), folders.sources.count) : "—")
+              Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("backup.scope.folders")
       }
       BackupNotificationPreferences()
     }
@@ -318,6 +347,8 @@ struct MacAboutSettings: View {
 private struct MacAdvancedSettings: View {
   @ObservedObject var model: BackupModel
   @State private var thumbnailBytes = MacThumbnailTables.usage
+  @State private var clearingThumbnails = false
+  @State private var thumbnailCleanupError: String?
   var body: some View {
     Form {
       Section {
@@ -335,14 +366,40 @@ private struct MacAdvancedSettings: View {
         LabeledContent("settings_thumbnails") {
           HStack {
             Text(ByteCountFormatter.string(fromByteCount: Int64(thumbnailBytes), countStyle: .file)).foregroundStyle(.secondary)
-            Button("settings_clear_now") { Task { await MacThumbnailTables.clear(); thumbnailBytes = MacThumbnailTables.usage } }
+            Button {
+              clearingThumbnails = true
+              thumbnailCleanupError = nil
+              Task {
+                thumbnailCleanupError = await MacThumbnailTables.clear()
+                thumbnailBytes = MacThumbnailTables.usage
+                clearingThumbnails = false
+              }
+            } label: {
+              Text("settings_clear_now").opacity(clearingThumbnails ? 0 : 1)
+                .overlay { if clearingThumbnails { ProgressView().controlSize(.small) } }
+            }.disabled(clearingThumbnails)
+              .accessibilityLabel(Text("settings_clear_now"))
+              .accessibilityIdentifier("settings.thumbnails.clear")
           }
         }
       } footer: {
-        Text("settings_thumbnails_note").foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
+          Text("settings_thumbnails_note").foregroundStyle(.secondary)
+          if thumbnailCleanupError != nil { DuckCacheCleanupFooter(error: thumbnailCleanupError) }
+        }
       }
     }
     .formStyle(.grouped)
     .task(id: model.ready) { if model.ready { await model.refreshStorage() } }
+  }
+}
+
+/// The window's Back command follows the active settings detail stack.
+struct MacSettingsBackAction { let back: () -> Void }
+private struct MacSettingsBackKey: FocusedValueKey { typealias Value = MacSettingsBackAction }
+extension FocusedValues {
+  var settingsBack: MacSettingsBackAction? {
+    get { self[MacSettingsBackKey.self] }
+    set { self[MacSettingsBackKey.self] = newValue }
   }
 }

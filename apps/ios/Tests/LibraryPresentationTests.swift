@@ -1,9 +1,132 @@
 import XCTest
 import UIKit
 import Combine
+import SwiftUI
 @testable import BackupDuck
 
 final class LibraryPresentationTests: XCTestCase {
+  @MainActor func testSavedAppearanceUpdatesAfterMediaRootReparenting() async throws {
+    #if targetEnvironment(simulator)
+    let usedNetwork = BackupEnvironment.usesNetwork
+    let usedPhotos = BackupEnvironment.usesPhotoLibrary
+    BackupEnvironment.usesNetwork = false
+    BackupEnvironment.usesPhotoLibrary = false
+    defer {
+      BackupEnvironment.usesNetwork = usedNetwork
+      BackupEnvironment.usesPhotoLibrary = usedPhotos
+    }
+    let defaults = UserDefaults.standard
+    let saved = defaults.object(forKey: "duckAppearance")
+    defer {
+      if let saved { defaults.set(saved, forKey: "duckAppearance") }
+      else { defaults.removeObject(forKey: "duckAppearance") }
+    }
+    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let window = try XCTUnwrap(scene.windows.first(where: { $0.isKeyWindow }))
+    let original = try XCTUnwrap(window.rootViewController)
+    func probe(in view: UIView) -> IOSAppearanceBridge.WindowProbe? {
+      if let probe = view as? IOSAppearanceBridge.WindowProbe { return probe }
+      return view.subviews.lazy.compactMap { probe(in: $0) }.first
+    }
+    for _ in 0..<100 where probe(in: window) == nil {
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    let appearanceProbe = try XCTUnwrap(probe(in: window))
+    func choose(_ choice: String, expected: UIUserInterfaceStyle) async throws {
+      defaults.set(choice, forKey: "duckAppearance")
+      for _ in 0..<100 {
+        if appearanceProbe.appearance == choice && window.overrideUserInterfaceStyle == expected { break }
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      XCTAssertEqual(appearanceProbe.appearance, choice, "The live SwiftUI root must receive saved preference changes")
+      XCTAssertEqual(window.overrideUserInterfaceStyle, expected)
+      XCTAssertTrue(probe(in: window) === appearanceProbe, "The observed probe must remain in the live window")
+      if expected != .unspecified {
+        XCTAssertEqual(window.traitCollection.userInterfaceStyle, expected)
+        XCTAssertEqual(original.traitCollection.userInterfaceStyle, expected)
+        XCTAssertEqual(appearanceProbe.traitCollection.userInterfaceStyle, expected)
+      }
+    }
+    try await choose("dark", expected: .dark)
+    try await choose("light", expected: .light)
+    try await choose("system", expected: .unspecified)
+
+    // Reparent the actual application host through the production window boundary.
+    MediaStatusBarRootController.install(in: window)
+    if original is MediaStatusBarRootController {
+      XCTAssertTrue(window.rootViewController === original, "An already installed media boundary remains stable")
+    } else {
+      XCTAssertFalse(window.rootViewController === original)
+      XCTAssertTrue(original.parent === window.rootViewController)
+    }
+    for _ in 0..<3 {
+      try await choose("light", expected: .light)
+      try await choose("dark", expected: .dark)
+      try await choose("system", expected: .unspecified)
+    }
+    #else
+    throw XCTSkip("The application-root fixture uses an isolated simulator")
+    #endif
+  }
+
+  @MainActor func testSavedAppearanceRestoresHostedContentAndPresentedSheet() async throws {
+    #if targetEnvironment(simulator)
+    let defaults = UserDefaults.standard
+    let saved = defaults.object(forKey: "duckAppearance")
+    defer {
+      if let saved { defaults.set(saved, forKey: "duckAppearance") }
+      else { defaults.removeObject(forKey: "duckAppearance") }
+    }
+    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let choices: [(String, UIUserInterfaceStyle)] = [("system", .unspecified), ("light", .light), ("dark", .dark)]
+    for (savedChoice, _) in choices {
+      defaults.set(savedChoice, forKey: "duckAppearance")
+      let window = UIWindow(windowScene: scene)
+      let contentLabel = UILabel()
+      let host = UIHostingController(rootView: AppearanceEnvironmentProbe(label: contentLabel).modifier(IOSSavedAppearance()))
+      window.rootViewController = host
+      window.isHidden = false
+      defer { window.isHidden = true; window.rootViewController = nil }
+      func verify(_ choice: String, expected: UIUserInterfaceStyle, sheet: UIViewController? = nil,
+                  sheetLabel: UILabel? = nil) async throws {
+        func effectiveStyle() -> UIUserInterfaceStyle {
+          expected == .unspecified ? scene.traitCollection.userInterfaceStyle : expected
+        }
+        for _ in 0..<100 {
+          let text = effectiveStyle() == .dark ? "Dark" : "Light"
+          if window.overrideUserInterfaceStyle == expected && contentLabel.text == text
+            && (sheetLabel == nil || sheetLabel?.text == text) { break }
+          try await Task.sleep(for: .milliseconds(20))
+        }
+        let effective = effectiveStyle()
+        let text = effective == .dark ? "Dark" : "Light"
+        XCTAssertEqual(window.overrideUserInterfaceStyle, expected, choice)
+        XCTAssertEqual(window.traitCollection.userInterfaceStyle, effective, choice)
+        XCTAssertEqual(host.traitCollection.userInterfaceStyle, effective, choice)
+        XCTAssertEqual(contentLabel.text, text, "The visible content must receive SwiftUI's updated color scheme")
+        XCTAssertTrue(contentLabel.window === window)
+        if let sheet, let sheetLabel {
+          XCTAssertEqual(sheet.traitCollection.userInterfaceStyle, effective, choice)
+          XCTAssertEqual(sheetLabel.text, text, "A presented sheet must inherit the current color scheme")
+          XCTAssertTrue(sheetLabel.window === window)
+        }
+      }
+      try await verify(savedChoice, expected: IOSAppearanceBridge.style(savedChoice))
+      MediaStatusBarRootController.install(in: window)
+      let sheetLabel = UILabel()
+      let sheet = UIHostingController(rootView: AppearanceEnvironmentProbe(label: sheetLabel))
+      window.rootViewController?.present(sheet, animated: false)
+      for (choice, style) in choices {
+        defaults.set(choice, forKey: "duckAppearance")
+        try await verify(choice, expected: style, sheet: sheet, sheetLabel: sheetLabel)
+      }
+      sheet.dismiss(animated: false)
+    }
+    #else
+    throw XCTSkip("The appearance-window fixture uses an isolated simulator")
+    #endif
+  }
+
   func testCalendarCoversKeepRealDatesBoundedSamplesAndBurstIdentity() {
     var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     var index = LibraryCalendarIndex(calendar: calendar)
@@ -230,13 +353,13 @@ final class LibraryPresentationTests: XCTestCase {
       panel.overrideUserInterfaceStyle = style
       panel.backgroundColor = .systemBackground
       controller.view.addSubview(panel)
-      var cells: [PhotoCell] = []
+      var cells: [CalendarGridCell] = []
       for (index, state) in ["received", "partial", "failed"].enumerated() {
-        let cell = PhotoCell(frame: CGRect(x: 8 + index * 128, y: 8, width: 120, height: 140))
+        let cell = CalendarGridCell(frame: CGRect(x: 8 + index * 128, y: 8, width: 120, height: 140))
         cell.contentView.backgroundColor = [.systemTeal, .systemIndigo, .systemBrown][index]
         panel.addSubview(cell)
         cell.setGroup(count: [8, 32, 1200][index], state: state)
-        cell.isSelected = index == 1
+        cell.selection(index == 1, enabled: true)
         cell.layoutIfNeeded()
         XCTAssertTrue(cell.accessibilityValue?.contains(String(format: NSLocalizedString("library_burst_count", comment: ""), [8, 32, 1200][index])) == true)
         XCTAssertEqual(cell.accessibilityHint, NSLocalizedString("library_burst_selection", comment: ""))
@@ -436,5 +559,17 @@ final class LibraryPresentationTests: XCTestCase {
     XCTAssertEqual(ledger.state.token, Data("saved-start".utf8))
     XCTAssertEqual(ledger.state.closingToken, Data("saved-ending".utf8))
     XCTAssertTrue(ledger.state.pending.isEmpty)
+  }
+}
+
+private struct AppearanceEnvironmentProbe: UIViewRepresentable {
+  let label: UILabel
+  func makeUIView(context: Context) -> UILabel {
+    label.textColor = DuckRole.primaryTextUIColor
+    label.backgroundColor = DuckRole.backgroundUIColor
+    return label
+  }
+  func updateUIView(_ view: UILabel, context: Context) {
+    view.text = context.environment.colorScheme == .dark ? "Dark" : "Light"
   }
 }

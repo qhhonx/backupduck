@@ -5,6 +5,9 @@ import SwiftUI
 /// topic opens a short article in the user's words.
 struct HelpCenter: View {
   @State private var search = ""
+  #if os(macOS)
+  @State private var searchPresented = false
+  #endif
 
   struct Topic: Identifiable, Hashable {
     let id: String
@@ -44,10 +47,13 @@ struct HelpCenter: View {
     }
     #if os(iOS)
     .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("help2_search"))
+    .searchPresentationToolbarBehavior(.avoidHidingContent)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar(.visible, for: .navigationBar)
     #else
-    .searchable(text: $search, prompt: Text("help2_search"))
+    .background {
+      MacToolbarSearch(text: $search, presented: $searchPresented, prompt: "help2_search")
+    }
     #endif
     .navigationTitle("settings_help_center")
   }

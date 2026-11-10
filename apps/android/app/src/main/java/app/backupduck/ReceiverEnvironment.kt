@@ -46,6 +46,8 @@ internal object ReceiverEnvironment {
     @Volatile var now: () -> Long = System::currentTimeMillis
     /** Synthetic pictures for the catalog, which has no files. Unset, pages read the copy in the Pixel's Photos. */
     @Volatile var previewImage: ((HistoryItem, Int, Int) -> android.graphics.Bitmap?)? = null
+    /** Synthetic grid durations only; production reads the media index without decoding a frame. */
+    @Volatile var videoDuration: ((HistoryItem, android.os.CancellationSignal) -> Long?)? = null
     /** The external location handoff; Catalog records the intent without launching another app. */
     @Volatile var openPhotoLocation: (Context, Intent) -> Unit = { context, intent -> context.startActivity(intent) }
     /** Viewer handoff; Catalog records it without opening another app. */

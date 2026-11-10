@@ -79,7 +79,6 @@ struct IOSPixelScanner: View {
       } else {
         PairingScanner(scanned: accept, failed: { state.cameraFailure = $0 })
           .id(state.scannerID).frame(height: 300)
-          .clipShape(RoundedRectangle(cornerRadius: DuckRadius.card))
           .overlay { if state.working { ProgressView().controlSize(.large) } }
       }
     }

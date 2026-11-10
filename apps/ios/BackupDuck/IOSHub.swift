@@ -29,27 +29,38 @@ struct IOSHub: View {
   private var connected: Bool { model.pairing != nil && model.ready }
 
   var body: some View {
-    NavigationStack {
+    IOSNativeNavigation(title: NSLocalizedString("nav_backup", comment: ""), route: records,
+      routeChanged: { records = $0 }, destination: { filter in
+        let controller = UIHostingController(rootView: BackupHistoryView(model: model, filter: filter))
+        controller.navigationItem.title = NSLocalizedString("records_title", comment: "")
+        return controller
+      }) {
       ScrollView {
         VStack(alignment: .leading, spacing: DuckSpacing.large) {
           if model.pairing != nil { devicePill }
           stateCard
+          if connected, model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted {
+            earlierSummary(model.earlierPhotosCardStatus)
+          }
           if connected, !recentSources.isEmpty {
             VStack(alignment: .leading, spacing: DuckSpacing.xSmall) {
               DuckSectionHeader(title: "hub_recent")
-              DuckPhotoMosaic(sources: recentSources, twoRows: true, frameChanged: { source, frame in
+              DuckPhotoMosaic(sources: recentSources, twoRows: true, hiddenSource: photoRouter.hiddenSource,
+                thumbnail: { source, side in
+                  AnyView(AssetThumbnail(sourceID: source, size: side, cornerRadius: 0,
+                    mediaKind: recentPhotos.first(where: { $0.source == source })?.job?.asset.kind ?? "photo"))
+                }, frameChanged: { source, frame in
                 photoRouter.frames[source] = frame
               }) { source, frame in
                 let photos = recentPhotos
                 if let photo = photos.first(where: { $0.source == source }) {
                   photoRouter.frames[source] = frame
-                  photoRouter.open(photo, collection: photos, frame: frame)
+                  photoRouter.open(photo, collection: photos, frame: frame, ownsSourceVacancy: true)
                 }
               }
             }
           }
           if connected {
-            if model.earlierPhotosStarted || model.showsEarlierPhotosNotStarted { earlierSummary(model.earlierPhotosCardStatus) }
             summaryRows
           }
         }
@@ -58,9 +69,6 @@ struct IOSHub: View {
       }
       .background(DuckRole.background)
       .navigationTitle("nav_backup")
-      .navigationDestination(item: $records) { filter in
-        BackupHistoryView(model: model, filter: filter).navigationTitle("records_title").navigationBarTitleDisplayMode(.inline)
-      }
     }
     .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: status == .problem(.receiverRejected)) }
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet.presentationDetents([.medium, .large]) }
@@ -112,13 +120,10 @@ struct IOSHub: View {
         note: saving > 0
           ? Text(String(format: NSLocalizedString("hub_saving_note", comment: ""), saving.formatted()))
           : last.map { Text(String(format: NSLocalizedString("hub_last_backup", comment: ""), $0.formatted(.relative(presentation: .named)))) })
-    case .backingUp(let remaining, let bytes):
+    case .backingUp(let remaining, _):
       VStack(spacing: DuckSpacing.small) {
         DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
-          title: Text(verbatim: bytes > 0
-            ? String(format: NSLocalizedString("hub_backing_up", comment: ""), remaining.formatted(),
-              ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))
-            : String(format: NSLocalizedString("hub_backing_up_count", comment: ""), remaining.formatted())),
+          title: Text(verbatim: status.sentence(receiver: receiverName)),
           progress: progress, action: {
           DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
         })
@@ -215,9 +220,6 @@ struct IOSHub: View {
         DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
           Task { await model.controlHistoricalImport(command) }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { records = "saved" }
-        .accessibilityAction(named: Text("records_title")) { records = "saved" }
         .onAppear { memory.show(receiver: receiver, history: history, at: context.date) }
         .onChange(of: history) { _, value in memory.show(receiver: receiver, history: value, at: .now) }
       }
