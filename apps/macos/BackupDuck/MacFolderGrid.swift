@@ -23,13 +23,6 @@ struct MacFolderGrid: View {
         else { MacFolderViewer.open(photo, context: context, folders: folders) }
       }, resize: resize)
     .modifier(MacGridInspector(navigation: navigation, source: source, active: active))
-    .task(id: "\(browser.key)|\(browser.sections.map { $0.photos.count })") {
-      // Type filtering is a browse projection. Continue bounded native pages
-      // when a loaded page has no matches, including an all-video first page.
-      if source.identifiers.isEmpty && browser.error == nil {
-        for section in browser.sections where section.hasMore { await browser.more(section.id, folders: folders) }
-      }
-    }
   }
 }
 
@@ -37,6 +30,7 @@ struct MacFolderGrid: View {
   let folders: FolderSources
   let browser: FolderBrowser
   let photos: [String: FolderPhoto]
+  private let sources: [String: FolderSource]
   let identifiers: [String]
   let groups: [Int: String]
   let flowHeaders: Set<Int>
@@ -46,9 +40,10 @@ struct MacFolderGrid: View {
   var previewFrame: ((String) -> CGRect?)?
   init(folders: FolderSources, browser: FolderBrowser, settings: @escaping (String) -> Void = { _ in }, stop: @escaping (FolderSource) -> Void = { _ in }) {
     self.folders = folders; self.browser = browser
+    sources = Dictionary(uniqueKeysWithValues: folders.sources.map { ($0.id, $0) })
     let rows = browser.visiblePhotos
-    photos = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-    identifiers = rows.map(\.id)
+    photos = browser.photosByID
+    identifiers = browser.identifiers
     if case let .folder(id) = browser.scope, !rows.isEmpty,
       let folder = folders.sources.first(where: { $0.id == id }), folderScopeHasNotice(folders.facts[id]) {
       notice = AnyView(FolderScopeNotice(folders: folders, source: folder))
@@ -107,12 +102,19 @@ struct MacFolderGrid: View {
     return photo.date
   }
   func configure(_ cell: PhotoCell, id: String, pixels: CGFloat, originalAspect: Bool) {
-    guard let photo = photos[id], let source = folders.sources.first(where: { $0.id == photo.folder_id }) else { return }
+    guard let photo = photos[id], let source = sources[photo.folder_id] else { return }
     cell.configureFolder(photo, source: source, pixels: pixels, synthetic: folders.syntheticImage(photo))
     cell.view.alphaValue = folders.facts[photo.folder_id]?.available == false ? 0.5 : 1
   }
+  func preheat(_ ids: [String], pixels: CGFloat) {
+    guard !folders.isPreview else { return }
+    browser.preheat(ids.compactMap { photos[$0] }, sources: sources, pixels: pixels)
+  }
+  func stopPreheating() { browser.stopPreheating() }
   func loadMore(visible: [String]) {
-    for section in browser.sections where section.hasMore && section.photos.filter({ photos[$0.id] != nil }).suffix(20).contains(where: { visible.contains($0.id) }) {
+    guard browser.error == nil else { return }
+    let ids = Set(visible)
+    for section in browser.sections where section.hasMore && section.photos.suffix(24).contains(where: { ids.contains($0.id) }) {
       Task { await browser.more(section.id, folders: folders) }
     }
   }

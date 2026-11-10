@@ -55,6 +55,7 @@ import SwiftUI
   func configure(_ cell: PhotoCell, id: String, pixels: CGFloat, originalAspect: Bool)
   func zoomTile(_ id: String, side: CGFloat, scale: CGFloat, originalAspect: Bool) -> NSView
   func preheat(_ ids: [String], pixels: CGFloat)
+  func stopPreheating()
   func prefill()
   func loadAllIfNeeded()
   func loadAll() async
@@ -84,6 +85,7 @@ extension MacGridSource {
   }
   func fact(_ id: String) -> MacThumbnailTables.Fact? { nil }
   func preheat(_ ids: [String], pixels: CGFloat) {}
+  func stopPreheating() {}
   func prefill() {}
   func loadAllIfNeeded() {}
   func loadAll() async {}

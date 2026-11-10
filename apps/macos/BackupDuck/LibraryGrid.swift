@@ -123,6 +123,7 @@ struct MacMediaGrid: NSViewRepresentable {
   }
   func updateNSView(_ scroll: NSScrollView, context: Context) {
     let c = context.coordinator
+    if !active { c.parent.source.stopPreheating() }
     c.parent = self
     c.bindPreviewSource()
     guard let collection = c.collection,
@@ -209,6 +210,7 @@ struct MacMediaGrid: NSViewRepresentable {
     coordinator.removeZoomStage()
     coordinator.rememberScroll()
     coordinator.refresh.cancel()
+    coordinator.parent.source.stopPreheating()
     if let observer = coordinator.observer { NotificationCenter.default.removeObserver(observer) }
     if let observer = coordinator.frameObserver { NotificationCenter.default.removeObserver(observer) }
     coordinator.parent.source.previewPoster = nil
@@ -1439,7 +1441,7 @@ struct MacMediaGrid: NSViewRepresentable {
         if !dense {
           let range = max(0, first - 24)..<min(self.count, last + 49)
           parent.source.preheat(range.compactMap { self.identifier(at: $0) }, pixels: cellSide * (collection.window?.backingScaleFactor ?? 2))
-        }
+        } else { parent.source.stopPreheating() }
         guard !dense else { return }
         let cells = paths.compactMap { collection.item(at: $0) as? PhotoCell }
         await parent.source.refreshMarks(cells, receiver: parent.receiverID,
@@ -2115,7 +2117,8 @@ private final class MacMarqueeView: NSView {
       if let synthetic { retainDisplayedImage(synthetic) }
       else {
         let expected = token
-        FileThumbnailPipeline.shared.request(id: expected, source: source, relative: photo.relative, revision: photo.revision, size: pixels / 2) { [weak self] image in
+        FileThumbnailPipeline.shared.request(id: expected, source: source, relative: photo.relative,
+          assetID: photo.source_id, revision: photo.revision, size: pixels / 2) { [weak self] image in
           guard let self, self.token == expected else { return }
           // A missing file (an ejected card) retries on the next configure.
           guard let image else { self.imageKey = ""; return }

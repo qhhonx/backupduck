@@ -83,7 +83,7 @@ pub struct FolderFacts {
     pub available: Option<bool>,
     pub unsupported_by_kind: BTreeMap<String, u64>,
 }
-#[derive(Debug, Default, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BrowseFilter {
     #[default]
@@ -92,6 +92,36 @@ pub enum BrowseFilter {
     NeedsYou,
     Recent,
 }
+#[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BrowseMediaKind {
+    #[default]
+    All,
+    Photo,
+    Video,
+    // File inventory currently exposes independent stills and clips.
+    Motion,
+    Burst,
+}
+
+#[derive(Default)]
+pub struct BrowseQuery<'a> {
+    pub source: Option<&'a str>,
+    pub receiver: &'a str,
+    pub search: &'a str,
+    pub filter: BrowseFilter,
+    pub kind: BrowseMediaKind,
+    pub offset: usize,
+    pub limit: Option<usize>,
+    pub since_ms: u64,
+}
+
+impl BrowseQuery<'_> {
+    fn page_size(&self) -> usize {
+        self.limit.unwrap_or(100).clamp(1, 1_000)
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct BrowsePage {
     pub rows: Vec<BrowseEntry>,
@@ -135,14 +165,64 @@ impl Index {
     /// Stream the inventory; never materialize a whole library for summaries or filtering.
     fn visit(
         &self,
-        source: Option<&str>,
-        receiver: &str,
-        search: &str,
+        query: &BrowseQuery<'_>,
+        ordered: bool,
         mut observe: impl FnMut(i64) -> Result<Observation>,
         mut visit: impl FnMut(BrowseEntry) -> bool,
     ) -> Result<()> {
-        let mut stmt = self.conn.prepare("SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,(SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.receiver=?2 AND s.revision=f.revision),COALESCE(d.capture_ms,f.modified),COALESCE(d.date_source,'file_modified'),EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0),EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2),EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2 AND q.repeat_job IS NOT NULL) FROM files f LEFT JOIN media_dates d ON d.source=f.source AND d.relative=f.relative AND d.revision=f.revision WHERE f.present=1 AND (?1 IS NULL OR f.source=?1) AND (?3='' OR instr(lower(f.relative),lower(?3))>0) AND f.relative=(SELECT MIN(g.relative) FROM files g WHERE g.source=f.source AND g.identity=f.identity AND g.revision=f.revision AND g.present=1) ORDER BY COALESCE(d.capture_ms,f.modified) DESC,f.source,f.relative").map_err(db)?;
-        let mut rows = stmt.query(params![source, receiver, search]).map_err(db)?;
+        let source = if query.source.is_some() {
+            "AND f.source=?1"
+        } else {
+            "AND ?1 IS NULL"
+        };
+        let kind = match query.kind {
+            BrowseMediaKind::All => "",
+            BrowseMediaKind::Photo => "AND f.mime NOT GLOB 'video/*'",
+            BrowseMediaKind::Video => "AND f.mime GLOB 'video/*'",
+            BrowseMediaKind::Motion | BrowseMediaKind::Burst => return Ok(()),
+        };
+        let order = if ordered {
+            "ORDER BY capture_ms DESC,f.source,f.relative"
+        } else {
+            ""
+        };
+        // Unfiltered pages select the requested rows before querying the
+        // transfer store. State-filtered pages must observe membership first.
+        let early_page = ordered && query.filter == BrowseFilter::All;
+        let page = if early_page {
+            "ORDER BY capture_ms DESC,f.source,f.relative LIMIT ?4 OFFSET ?5"
+        } else {
+            ""
+        };
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,
+                (SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.receiver=?2 AND s.revision=f.revision),
+                f.capture_ms,f.date_source,
+                EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0),
+                EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2),
+                EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2 AND q.repeat_job IS NOT NULL)
+            FROM (
+                SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,
+                    COALESCE(d.capture_ms,f.modified) AS capture_ms,COALESCE(d.date_source,'file_modified') AS date_source
+                FROM files f LEFT JOIN media_dates d ON d.source=f.source AND d.relative=f.relative AND d.revision=f.revision
+                WHERE f.present=1 {source} {kind} AND (?3='' OR instr(lower(f.relative),lower(?3))>0)
+                    AND f.relative=(SELECT MIN(g.relative) FROM files g
+                        WHERE g.source=f.source AND g.identity=f.identity AND g.revision=f.revision AND g.present=1)
+                {page}
+            ) f {order}"
+        )).map_err(db)?;
+        let mut rows = if early_page {
+            stmt.query(params![
+                query.source,
+                query.receiver,
+                query.search,
+                query.page_size() as i64 + 1,
+                i64::try_from(query.offset).unwrap_or(i64::MAX)
+            ])
+        } else {
+            stmt.query(params![query.source, query.receiver, query.search])
+        }
+        .map_err(db)?;
         while let Some(r) = rows.next().map_err(db)? {
             let folder_id: String = r.get(0).map_err(db)?;
             let job_id: Option<i64> = r.get(7).map_err(db)?;
@@ -205,7 +285,12 @@ impl Index {
             unsupported_by_kind: self.unsupported(source)?,
             ..Default::default()
         };
-        self.visit(Some(source), receiver, "", observe, |row| {
+        let query = BrowseQuery {
+            source: Some(source),
+            receiver,
+            ..Default::default()
+        };
+        self.visit(&query, false, observe, |row| {
             facts.supported += 1;
             facts.supported_kinds.record(&row.entry.media_type);
             match row.backup.as_str() {
@@ -231,39 +316,38 @@ impl Index {
         })?;
         Ok(facts)
     }
-    #[allow(clippy::too_many_arguments)]
     pub fn browse(
         &self,
-        source: Option<&str>,
-        receiver: &str,
-        search: &str,
-        filter: BrowseFilter,
-        offset: usize,
-        since_ms: u64,
+        query: BrowseQuery<'_>,
         observe: impl FnMut(i64) -> Result<Observation>,
     ) -> Result<BrowsePage> {
+        let page_size = query.page_size();
         let mut rows = Vec::new();
-        let mut skipped = 0;
-        self.visit(source, receiver, search, observe, |row| {
-            let matches = match filter {
+        let mut skip = if query.filter == BrowseFilter::All {
+            0
+        } else {
+            query.offset
+        };
+        self.visit(&query, true, observe, |row| {
+            let matches = match query.filter {
                 BrowseFilter::All => true,
                 BrowseFilter::NotBackedUp => row.backup == "not_backed_up",
                 BrowseFilter::NeedsYou => row.backup == "needs_you",
                 BrowseFilter::Recent => {
-                    row.backup == "saved" && row.saved_at_ms.is_some_and(|t| t >= since_ms)
+                    row.backup == "saved" && row.saved_at_ms.is_some_and(|t| t >= query.since_ms)
                 }
             };
             if matches {
-                if skipped < offset {
-                    skipped += 1;
+                if skip > 0 {
+                    skip -= 1;
                 } else {
                     rows.push(row);
                 }
             }
-            rows.len() <= 100
+            rows.len() <= page_size
         })?;
-        let has_more = rows.len() > 100;
-        rows.truncate(100);
+        let has_more = rows.len() > page_size;
+        rows.truncate(page_size);
         Ok(BrowsePage { rows, has_more })
     }
     pub fn request_selected(

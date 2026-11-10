@@ -763,64 +763,89 @@ fn browse_facts_filters_search_dates_and_receiver_isolation() {
         (107, 1, 1, 5, 1, 104)
     );
     assert_eq!(i.facts("a", "other", |_| unreachable!()).unwrap().saved, 0);
-    let page = i
-        .browse(
-            None,
-            "r",
-            "nested",
-            BrowseFilter::NotBackedUp,
-            0,
-            0,
+    let browse = |search, filter, offset, since_ms| {
+        i.browse(
+            BrowseQuery {
+                receiver: "r",
+                search,
+                filter,
+                offset,
+                since_ms,
+                ..Default::default()
+            },
             observe,
         )
-        .unwrap();
+        .unwrap()
+    };
+    let page = browse("nested", BrowseFilter::NotBackedUp, 0, 0);
     assert_eq!(page.rows.len(), 100);
     assert!(page.has_more);
     assert_eq!(
-        i.browse(
-            None,
-            "r",
-            "nested",
-            BrowseFilter::NotBackedUp,
-            100,
-            0,
-            observe
-        )
-        .unwrap()
-        .rows
-        .len(),
+        browse("nested", BrowseFilter::NotBackedUp, 100, 0)
+            .rows
+            .len(),
         4
     );
     assert_eq!(
-        i.browse(None, "r", "IMG_001", BrowseFilter::All, 0, 0, observe)
-            .unwrap()
-            .rows[0]
-            .backup,
+        browse("IMG_001", BrowseFilter::All, 0, 0).rows[0].backup,
         "saving"
     );
-    assert!(i
-        .browse(None, "r", "", BrowseFilter::Recent, 0, 101, observe)
-        .unwrap()
-        .rows
-        .is_empty());
-    assert_eq!(
-        i.browse(None, "r", "", BrowseFilter::NeedsYou, 0, 0, observe)
-            .unwrap()
-            .rows
-            .len(),
-        1
-    );
+    assert!(browse("", BrowseFilter::Recent, 0, 101).rows.is_empty());
+    assert_eq!(browse("", BrowseFilter::NeedsYou, 0, 0).rows.len(), 1);
     i.record_date("a", &a.relative, &a.revision, u64::MAX / 2, true)
         .unwrap();
     assert_eq!(
-        i.browse(None, "r", "", BrowseFilter::All, 0, 0, observe)
-            .unwrap()
-            .rows[0]
-            .entry
-            .relative,
+        browse("", BrowseFilter::All, 0, 0).rows[0].entry.relative,
         a.relative
     );
     assert!(i.record_date("a", &a.relative, "stale", 1, true).is_err());
+}
+#[test]
+fn browse_pages_filter_media_before_paging_and_observe_only_requested_jobs() {
+    let t = Temp::new();
+    for n in 0..120 {
+        fs::write(t.root().join(format!("nested/photo_{n:03}.jpg")), b"photo").unwrap();
+    }
+    for n in 0..3 {
+        fs::write(t.root().join(format!("nested/video_{n}.mov")), b"video").unwrap();
+    }
+    let mut index = t.index();
+    scan(&mut index, "a", &t.root(), 1);
+    for n in 0..3 {
+        let relative = format!("nested/video_{n}.mov");
+        let entry = index.entry("a", &relative).unwrap();
+        index
+            .mark("a", &relative, "r", &entry.revision, n + 1)
+            .unwrap();
+        index
+            .record_date("a", &relative, &entry.revision, 5 - n as u64, true)
+            .unwrap();
+    }
+    let mut observed = Vec::new();
+    let page = index
+        .browse(
+            BrowseQuery {
+                source: Some("a"),
+                receiver: "r",
+                search: "NESTED",
+                kind: BrowseMediaKind::Video,
+                offset: 1,
+                limit: Some(1),
+                ..Default::default()
+            },
+            |job| {
+                observed.push(job);
+                Ok(Observation::default())
+            },
+        )
+        .unwrap();
+    assert_eq!(page.rows[0].entry.relative, "nested/video_1.mov");
+    assert!(page.has_more);
+    assert_eq!(
+        observed,
+        [2, 3],
+        "Only the page and its lookahead need status"
+    );
 }
 #[test]
 fn selected_intent_is_durable_bounded_and_does_not_include_other_baseline_photos() {

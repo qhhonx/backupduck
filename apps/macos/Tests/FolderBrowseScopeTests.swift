@@ -89,7 +89,7 @@ import XCTest
       browser.type = type
       XCTAssertEqual(browser.contentState, .loading, "A new filter has not resolved its membership")
       await browser.reload(folders)
-      XCTAssertEqual(browser.sections.flatMap(\.photos).count, 1)
+      XCTAssertTrue(browser.sections.flatMap(\.photos).isEmpty)
       XCTAssertTrue(browser.visiblePhotos.isEmpty)
       XCTAssertTrue(MacFolderGridSource(folders: folders, browser: browser).identifiers.isEmpty)
       XCTAssertEqual(browser.contentState, .filterEmpty, "Raw JPEG rows do not fill a filtered grid")
@@ -106,32 +106,28 @@ import XCTest
     XCTAssertEqual(MacFolderGridSource(folders: folders, browser: browser).identifiers, browser.visiblePhotos.map(\.id))
   }
 
-  func testUnmatchedFirstPageKeepsLoadingUntilALaterMatchingPage() async {
+  func testSparseTypeFilterFindsMatchingRowsOnTheFirstPage() async {
     let folders = FolderSources(backup: BackupModel.shared)
     // Browse returns newest first, so all videos are beyond the first page.
     folders.previewRows = (0..<150).map { photo($0, video: $0 < 50) }
     let browser = FolderBrowser(); browser.scope = .folder("a"); browser.type = .video
     await browser.reload(folders)
-    XCTAssertEqual(browser.sections.first?.photos.count, 100)
-    XCTAssertTrue(browser.visiblePhotos.isEmpty)
-    XCTAssertEqual(browser.contentState, .loading)
-    await browser.more("a", folders: folders)
+    XCTAssertEqual(browser.sections.first?.hasMore, false)
     XCTAssertEqual(browser.contentState, .photos)
     XCTAssertEqual(browser.visiblePhotos.count, 50)
     XCTAssertEqual(MacFolderGridSource(folders: folders, browser: browser).identifiers, browser.visiblePhotos.map(\.id))
   }
 
-  func testUnmatchedPagingFinishesAsFilteredEmptyAndFailureKeepsRecovery() async {
+  func testEmptyTypeFilterAndFailureKeepDistinctRecovery() async {
     let folders = FolderSources(backup: BackupModel.shared)
     folders.previewRows = (0..<150).map { photo($0) }
     let browser = FolderBrowser(); browser.scope = .folder("a"); browser.type = .burst
     await browser.reload(folders)
-    XCTAssertEqual(browser.contentState, .loading)
+    XCTAssertEqual(browser.contentState, .filterEmpty)
     browser.error = "Unable to read folder"
     XCTAssertEqual(browser.contentState, .failed, "A failed page is not a completed empty result")
     browser.error = nil
-    await browser.more("a", folders: folders)
-    XCTAssertEqual(browser.sections.first?.photos.count, 150)
+    XCTAssertTrue(browser.visiblePhotos.isEmpty)
     XCTAssertEqual(browser.contentState, .filterEmpty)
     browser.type = .all
     await browser.reload(folders)
@@ -139,6 +135,20 @@ import XCTest
     folders.previewRows = []
     await browser.reload(folders)
     XCTAssertEqual(browser.contentState, .empty, "An unfiltered empty folder has its own explanation")
+  }
+
+  func testPagingAcrossAnInsertDoesNotDuplicateDiffableIdentifiers() async {
+    let folders = FolderSources(backup: BackupModel.shared)
+    folders.previewRows = (0..<150).map { photo($0) }
+    let browser = FolderBrowser()
+    browser.scope = .folder("a")
+    await browser.reload(folders)
+    folders.previewRows?.append(photo(150))
+    await browser.more("a", folders: folders)
+    XCTAssertEqual(browser.identifiers.count, 150)
+    XCTAssertEqual(Set(browser.identifiers).count, browser.identifiers.count)
+    await browser.reload(folders)
+    XCTAssertEqual(browser.identifiers.first, photo(150).id)
   }
 
   private func photo(_ index: Int, video: Bool = false) -> FolderPhoto {

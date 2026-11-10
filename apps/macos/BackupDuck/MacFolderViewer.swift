@@ -178,7 +178,8 @@ struct MacFolderPreviewPage: View {
       // The clicked grid retains presentation while the native leaf attaches.
       // Its poster prevents a loading-page flash but cannot start the flight;
       // only validated detail pixels (or an explicit failure) release entry.
-      image = poster
+      image = poster ?? FileThumbnailPipeline.shared.memoryPoster(source: photo.folder_id,
+        asset: photo.source_id, revision: photo.revision)
     }
   }
   deinit { worker?.cancel(); root?.stopAccessingSecurityScopedResource() }
@@ -191,7 +192,10 @@ struct MacFolderPreviewPage: View {
     worker?.cancel()
     let generation = UUID(); loadGeneration = generation
     failure = false
-    if image == nil, photo.media_type.hasPrefix("video/") { image = poster }
+    if image == nil {
+      image = poster ?? FileThumbnailPipeline.shared.memoryPoster(source: photo.folder_id,
+        asset: photo.source_id, revision: photo.revision)
+    }
     worker = Task { [weak self] in
       await self?.load(photo: photo, folders: folders, target: target, generation: generation)
     }

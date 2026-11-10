@@ -171,6 +171,11 @@ library viewers reuse the same edge-revealed previous/next controls.
 
 ## Shared grid updates
 
+The folder browser fetches ordered pages from the persisted inventory. Scan and
+metadata observations update that inventory independently of browsing. Search,
+media type and backup filters apply before pagination. The grid can show the
+first page while the collection's backup summary is loading.
+
 The native collection engine is shared with Photo Library and Backup History
 (`library.md` section 5). Source adapters supply stable file identities, images,
 marks and recorded dates. Membership inserts, removals and moves use diffable
@@ -187,6 +192,16 @@ Empty filtered results use No Photos Match with Show All Photos, which clears
 Show, Type and the query inside the current scope. Search never widens a child
 to the aggregate parent. Genuine empty, indexing, unavailable and failed states
 keep distinct explanations and actions.
+
+The folder adapter supplies display-sized stills and video posters. Thumbnail
+requests use the indexed asset identity and file revision. Memory and durable
+disk renditions can serve a request without contacting the source drive. The
+viewport preheats a bounded neighborhood and gives visible requests priority.
+An available camera preview can supply the first image while a display-sized
+rendition is prepared. Zoom retains usable pixels while a larger rendition is
+loading, and the viewer can seed nearby pages from the same memory cache. File
+revisions and thumbnail cache clearing invalidate reuse within the shared
+storage budget.
 
 The Folders sidebar parent reveals a native Add Folder symbol while the pointer
 is in the sidebar. It runs the same chooser and submission flow as the toolbar

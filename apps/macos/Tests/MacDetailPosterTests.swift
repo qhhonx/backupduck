@@ -327,15 +327,21 @@ final class MacFileDetailPosterTests: XCTestCase {
     await fulfillment(of: [cold], timeout: 10)
     while !first.isIdle { try await Task.sleep(for: .milliseconds(10)) }
     try FileManager.default.removeItem(at: base.appendingPathComponent("source/fixture.jpg"))
+    var offline = source
+    offline.bookmark = Data()
     let restarted = FileThumbnailPipeline(storage: storage, budget: { 16 * 1024 * 1024 })
     let warm = expectation(description: "disk tier survives source absence and new instance")
-    restarted.request(id: UUID(), source: source, relative: "fixture.jpg", revision: "one", size: 64) { image in
+    restarted.request(id: UUID(), source: offline, relative: "fixture.jpg", revision: "one", size: 64) { image in
       XCTAssertNotNil(image); warm.fulfill()
     }
     await fulfillment(of: [warm], timeout: 10)
     XCTAssertEqual(restarted.statistics.diskHits, 1); XCTAssertEqual(restarted.statistics.originalLoads, 0)
+    var immediately: NSImage?
+    restarted.request(id: UUID(), source: offline, relative: "fixture.jpg", revision: "one", size: 128) { immediately = $0 }
+    XCTAssertNotNil(immediately, "A retained larger tier is immediately available without a bookmark")
+    XCTAssertEqual(restarted.statistics.memoryHits, 1)
     let changed = expectation(description: "new revision does not show old pixels")
-    restarted.request(id: UUID(), source: source, relative: "fixture.jpg", revision: "two", size: 64) { image in
+    restarted.request(id: UUID(), source: offline, relative: "fixture.jpg", revision: "two", size: 64) { image in
       XCTAssertNil(image); changed.fulfill()
     }
     await fulfillment(of: [changed], timeout: 10)

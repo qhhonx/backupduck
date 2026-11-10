@@ -1,6 +1,8 @@
 //! Optional desktop boundary. Source files are never owned caches.
 use super::*;
-use backupduck_folder_source::{resolve, revision, BrowseFilter, Index, Observation, PageSort};
+use backupduck_folder_source::{
+    resolve, revision, BrowseFilter, BrowseMediaKind, BrowseQuery, Index, Observation, PageSort,
+};
 static PREVIEW_INDEX: Mutex<Option<Index>> = Mutex::new(None);
 static INDEX: Mutex<Option<Index>> = Mutex::new(None);
 #[derive(Deserialize)]
@@ -27,7 +29,10 @@ pub enum Command {
         search: String,
         #[serde(default)]
         filter: BrowseFilter,
+        #[serde(default)]
+        kind: BrowseMediaKind,
         offset: usize,
+        limit: Option<usize>,
     },
     Undated {
         source: String,
@@ -300,18 +305,24 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
             receiver,
             search,
             filter,
+            kind,
             offset,
+            limit,
         } => {
             let queue = host.sender.lock().map_err(lock)?;
             let since = backupduck_folder_source::millis(SystemTime::now())
                 .saturating_sub(7 * 24 * 60 * 60 * 1000);
             Ok(serde_json::to_value(index.browse(
-                source.as_deref(),
-                &receiver,
-                &search,
-                filter,
-                offset,
-                since,
+                BrowseQuery {
+                    source: source.as_deref(),
+                    receiver: &receiver,
+                    search: &search,
+                    filter,
+                    kind,
+                    offset,
+                    limit,
+                    since_ms: since,
+                },
                 |id| folder_observation(&queue, id),
             )?)?)
         }

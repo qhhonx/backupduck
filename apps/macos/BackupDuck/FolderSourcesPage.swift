@@ -37,6 +37,7 @@ struct FolderSourcesPage: View {
   }
   @State private var adding: URL?
   @State private var stopping: FolderSource?
+  @State private var refreshedFactsKey: String?
   @StateObject private var navigation = MacLibraryNavigation()
   // The page is split into stages so each modifier chain type-checks on its own.
   var body: some View {
@@ -75,8 +76,15 @@ struct FolderSourcesPage: View {
       }
     }
     .task(id: reloadKey) {
+      guard active else { return }
       if !browser.search.isEmpty { try? await Task.sleep(for: .milliseconds(200)); if Task.isCancelled { return } }
-      await folders.refreshFacts(); await browser.reload(folders)
+      let factsKey = self.factsKey
+      await browser.reload(folders)
+      guard !Task.isCancelled, refreshedFactsKey != factsKey else { return }
+      let preferred: String?
+      if case .folder(let id) = browser.scope { preferred = id } else { preferred = nil }
+      await folders.refreshFacts(preferred: preferred)
+      if !Task.isCancelled, folders.error == nil { refreshedFactsKey = factsKey }
     }
     .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
       if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup, added: { id in browser.scope = .folder(id) }) { self.adding = nil } }
@@ -162,10 +170,12 @@ struct FolderSourcesPage: View {
   }
   /// Reloads the grid when the sources, filters, index, queue or receiver change.
   private var reloadKey: String {
+    "\(active)|\(browser.key)|\(folders.indexRevision)|\(factsKey)"
+  }
+  private var factsKey: String {
     let sources = folders.sources.map(\.id).joined(separator: ",")
     let receiver = backup.pairing?.receiverID ?? ""
-    return [sources, "\(browser.key)", "\(folders.indexRevision)", "\(backup.queueRevision)",
-            "\(folders.revision)", receiver].joined(separator: "|")
+    return [sources, "\(backup.queueRevision)", "\(folders.revision)", receiver].joined(separator: "|")
   }
   private var subtitle: String {
     browser.selection.isEmpty ? "" : String(format: NSLocalizedString("grid_selected_count", comment: ""), browser.selection.count)
