@@ -640,6 +640,8 @@
 "hub_backing_up" = "正在备份 %1$@ 项 · 约 %2$@";
 "hub_backing_up_count" = "正在备份 %@ 项";
 "hub_backing_up_without_total" = "正在备份";
+"hub_folder_delivered" = "已传到 Pixel：%@ 项";
+"hub_folder_current_transfer" = "已传到 Pixel：%@ 项 · 下方显示当前项目进度";
 "hub_keep_awake" = "保持亮屏直到传完";
 "hub_keep_awake_note" = "打开备份鸭时传得最快。";
 "hub_pause" = "暂停";

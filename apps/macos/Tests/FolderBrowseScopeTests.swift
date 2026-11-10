@@ -29,6 +29,23 @@ import XCTest
     XCTAssertTrue(MacMenuStatus(model: model, folders: folders).isBackingUp)
     model.summary.running = 1
     XCTAssertEqual(folders.hubStatus, working)
+    let asset = BackupJob.Asset(kind: "photo", source_id: "fixture", revision: "1",
+      resources: [.init(filename: "image.jpg", size: 100)])
+    model.jobs = [
+      BackupJob(id: 1, asset: asset, state: "running", confirmedBytes: 90, errorCode: nil, receiverID: "other-receiver"),
+      BackupJob(id: 3, asset: asset, state: "running", confirmedBytes: 80, errorCode: nil, receiverID: "receiver"),
+      BackupJob(id: 2, asset: asset, state: "running", confirmedBytes: 25, errorCode: nil, receiverID: "receiver")
+    ]
+    XCTAssertEqual(folders.hubCurrentTransferFraction, 0.25)
+    model.transferProgress[2] = TransferProgress(sent: 50, expected: 100, baseline: 0, phase: "bundle")
+    XCTAssertEqual(folders.hubCurrentTransferFraction, 0.5, "A bundle shows byte progress before the receiver confirms it")
+    model.transferProgress[2]?.waitingForNetwork = true
+    XCTAssertNil(folders.hubCurrentTransferFraction, "An inactive transfer must not leave a bar")
+    model.transferProgress = [:]
+    model.jobs[2] = BackupJob(id: 2, asset: asset, state: "running", confirmedBytes: 100, errorCode: nil, receiverID: "receiver")
+    XCTAssertNil(folders.hubCurrentTransferFraction, "A completed byte count is not partial progress")
+    model.jobs = []
+    XCTAssertNil(folders.hubCurrentTransferFraction, "The transfer bar has no value between transfers")
     model.paused = true
     XCTAssertEqual(folders.hubStatus, .paused)
     model.paused = false; model.receiverConnection = .network

@@ -92,6 +92,21 @@ struct FolderSummary: Decodable, Equatable {
     default: return status
     }
   }
+  /// When the full batch is unknown, show the oldest running transfer's
+  /// partial progress, keeping the same item in view until it leaves running.
+  var hubCurrentTransferFraction: Double? {
+    guard let receiver = backup.pairing?.receiverID,
+      let job = backup.jobs.filter({
+        $0.state == "running" && ($0.receiverID == receiver || $0.receiverID == nil)
+      }).min(by: { $0.id < $1.id }),
+      !job.asset.resources.isEmpty, job.asset.resources.allSatisfy({ $0.size > 0 }) else { return nil }
+    let total = job.totalBytes
+    if let live = backup.transferProgress[job.id] {
+      return live.activeFraction(confirmed: job.confirmedBytes, total: total)
+    }
+    guard job.confirmedBytes > 0, job.confirmedBytes < total else { return nil }
+    return Double(job.confirmedBytes) / Double(total)
+  }
   private var observedGlobalAutoBackup: Bool?
   private var watches: [String: FolderWatch] = [:]
   private var access: [String: URL] = [:]

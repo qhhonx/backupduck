@@ -219,8 +219,10 @@ appear as one line when they matter.
   inventing a percentage before membership is known.
 - On Mac, confirmed folder preparation keeps the hub and menu in their working
   state between transfers. While folder work is still being prepared, the card
-  keeps its progress slot and omits the count, size and fraction for the
-  incomplete queue. Pauses and problems still take priority.
+  shows the receiver's confirmed delivery count. A labeled bar shows actual
+  partial byte progress for the current transfer in the reserved slot. Omit
+  totals and fractions for the incomplete queue. Pauses and problems still
+  take priority.
 - The keep-screen-on switch appears only while 50 or more photos remain.
 - The Pixel shows free space only in the space card, or as a hint when less
   than 15% remains and auto cleanup is off. Readings are the device's own.

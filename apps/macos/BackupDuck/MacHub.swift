@@ -68,9 +68,12 @@ struct MacHub: View {
       card(Text("hub_paused"), note: "hub_paused_note", symbol: "pause.circle.fill", tone: .secondary,
         action: "hub_resume") { Task { await model.setPaused(false) } }
     case .backingUp, .backingUpWithoutTotal:
+      let hasUnpreparedFolders = hubStatus == .backingUpWithoutTotal
+      let currentTransfer = hasUnpreparedFolders ? folders.hubCurrentTransferFraction : nil
       DuckStateCard(symbol: "arrow.up.circle.fill", tone: DuckRole.accent,
         title: Text(verbatim: hubStatus.sentence(receiver: receiverName)),
-        progress: hubStatus == .backingUpWithoutTotal ? nil : model.hubProgress, reservesProgress: true, trailing: {
+        note: hasUnpreparedFolders ? folderProgressNote(currentTransfer: currentTransfer) : nil,
+        progress: hasUnpreparedFolders ? currentTransfer : model.hubProgress, reservesProgress: true, trailing: {
         DuckTintedButton("hub_pause") { Task { await model.setPaused(true) } }.disabled(model.changingPause)
       })
     case .caughtUp(let last, let saving):
@@ -84,6 +87,12 @@ struct MacHub: View {
         Button("records_title") { showTransfers("all") }.buttonStyle(.bordered)
       }
     }
+  }
+
+  private func folderProgressNote(currentTransfer: Double?) -> Text {
+    let key = currentTransfer == nil ? "hub_folder_delivered" : "hub_folder_current_transfer"
+    return Text(verbatim: String(format: NSLocalizedString(key, comment: ""), model.summary.received.formatted()))
+      .monospacedDigit()
   }
 
   // MARK: - Problems (cause, what happens by itself, at most one action)
