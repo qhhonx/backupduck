@@ -220,7 +220,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     XCTAssertEqual(scroll.contentView.bounds.maxY, layout.frame(at: 95).maxY, accuracy: 0.5,
       "An offscreen return photo only needs its nearest edge revealed")
   }
-  func testPhotoLibraryReloadPagesWithoutBuildingPhoneMembership() async throws {
+  func testPhotoLibraryReloadPublishesCompleteGridMembership() async {
     let original = BackupEnvironment.usesPhotoLibrary
     BackupEnvironment.usesPhotoLibrary = false
     defer { BackupEnvironment.usesPhotoLibrary = original }
@@ -232,18 +232,13 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
     await library.reload(resetWindow: true)
 
     XCTAssertEqual(library.total, 2_400)
-    XCTAssertEqual(library.loaded, 240)
-    XCTAssertTrue(library.hasMoreRows)
-    XCTAssertEqual(fetch.fullEnumerations, 0, "The Mac grid must not prepare the phone's full membership")
+    XCTAssertEqual(library.loaded, 2_400)
+    XCTAssertFalse(library.hasMoreRows)
+    XCTAssertEqual(fetch.fullEnumerations, 0, "The Mac grid uses its lightweight index")
     let source = MacPhotoLibrarySource(library)
-    XCTAssertEqual(source.identifiers.count, 240)
+    XCTAssertEqual(source.fetchResult.count, 2_400)
+    XCTAssertNotEqual(source.fetchResult.mediaKind(at: 2_399), .unknown)
 
-    library.loadMore()
-    for _ in 0..<100 where library.loaded == 240 {
-      try await Task.sleep(for: .milliseconds(10))
-    }
-    XCTAssertEqual(library.loaded, 480)
-    XCTAssertEqual(source.identifiers.count, 480)
     let calendar = MacLibraryNavigation.periods(fetch)
     XCTAssertFalse(calendar.0.isEmpty)
     XCTAssertFalse(calendar.1.isEmpty)
@@ -1511,6 +1506,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 @MainActor final class HierarchyGridSource: MacGridSource {
   let folderSources = FolderSources(backup: BackupModel.shared)
   var identifiers = (0..<72).map { "hierarchy-\($0)" }
+  var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   let contextID = "hierarchy-test"
   let contentRevision = "1"
   var selection = Set<String>()
@@ -1559,6 +1555,7 @@ private final class MacCountingFetch: PHFetchResult<PHAsset>, @unchecked Sendabl
 @MainActor private final class GridTestSource: MacGridSource {
   var zoomStops = MacLibraryDensity.grid
   var identifiers = ["a", "b", "c"]
+  var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   var contextID = "test"
   var contentRevision = "1"
   var selection = Set<String>()

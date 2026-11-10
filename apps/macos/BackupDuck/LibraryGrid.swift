@@ -163,7 +163,6 @@ struct MacMediaGrid: NSViewRepresentable {
     c.viewportResized(layout: layout)
     if !c.magnifying { c.syncDensity(columns: resolvedColumns, layout: layout) }
     c.applyItems(scroll: scroll, layout: layout)
-    source.loadAllIfNeeded()
     if c.networkAllowed != networkPolicy.allowed {
       c.networkAllowed = networkPolicy.allowed; c.refreshVisibleImages()
     }
@@ -287,7 +286,7 @@ struct MacMediaGrid: NSViewRepresentable {
       let dense = layout.isDense
       canvas.isHidden = !dense
       guard dense else { canvas.reset(); return }
-      canvas.pipeline = parent.source.thumbnails
+      canvas.pipeline = denseSource?.thumbnails
       canvas.assetAt = { [weak self] index in self?.asset(at: index) }
       canvas.factAt = { [weak self] index in self?.fact(at: index) }
       canvas.count = count
@@ -488,7 +487,7 @@ struct MacMediaGrid: NSViewRepresentable {
         return
       }
       measuredHeaderWidth = width()
-      let next = parent.source.identifiers
+      let next = parent.source.fetchResult.identifiers
       let changedContext = contextID != parent.source.contextID
       guard ids != next || changedContext else {
         let heights = parent.source.headerHeights(width: width())
@@ -743,9 +742,10 @@ struct MacMediaGrid: NSViewRepresentable {
     // Items are presented oldest first (newest at the bottom, as in Photos). The
     // library model indexes newest first, so every display index is mirrored
     // against the number of items the collection currently holds.
-    func asset(at item: Int) -> PHAsset? { identifier(at: item).flatMap { parent.source.asset($0) } }
+    private var denseSource: (any MacDenseGridSource)? { parent.source as? any MacDenseGridSource }
+    func asset(at item: Int) -> PHAsset? { identifier(at: item).flatMap { denseSource?.asset($0) } }
     func date(at item: Int) -> Date? { identifier(at: item).flatMap { parent.source.date($0) } }
-    func fact(at item: Int) -> MacThumbnailTables.Fact? { identifier(at: item).flatMap { parent.source.fact($0) } }
+    func fact(at item: Int) -> MacThumbnailTables.Fact? { identifier(at: item).flatMap { denseSource?.fact($0) } }
     func identifier(at item: Int) -> String? { ids.indices.contains(item) ? ids[item] : nil }
     func bindPreviewSource() {
       parent.source.previewPoster = { [weak self] id in
@@ -887,7 +887,7 @@ struct MacMediaGrid: NSViewRepresentable {
       stage.referenceSide = { [weak self] columns in (self?.naturalPitch(columns) ?? 3)-(self?.gap(columns) ?? 2) }
       stage.denseAsset = { [weak self] index in self?.asset(at: index) }
       stage.denseFact = { [weak self] index in self?.fact(at: index) }
-      stage.thumbnails = parent.source.thumbnails
+      stage.thumbnails = denseSource?.thumbnails
       var pixels = denseCanvas?.displayedImages ?? [:]
       for item in collection.visibleItems().compactMap({ $0 as? PhotoCell }) {
         if let index = collection.indexPath(for: item)?.item, let image = item.displayedImage { pixels[index] = image }
@@ -1036,7 +1036,6 @@ struct MacMediaGrid: NSViewRepresentable {
         velocity: retainsStage ? zoomStage?.frozenPitchVelocity : 0)
     }
     private func finishStage(columns: Int,size: CGFloat,cancelled: Bool,velocity: CGFloat? = nil, animated: Bool = true) {
-      if MacLibraryDensity.isDense(columns) { Task { await parent.source.loadAll() } }
       guard let collection, let layout = collection.collectionViewLayout as? LibraryTimelineLayout,
         let scroll = collection.enclosingScrollView else { return }
       animationTarget = (.all,size)
@@ -1436,7 +1435,7 @@ struct MacMediaGrid: NSViewRepresentable {
         let paths = collection.indexPathsForVisibleItems().sorted()
         guard parent.source.membershipReady, let span = self.visibleRange() else { return }
         let first = span.first, last = span.last
-        parent.source.loadMore(visible: Array(self.ids[first...last]))
+        parent.source.didDisplay(self.ids[first...last])
         let dense = self.layoutDense
         if !dense {
           let range = max(0, first - 24)..<min(self.count, last + 49)
@@ -1918,8 +1917,7 @@ private final class MacMarqueeView: NSView {
 }
 
 @MainActor final class PhotoCell: NSCollectionViewItem {
-  private var pipeline: ThumbnailPipeline?
-  private var request: PHImageRequestID = PHInvalidImageRequestID
+  private var cancelImageRequest: (() -> Void)?
   private var token = UUID()
   private var imageKey = ""
   private(set) var assetID: String?
@@ -2047,15 +2045,11 @@ private final class MacMarqueeView: NSView {
     guard imageKey != key else { return }
     let sameAsset = assetID == asset.localIdentifier
     cancel()
-    self.pipeline = pipeline
     assetID = asset.localIdentifier
     imageKey = key
-    let current = token
     if !sameAsset {
       displayedImage = nil
-      // A decoded table thumbnail fills the cell at once while its own size
-      // loads; without it a reused cell stays blank until PhotoKit delivers.
-      photoLayer.contents = MacThumbnailTables.placeholder(asset)
+      photoLayer.contents = nil
     }
     // The layer always fills its own frame; original aspect shrinks the frame to
     // the photo's rectangle (animated), so the selection outline hugs the photo.
@@ -2080,16 +2074,9 @@ private final class MacMarqueeView: NSView {
             ? "library_filter_motion"
             : symbol == nil ? "library_filter_photo" : "library_filter_video", comment: ""))
     setGroup(count: nil, state: nil)
-    request = pipeline.request(asset, pixels: pixels, contentMode: originalAspect ? .aspectFit : .aspectFill) { [weak self] image, inCloud in
-      guard let self, self.token == current else { return }
-      if let image {
-        self.retainDisplayedImage(image)
-        if !inCloud, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-          MacThumbnailTables.remember(asset, image: cg)
-        }
-      }
-      self.cloud.symbol = "icloud"
-      self.cloud.isHidden = image != nil || !inCloud
+    requestImage(.library(asset, pipeline: pipeline, pixels: pixels, originalAspect: originalAspect)) { [weak self] image, inCloud in
+      self?.cloud.symbol = "icloud"
+      self?.cloud.isHidden = image != nil || !inCloud
     }
   }
   func setPresentationID(_ id: String) { presentationID = id }
@@ -2116,13 +2103,9 @@ private final class MacMarqueeView: NSView {
       duration.isHidden = true; burstCount.isHidden = true
       if let synthetic { retainDisplayedImage(synthetic) }
       else {
-        let expected = token
-        FileThumbnailPipeline.shared.request(id: expected, source: source, relative: photo.relative,
-          assetID: photo.source_id, revision: photo.revision, size: pixels / 2) { [weak self] image in
-          guard let self, self.token == expected else { return }
+        requestImage(.folder(photo, source: source, pixels: pixels)) { [weak self] image, _ in
           // A missing file (an ejected card) retries on the next configure.
-          guard let image else { self.imageKey = ""; return }
-          self.retainDisplayedImage(image)
+          if image == nil { self?.imageKey = "" }
         }
       }
     }
@@ -2133,6 +2116,15 @@ private final class MacMarqueeView: NSView {
     view.alphaValue = 1
     view.setAccessibilityLabel(photo.relative + ". " + photo.date.formatted(date: .abbreviated, time: .shortened))
     view.needsLayout = true
+  }
+  func requestImage(_ request: MacGridImageRequest, delivered: @escaping MacGridImageRequest.Delivery) {
+    if photoLayer.contents == nil { photoLayer.contents = request.placeholder() }
+    let expected = token
+    cancelImageRequest = request.request { [weak self] image, inCloud in
+      guard let self, self.token == expected else { return }
+      if let image { self.retainDisplayedImage(image) }
+      delivered(image, inCloud)
+    }
   }
   private var fitted = false
   private var assetAspect: CGFloat = 1
@@ -2269,9 +2261,8 @@ private final class MacMarqueeView: NSView {
     return layer
   }()
   func cancel() {
-    pipeline?.cancel(request)
-    FileThumbnailPipeline.shared.cancel(token)
-    request = PHInvalidImageRequestID
+    cancelImageRequest?()
+    cancelImageRequest = nil
     token = UUID()
     imageKey = ""
   }

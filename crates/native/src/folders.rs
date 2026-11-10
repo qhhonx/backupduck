@@ -31,8 +31,6 @@ pub enum Command {
         filter: BrowseFilter,
         #[serde(default)]
         kind: BrowseMediaKind,
-        offset: usize,
-        limit: Option<usize>,
     },
     Undated {
         source: String,
@@ -306,25 +304,23 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
             search,
             filter,
             kind,
-            offset,
-            limit,
         } => {
             let queue = host.sender.lock().map_err(lock)?;
             let since = backupduck_folder_source::millis(SystemTime::now())
                 .saturating_sub(7 * 24 * 60 * 60 * 1000);
-            Ok(serde_json::to_value(index.browse(
+            let result = index.browse(
                 BrowseQuery {
                     source: source.as_deref(),
                     receiver: &receiver,
                     search: &search,
                     filter,
                     kind,
-                    offset,
-                    limit,
                     since_ms: since,
                 },
                 |id| folder_observation(&queue, id),
-            )?)?)
+            )?;
+            drop(queue);
+            Ok(serde_json::to_value(result)?)
         }
         Command::ValidateRules { include, exclude } => {
             match backupduck_folder_source::validate_rules(&include, &exclude) {
@@ -745,10 +741,8 @@ fn selected_repeat_sources(
 
 /// A verified receipt is still saving until the receiver confirms Photos publication.
 fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Observation> {
-    let job = match queue.job(id) {
-        Ok(job) => job,
-        Err(Error::NotFound) => return Ok(Observation::default()),
-        Err(error) => return Err(error),
+    let Some(job) = queue.job_observation(id)? else {
+        return Ok(Observation::default());
     };
     let state = if job.state == backupduck_sender::JobState::Failed
         || job.processing == Some(ProcessingState::Failed)
@@ -765,7 +759,7 @@ fn folder_observation(queue: &backupduck_sender::Sender, id: i64) -> Result<Obse
     };
     Ok(Observation {
         state: state.into(),
-        saved_at_ms: queue.publication_time(id)?,
+        saved_at_ms: job.published_at_ms,
     })
 }
 

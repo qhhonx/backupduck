@@ -79,7 +79,7 @@ all added folder sources.
 Searching never silently changes scope.
 
 Each scope retains its filter, query and search-field expansion. Each
-scope/filter/query combination retains selection, loaded depth and the stable
+scope/filter/query combination retains selection and the stable
 visible-photo anchor. The aggregate parent has its own state, independent of
 its children. The thumbnail-size preference is shared across full photo
 browsers. Sidebar navigation and viewer return reuse these same states.
@@ -171,10 +171,12 @@ library viewers reuse the same edge-revealed previous/next controls.
 
 ## Shared grid updates
 
-The folder browser fetches ordered pages from the persisted inventory. Scan and
-metadata observations update that inventory independently of browsing. Search,
-media type and backup filters apply before pagination. The grid can show the
-first page while the collection's backup summary is loading.
+The folder browser fetches the complete ordered metadata result for its scope
+from the persisted inventory. Search, media type and backup filters define the
+result before the grid adopts it. Scan and metadata observations update the
+inventory independently of browsing. The grid knows the final row count and
+media split when the result arrives. It can display the result while the
+collection's backup summary is loading.
 
 The native collection engine is shared with Photo Library and Backup History
 (`library.md` section 5). Source adapters supply stable file identities, images,
@@ -184,8 +186,8 @@ grid. A committed filter membership replaces the grid once under a
 0.2-second crossfade; Reduce Motion adopts immediately. A pending projection
 must not publish previous rows under a new browse scope.
 
-Scope restoration retains loaded depth, selection and a stable photo anchor
-across paging, refresh, sidebar navigation and viewer return. A disconnected
+Scope restoration retains selection and a stable photo anchor across refresh,
+sidebar navigation and viewer return. A disconnected
 source stays browsable from its known inventory. Folder summaries remain
 ordinary flow content; there are no nested folder/date sticky headers.
 Empty filtered results use No Photos Match with Show All Photos, which clears
@@ -194,9 +196,12 @@ to the aggregate parent. Genuine empty, indexing, unavailable and failed states
 keep distinct explanations and actions.
 
 The folder adapter supplies display-sized stills and video posters. Thumbnail
-requests use the indexed asset identity and file revision. Memory and durable
-disk renditions can serve a request without contacting the source drive. The
-viewport preheats a bounded neighborhood and gives visible requests priority.
+requests use the indexed asset identity and file revision. A shared small
+thumbnail table can supply decoded pixels at cell configuration. The folder
+browser fills missing small thumbnails in the background while there is room
+in the table. Memory and durable disk renditions can serve a request without
+contacting the source drive. The viewport preheats a bounded neighborhood and
+gives visible requests priority.
 An available camera preview can supply the first image while a display-sized
 rendition is prepared. Zoom retains usable pixels while a larger rendition is
 loading, and the viewer can seed nearby pages from the same memory cache. File

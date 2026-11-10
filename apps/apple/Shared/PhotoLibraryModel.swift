@@ -346,9 +346,11 @@ struct LibraryMembershipCache {
     let selectedFilter = requestedFilter
     let selectedView = requestedBackupView
     let receiver = backupReceiver
+    #if os(iOS)
     let targetRows = resetWindow ? 240 : max(240, loaded)
     let previousCursor = resetWindow ? 0 : presentation.cursor
     let anchor = resetWindow ? nil : scrollAnchorID
+    #endif
     let selected = selection
     let collection = collectionID
     let early = collection == nil && selectedView == .all ? Self.takeEarlyFetch(for: selectedFilter) : nil
@@ -383,14 +385,14 @@ struct LibraryMembershipCache {
         }
         fetch = narrowed
       }
-      let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
       LaunchTrace.mark("library fetch ready")
       var index = LibraryPresentationIndex()
-      index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
       #if os(iOS)
+      let anchorIndex = Self.rawIndex(of: anchor, in: fetch).map { $0 + 1 } ?? 0
+      index.load(fetch, targetRows: targetRows, minimumCursor: max(previousCursor, anchorIndex))
       let membership = cached?.1 ?? LibraryMembership(fetch)
       #else
-      // Mac uses the incremental presentation and its own calendar index.
+      index.loadRemaining(fetch)
       let membership = LibraryMembership(PHFetchResult<PHAsset>())
       #endif
       return (fetch, index, Set(Self.resolveTokens(selected, in: fetch).keys), true, membership)
@@ -458,23 +460,6 @@ struct LibraryMembershipCache {
       if result.1 { generation += 1 }
     }
   }
-  /// Overview mosaics show the whole library: publish every remaining row with
-  /// one bulk read instead of page by page.
-  func loadAllRows() async {
-    guard let fetch, !loading, !loadingPage, hasMoreRows else { return }
-    loadingPage = true
-    let expected = requestGeneration, current = presentation
-    let job = Task.detached(priority: .userInitiated) {
-      var next = current
-      next.loadRemaining(fetch)
-      return next
-    }
-    let next = await withTaskCancellationHandler(operation: { await job.value }, onCancel: { job.cancel() })
-    guard expected == requestGeneration, authorized, !Task.isCancelled else { loadingPage = false; return }
-    presentation = next
-    loaded = next.rows.count
-    loadingPage = false
-  }
   func previewIndex(of asset: PHAsset) -> Int? {
     index(of: asset.burstIdentifier.map { "burst:" + $0 } ?? asset.localIdentifier)
   }
@@ -524,6 +509,9 @@ struct LibraryMembershipCache {
     guard presentation.rows.indices.contains(index) else { return nil }
     return presentation.rows[index].key
   }
+  #if os(macOS)
+  var macBrowseRows: [LibraryPresentationIndex.Row] { presentation.rows }
+  #endif
   func index(of identifier: String?) -> Int? {
     guard let identifier else { return nil }
     return presentation.positions[identifier]

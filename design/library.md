@@ -172,6 +172,11 @@ filtering, headers and album browsing.
 - **Filter menu.** Two sections with headers and no other dividers: "Show" —
   All Photos, Not Backed Up (History: All, Needs You); "Type" — All Types, Photos, Live Photos, Videos, Bursts. All Types sits
   inside the Type section. An active non-default choice tints the filter symbol.
+- **Library membership.** Photo Library and Folders publish complete, ordered
+  metadata results with stable identifiers and media types. The same AppKit
+  grid uses the result for its full extent, selection and viewer order. Visible
+  cells request renditions separately from the source adapter. The record feed
+  maintains its own task results and extent as it loads older records.
 - **Filter presentation.** Committed Show, Type and search membership is adopted
   once with a 0.2-second grid crossfade (Reduce Motion: instant), without
   interpolating collection rows. New views start at their newest edge; returning

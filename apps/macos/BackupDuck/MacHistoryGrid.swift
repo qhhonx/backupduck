@@ -119,7 +119,7 @@ struct MacHistoryGrid: View {
   let history: BackupHistoryModel
   let state: MacHistoryGridState
   let photos: [String: HistoryPhoto]
-  let identifiers: [String]
+  let fetchResult: MacGridFetchResult
   let groups: [Int: String]
   var flowHeaders: Set<Int> { Set(groups.keys) }
   private var measured: (width: CGFloat, heights: [Int: CGFloat])?
@@ -145,7 +145,10 @@ struct MacHistoryGrid: View {
     var rows = problems.flatMap(\.1)
     let known = Set(rows.map(\.id))
     rows += history.photos.filter { !known.contains($0.id) && matches($0) }.sorted(by: newestFirst)
-    photos = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) }); identifiers = rows.map(\.id)
+    photos = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+    fetchResult = MacGridFetchResult(identifiers: rows.map(\.id), kinds: rows.map { photo in
+      photo.job.flatMap { LibraryMediaKind(rawValue: $0.asset.kind) } ?? .unknown
+    })
     var headers: [Int: String] = [:], index = 0
     for (cause, items) in problems where !items.isEmpty {
       headers[index] = String(format: NSLocalizedString(cause.title, comment: ""), items.count.formatted())
@@ -174,7 +177,6 @@ struct MacHistoryGrid: View {
   }
   var contentRevision: String { "\(state.imageRevision)" }
   var selection: Set<String> { get { state.selection } set { state.selection = newValue } }
-  var thumbnails: ThumbnailPipeline? { state.thumbnails }
   var scroll: MacGridScrollState {
     if let value = state.scrolls[contextID] { return value }
     let value = MacGridScrollState(); state.scrolls[contextID] = value; return value
@@ -207,8 +209,8 @@ struct MacHistoryGrid: View {
     cell.setPresentationID(id)
     cell.setState(photo.mark == .sending ? "sending" : photo.mark == .saving ? "saving" : photo.mark == .needsYou ? "needs_you" : nil)
   }
-  func loadMore(visible: [String]) {
-    if identifiers.suffix(24).contains(where: { visible.contains($0) }) { Task { await history.loadMore() } }
+  func didDisplay(_ ids: ArraySlice<String>) {
+    if identifiers.suffix(24).contains(where: { ids.contains($0) }) { Task { await history.loadMore() } }
   }
   func preheat(_ ids: [String], pixels: CGFloat) { state.thumbnails.preheat(ids.compactMap(asset), pixels: pixels) }
 }

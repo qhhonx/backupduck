@@ -244,18 +244,19 @@ private struct MacRecentPhotos: View {
 @MainActor private final class MacRecentGridSource: MacGridSource {
   let state: MacHistoryGridState
   let photos: [String: HistoryPhoto]
-  let identifiers: [String]
+  let fetchResult: MacGridFetchResult
   let contextID = "hub-recent"
   var previewPoster: ((String) -> NSImage?)?
   var previewFrame: ((String) -> CGRect?)?
   init(photos: [HistoryPhoto], state: MacHistoryGridState) {
     self.state = state
     self.photos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
-    identifiers = photos.map(\.id)
+    fetchResult = MacGridFetchResult(identifiers: photos.map(\.id), kinds: photos.map { photo in
+      photo.job.flatMap { LibraryMediaKind(rawValue: $0.asset.kind) } ?? .unknown
+    })
   }
   var contentRevision: String { "\(state.imageRevision)" }
   var selection: Set<String> { get { state.selection } set { state.selection = newValue } }
-  var thumbnails: ThumbnailPipeline? { state.thumbnails }
   var scroll: MacGridScrollState {
     if let value = state.scrolls[contextID] { return value }
     let value = MacGridScrollState(); state.scrolls[contextID] = value; return value

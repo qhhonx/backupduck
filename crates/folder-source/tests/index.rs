@@ -763,13 +763,12 @@ fn browse_facts_filters_search_dates_and_receiver_isolation() {
         (107, 1, 1, 5, 1, 104)
     );
     assert_eq!(i.facts("a", "other", |_| unreachable!()).unwrap().saved, 0);
-    let browse = |search, filter, offset, since_ms| {
+    let browse = |search, filter, since_ms| {
         i.browse(
             BrowseQuery {
                 receiver: "r",
                 search,
                 filter,
-                offset,
                 since_ms,
                 ..Default::default()
             },
@@ -777,31 +776,24 @@ fn browse_facts_filters_search_dates_and_receiver_isolation() {
         )
         .unwrap()
     };
-    let page = browse("nested", BrowseFilter::NotBackedUp, 0, 0);
-    assert_eq!(page.rows.len(), 100);
-    assert!(page.has_more);
+    let result = browse("nested", BrowseFilter::NotBackedUp, 0);
+    assert_eq!(result.rows.len(), 104);
     assert_eq!(
-        browse("nested", BrowseFilter::NotBackedUp, 100, 0)
-            .rows
-            .len(),
-        4
-    );
-    assert_eq!(
-        browse("IMG_001", BrowseFilter::All, 0, 0).rows[0].backup,
+        browse("IMG_001", BrowseFilter::All, 0).rows[0].backup,
         "saving"
     );
-    assert!(browse("", BrowseFilter::Recent, 0, 101).rows.is_empty());
-    assert_eq!(browse("", BrowseFilter::NeedsYou, 0, 0).rows.len(), 1);
+    assert!(browse("", BrowseFilter::Recent, 101).rows.is_empty());
+    assert_eq!(browse("", BrowseFilter::NeedsYou, 0).rows.len(), 1);
     i.record_date("a", &a.relative, &a.revision, u64::MAX / 2, true)
         .unwrap();
     assert_eq!(
-        browse("", BrowseFilter::All, 0, 0).rows[0].entry.relative,
+        browse("", BrowseFilter::All, 0).rows[0].entry.relative,
         a.relative
     );
     assert!(i.record_date("a", &a.relative, "stale", 1, true).is_err());
 }
 #[test]
-fn browse_pages_filter_media_before_paging_and_observe_only_requested_jobs() {
+fn browse_fetches_complete_media_membership_and_observes_only_matching_jobs() {
     let t = Temp::new();
     for n in 0..120 {
         fs::write(t.root().join(format!("nested/photo_{n:03}.jpg")), b"photo").unwrap();
@@ -809,6 +801,12 @@ fn browse_pages_filter_media_before_paging_and_observe_only_requested_jobs() {
     for n in 0..3 {
         fs::write(t.root().join(format!("nested/video_{n}.mov")), b"video").unwrap();
     }
+    #[cfg(unix)]
+    fs::hard_link(
+        t.root().join("nested/video_1.mov"),
+        t.root().join("nested/zz_alias.mov"),
+    )
+    .unwrap();
     let mut index = t.index();
     scan(&mut index, "a", &t.root(), 1);
     for n in 0..3 {
@@ -822,15 +820,13 @@ fn browse_pages_filter_media_before_paging_and_observe_only_requested_jobs() {
             .unwrap();
     }
     let mut observed = Vec::new();
-    let page = index
+    let result = index
         .browse(
             BrowseQuery {
                 source: Some("a"),
                 receiver: "r",
                 search: "NESTED",
                 kind: BrowseMediaKind::Video,
-                offset: 1,
-                limit: Some(1),
                 ..Default::default()
             },
             |job| {
@@ -839,13 +835,20 @@ fn browse_pages_filter_media_before_paging_and_observe_only_requested_jobs() {
             },
         )
         .unwrap();
-    assert_eq!(page.rows[0].entry.relative, "nested/video_1.mov");
-    assert!(page.has_more);
+    let paths: Vec<_> = result
+        .rows
+        .iter()
+        .map(|row| row.entry.relative.as_str())
+        .collect();
     assert_eq!(
-        observed,
-        [2, 3],
-        "Only the page and its lookahead need status"
+        paths,
+        [
+            "nested/video_0.mov",
+            "nested/video_1.mov",
+            "nested/video_2.mov"
+        ]
     );
+    assert_eq!(observed, [1, 2, 3], "Only matching media need status");
 }
 #[test]
 fn selected_intent_is_durable_bounded_and_does_not_include_other_baseline_photos() {

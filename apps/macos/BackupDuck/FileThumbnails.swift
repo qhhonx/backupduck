@@ -16,6 +16,7 @@ import SwiftUI
     let bookmark: Data, relative: String, assetID: String?, revision: String
     var root: URL?
     var needsEmbeddedPreview: Bool
+    var persistsRendition: Bool
     var callbacks: [UUID: (NSImage?) -> Void] = [:]
     var visible = Set<UUID>()
     var started = false
@@ -23,9 +24,10 @@ import SwiftUI
     var quickLookResult: CheckedContinuation<CGImage?, Never>?
     var video: AVAssetImageGenerator?
     init(identity: String, base: String, edge: Int, epoch: Int?, bookmark: Data,
-      relative: String, assetID: String?, revision: String) {
+      relative: String, assetID: String?, revision: String, persistsRendition: Bool) {
       self.identity = identity; self.base = base; self.edge = edge; self.epoch = epoch
       self.bookmark = bookmark; self.relative = relative; self.assetID = assetID; self.revision = revision
+      self.persistsRendition = persistsRendition
       let ext = (relative as NSString).pathExtension.lowercased()
       let bytes = revision.split(separator: ":").first.flatMap { Int64($0) } ?? 0
       needsEmbeddedPreview = ["jpg", "jpeg"].contains(ext) && bytes >= 2 * 1024 * 1024
@@ -52,7 +54,7 @@ import SwiftUI
     cache.totalCostLimit = 96 * 1024 * 1024; cache.countLimit = 512
   }
   func request(id: UUID, source: FolderSource, relative: String, assetID: String? = nil,
-    revision: String, size: CGFloat, preheat: Bool = false,
+    revision: String, size: CGFloat, preheat: Bool = false, persistsRendition: Bool = true,
     completion: @escaping (NSImage?) -> Void) {
     cancel(id)
     guard size.isFinite, size > 0, !relative.isEmpty, !relative.hasPrefix("/"),
@@ -74,6 +76,7 @@ import SwiftUI
     }
     if let flight = flights[identity] {
       flight.callbacks[id] = completion; subscribers[id] = flight
+      flight.persistsRendition = flight.persistsRendition || persistsRendition
       if !preheat { flight.visible.insert(id) }
       statistics.coalescedRequests += 1
       if !preheat, let placeholder { completion(placeholder) }
@@ -81,7 +84,8 @@ import SwiftUI
     }
     guard flights.count < 256 else { completion(nil); return }
     let flight = Flight(identity: identity, base: base, edge: edge, epoch: epoch,
-      bookmark: source.bookmark, relative: relative, assetID: assetID, revision: revision)
+      bookmark: source.bookmark, relative: relative, assetID: assetID, revision: revision,
+      persistsRendition: persistsRendition)
     flight.callbacks[id] = completion; subscribers[id] = flight
     if !preheat { flight.visible.insert(id) }
     if placeholder != nil { flight.needsEmbeddedPreview = false }
@@ -89,10 +93,11 @@ import SwiftUI
     if !preheat, let placeholder { completion(placeholder) }
     pumpReads()
   }
-  func cancel(_ id: UUID) {
+  func cancel(_ id: UUID, notifying: Bool = false) {
     guard let flight = subscribers.removeValue(forKey: id) else { return }
     let identity = flight.identity
-    flight.callbacks.removeValue(forKey: id)
+    let completion = flight.callbacks.removeValue(forKey: id)
+    defer { if notifying { completion?(nil) } }
     flight.visible.remove(id)
     guard flight.callbacks.isEmpty else { return }
     flight.video?.cancelAllCGImageGeneration()
@@ -175,7 +180,7 @@ import SwiftUI
         // has its own bounded slots so it cannot grow unbounded decoded memory.
         publishing += 1
         finish(flight, image: bitmap.map { remember($0, flight: flight, tier: flight.edge) }); pumpOriginals()
-        if let bitmap, let epoch = flight.epoch {
+        if flight.persistsRendition, let bitmap, let epoch = flight.epoch {
           let key = flight.diskKey
           await Task.detached(priority: .utility) {
             guard storage.isCurrent(epoch), let data = MacDetailBitmap.encode(bitmap, key: key) else { return }
@@ -187,6 +192,20 @@ import SwiftUI
         publishing -= 1; pumpOriginals()
       }
     }
+  }
+  /// A small browsing preview consumes no display-sized disk slot.
+  func overviewImage(_ photo: FolderPhoto, source: FolderSource) async -> NSImage? {
+    let id = UUID()
+    return await withTaskCancellationHandler(operation: {
+      await withCheckedContinuation { continuation in
+        guard !Task.isCancelled else { continuation.resume(returning: nil); return }
+        request(id: id, source: source, relative: photo.relative, assetID: photo.source_id,
+          revision: photo.revision, size: 64, preheat: true, persistsRendition: false) { image in
+          self.cancel(id)
+          continuation.resume(returning: image)
+        }
+      }
+    }, onCancel: { Task { @MainActor in self.cancel(id, notifying: true) } })
   }
   private func loadOriginal(_ flight: Flight, embeddedOnly: Bool) async -> CGImage? {
     let bookmark = flight.bookmark, relative = flight.relative, edge = flight.edge
@@ -283,7 +302,7 @@ import SwiftUI
     }
     return nil
   }
-  private static func cacheBase(source: String, asset: String, revision: String) -> String {
+  static func cacheBase(source: String, asset: String, revision: String) -> String {
     "folder-grid-v4|" + String(decoding: try! JSONEncoder().encode([source, asset, revision]), as: UTF8.self)
   }
   private nonisolated static func matchesInventory(_ file: URL, assetID: String?, revision: String) -> Bool {

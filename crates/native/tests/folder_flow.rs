@@ -94,8 +94,7 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
     assert_eq!(facts["saved"], 0);
     assert_eq!(facts["in_flight"], 2);
     assert_eq!(facts["in_flight_bytes"], photo.size + video.size);
-    let browse =
-        folder(json!({"action":"browse","receiver":receiver,"search":"original","offset":0}));
+    let browse = folder(json!({"action":"browse","receiver":receiver,"search":"original"}));
     assert_eq!(browse["rows"].as_array().unwrap().len(), 2);
     assert_eq!(browse["rows"][0]["backup"], "sending");
     assert_eq!(
@@ -138,7 +137,7 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
     assert_eq!(received_facts["saved"], 0);
     assert_eq!(received_facts["in_flight"], 2);
     assert!(
-        folder(json!({"action":"browse","receiver":receiver,"filter":"recent","offset":0}))["rows"]
+        folder(json!({"action":"browse","receiver":receiver,"filter":"recent"}))["rows"]
             .as_array()
             .unwrap()
             .is_empty()

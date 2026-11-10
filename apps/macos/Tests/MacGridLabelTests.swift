@@ -67,7 +67,7 @@ import XCTest
       "An incomplete media split must not claim all remaining items are photos")
   }
 
-  func testFilteredFolderFooterWaitsForCompleteMembershipAndIgnoresSelection() async {
+  func testFilteredFolderFooterUsesCompleteMembershipAndIgnoresSelection() async {
     let folders = FolderSources(backup: BackupModel.shared)
     folders.previewRows = (0..<330).map { index in
       FolderPhoto(relative: "media-\(index)", source_id: "\(index)", revision: "1", size: 1,
@@ -77,9 +77,6 @@ import XCTest
     }
     let browser = FolderBrowser(); browser.scope = .folder("folder"); browser.type = .video
     await browser.reload(folders)
-    XCTAssertNil(MacFolderGridSource(folders: folders, browser: browser).totals,
-      "A loaded prefix cannot become a filtered total")
-    await browser.more("folder", folders: folders)
     let totals = MacFolderGridSource(folders: folders, browser: browser).totals
     XCTAssertEqual(totals, MacGridTotals(total: 110, photos: 0, videos: 110))
     browser.selection = ["folder|0"]

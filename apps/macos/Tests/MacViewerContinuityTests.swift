@@ -685,7 +685,7 @@ import XCTest
     window.makeKeyAndOrderFront(nil)
     defer { window.close(); window.contentViewController = nil }
     try await Task.sleep(for: .milliseconds(800))
-    let photo = try XCTUnwrap(folders.browser.sections.flatMap(\.photos).first { $0.relative == "Coast/IMG_1000.jpg" })
+    let photo = try XCTUnwrap(folders.browser.visiblePhotos.first { $0.relative == "Coast/IMG_1000.jpg" })
     folders.browser.selection = [photo.id]
     try await Task.sleep(for: .milliseconds(400))
     func anchors(in view: NSView) -> [MacViewerInspectorAnchor] {
@@ -706,7 +706,7 @@ import XCTest
     XCTAssertNotNil(info.panel.contentViewController)
     let frame = info.panel.frame
     let controller = info.panel.contentViewController
-    let next = try XCTUnwrap(folders.browser.sections.flatMap(\.photos).first { $0.id != photo.id })
+    let next = try XCTUnwrap(folders.browser.visiblePhotos.first { $0.id != photo.id })
     folders.browser.selection = [next.id]
     try await Task.sleep(for: .milliseconds(400))
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.panel.frame, frame)

@@ -316,6 +316,19 @@ final class MacFileDetailPosterTests: XCTestCase {
       ThumbnailCacheStorage(directory: base.appendingPathComponent("cache", isDirectory: true)), image)
   }
 
+  func testOverviewRequestLeavesDisplayRenditionBudgetAvailable() async throws {
+    let (base, source, storage, bitmap) = try fixture()
+    defer { try? FileManager.default.removeItem(at: base) }
+    let pipeline = FileThumbnailPipeline(storage: storage, originalLoader: { _, _ in bitmap })
+    let photo = FolderPhoto(relative: "fixture.jpg", source_id: "still", revision: "1", size: 1,
+      media_type: "image/jpeg", modified_ms: 1, folder_id: source.id, capture_ms: 1,
+      date_source: "file_modified", backup: "not_backed_up", saved_at_ms: nil)
+    let preview = await pipeline.overviewImage(photo, source: source)
+    XCTAssertNotNil(preview)
+    while !pipeline.isIdle { try await Task.sleep(for: .milliseconds(10)) }
+    XCTAssertEqual(storage.detailUsage, 0)
+  }
+
   func testRestartUsesFinalDiskTierWithoutOriginalAndRevisionDoesNotReuseIt() async throws {
     let (base, source, storage, _) = try fixture()
     defer { try? FileManager.default.removeItem(at: base) }

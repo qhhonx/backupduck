@@ -172,9 +172,11 @@ notifications and media metadata APIs; the existing Rust sender owns snapshots,
 checksums, durable tasks and transfer. Mobile native builds never link the folder
 crate. Source identity is namespaced without changing existing PhotoKit IDs.
 The folder browse query reads the inventory and attaches receiver observations
-from the sender. The Mac folder adapter and Photo Library adapter expose their
-results through the same native grid source contract for selection, viewport
-restoration, paging and thumbnail requests.
+from the sender. The Mac folder and Photo Library adapters publish complete,
+ordered metadata results through the same native grid contract. The result
+defines logical membership, media types and counts. Cancellable thumbnail
+requests resolve media for the native viewport through source-specific
+providers. Selection and viewport restoration use stable identifiers.
 See [folder backup](folder-backup.md) for behavior and validation boundaries.
 
 ## Sender host contract

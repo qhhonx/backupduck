@@ -63,6 +63,11 @@ pub struct Job {
     #[serde(default)]
     pub sort_value: Option<i64>,
 }
+pub struct JobObservation {
+    pub state: JobState,
+    pub processing: Option<ProcessingState>,
+    pub published_at_ms: Option<u64>,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attempt {
     pub job_id: i64,
@@ -794,6 +799,37 @@ impl Sender {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(db)?;
         Ok(items)
+    }
+    /// Browse state by exact job identity without loading a transfer manifest.
+    pub fn job_observation(&self, id: i64) -> Result<Option<JobObservation>> {
+        let mut query = self
+            .conn
+            .prepare_cached(
+                "SELECT j.state,p.state,t.observed_ms FROM jobs j
+             LEFT JOIN processing_observations p ON p.job_id=j.id
+             LEFT JOIN publication_times t ON t.job_id=j.id WHERE j.id=?1",
+            )
+            .map_err(db)?;
+        let row = query
+            .query_row([id], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, Option<i64>>(2)?,
+                ))
+            })
+            .optional()
+            .map_err(db)?;
+        row.map(|(state, processing, published_at_ms)| {
+            Ok(JobObservation {
+                state: serde_json::from_value(serde_json::Value::String(state))?,
+                processing: processing
+                    .map(|state| serde_json::from_value(serde_json::Value::String(state)))
+                    .transpose()?,
+                published_at_ms: published_at_ms.map(|time| time as u64),
+            })
+        })
+        .transpose()
     }
     /// First observed Photos publication. Older observations remain undated.
     pub fn publication_time(&self, id: i64) -> Result<Option<u64>> {

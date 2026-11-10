@@ -1198,8 +1198,9 @@ import XCTest
   }
 }
 
-@MainActor private final class GestureGridSource: MacGridSource {
+@MainActor private final class GestureGridSource: MacDenseGridSource {
   var identifiers = (0..<90).map { "gesture-\($0)" }
+  var fetchResult: MacGridFetchResult { MacGridFetchResult(identifiers: identifiers) }
   var contextID = "gesture-test"
   var contentRevision = "1"
   var selection = Set<String>()

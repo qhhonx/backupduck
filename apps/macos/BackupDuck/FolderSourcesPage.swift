@@ -80,11 +80,14 @@ struct FolderSourcesPage: View {
       if !browser.search.isEmpty { try? await Task.sleep(for: .milliseconds(200)); if Task.isCancelled { return } }
       let factsKey = self.factsKey
       await browser.reload(folders)
-      guard !Task.isCancelled, refreshedFactsKey != factsKey else { return }
-      let preferred: String?
-      if case .folder(let id) = browser.scope { preferred = id } else { preferred = nil }
-      await folders.refreshFacts(preferred: preferred)
-      if !Task.isCancelled, folders.error == nil { refreshedFactsKey = factsKey }
+      guard !Task.isCancelled else { return }
+      if refreshedFactsKey != factsKey {
+        let preferred: String?
+        if case .folder(let id) = browser.scope { preferred = id } else { preferred = nil }
+        await folders.refreshFacts(preferred: preferred)
+        if !Task.isCancelled, folders.error == nil { refreshedFactsKey = factsKey }
+      }
+      await browser.prefillOverview(folders)
     }
     .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
       if let adding { AddFolderSheet(url: adding, folders: folders, backup: backup, added: { id in browser.scope = .folder(id) }) { self.adding = nil } }
@@ -181,7 +184,7 @@ struct FolderSourcesPage: View {
     browser.selection.isEmpty ? "" : String(format: NSLocalizedString("grid_selected_count", comment: ""), browser.selection.count)
   }
   private var selectedPhotos: [FolderPhoto] {
-    browser.sections.flatMap(\.photos).filter { browser.selection.contains($0.id) }
+    browser.visiblePhotos.filter { browser.selection.contains($0.id) }
   }
   private func backUpSelected() {
     let photos = selectedPhotos
@@ -268,7 +271,7 @@ struct MacFolderToolbar: ToolbarContent {
   private var contextualSource: FolderSource? {
     if case .folder(let id) = browser.scope { return folders.sources.first { $0.id == id } }
     guard browser.scope == .all else { return nil }
-    let ids = Set(browser.sections.flatMap(\.photos).filter { browser.selection.contains($0.id) }.map(\.folder_id))
+    let ids = Set(browser.visiblePhotos.filter { browser.selection.contains($0.id) }.map(\.folder_id))
     return ids.count == 1 ? folders.sources.first { ids.contains($0.id) } : nil
   }
 }

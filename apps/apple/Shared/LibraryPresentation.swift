@@ -11,17 +11,23 @@ struct LibraryRangeSelection {
   }
 }
 
-/// Incremental metadata index. Presentation groups never change transfer identities.
+enum LibraryMediaKind: String, Sendable {
+  case photo, motion, video, burst, unknown
+}
+
+/// Metadata index. Presentation groups never change transfer identities.
 struct LibraryPresentationIndex: Sendable {
   struct Metadata {
     let id: String
     let burst: String?
     let representative: Bool
+    var kind: LibraryMediaKind = .unknown
     var key: String { burst.map { "burst:" + $0 } ?? id }
   }
   struct Row: Sendable {
     let key: String
     var rawIndex: Int
+    let kind: LibraryMediaKind
   }
   private(set) var rows: [Row] = []
   private(set) var positions: [String: Int] = [:]
@@ -42,7 +48,7 @@ struct LibraryPresentationIndex: Sendable {
         }
       } else {
         positions[item.key] = rows.count
-        rows.append(Row(key: item.key, rawIndex: cursor))
+        rows.append(Row(key: item.key, rawIndex: cursor, kind: item.burst == nil ? item.kind : .burst))
       }
       cursor += 1
     }
@@ -80,7 +86,7 @@ extension LibraryPresentationIndex {
     items.reserveCapacity(total - start)
     fetch.enumerateObjects(at: IndexSet(integersIn: start..<total), options: []) { asset, _, stop in
       if Task.isCancelled { stop.pointee = true; return }
-      items.append(Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier, representative: asset.representsBurst))
+      items.append(Self.metadata(asset))
     }
     guard items.count == total - start else { return }
     load(sourceCount: total, targetRows: .max, minimumCursor: total) { items[$0 - start] }
@@ -88,10 +94,17 @@ extension LibraryPresentationIndex {
   @discardableResult mutating func load(_ fetch: PHFetchResult<PHAsset>, targetRows: Int,
     minimumCursor: Int = 0) -> Bool {
     load(sourceCount: fetch.count, targetRows: targetRows, minimumCursor: minimumCursor) { index in
-      let asset = fetch.object(at: index)
-      return Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier,
-        representative: asset.representsBurst)
+      Self.metadata(fetch.object(at: index))
     }
+  }
+  private static func metadata(_ asset: PHAsset) -> Metadata {
+    let kind: LibraryMediaKind = switch asset.mediaType {
+    case .image: asset.mediaSubtypes.contains(.photoLive) ? .motion : .photo
+    case .video: .video
+    default: .unknown
+    }
+    return Metadata(id: asset.localIdentifier, burst: asset.burstIdentifier,
+      representative: asset.representsBurst, kind: kind)
   }
 }
 

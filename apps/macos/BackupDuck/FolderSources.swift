@@ -688,7 +688,7 @@ struct FolderSummary: Decodable, Equatable {
       } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
   }
-  func browse(_ id: String?, offset: Int, limit: Int = 100, search: String, filter: LibraryBackupView, type: LibraryFilter) async throws -> FolderPhotoPage {
+  func fetch(_ id: String?, search: String, filter: LibraryBackupView, type: LibraryFilter) async throws -> FolderFetchResult {
     if let previewRows {
       let matches = previewRows.filter { photo in
         (id == nil || photo.folder_id == id) && (search.isEmpty || photo.relative.localizedCaseInsensitiveContains(search)) &&
@@ -698,13 +698,20 @@ struct FolderSummary: Decodable, Equatable {
         if $0.capture_ms != $1.capture_ms { return $0.capture_ms > $1.capture_ms }
         return ($0.folder_id, $0.relative) < ($1.folder_id, $1.relative)
       }
-      return FolderPhotoPage(rows: Array(matches.dropFirst(offset).prefix(limit)), has_more: matches.count > offset + limit)
+      return FolderFetchResult(matches)
     }
     var command: [String: Any] = ["action": "browse", "receiver": backup.pairing?.receiverID ?? "",
-      "offset": offset, "limit": limit, "search": search, "kind": type.rawValue,
+      "search": search, "kind": type.rawValue,
       "filter": filter == .notBackedUp ? "not_backed_up" : filter.rawValue]
     if let id { command["source"] = id }
-    return try JSONDecoder().decode(FolderPhotoPage.self, from: await call(command))
+    let data = try await call(command)
+    try Task.checkCancellation()
+    let work = Task.detached(priority: .userInitiated) {
+      let response = try JSONDecoder().decode(FolderFetchResponse.self, from: data)
+      try Task.checkCancellation()
+      return FolderFetchResult(response.rows)
+    }
+    return try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
   }
   func selectedBackupRepeatSources(_ photos: [FolderPhoto], receiver: String) async throws -> Set<String> {
     guard backup.pairing?.receiverID == receiver else { throw Bridge.Failure(code: "conflict") }

@@ -111,21 +111,13 @@ pub struct BrowseQuery<'a> {
     pub search: &'a str,
     pub filter: BrowseFilter,
     pub kind: BrowseMediaKind,
-    pub offset: usize,
-    pub limit: Option<usize>,
     pub since_ms: u64,
 }
 
-impl BrowseQuery<'_> {
-    fn page_size(&self) -> usize {
-        self.limit.unwrap_or(100).clamp(1, 1_000)
-    }
-}
-
+/// Complete metadata membership for one browse query.
 #[derive(Debug, Serialize)]
-pub struct BrowsePage {
+pub struct BrowseResult {
     pub rows: Vec<BrowseEntry>,
-    pub has_more: bool,
 }
 impl Index {
     /// Availability is an explicit host filesystem observation, retained by the core.
@@ -162,13 +154,13 @@ impl Index {
             .map_err(db)?;
         paths.into_iter().map(|p| self.entry(source, &p)).collect()
     }
-    /// Stream the inventory; never materialize a whole library for summaries or filtering.
+    /// Walk the inventory in query order. Summaries reduce the rows in place.
     fn visit(
         &self,
         query: &BrowseQuery<'_>,
         ordered: bool,
         mut observe: impl FnMut(i64) -> Result<Observation>,
-        mut visit: impl FnMut(BrowseEntry) -> bool,
+        mut visit: impl FnMut(BrowseEntry),
     ) -> Result<()> {
         let source = if query.source.is_some() {
             "AND f.source=?1"
@@ -186,43 +178,22 @@ impl Index {
         } else {
             ""
         };
-        // Unfiltered pages select the requested rows before querying the
-        // transfer store. State-filtered pages must observe membership first.
-        let early_page = ordered && query.filter == BrowseFilter::All;
-        let page = if early_page {
-            "ORDER BY capture_ms DESC,f.source,f.relative LIMIT ?4 OFFSET ?5"
-        } else {
-            ""
-        };
         let mut stmt = self.conn.prepare(&format!(
             "SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,
                 (SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND s.receiver=?2 AND s.revision=f.revision),
-                f.capture_ms,f.date_source,
+                COALESCE(d.capture_ms,f.modified) AS capture_ms,COALESCE(d.date_source,'file_modified'),
                 EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0),
                 EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2),
                 EXISTS(SELECT 1 FROM selected_requests q WHERE q.source=f.source AND q.relative=f.relative AND q.revision=f.revision AND q.receiver=?2 AND q.repeat_job IS NOT NULL)
-            FROM (
-                SELECT f.source,f.relative,f.identity,f.revision,f.size,f.mime,f.modified,
-                    COALESCE(d.capture_ms,f.modified) AS capture_ms,COALESCE(d.date_source,'file_modified') AS date_source
-                FROM files f LEFT JOIN media_dates d ON d.source=f.source AND d.relative=f.relative AND d.revision=f.revision
-                WHERE f.present=1 {source} {kind} AND (?3='' OR instr(lower(f.relative),lower(?3))>0)
-                    AND f.relative=(SELECT MIN(g.relative) FROM files g
-                        WHERE g.source=f.source AND g.identity=f.identity AND g.revision=f.revision AND g.present=1)
-                {page}
-            ) f {order}"
+            FROM files f LEFT JOIN media_dates d ON d.source=f.source AND d.relative=f.relative AND d.revision=f.revision
+            WHERE f.present=1 {source} {kind} AND (?3='' OR instr(lower(f.relative),lower(?3))>0)
+                AND NOT EXISTS(SELECT 1 FROM files g INDEXED BY folder_identity
+                    WHERE g.source=f.source AND g.identity=f.identity AND g.present=1 AND g.relative<f.relative)
+            {order}"
         )).map_err(db)?;
-        let mut rows = if early_page {
-            stmt.query(params![
-                query.source,
-                query.receiver,
-                query.search,
-                query.page_size() as i64 + 1,
-                i64::try_from(query.offset).unwrap_or(i64::MAX)
-            ])
-        } else {
-            stmt.query(params![query.source, query.receiver, query.search])
-        }
-        .map_err(db)?;
+        let mut rows = stmt
+            .query(params![query.source, query.receiver, query.search])
+            .map_err(db)?;
         while let Some(r) = rows.next().map_err(db)? {
             let folder_id: String = r.get(0).map_err(db)?;
             let job_id: Option<i64> = r.get(7).map_err(db)?;
@@ -260,9 +231,7 @@ impl Index {
                 backup: backup.to_owned(),
                 saved_at_ms: observation.saved_at_ms,
             };
-            if !visit(entry) {
-                break;
-            }
+            visit(entry);
         }
         Ok(())
     }
@@ -312,7 +281,6 @@ impl Index {
                     facts.not_backed_up_kinds.record(&row.entry.media_type);
                 }
             }
-            true
         })?;
         Ok(facts)
     }
@@ -320,14 +288,8 @@ impl Index {
         &self,
         query: BrowseQuery<'_>,
         observe: impl FnMut(i64) -> Result<Observation>,
-    ) -> Result<BrowsePage> {
-        let page_size = query.page_size();
+    ) -> Result<BrowseResult> {
         let mut rows = Vec::new();
-        let mut skip = if query.filter == BrowseFilter::All {
-            0
-        } else {
-            query.offset
-        };
         self.visit(&query, true, observe, |row| {
             let matches = match query.filter {
                 BrowseFilter::All => true,
@@ -338,17 +300,10 @@ impl Index {
                 }
             };
             if matches {
-                if skip > 0 {
-                    skip -= 1;
-                } else {
-                    rows.push(row);
-                }
+                rows.push(row);
             }
-            rows.len() <= page_size
         })?;
-        let has_more = rows.len() > page_size;
-        rows.truncate(page_size);
-        Ok(BrowsePage { rows, has_more })
+        Ok(BrowseResult { rows })
     }
     pub fn request_selected(
         &mut self,

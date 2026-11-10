@@ -74,15 +74,20 @@ enum MacThumbnailTables {
   /// shows at once while its own size loads, so no tile is ever blank for a
   /// photo the library has shown before.
   static func placeholder(_ asset: PHAsset) -> CGImage? {
-    guard enabled else { return nil }
-    let key = key(asset)
+    placeholder(key: key(asset))
+  }
+  static func placeholder(key: String) -> CGImage? {
+    guard enabled, storage.epoch != nil else { return nil }
     return detail.image(key) ?? overview.image(key)
   }
   /// Stores a delivered thumbnail in each table it is sharp enough for. Grid
   /// cells deliver larger images; the table draws them down to its tile size.
   static func remember(_ asset: PHAsset, pixels: CGFloat = 0, image: CGImage) {
-    guard enabled, let epoch = storage.epoch else { return }
-    let key = key(asset), edge = min(image.width, image.height)
+    remember(key: key(asset), image: image, epoch: storage.epoch)
+  }
+  static func remember(key: String, image: CGImage, epoch: Int?) {
+    guard enabled, let epoch, storage.isCurrent(epoch) else { return }
+    let edge = min(image.width, image.height)
     overview.writes.async {
       if edge * 5 >= overviewSide * 4 { overview.store(key, image: image, generation: epoch) }
       if edge * 5 >= detailSide * 4 { detail.store(key, image: image, generation: epoch) }
