@@ -820,6 +820,11 @@ import XCTest
     let expected = MacPhotoInformationTarget.folder(photo, folders, nil).identity
     XCTAssertEqual(info.store.target.identity, expected)
     let controller = info.panel.contentViewController, frame = info.panel.frame
+    func waitForTarget(_ identity: String) async throws {
+      for _ in 0..<40 where info.store.target.identity != identity {
+        try await Task.sleep(for: .milliseconds(50))
+      }
+    }
     func anchors(in view: NSView) -> [MacViewerInspectorAnchor] {
       (view as? MacViewerInspectorAnchor).map { [$0] } ?? view.subviews.flatMap { anchors(in: $0) }
     }
@@ -829,17 +834,19 @@ import XCTest
     let navigation = try XCTUnwrap(Mirror(reflecting: active).children.first { $0.label == "navigation" }?.value as? MacLibraryNavigation)
     let close = try XCTUnwrap(navigation.viewerBack)
     close()
-    for _ in 0..<40 where folders.browser.selection != [photo.id] || info.store.target.identity != expected {
+    for _ in 0..<40 where navigation.viewerBack != nil {
       try await Task.sleep(for: .milliseconds(50))
     }
+    try await waitForTarget(expected)
+    XCTAssertNil(navigation.viewerBack)
     XCTAssertEqual(folders.browser.selection, [photo.id])
     XCTAssertTrue(info.panel.isVisible); XCTAssertTrue(info.panel.contentViewController === controller)
     XCTAssertEqual(info.panel.frame, frame); XCTAssertEqual(info.store.target.identity, expected)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowTransfers"), object: nil)
-    try await Task.sleep(for: .milliseconds(300))
+    try await waitForTarget("selection:0")
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.store.target.identity, "selection:0")
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowFolders"), object: nil)
-    try await Task.sleep(for: .milliseconds(300))
+    try await waitForTarget(expected)
     XCTAssertTrue(info.panel.isVisible); XCTAssertEqual(info.store.target.identity, expected)
     info.panel.performClose(nil)
     NotificationCenter.default.post(name: Notification.Name("BackupDuckShowTransfers"), object: nil)

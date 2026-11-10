@@ -101,9 +101,8 @@ struct MacWorkspace: View {
     _folders = StateObject(wrappedValue: resolvedFolders)
     _folderBrowser = ObservedObject(wrappedValue: resolvedFolders.browser)
   }
-  // The body is split into parts so each type-checks on its own: as one
-  // expression it exceeded the compiler's time limit on slower release builders.
-  var body: some View {
+  // Keep independent SwiftUI expressions within the release compiler's type-checking budget.
+  private var workspaceNavigation: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       sidebar
     } detail: {
@@ -115,6 +114,9 @@ struct MacWorkspace: View {
         .toolbar { workspaceToolbar }
         .environment(\.macGridToolbarState, gridToolbar)
     }
+  }
+  private var workspaceChrome: some View {
+    workspaceNavigation
     .background(MacInfoWindowAnchor(navigation: libraryNavigation))
     .focusedSceneValue(\.windowInfoCommands, MacGridInfoCommands(toggle: { libraryNavigation.toggleInformation() }))
     .environment(\.macViewerPresentation, presentExternal)
@@ -147,6 +149,9 @@ struct MacWorkspace: View {
     .background(MacSheetInitialFocus())
     .navigationSplitViewStyle(.balanced)
     .toolbarBackground(.hidden, for: .windowToolbar)
+  }
+  private var workspaceRoutes: some View {
+    workspaceChrome
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowTransfers"))) { _ in showTransfers("all") }
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BackupDuckShowFolders"))) { _ in
       UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
@@ -170,6 +175,9 @@ struct MacWorkspace: View {
         destination = .sources
       }
     }
+  }
+  var body: some View {
+    workspaceRoutes
     .onChange(of: notifier.route, initial: true) { _, _ in consumeNotification() }
     .onChange(of: model.ready) { _, _ in consumeNotification() }
     .onChange(of: model.pairing?.receiverID) { _, _ in consumeNotification() }
