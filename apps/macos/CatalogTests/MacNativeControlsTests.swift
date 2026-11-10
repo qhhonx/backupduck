@@ -156,16 +156,17 @@ import XCTest
     func assertNativeCompact(file: StaticString = #filePath, line: UInt = #line) throws {
       let field = item.searchField
       let cell = try XCTUnwrap(field.cell as? NSSearchFieldCell, file: file, line: line)
-      let glyph = cell.searchButtonRect(forBounds: field.bounds)
-      print("Native compact search: field=\(field.frame), fieldHeight=\(field.frame.height), fitting=\(field.fittingSize), glyph=\(glyph)")
+      let glyph = try XCTUnwrap(cell.searchButtonCell?.image, file: file, line: line)
       // The low-priority field preference is not the native toolbar's minimum.
       // A compact item fits the system's own one-button-height footprint.
       // The wide editing field cannot satisfy this geometric assertion.
       XCTAssertLessThanOrEqual(field.frame.width, field.frame.height + 1, file: file, line: line)
-      XCTAssertGreaterThan(glyph.width, 0, file: file, line: line)
-      XCTAssertGreaterThan(glyph.height, 0, file: file, line: line)
-      XCTAssertTrue(field.bounds.insetBy(dx: -1, dy: -1).contains(glyph), "The system search glyph must fit without clipping", file: file, line: line)
-      XCTAssertNotNil(cell.searchButtonCell?.image, file: file, line: line)
+      // The toolbar owns the collapsed button. The cell reports positions for
+      // the expanded search field even when the toolbar is showing its icon.
+      XCTAssertGreaterThan(glyph.size.width, 0, file: file, line: line)
+      XCTAssertGreaterThan(glyph.size.height, 0, file: file, line: line)
+      XCTAssertLessThanOrEqual(glyph.size.width, field.bounds.width, file: file, line: line)
+      XCTAssertLessThanOrEqual(glyph.size.height, field.bounds.height, file: file, line: line)
       XCTAssertNil(field.currentEditor(), file: file, line: line)
     }
     XCTAssertEqual(item.preferredWidthForSearchField, MacBrowsingToolbarMetrics.searchWidth)
