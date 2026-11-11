@@ -24,7 +24,7 @@
 
 ## Distribution
 
-Mac: Apple Silicon, macOS 15+, ad hoc signing and signed Sparkle updates; not
+Mac: Apple Silicon or Intel, macOS 14+, ad hoc signing and signed Sparkle updates; not
 Apple-notarized. Android: arm64, Android 10+, dedicated release signing identity.
 iOS: iOS 18+, TestFlight or source builds using the developer's own signing team.
 App Store distribution and a direct in-app updater are not offered.

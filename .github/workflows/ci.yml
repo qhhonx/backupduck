@@ -60,7 +60,7 @@ jobs:
           xcodebuild -version
           xcrun swiftc --version
           xcrun --sdk macosx --show-sdk-version
-      - run: rustup target add aarch64-apple-darwin
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: cargo fetch --locked
       - run: scripts/build-macos.sh
       - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check

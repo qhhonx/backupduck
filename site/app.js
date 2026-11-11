@@ -32,6 +32,10 @@ function render() {
   const status = document.querySelector("#release-status");
   if (release) {
     status.textContent = `${release.version} · ${language === "zh" ? "最新发布版本" : "Latest release"}`;
+    if (release.universalMac) {
+      document.querySelector("#mac-requirements").textContent =
+        language === "zh" ? "macOS 14+ · Apple 芯片与 Intel" : "macOS 14+ · Apple Silicon and Intel";
+    }
     for (const platform of ["mac", "android"]) {
       const link = document.querySelector(`#download-${platform}`);
       link.href = release[platform];

@@ -5,7 +5,8 @@ including the PhotoBridge identity transition and Android RC.1 certificate excep
 
 ## macOS sender
 
-Download the Apple Silicon ZIP from the official website or GitHub Releases.
+Download the universal ZIP from the official website or GitHub Releases.
+BackupDuck 0.6.2 requires macOS 14 or later and runs on Apple Silicon and Intel Macs.
 Extract it and move BackupDuck to Applications before opening it.
 The Mac package uses an ad hoc integrity signature and signed Sparkle updates, but
 is not notarized by Apple. If macOS blocks opening it, review the source and release,

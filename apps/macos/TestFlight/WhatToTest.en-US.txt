@@ -1,7 +1,5 @@
-BackupDuck 0.6.1 requires macOS 15 or later.
+BackupDuck 0.6.2 requires macOS 14 or later on Apple Silicon or Intel.
 
-Please try:
-- Open a large local folder or SD card, scroll and zoom, then return to the same folder. Check how quickly thumbnails reappear.
-- Select a folder photo, press Space to open it, then press Space again to return to the grid.
-- Back up several files from a folder. The Backup page and menu should keep showing backup in progress while more files are being prepared.
-- Open Photo Library and check that recent photos appear while the rest of the library loads.
+On macOS 14, pair with an Android receiver and back up items from Photos and a folder.
+Interrupt a transfer, reopen BackupDuck, and check that it can resume or retry.
+Try toolbar search in Folders and History with the magnifier and Command-F.

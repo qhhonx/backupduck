@@ -6,8 +6,10 @@ r=Path(__file__).resolve().parent.parent; folder=r/'build/release'; info=json.lo
 feed=ET.parse(folder/'appcast.xml');ns={'s':'http://www.andymatuschak.org/xml-namespaces/sparkle'}
 item=feed.find('./channel/item');assert item is not None
 assert item.findtext('s:version',namespaces=ns)==str(info['build'])
+with (r/'apps/macos/BackupDuck/Info.plist').open('rb') as plist:
+ assert item.findtext('s:minimumSystemVersion',namespaces=ns)==plistlib.load(plist)['LSMinimumSystemVersion']
 enc=item.find('enclosure');assert enc is not None
-archive=folder/f'BackupDuck-{version}-arm64.zip'
+archive=folder/f'BackupDuck-{version}-universal.zip'
 assert enc.attrib['url']==f'https://github.com/{info["distribution_repository"]}/releases/download/v{version}/{archive.name}'
 assert int(enc.attrib['length'])==archive.stat().st_size
 key=os.environ['SPARKLE_KEY_FILE']; tool=str(r/'build/dependencies/sparkle/bin/sign_update')
