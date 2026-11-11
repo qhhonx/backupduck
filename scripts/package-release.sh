@@ -13,4 +13,5 @@ if ! codesign -dv "$app" 2>&1 | grep -q 'Signature=adhoc'; then
 fi
 mkdir -p build/release
 ditto -c -k --keepParent --norsrc "$app" "build/release/BackupDuck-$version-universal.zip"
+if [ "${1:-}" = --mac-only ]; then exit 0; fi
 cp apps/android/app/build/outputs/apk/release/app-release.apk "build/release/BackupDuck-$version-arm64.apk"
