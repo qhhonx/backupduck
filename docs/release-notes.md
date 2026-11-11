@@ -1,3 +1,8 @@
+# 0.6.2 — build 92
+
+- The Mac sender supports Apple Silicon and Intel Macs on macOS 14 or later.
+  Both architectures are included in the same download.
+
 # 0.6.1 — build 91
 
 - Mac folders open from their saved index. Scrolling and returning to a folder

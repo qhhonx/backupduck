@@ -1,4 +1,4 @@
-BackupDuck 0.6.1 requires an iPhone with iOS 18 or later.
+BackupDuck 0.6.2 requires an iPhone with iOS 18 or later.
 
 Please try:
 - Pair with the Pixel, choose what to back up, and start or pause earlier photos.

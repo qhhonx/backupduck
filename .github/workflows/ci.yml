@@ -60,7 +60,7 @@ jobs:
           xcodebuild -version
           xcrun swiftc --version
           xcrun --sdk macosx --show-sdk-version
-      - run: rustup target add aarch64-apple-darwin
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: cargo fetch --locked
       - run: scripts/build-macos.sh
       - run: python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
@@ -74,6 +74,17 @@ jobs:
           -destination 'generic/platform=macOS'
           -derivedDataPath build/macos-store-ci
           CODE_SIGNING_ALLOWED=NO build
+      - name: Package the Mac test build
+        if: github.event_name == 'pull_request'
+        run: scripts/package-release.sh --mac-only
+      - name: Upload the Mac test build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: build/release/BackupDuck-*-universal.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
   android:
     runs-on: ubuntu-latest
     steps:

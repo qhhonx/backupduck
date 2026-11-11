@@ -1,15 +1,13 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-export MACOSX_DEPLOYMENT_TARGET=15.0
-# Stripping host proc-macro dylibs during a release build can produce a
-# malformed Mach-O LINKEDIT on macOS. Strip the final application below.
-export CARGO_PROFILE_RELEASE_STRIP=none
+MACOSX_DEPLOYMENT_TARGET=$(/usr/libexec/PlistBuddy -c 'Print LSMinimumSystemVersion' apps/macos/BackupDuck/Info.plist)
+export MACOSX_DEPLOYMENT_TARGET
 ./scripts/fetch-sparkle.sh
 cargo fetch --locked
 python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
 export CARGO_ENCODED_RUSTFLAGS=$(printf '%s\037%s' "--remap-path-prefix=$PWD=/backupduck" "--remap-path-prefix=$HOME=/builder")
-cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
+scripts/build-macos-native.sh build/macos/libbackupduck_native.a arm64 x86_64
 app=build/macos/BackupDuck.app
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
 cp apps/macos/BackupDuck/Info.plist "$app/Contents/Info.plist"
@@ -28,13 +26,17 @@ xcrun --sdk macosx actool --platform macosx --target-device mac \
 test -s "$app/Contents/Resources/Assets.car"
 xcrun swift -module-cache-path build/SwiftModuleCache-mac scripts/export-menu-bar-icon.swift
 cp apps/apple/Resources/DuckMenuBar.pdf "$app/Contents/Resources/"
-xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \
- -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos15.0 -parse-as-library \
- -debug-prefix-map "$PWD=/backupduck" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
- -import-objc-header crates/native/include/backupduck.h \
- apps/apple/Shared/*.swift apps/macos/BackupDuck/*.swift target/aarch64-apple-darwin/release/libbackupduck_native.a \
- -framework Security -framework SystemConfiguration -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework PhotosUI -framework AVKit -framework Vision -lsqlite3 -lz -liconv \
- -o "$app/Contents/MacOS/BackupDuck"
+for arch in arm64 x86_64; do
+  xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \
+    -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target "$arch-apple-macos$MACOSX_DEPLOYMENT_TARGET" -parse-as-library \
+    -debug-prefix-map "$PWD=/backupduck" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
+    -import-objc-header crates/native/include/backupduck.h \
+    apps/apple/Shared/*.swift apps/macos/BackupDuck/*.swift build/macos/libbackupduck_native.a \
+    -framework Security -framework SystemConfiguration -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework PhotosUI -framework AVKit -framework Vision -lsqlite3 -lz -liconv \
+    -o "build/macos/BackupDuck-$arch"
+done
+xcrun lipo -create build/macos/BackupDuck-arm64 build/macos/BackupDuck-x86_64 \
+  -output "$app/Contents/MacOS/BackupDuck"
 # Keep a stable local development identity across builds. This optional file is
 # ignored by Git; release/CI builds may supply the environment variable instead.
 signing_identity="${BACKUPDUCK_MAC_SIGN_IDENTITY:-}"

@@ -16,9 +16,10 @@ and installing it are separate compatibility questions. Automatic checking is no
 
 The macOS 0.1.x and 0.2.x release tags retain compatible feed keys. A valid
 signed feed and complete release metadata must advertise the higher build
-number for discovery to succeed. From 0.5.0 the Mac app requires macOS 15 and the
-iPhone app iOS 18; Sparkle reads the minimum from the app, so Macs on macOS 14
-are not offered 0.5.0 and keep 0.4.1. An informational update check verifies
+number for discovery to succeed. Mac versions 0.5.0 through 0.6.1 require
+macOS 15. Sparkle reads the minimum from the app, so those versions are skipped
+on macOS 14. The universal Mac build in 0.6.2 restores macOS 14 eligibility and
+uses the same signed feed. The iPhone app requires iOS 18. An informational update check verifies
 availability; it does not prove a successful installation or an in-place
 migration across application identities.
 

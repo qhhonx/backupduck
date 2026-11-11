@@ -504,9 +504,10 @@ struct MacCoverFlightSource {
     layer.contents = bitmap
     if #available(macOS 26, *) { layer.preferredDynamicRange = .high }
     else {
-      layer.wantsExtendedDynamicRangeContent = bitmap.map {
-        $0.contentHeadroom > 1 || $0.colorSpace?.isHDR() == true
-          || ($0.colorSpace.map { CGColorSpaceUsesExtendedRange($0) } ?? false)
+      layer.wantsExtendedDynamicRangeContent = bitmap.map { image in
+        if #available(macOS 15, *), image.contentHeadroom > 1 { return true }
+        return image.colorSpace?.isHDR() == true
+          || (image.colorSpace.map { CGColorSpaceUsesExtendedRange($0) } ?? false)
       } ?? false
     }
   }
@@ -790,16 +791,27 @@ struct MacToolbarSearch: View {
   var body: some View {
     if active { searchContent }
   }
-  private var searchContent: some View {
-    Color.clear.frame(width: 0, height: 0)
+  private var isEditing: Bool {
+    if #available(macOS 15, *) { return focused }
+    return presented
+  }
+  @ViewBuilder private var searchField: some View {
+    let searchable = Color.clear.frame(width: 0, height: 0)
       .searchable(text: $draft, isPresented: $presented, placement: .toolbar, prompt: Text(prompt))
-      .searchFocused($focused)
+    if #available(macOS 15, *) {
+      searchable.searchFocused($focused)
+    } else {
+      searchable
+    }
+  }
+  private var searchContent: some View {
+    searchField
       .background(MacSearchPresentation(endEditing: {
         preservesQueryOnBlur = true
         focused = false; presented = false
         draft = ""
       }))
-      .onChange(of: focused) { _, value in
+      .onChange(of: isEditing) { _, value in
         if value {
           preservesQueryOnBlur = false
           draft = text
@@ -814,9 +826,12 @@ struct MacToolbarSearch: View {
         if !preservesQueryOnBlur || !value.isEmpty { text = value }
       }
       .onChange(of: text) { _, value in
-        if presented || focused { draft = value }
+        if presented || isEditing { draft = value }
       }
-      .focusedSceneValue(\.gridSearch, MacGridSearchAction(open: { presented = true; focused = true }))
+      .focusedSceneValue(\.gridSearch, MacGridSearchAction(open: {
+        presented = true
+        if #available(macOS 15, *) { focused = true }
+      }))
   }
 }
 /// The system search item stays mounted. A low-priority width preference yields

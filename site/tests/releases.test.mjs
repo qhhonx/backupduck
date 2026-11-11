@@ -8,3 +8,16 @@ test('RC releases advance past beta while stable releases win within the same ve
   assert.equal(completeRelease([...releases,fixture('v0.2.0')]).version,'0.2.0');
   assert.equal(completeRelease([fixture('v0.1.0-beta.38'),fixture('v0.2.0-rc.1')]).version,'0.2.0-rc.1');
 });
+
+test('prefer the universal Mac ZIP and keep older Apple Silicon releases discoverable', () => {
+  const older = fixture('v0.6.1');
+  const newer = fixture('v0.6.2');
+  const name = 'BackupDuck-0.6.2-universal.zip';
+  newer.assets.push({name, size: 100, browser_download_url: `https://github.com/qhhonx/backupduck/releases/download/v0.6.2/${name}`});
+  const release = completeRelease([older, newer]);
+  assert.ok(release.mac.endsWith(name));
+  assert.equal(release.universalMac, true);
+  assert.equal(completeRelease([older]).universalMac, false);
+  newer.assets.shift();
+  assert.equal(completeRelease([older, newer]).version, '0.6.2');
+});

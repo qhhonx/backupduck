@@ -58,7 +58,7 @@ jobs:
           trap 'rm -f "$ANDROID_KEYSTORE_FILE" "$SPARKLE_KEY_FILE"' EXIT
           python3 -c 'import os,base64; open(os.environ["ANDROID_KEYSTORE_FILE"],"wb").write(base64.b64decode(os.environ["ANDROID_KEYSTORE_BASE64"]))'
           printf '%s' "$SPARKLE_PRIVATE_KEY" > "$SPARKLE_KEY_FILE"
-          rustup target add aarch64-apple-darwin aarch64-linux-android
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-linux-android
           cargo fmt --all -- --check
           cargo test --workspace --locked
           node --test site/tests/*.test.mjs

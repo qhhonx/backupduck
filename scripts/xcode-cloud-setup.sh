@@ -9,7 +9,7 @@ if ! command -v rustup >/dev/null 2>&1; then
   sh "$installer" -y --profile minimal --default-toolchain none
 fi
 rustup toolchain install 1.90.0 --profile minimal
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin --toolchain 1.90.0
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin x86_64-apple-darwin --toolchain 1.90.0
 # Distribution needs the compiler, not rustfmt/clippy. A directory override
 # survives into xcodebuild and avoids toolchain-file component installation
 # inside the build phase. Developer and GitHub checks keep their normal tools.

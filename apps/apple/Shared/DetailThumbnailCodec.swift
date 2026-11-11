@@ -213,10 +213,12 @@ enum MacDetailBitmap {
     }
     guard size > 0 else { return nil }
     compressed.count = size
+    let headroom: Float
+    if #available(macOS 15, *) { headroom = image.contentHeadroom } else { headroom = 0 }
     let record = Record(key: key, width: image.width, height: image.height, rowBytes: image.bytesPerRow,
       componentBits: image.bitsPerComponent, pixelBits: image.bitsPerPixel, bitmapInfo: image.bitmapInfo.rawValue,
       intent: image.renderingIntent.rawValue, colorName: space.name as String?,
-      colorProfile: space.copyICCData() as Data?, headroom: image.contentHeadroom,
+      colorProfile: space.copyICCData() as Data?, headroom: headroom,
       checksum: Data(SHA256.hash(data: bytes)), pixels: compressed)
     let encoder = PropertyListEncoder(); encoder.outputFormat = .binary
     guard let data = try? encoder.encode(record), data.count <= limit,
@@ -252,9 +254,13 @@ enum MacDetailBitmap {
         bitsPerPixel: record.pixelBits, bytesPerRow: record.rowBytes, space: space,
         bitmapInfo: CGBitmapInfo(rawValue: record.bitmapInfo), provider: provider,
         decode: nil, shouldInterpolate: true, intent: intent) else { return nil }
-    if record.headroom > 0, image.contentHeadroom != record.headroom {
-      guard let tagged = CGImageCreateCopyWithContentHeadroom(record.headroom, image) else { return nil }
-      image = tagged
+    if record.headroom > 0 {
+      // Sonoma can retain extended-range pixels but cannot restore an explicit headroom tag.
+      guard #available(macOS 15, *) else { return nil }
+      if image.contentHeadroom != record.headroom {
+        guard let tagged = CGImageCreateCopyWithContentHeadroom(record.headroom, image) else { return nil }
+        image = tagged
+      }
     }
     return image
   }
@@ -564,7 +570,7 @@ enum MacDetailBitmap {
     context.interpolationQuality = .high
     context.draw(source, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
     guard var result = context.makeImage() else { return nil }
-    if source.contentHeadroom > 0 {
+    if #available(macOS 15, *), source.contentHeadroom > 0 {
       guard let tagged = CGImageCreateCopyWithContentHeadroom(source.contentHeadroom, result) else { return nil }
       result = tagged
     }

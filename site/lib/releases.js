@@ -9,8 +9,9 @@ export function completeRelease(releases) {
   }).map(r => {
     const version=r.tag_name.slice(1), prefix=`https://github.com/qhhonx/backupduck/releases/download/${r.tag_name}/`;
     const asset=name=>r.assets?.find(a=>a.name===name && a.size>0 && a.browser_download_url===prefix+name)?.browser_download_url;
-    const mac=asset(`BackupDuck-${version}-arm64.zip`),android=asset(`BackupDuck-${version}-arm64.apk`),feed=asset('appcast.xml'),manifest=asset('android-update.json'),hashes=asset('SHA256SUMS');
-    return mac && android && feed && manifest && hashes ? {version,mac,android,feed} : null;
+    const universalMac=asset(`BackupDuck-${version}-universal.zip`);
+    const mac=universalMac || asset(`BackupDuck-${version}-arm64.zip`),android=asset(`BackupDuck-${version}-arm64.apk`),feed=asset('appcast.xml'),manifest=asset('android-update.json'),hashes=asset('SHA256SUMS');
+    return mac && android && feed && manifest && hashes ? {version,mac,android,feed,universalMac: Boolean(universalMac)} : null;
   }).find(Boolean) || null;
 }
 export async function latestRelease() {

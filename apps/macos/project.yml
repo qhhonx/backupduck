@@ -4,11 +4,12 @@ options:
 settings:
   base:
     SWIFT_VERSION: '5.0'
-    ARCHS: arm64
-    MACOSX_DEPLOYMENT_TARGET: '15.0'
+    ARCHS: [arm64, x86_64]
+    MACOSX_DEPLOYMENT_TARGET: '14.0'
     ENABLE_USER_SCRIPT_SANDBOXING: NO
   configs:
     Release:
+      ONLY_ACTIVE_ARCH: NO
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
 configFiles:
   Debug: ../apple/Signing.xcconfig
@@ -25,7 +26,7 @@ targetTemplates:
         SWIFT_OBJC_BRIDGING_HEADER: ../../crates/native/include/backupduck.h
         OTHER_LDFLAGS:
           - $(inherited)
-          - '$(BUILT_PRODUCTS_DIR)/libbackupduck_native.a'
+          - '$(TARGET_TEMP_DIR)/libbackupduck_native.a'
           - -framework
           - Security
           - -framework
@@ -39,13 +40,10 @@ targetTemplates:
         script: |
           set -eu
           export PATH="$HOME/.cargo/bin:$PATH"
-          export CARGO_PROFILE_RELEASE_STRIP=none
           cd "$SRCROOT/../.."
           cargo fetch --locked
-          export MACOSX_DEPLOYMENT_TARGET=15.0
           case "$TARGET_NAME" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac
-          cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
-          cp target/aarch64-apple-darwin/release/libbackupduck_native.a "$BUILT_PRODUCTS_DIR/"
+          ./scripts/build-macos-native.sh "$TARGET_TEMP_DIR/libbackupduck_native.a" $ARCHS
           python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
 targets:
   BackupDuck:
@@ -98,6 +96,8 @@ targets:
         buildPhase: resources
     settings:
       base:
+        MACOSX_DEPLOYMENT_TARGET: '15.0'
+        ONLY_ACTIVE_ARCH: YES
         PRODUCT_NAME: BackupDuckCatalog
         ENABLE_TESTABILITY: YES
         PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog
@@ -116,6 +116,8 @@ targets:
       - target: BackupDuckCatalog
     settings:
       base:
+        MACOSX_DEPLOYMENT_TARGET: '15.0'
+        ONLY_ACTIVE_ARCH: YES
         PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.catalog.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/BackupDuckCatalog.app/Contents/MacOS/BackupDuckCatalog
