@@ -653,6 +653,18 @@ private struct FidelityModalFixture<Content: View>: View {
     XCTAssertEqual(model.entries.map(\.id), [7, 8])
     XCTAssertEqual(model.cursor, 8)
   }
+  func testExportRemovesDeviceCapacityFromExistingJournalEntries() throws {
+    let data = Data(#"[{"id":42,"context":{"free_bytes":1000000,"export_allowance":0,"http_status":503,"future":{"amount":9223372036854775806}}},{"id":41,"context":null}]"#.utf8)
+    let filtered = try ActivityLogExportModel.removingDeviceCapacity(from: data)
+    let entries = try XCTUnwrap(JSONSerialization.jsonObject(with: filtered) as? [[String: Any]])
+    let context = try XCTUnwrap(entries.first?["context"] as? [String: Any])
+    XCTAssertNil(context["free_bytes"])
+    XCTAssertNil(context["export_allowance"])
+    XCTAssertEqual(context["http_status"] as? Int, 503)
+    XCTAssertEqual((context["future"] as? [String: Int64])?["amount"], 9_223_372_036_854_775_806)
+    XCTAssertTrue(entries.last?["context"] is NSNull)
+  }
+
   func testDefaultExportWritesAnExactJSONFile() async throws {
     let bytes = Data(#"[{"id":42,"timestamp":100,"code":"request_failed","context":{"http_status":503,"future":{"amount":9223372036854775806}},"unknown_field":"preserved"}]"#.utf8)
     let model = ActivityLogExportModel(snapshot: { bytes })

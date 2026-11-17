@@ -163,6 +163,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   var expandable = true
   var closeOnly = false
   var form = false
+  var bottomContent: AnyView? = nil
   var cancel: (() -> Void)? = nil
   @ViewBuilder var content: () -> Content
   @ViewBuilder var actions: () -> Actions
@@ -172,7 +173,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
   @State private var measuredHeights: [String: CGFloat] = [:]
   private var fittedHeight: CGFloat {
     guard let body = measuredHeights["body"] else { return 560 }
-    return min(max(220, body + 76), UIScreen.main.bounds.height * 0.85)
+    return min(max(220, body + (measuredHeights["footer"] ?? 0) + 76), UIScreen.main.bounds.height * 0.85)
   }
   #endif
   private var sheetContent: some View {
@@ -188,6 +189,12 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
     #if os(iOS)
     NavigationStack {
       ScrollView { sheetContent.padding(DuckSpacing.medium).duckSheetMeasure("body") }
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        if let bottomContent {
+          bottomContent.duckSheetMeasure("footer").background(DuckRole.background)
+            .overlay(alignment: .top) { Divider() }
+        }
+      }
       .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: closeOnly ? .confirmationAction : .cancellationAction) {
@@ -224,6 +231,7 @@ struct DuckSheetLayout<Content: View, Actions: View>: View {
         }.formStyle(.grouped)
           .fixedSize(horizontal: false, vertical: desktopFitsContent)
       } else { ScrollView { sheetContent } }
+      if let bottomContent { bottomContent }
       HStack {
         Spacer(minLength: 0)
         if let cancel {

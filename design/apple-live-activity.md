@@ -54,6 +54,9 @@ must not manufacture completed progress.
   open BackupDuck for the current state and does not imply ongoing progress.
 - End when active work drains. All saved is a completion; unfinished attention
   has its own result. Clear the Lock Screen promptly after success.
+- End when subscription access closes, retaining the underlying tasks and
+  progress. Resolve access in the app; the Lock Screen action cannot lift an
+  access constraint. Valid access can permit a new activity for remaining work.
 - Do not recreate a user-dismissed activity for the same undrained work. Rearm
   after the host observes that active work drained.
 

@@ -6,26 +6,33 @@ import SwiftUI
   @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var delegate
   @StateObject private var model = BackupModel.shared
   @StateObject private var notifier = BackupNotifier.shared
+  @StateObject private var subscriptionHost = DuckSubscriptionHost()
+  @StateObject private var proDistribution = DuckProDistribution.shared
   @StateObject private var library = PhotoLibraryModel()
   @AppStorage("duckAppearance") private var appearance = "system"
   /// Starts the photo list fetch before the first window, as on iPhone. The
   /// redesigned pages are the app.
   init() {
     BackupNotifier.shared.configure()
-    PhotoLibraryModel.prewarm()
+    if !DuckSubscriptionHostMode.opensSettings { PhotoLibraryModel.prewarm() }
   }
   var body: some Scene {
     Window("brand_name", id: "main") {
-      MacWorkspace(model: model, library: library)
+      MacWorkspace(model: model, library: library, initialDestination: DuckSubscriptionHostMode.opensSettings ? .settings : .backup, opensEngine: false)
+        .modifier(DuckSubscriptionHostContent(host: subscriptionHost, store: subscriptionHost.store))
         .onChange(of: appearance, initial: true) { _, value in
           NSApp.appearance = value == "light" ? NSAppearance(named: .aqua)
             : value == "dark" ? NSAppearance(named: .darkAqua) : nil
         }
         .frame(minWidth: 900, minHeight: 620)
-        .task { await model.open(); BackupNotifier.shared.start(model); await AppUpdater.shared.start() }
-        .task { await library.open() }
+        .task { await subscriptionHost.open(model); BackupNotifier.shared.start(model); await AppUpdater.shared.start() }
+        .task { if !DuckSubscriptionHostMode.opensSettings { await library.open() } }
+        .task { await proDistribution.check(); await subscriptionHost.updateChannel(model) }
+        .onReceive(subscriptionHost.store.$access) { _ in Task { await subscriptionHost.apply(model) } }
+        .onChange(of: proDistribution.allowsPro) { _, _ in Task { await subscriptionHost.updateChannel(model) } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-          Task { await library.open() }
+          Task { if !DuckSubscriptionHostMode.opensSettings { await library.open() } }
+          Task { await proDistribution.check(); await subscriptionHost.updateChannel(model) }
         }
     }.defaultSize(width: 1180, height: 800)
       .commands {

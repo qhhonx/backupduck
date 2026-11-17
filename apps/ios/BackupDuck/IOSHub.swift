@@ -15,6 +15,9 @@ struct IOSHub: View {
   @State private var livePhotoHelp = false
   @StateObject private var photoRouter = BackupPhotoRouter()
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.duckSubscriptionBackup) private var subscription
+  @Environment(\.duckProEnabled) private var proEnabled
+  @State private var showingSubscription = false
   @State private var records: String?
   @Binding private var notification: BackupNotifier.Route?
 
@@ -27,6 +30,7 @@ struct IOSHub: View {
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
   private var status: BackupHubStatus { model.hubStatus }
   private var connected: Bool { model.pairing != nil && model.ready }
+  private var executionBlocked: Bool { proEnabled && connected && subscription != nil }
 
   var body: some View {
     IOSNativeNavigation(title: NSLocalizedString("nav_backup", comment: ""), route: records,
@@ -70,6 +74,10 @@ struct IOSHub: View {
       .background(DuckRole.background)
       .navigationTitle("nav_backup")
     }
+    .onChange(of: executionBlocked) { _, blocked in if !blocked { showingSubscription = false } }
+    .sheet(isPresented: $showingSubscription) {
+      if proEnabled, let subscription { subscription.offer { showingSubscription = false } }
+    }
     .sheet(isPresented: $pairing) { IOSConnectSheet(model: model, reconnect: status == .problem(.receiverRejected)) }
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet.presentationDetents([.medium, .large]) }
     .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
@@ -103,6 +111,12 @@ struct IOSHub: View {
   // MARK: - State (I3: one state at a time)
 
   @ViewBuilder private var stateCard: some View {
+    if executionBlocked {
+      DuckBackupSubscriptionCard { showingSubscription = true }
+    } else { normalStateCard }
+  }
+
+  @ViewBuilder private var normalStateCard: some View {
     switch status {
     case .notPaired:
       DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note") {
@@ -217,7 +231,7 @@ struct IOSHub: View {
       let memory = EarlierPhotosCompletion(defaults: .standard)
       let receiver = model.pairing?.receiverID ?? ""
       if memory.visible(receiver: receiver, history: history, at: context.date) {
-        DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
+        DuckEarlierPhotosCard(history: history, changing: model.changingHistory, executionBlocked: executionBlocked) { command in
           Task { await model.controlHistoricalImport(command) }
         }
         .onAppear { memory.show(receiver: receiver, history: history, at: context.date) }

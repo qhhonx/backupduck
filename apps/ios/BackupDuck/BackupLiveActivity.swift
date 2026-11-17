@@ -81,6 +81,15 @@ enum BackupActivityProjection {
       await activity.end(nil, dismissalPolicy: .immediate)
     }
     guard let receiver else { defaults.removeObject(forKey: markerKey); return }
+    if model.subscriptionExecutionBlocked {
+      // Access must be resolved in the app; the activity's Resume action cannot
+      // lift this independent execution constraint.
+      for activity in Activity<BackupActivityAttributes>.activities where activity.attributes.receiver == receiver {
+        await activity.end(nil, dismissalPolicy: .immediate)
+      }
+      defaults.removeObject(forKey: markerKey)
+      return
+    }
     guard model.queueRevision >= 0 else { return }
     let existing = Activity<BackupActivityAttributes>.activities.filter {
       $0.attributes.receiver == receiver && ($0.activityState == .active || $0.activityState == .stale)

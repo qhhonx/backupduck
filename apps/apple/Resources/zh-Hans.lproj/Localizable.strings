@@ -1232,3 +1232,109 @@
 
 
 "notifications_requesting" = "正在请求通知权限";
+/* Subscription supporting views. Store prices and dates are injected. */
+"subscription_title" = "订阅";
+"subscription_offer_headline" = "让新照片，自动备份。";
+"subscription_offer_benefit" = "自动备份原片和视频，不限数量。";
+"subscription_subscribe" = "订阅";
+"subscription_monthly_price" = "每月 %@";
+"subscription_renewal_note" = "Apple 按所示金额扣费并自动续费，可在账户设置中取消。";
+"subscription_restore" = "恢复购买";
+"subscription_privacy" = "隐私政策";
+"subscription_terms" = "使用条款";
+"subscription_retry" = "重试";
+"subscription_price_unavailable" = "暂时无法获取订阅价格。";
+"subscription_price_retry_note" = "重试后查看当前价格，再决定是否订阅。";
+"subscription_state_active" = "Pro 已开通";
+"subscription_state_renewalOff" = "已关闭自动续费";
+"subscription_state_expired" = "Pro 已到期";
+"subscription_state_unavailable" = "暂时无法确认订阅状态";
+"subscription_state_pending" = "正在等待购买确认";
+"subscription_state_error" = "购买未完成";
+"subscription_note_active" = "继续备份原片和视频，不限数量。";
+"subscription_note_renewalOff" = "本期订阅结束前，仍可继续备份。";
+"subscription_note_expired" = "订阅后可从原进度继续未完成的备份。";
+"subscription_note_unavailable" = "未能确认你的订阅，请在联网后重试。";
+"subscription_note_pending" = "Apple 仍在确认这次购买，你可以稍后查看。";
+"subscription_note_error" = "购买未能完成，可重试或恢复已有购买。";
+"subscription_manage" = "管理订阅";
+"subscription_view_offer" = "查看订阅";
+"subscription_check_status" = "查看状态";
+"subscription_access_until" = "使用截止日";
+"subscription_renews_on" = "续费日";
+"subscription_monthly_plan" = "月付方案";
+"subscription_expired_continuity" = "备份已暂停，已备份的内容和进度会保留。";
+"subscription_catalog_title" = "目录模拟操作";
+"subscription_catalog_purchase" = "当前仅供界面评审，不会打开 Apple 购买确认，也不会创建订阅。";
+"subscription_catalog_restore" = "当前模拟恢复购买，不会访问 Apple 账户或购买记录。";
+"subscription_catalog_status" = "当前模拟状态操作，不会打开 Apple 账户设置。";
+"subscription_catalog_legal" = "当前仅供界面评审，正式链接由应用接入时提供。";
+"subscription_summary_checking" = "正在确认";
+"subscription_summary_active" = "已开通";
+"subscription_summary_renewalOff" = "自动续费已关闭";
+"subscription_summary_expired" = "已到期";
+"subscription_summary_unavailable" = "暂不可用";
+"subscription_summary_pending" = "等待确认";
+"subscription_summary_error" = "未完成";
+"subscription_state_checking" = "正在确认订阅";
+"subscription_note_checking" = "确认后会在这里显示当前订阅信息。";
+"subscription_starting_purchase" = "正在购买";
+"subscription_restoring" = "正在恢复购买…";
+"subscription_restore_empty" = "未找到有效订阅，可检查 Apple 账户或选择订阅。";
+"subscription_restore_failed" = "未能恢复购买，检查网络后可再次点“恢复购买”。";
+"subscription_catalog_reload" = "当前模拟重新获取价格，不会打开 Apple 购买确认。";
+
+/* Pro identity and its canonical Settings entry. */
+"subscription_pro_title" = "备份鸭 Pro";
+"subscription_pro_short" = "Pro";
+"subscription_view_pro" = "了解 Pro";
+"subscription_settings_value" = "自动备份原片和视频，不限数量。";
+"subscription_benefit_automatic" = "新拍照片，自动静默备份";
+"subscription_state_notSubscribed" = "尚未开通";
+"subscription_summary_notSubscribed" = "未开通";
+"subscription_note_notSubscribed" = "准备好后，可选择月付或年付。";
+"subscription_access_ended" = "使用结束日";
+"subscription_state_welcome" = "免费体验中";
+"subscription_summary_welcome" = "免费体验";
+"subscription_note_welcome" = "欢迎体验免费 7 天，到期不会扣款。";
+"subscription_welcome_until" = "体验到期日";
+"subscription_subscribe_continue" = "订阅并继续";
+
+"subscription_benefit_live" = "实况照片，动态效果不丢";
+
+"subscription_benefit_live_note" = "原片与动态片段，一起备份到 Pixel。";
+
+"subscription_benefit_automatic_note" = "选好范围，日常备份不用反复操作。";
+
+"subscription_benefit_earlier" = "照片再多，也能完整备份";
+
+"subscription_benefit_earlier_note" = "数量不限，分批传输，中断后接着备份。";
+
+"subscription_benefit_folders" = "文件夹、硬盘、NAS，直接导入";
+
+"subscription_benefit_folders_note" = "Mac 支持导入文件夹、移动硬盘、SD 卡和已挂载 NAS 中的照片与视频。";
+
+"subscription_plan_includes" = "原画质传输 · 不限数量与传输额度";
+
+
+"subscription_benefit_background" = "后台传输，不必守着";
+
+"subscription_benefit_background_note" = "不用一直停在备份页，留出时间做别的。";
+
+"subscription_entry_upgrade" = "升级";
+
+"hub_earlier_count_retained" = "已清点 %@ 项";
+
+"subscription_testing_title" = "StoreKit 测试";
+"subscription_testing_note" = "此独立 App 使用本地 StoreKit 测试。请从已配置的 Xcode 方案启动；交易由 Xcode 管理，以下操作仅修改免费体验。";
+"subscription_testing_environment" = "本地购买环境";
+"subscription_testing_ready" = "可用";
+"subscription_testing_missing" = "不可用，请从 Xcode 启动";
+"subscription_testing_welcome" = "开始 7 天免费体验";
+"subscription_testing_expired" = "将免费体验设为到期";
+"subscription_testing_reset" = "重置免费体验";
+
+"subscription_annual_plan" = "年付方案";
+"subscription_annual_price" = "每年 %@";
+"subscription_annual_equivalent" = "折合每月 %@";
+"subscription_annual_savings" = "推荐 · 省 %@";

@@ -869,3 +869,79 @@ fn conversion_summary_counts_all_observed_failures_with_receiver_and_source_scop
     let sender = Sender::open(&t.0).unwrap();
     assert_eq!(sender.summary("receiver-1").unwrap(), summary);
 }
+
+#[test]
+fn access_deadline_survives_restart_and_renewal_preserves_user_pause() {
+    let t = Temp::new();
+    let mut sender = Sender::open(&t.0).unwrap();
+    let job = add(&mut sender);
+    sender.set_access_policy(true, Some(100)).unwrap();
+    assert!(!sender.execution_blocked(99).unwrap());
+    assert!(sender.execution_blocked(100).unwrap());
+    assert!(sender.claim("receiver-1", 100).unwrap().is_none());
+    drop(sender);
+    let mut sender = Sender::open(&t.0).unwrap();
+    assert_eq!(sender.access_policy().unwrap(), (true, Some(100)));
+    assert!(!sender.paused().unwrap());
+    assert!(sender.claim_native("receiver-1", 101).unwrap().is_none());
+    assert_eq!(sender.job(job.id).unwrap().attempts, 0);
+    sender.set_paused(true).unwrap();
+    sender.set_access_policy(true, Some(200)).unwrap();
+    assert!(sender.paused().unwrap());
+    assert!(sender.claim("receiver-1", 101).unwrap().is_none());
+    sender.set_paused(false).unwrap();
+    assert_eq!(sender.claim("receiver-1", 101).unwrap().unwrap().id, job.id);
+}
+
+#[test]
+fn access_gate_fences_claim_to_bind_race_without_losing_prepared_work() {
+    let t = Temp::new();
+    let mut sender = Sender::open(&t.0).unwrap();
+    add(&mut sender);
+    sender.set_access_policy(true, Some(100)).unwrap();
+    let running = sender.claim("receiver-1", 99).unwrap().unwrap();
+    assert!(sender
+        .bind_native_task_at(&running.attempt(), "old", 100)
+        .is_err());
+    sender.interrupted(&running.attempt()).unwrap();
+    sender.set_access_policy(false, None).unwrap();
+    sender.set_paused(false).unwrap();
+    assert!(sender.claim_native("receiver-1", 101).unwrap().is_none());
+    sender.set_access_policy(true, None).unwrap();
+    let resumed = sender.claim("receiver-1", 101).unwrap().unwrap();
+    assert_eq!(resumed.id, running.id);
+    assert!(resumed.generation > running.generation);
+    sender
+        .bind_native_task_at(&resumed.attempt(), "new", 101)
+        .unwrap();
+}
+
+#[test]
+fn access_expiry_accepts_late_receipt_but_blocks_next_transfer_step() {
+    let t = Temp::new();
+    let mut sender = Sender::open(&t.0).unwrap();
+    add(&mut sender);
+    sender.set_access_policy(true, Some(100)).unwrap();
+    let running = sender.claim("receiver-1", 99).unwrap().unwrap();
+    sender
+        .bind_native_task_at(&running.attempt(), "chunk", 99)
+        .unwrap();
+    sender.set_access_policy(false, Some(100)).unwrap();
+    sender
+        .complete_native(&running.attempt(), "chunk", &status(&running, false))
+        .unwrap();
+    assert!(sender.claim_native("receiver-1", 100).unwrap().is_none());
+    assert_eq!(sender.job(running.id).unwrap().confirmed_bytes, 5);
+    sender.set_access_policy(true, Some(200)).unwrap();
+    let resumed = sender.claim_native("receiver-1", 101).unwrap().unwrap();
+    assert_eq!(resumed.confirmed_bytes, 5);
+    sender
+        .bind_native_task_at(&resumed.attempt(), "commit", 101)
+        .unwrap();
+    sender.set_access_policy(false, None).unwrap();
+    sender
+        .complete_native(&resumed.attempt(), "commit", &status(&resumed, true))
+        .unwrap();
+    assert_eq!(sender.job(running.id).unwrap().state, JobState::Received);
+    assert_eq!(sender.job(running.id).unwrap().confirmed_bytes, 10);
+}

@@ -1,6 +1,10 @@
 name: BackupDuck
 options:
   minimumXcodeGenVersion: 2.40.0
+configs:
+  Debug: debug
+  Release: release
+  AppStoreSubmission: release
 settings:
   base:
     SWIFT_VERSION: '5.0'
@@ -10,9 +14,12 @@ settings:
   configs:
     Release:
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+    AppStoreSubmission:
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
 configFiles:
   Debug: ../apple/Signing.xcconfig
   Release: ../apple/Signing.xcconfig
+  AppStoreSubmission: ../apple/Signing.xcconfig
 targetTemplates:
   MacHost:
     type: application
@@ -43,7 +50,7 @@ targetTemplates:
           cd "$SRCROOT/../.."
           cargo fetch --locked
           export MACOSX_DEPLOYMENT_TARGET=15.0
-          case "$TARGET_NAME" in BackupDuckStore|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac
+          case "$TARGET_NAME" in BackupDuckStore|BackupDuckStoreKitTest|BackupDuckCatalog) ;; *) ./scripts/fetch-sparkle.sh;; esac
           cargo build --locked --release --target aarch64-apple-darwin -p backupduck-native --features folder-source
           cp target/aarch64-apple-darwin/release/libbackupduck_native.a "$BUILT_PRODUCTS_DIR/"
           python3 apps/apple/Scripts/generate-third-party-licenses.py --platform mac --check
@@ -79,6 +86,34 @@ targets:
         CODE_SIGN_IDENTITY: Apple Development
         CODE_SIGN_ENTITLEMENTS: BackupDuck/Store.entitlements
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE
+        ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        AppStoreSubmission:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE BACKUPDUCK_APP_STORE_SUBMISSION
+  BackupDuckStoreKitTest:
+    templates: [MacHost]
+    sources:
+      - path: BackupDuck
+        excludes: [Info.plist, StoreInfo.plist, Store.entitlements]
+      - path: ../apple/Shared
+      - path: ../apple/Resources
+        excludes: ["*.lproj/InfoPlist.strings", "ThirdPartyNotices-ios.txt", "ThirdPartyNotices-mac-sparkle.txt"]
+      - path: ../apple/StoreKit/BackupDuck.storekit
+        buildPhase: resources
+      - path: ../apple/StoreKit/BackupDuck-China.storekit
+        buildPhase: resources
+      - path: SubscriptionTesting
+        excludes: [Info.plist]
+    settings:
+      base:
+        SKIP_INSTALL: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.storekittest
+        INFOPLIST_FILE: SubscriptionTesting/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        CODE_SIGN_ENTITLEMENTS: BackupDuck/Store.entitlements
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE BACKUPDUCK_SUBSCRIPTION_TESTING
+        ENABLE_TESTABILITY: YES
         ENABLE_HARDENED_RUNTIME: YES
   BackupDuckCatalog:
     # Design catalog: the production workspace on scenario data. Never distributed.
@@ -136,6 +171,12 @@ schemes:
       config: Debug
     archive:
       config: Release
+  BackupDuckAppStoreSubmission:
+    build:
+      targets:
+        BackupDuckStore: [archive]
+    archive:
+      config: AppStoreSubmission
   BackupDuckCatalog:
     build:
       targets:
@@ -145,3 +186,21 @@ schemes:
     test:
       config: Release
       targets: [BackupDuckCatalogTests]
+  BackupDuckStoreKitTest:
+    build:
+      targets:
+        BackupDuckStoreKitTest: all
+    run:
+      config: Release
+      storeKitConfiguration: ../apple/StoreKit/BackupDuck.storekit
+      commandLineArguments:
+        --subscription-testing-settings: true
+  BackupDuckStoreKitTestChina:
+    build:
+      targets:
+        BackupDuckStoreKitTest: all
+    run:
+      config: Release
+      storeKitConfiguration: ../apple/StoreKit/BackupDuck-China.storekit
+      commandLineArguments:
+        --subscription-testing-settings: true

@@ -157,6 +157,7 @@ private struct ScenarioStage: View {
 
   var body: some View {
     Group { if let run { ScenarioRun(scenario: scenario).id(run) } else { DuckRole.background.ignoresSafeArea() } }
+      .environment(\.duckProEnabled, true)
       .preferredColorScheme(scheme)
       .background(IOSAppearanceBridge(appearance: scheme.map { $0 == .dark ? "dark" : "light" } ?? savedAppearance).frame(width: 0, height: 0))
       .onChange(of: savedAppearance) { _, _ in scheme = nil }
@@ -260,6 +261,8 @@ private struct ScenarioRun: View {
       ViewerReturnCatalog(route: route, model: model).ignoresSafeArea()
     } else if scenario.step == "membershipMotion" {
       MembershipMotionCatalog().ignoresSafeArea()
+    } else if scenario.step == "subscription" {
+      SubscriptionCatalog(scenarioID: scenario.id)
     } else if scenario.step == "filterEmpty" {
       IOSLibraryPage(library: library, model: model).task { await model.open() }
     } else if scenario.step == "rename" {
@@ -306,6 +309,8 @@ private struct ScenarioRun: View {
       AnyView(page($0))
     }
     .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
+    .environment(\.duckSubscriptionSettings, SubscriptionSettingsCatalog.handles(scenario.id) ? SubscriptionSettingsCatalog.context(for: scenario.id) : nil)
+    .modifier(SubscriptionBackupCatalog(scenarioID: scenario.id))
     .background(DuckRole.background.ignoresSafeArea())
     .tint(DuckRole.accent)
     .task {
@@ -333,7 +338,7 @@ private struct ScenarioRun: View {
           hubNotification = BackupNotifier.Route(notice: .unreachable, receiver: receiver)
         }
       }
-    case .settings where "\(item)" == scenario.page:
+    case .settings where "\(item)" == scenario.page || scenario.id.hasPrefix("hub.subscription-expired"):
       if scenario.id.hasPrefix("diagnostics.") {
         IOSDiagnosticsCatalog(model: model, page: scenario.step)
       } else if let scopeFixture {

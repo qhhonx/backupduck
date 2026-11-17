@@ -41,6 +41,7 @@ struct MacWorkspace: View {
   @State private var destination: MacDestination = .backup
   @AppStorage("macFoldersSidebarExpanded") private var foldersExpanded = true
   @State private var sidebarHovered = false
+  private var opensEngine: Bool
   private var initialSettingsPage: MacSettings.Page?
   private var initialDiagnosticsPage: String?
   private var openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)?
@@ -79,7 +80,8 @@ struct MacWorkspace: View {
   @ObservedObject private var folderBrowser: FolderBrowser
   @MainActor init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .backup, folderSources: FolderSources? = nil, initialTransferFilter: String = "all",
     initialSettingsPage: MacSettings.Page? = nil, scopeStore: BackupScopeStore? = nil,
-    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil, openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)? = nil, settingsUpdateSection: MacUpdateSection? = nil) {
+    albumsModel: ScopeAlbumsModel? = nil, initialScopeDestination: BackupScopeDestination? = nil, initialScopeSearch: String = "", initialViewer: MacViewerRequest? = nil, initialViewerInfo: Bool = false, initialDiagnosticsPage: String? = nil, openInitialSettingsDetail: ((DuckSettingsNavigator) -> Void)? = nil, settingsUpdateSection: MacUpdateSection? = nil, opensEngine: Bool = true) {
+    self.opensEngine = opensEngine
     self.openInitialSettingsDetail = openInitialSettingsDetail; self.settingsUpdateSection = settingsUpdateSection
     self.initialDiagnosticsPage = initialDiagnosticsPage
     self.model = model
@@ -192,7 +194,7 @@ struct MacWorkspace: View {
         folderBrowser.scope = .all
       }
     }
-    .task { await model.open() }
+    .task { if opensEngine { await model.open() } }
     // FolderSources waits for model.ready itself; it need not wait for the
     // remaining background initialization after the model becomes usable.
     .task { await folders.open() }

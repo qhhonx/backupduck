@@ -226,7 +226,7 @@ import CryptoKit
       catch { model.message = error.localizedDescription }
     }
     guard BackupEnvironment.usesPhotoLibrary, (state.enabled || state.closingToken != nil || !state.pending.isEmpty),
-      !scanning, !model.paused,
+      !scanning, !model.executionBlocked,
       model.pairing?.receiverID == state.receiverID
     else { return }
     let authorization = PHPhotoLibrary.authorizationStatus(for: .readWrite)

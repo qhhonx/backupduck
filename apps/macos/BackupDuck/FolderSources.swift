@@ -411,7 +411,7 @@ struct FolderDeliveryProgress: Decodable, Equatable {
           if original.receiver != backup.pairing?.receiverID {
             actionMessages[id] = "folder_receiver_changed"; phases[id] = "folder_receiver_changed"
           } else {
-            actionMessages[id] = backup.paused ? "folder_global_wait" : pending.action == "start" ? "folder_backup_requested" : "folder_retry_requested"
+            actionMessages[id] = backup.executionBlocked ? "folder_global_wait" : pending.action == "start" ? "folder_backup_requested" : "folder_retry_requested"
           }
         } else { actionMessages[id] = nil }
       }
@@ -593,7 +593,7 @@ struct FolderDeliveryProgress: Decodable, Equatable {
         if let i = sources.firstIndex(where: { $0.id == source.id }) { sources[i].baselinePending = false; save() }
         return
       }
-      guard !backup.paused else { setPhase(source.id, "backup_paused"); return }
+      guard !backup.executionBlocked else { setPhase(source.id, "backup_paused"); return }
       guard backup.summary.queued + backup.summary.running + backup.summary.waiting < 16 else {
         // The queue limit does not invalidate work already observed at the source.
         if !hasPendingPreparation(source.id) { setPhase(source.id, "folder_queue_wait") }
@@ -644,7 +644,9 @@ struct FolderDeliveryProgress: Decodable, Equatable {
       currentEntry = entry
       setPhase(source.id, "folder_preparing")
       let entryCutoff = entry.relative == retryPath || selectedPaths.contains(entry.relative) ? nil : manualCutoff
+      guard !backup.executionBlocked else { setPhase(source.id, "backup_paused"); return }
       let prepared = try await FolderMedia.prepare(root: root, entry: entry) { relative in
+        guard !self.backup.executionBlocked else { return false }
         var eligibility: [String: Any] = ["action": "eligible", "source": source.id, "relative": relative]
         if let entryCutoff { eligibility["max_created_ms"] = entryCutoff }
         guard let data = try? await self.call(eligibility) else { return false }
@@ -664,7 +666,7 @@ struct FolderDeliveryProgress: Decodable, Equatable {
         command["paired"] = [companion.relative, companion.revision]
       }
       // Recheck global/source pause and target after asynchronous media inspection.
-      guard !backup.paused, backup.pairing?.receiverID == receiver,
+      guard !backup.executionBlocked, backup.pairing?.receiverID == receiver,
         let latest = sources.first(where: { $0.id == source.id }),
         latest.pendingControl == nil,
         latest.manualActive || latest.automaticActive && backup.autoBackup || selectedPending || (latest.retryPaths ?? []).contains(entry.relative) else { return }
@@ -678,6 +680,7 @@ struct FolderDeliveryProgress: Decodable, Equatable {
       dirty.insert(source.id); debounce[source.id] = Date().addingTimeInterval(12)
       setPhase(source.id, "folder_settling")
     } catch let failure as Bridge.Failure {
+      if backup.executionBlocked { setPhase(source.id, "backup_paused"); return }
       guard failure.code != "source_unavailable", (try? url(source)) != nil else { markOffline(source.id); return }
       if failure.code == "capacity" {
         for entry in [currentEntry, companionEntry].compactMap({ $0 }) {

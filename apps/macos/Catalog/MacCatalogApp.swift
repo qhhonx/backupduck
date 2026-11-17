@@ -280,6 +280,7 @@ private enum MacCatalogLaunch {
         try await Task.sleep(for: .milliseconds(350))
         try await MacWindowSnapshot.write(to: URL(fileURLWithPath: path))
         print("Catalog snapshot written: \(path)")
+        if ProcessInfo.processInfo.arguments.contains("-snapshot-keep-running") { return }
         NSApp.terminate(nil)
         // AppKit can decline termination while a token field is editing in a
         // sheet. Snapshot runs contain synthetic state and must always finish.
@@ -330,6 +331,7 @@ private struct MacCatalogRoot: View {
         list
       }
     }
+    .environment(\.duckProEnabled, true)
     .preferredColorScheme(scheme)
   }
 
@@ -376,15 +378,16 @@ private struct MacScenarioRun: View {
   }
 
   private var settingsPage: MacSettings.Page? {
+    if SubscriptionSettingsCatalog.handles(scenario.id) && !scenario.id.hasSuffix("nonmember") && !scenario.id.hasSuffix("failure") { return .subscription }
     switch scenario.step {
-    case "devices": .devices
-    case "autoBackup": .autoBackup
-    case "advanced": .advanced
-    case "appearance": .appearance
-    case "language": .language
-    case "about", "updates", "licenses", "thirdPartyLicenses": .about
-    case "help", "help.offline", "help.faster", "help.live", "help.space": .help
-    default: nil
+    case "devices": return .devices
+    case "autoBackup": return .autoBackup
+    case "advanced": return .advanced
+    case "appearance": return .appearance
+    case "language": return .language
+    case "about", "updates", "licenses", "thirdPartyLicenses": return .about
+    case "help", "help.offline", "help.faster", "help.live", "help.space": return .help
+    default: return nil
     }
   }
 
@@ -441,7 +444,9 @@ private struct MacScenarioRun: View {
 
   var body: some View {
     Group {
-      if scenario.step == "filterEmpty" {
+      if scenario.step == "subscription" {
+        SubscriptionCatalog(scenarioID: scenario.id)
+      } else if scenario.step == "filterEmpty" {
         NavigationStack {
           LibraryPlaceholder(kind: .filterEmpty)
             .background(DuckRole.background).navigationTitle("nav_photos")
@@ -478,6 +483,8 @@ private struct MacScenarioRun: View {
       }
     }
       .environment(\.duckReservedSettingsContent, scenario.reservedSettingsContent)
+      .environment(\.duckSubscriptionSettings, SubscriptionSettingsCatalog.handles(scenario.id) ? SubscriptionSettingsCatalog.context(for: scenario.id) : nil)
+      .modifier(SubscriptionBackupCatalog(scenarioID: scenario.id))
       .environment(\.duckFeedbackPreview, ["settings.feedback", "settings.feedback-reserved"].contains(scenario.id))
       .sheet(isPresented: $renaming) {
         DeviceNameEditor(model: session.model, name: session.model.deviceSnapshot?.device.name ?? "")

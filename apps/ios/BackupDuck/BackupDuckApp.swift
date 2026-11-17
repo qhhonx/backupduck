@@ -5,7 +5,7 @@ import SwiftUI
     LaunchTrace.mark("app init")
     BackupEnvironment.restoresSenderNetwork = { IOSFirstRunProgress.allowsRestoredNetwork() }
     BackupEnvironment.prepareConnection = { try await IOSConnectNetworkAccess().prepare($0) }
-    if IOSFirstRunProgress.allowsRestoredNetwork() { PhotoLibraryModel.prewarm() }
+    if !DuckSubscriptionHostMode.opensSettings && IOSFirstRunProgress.allowsRestoredNetwork() { PhotoLibraryModel.prewarm() }
     if #available(iOS 26.0, *) { } else {
       // Legacy scroll-edge appearance must not turn transparent above media.
       let appearance = UITabBarAppearance()
@@ -22,13 +22,15 @@ import SwiftUI
   @StateObject private var model = BackupModel.shared
   @StateObject private var library = PhotoLibraryModel()
   @StateObject private var notifier = BackupNotifier.shared
+  @StateObject private var subscriptionHost = DuckSubscriptionHost()
+  @StateObject private var proDistribution = DuckProDistribution.shared
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("keepScreenAwakeDuringBackup") private var keepScreenAwake = false
   /// Compatibility marker for installations that already finished setup.
   @AppStorage("firstRunDone") private var firstRunDone = false
   @StateObject private var firstRun = IOSFirstRunProgress()
   private var shouldKeepScreenAwake: Bool {
-    keepScreenAwake && scenePhase == .active && model.ready && !model.paused
+    keepScreenAwake && scenePhase == .active && model.ready && !model.executionBlocked
       && model.pairing != nil && !model.waitingForNetwork && !model.receiverUnavailable
       && (model.importing || model.summary.running > 0 || model.summary.queued > 0
         || model.pendingImports > 0 || model.discoveryPending > 0)
@@ -43,10 +45,11 @@ import SwiftUI
     IOSNativeTabs(selection: $selectedTab) { item in
       switch item {
       case .library: AnyView(IOSLibraryPage(library: library, model: model))
-      case .backup: AnyView(IOSHub(model: model, notification: $notification))
-      case .settings: AnyView(IOSSettings(model: model))
+      case .backup: AnyView(IOSHub(model: model, notification: $notification).modifier(DuckSubscriptionHostContent(host: subscriptionHost, store: subscriptionHost.store)))
+      case .settings: AnyView(IOSSettings(model: model).modifier(DuckSubscriptionHostContent(host: subscriptionHost, store: subscriptionHost.store)))
       }
     }
+    .modifier(DuckSubscriptionHostContent(host: subscriptionHost, store: subscriptionHost.store))
     .onChange(of: model.pairing?.receiverID, initial: true) { _, receiver in library.backupReceiver = receiver }
   }
   var body: some Scene {
@@ -54,6 +57,9 @@ import SwiftUI
       Group {
         // First run stands alone until it ends; nothing behind it reads the
         // photo library before the user has heard why (design/flows.md).
+        if DuckSubscriptionHostMode.opensSettings {
+          IOSSettings(model: model).modifier(DuckSubscriptionHostContent(host: subscriptionHost, store: subscriptionHost.store))
+        } else {
         switch needsFirstRun {
         case .some(true): IOSOnboarding(model: model, progress: firstRun) {
           firstRunDone = true; selectedTab = IOSAppTab.backup.rawValue
@@ -75,9 +81,10 @@ import SwiftUI
           }
         }
       }
+        }
         .onChange(of: model.ready, initial: true) { _, ready in
-          if ready { firstRun.resolve(legacyDone: firstRunDone, paired: model.pairing != nil) }
-          if ready {
+          if ready && !DuckSubscriptionHostMode.opensSettings { firstRun.resolve(legacyDone: firstRunDone, paired: model.pairing != nil) }
+          if ready && !DuckSubscriptionHostMode.opensSettings {
             model.deferredPhotoAccess = firstRun.record?.completed == true
               && firstRun.record?.photoAccess == PhotoAccess.denied.rawValue
               && firstRun.record?.receiver == model.pairing?.receiverID
@@ -94,10 +101,13 @@ import SwiftUI
           consumeActivityLink()
         }
         .background(DuckRole.background.ignoresSafeArea()).modifier(IOSSavedAppearance()).tint(DuckRole.accent).task {
-          await model.open()
+          await subscriptionHost.open(model)
           BackupNotifier.shared.start(model)
           BackupLiveActivity.shared.start(model)
         }
+        .task { await proDistribution.check(); await subscriptionHost.updateChannel(model) }
+        .onReceive(subscriptionHost.store.$access) { _ in Task { await subscriptionHost.apply(model) } }
+        .onChange(of: proDistribution.allowsPro) { _, _ in Task { await subscriptionHost.updateChannel(model) } }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = shouldKeepScreenAwake }
         .onChange(of: shouldKeepScreenAwake) { _, awake in
           UIApplication.shared.isIdleTimerDisabled = awake
@@ -105,9 +115,10 @@ import SwiftUI
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .onChange(of: scenePhase) { _, phase in
           if phase == .active {
+            Task { await proDistribution.check(); await subscriptionHost.updateChannel(model) }
             BackgroundTransfer.shared.enteredForeground()
             if needsFirstRun == false { Task { await library.open() } }
-            Task { await model.becameActive(); await firstRun.registerScope(model: model) }
+            Task { await subscriptionHost.apply(model); await model.becameActive(); await firstRun.registerScope(model: model) }
             Task { await BackupLiveActivity.shared.synchronize(model) }
           }
           if phase == .background {

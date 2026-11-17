@@ -1,0 +1,79 @@
+{
+  "identifier": "1373DADA-0552-48C8-BEC7-EE4C93558CE1",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_applicationInternalID": "",
+    "_developerTeamID": "",
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": [],
+    "_timeRate": 0
+  },
+  "subscriptionGroups": [
+    {
+      "id": "2B608F94",
+      "localizations": [],
+      "name": "BackupDuck Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "E11E2539",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Original-quality photo and video backup without an item or transfer quota.",
+              "displayName": "BackupDuck Pro Monthly",
+              "locale": "en_US"
+            },
+            {
+              "description": "原画质备份照片和视频，不限项目数和传输量。",
+              "displayName": "BackupDuck Pro 月度订阅",
+              "locale": "zh_CN"
+            }
+          ],
+          "productID": "app.backupduck.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "BackupDuck Pro Monthly",
+          "subscriptionGroupID": "2B608F94",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "11.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "DEA72708",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Original-quality photo and video backup without an item or transfer quota.",
+              "displayName": "BackupDuck Pro Annual",
+              "locale": "en_US"
+            },
+            {
+              "description": "原画质备份照片和视频，不限项目数和传输量。",
+              "displayName": "BackupDuck Pro 年度订阅",
+              "locale": "zh_CN"
+            }
+          ],
+          "productID": "app.backupduck.pro.annual",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "BackupDuck Pro Annual",
+          "subscriptionGroupID": "2B608F94",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

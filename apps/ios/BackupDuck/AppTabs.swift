@@ -118,6 +118,9 @@ extension View {
       .environment(\.duckFeedbackPreview, values.duckFeedbackPreview)
       .environment(\.duckStepMarkReducedTransparency, values.duckStepMarkReducedTransparency)
       .environment(\.duckFirstPhotoReducedMotion, values.duckFirstPhotoReducedMotion)
+      .environment(\.duckProEnabled, values.duckProEnabled)
+      .environment(\.duckSubscriptionSettings, values.duckSubscriptionSettings)
+      .environment(\.duckSubscriptionBackup, values.duckSubscriptionBackup)
   }
 }
 
@@ -125,8 +128,10 @@ struct IOSSupportingValues: Equatable {
   let locale: Locale
   let author: String?, email: String?, storeID: String?
   let feedbackPreview: Bool, reducedTransparency: Bool, reducedMotion: Bool
+  let proEnabled: Bool
   init(_ values: EnvironmentValues) {
     locale = values.locale
+    proEnabled = values.duckProEnabled
     author = values.duckReservedSettingsContent.authorText
     email = values.duckReservedSettingsContent.feedbackEmail
     storeID = values.duckReservedSettingsContent.appStoreAppID

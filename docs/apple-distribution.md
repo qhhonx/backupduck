@@ -26,6 +26,113 @@ its original-artwork-derived template. The store target has its own Info.plist
 without direct-download updater keys. Keep its product version aligned with
 `release.json`; increment actual uploaded build numbers when submitting again.
 
+## Pro availability
+
+Pro entry points, purchases and welcome-period expiry require verified App Store
+distribution. Ordinary TestFlight and direct-download hosts keep backup
+available without Pro. The signed `AppTransaction` must match the app bundle.
+Production installations accept production purchases. Xcode, missing and
+unverified evidence leaves Pro disabled in distribution builds. Unresolved
+checks retry on foreground entry without blocking backup.
+
+The `BackupDuckAppStoreSubmission` scheme on each platform archives the ordinary
+store target with the `AppStoreSubmission` configuration. This configuration
+also accepts a verified matching sandbox app transaction and sandbox purchases
+for App Review. Apple reviews the same archive that goes to customers.
+Upload the submission archive to App Store Connect for App Review only, with
+manual App Store release. Verify that no internal group has automatic access
+to every build and keep the submission archive out of all TestFlight groups.
+Use the ordinary `BackupDuck` and `BackupDuckStore` Release schemes for TestFlight.
+
+Distribution detection uses `AppTransaction.shared` without an explicit receipt
+refresh or account-authentication fallback and requires no application server.
+The direct Mac target skips the check. Physical acceptance covers real account
+and offline conditions; fixture tests alone do not establish system-prompt
+behavior.
+
+Catalog uses explicit preview injection to exercise the production-only UI and
+non-production bypass. Those fixtures do not establish installed-channel or
+real-purchase acceptance. Verify store, TestFlight and direct-download behavior
+separately before distribution, including preserved data across channel changes.
+
+### Pro submission and metadata
+
+Keep feature merges separate from a release manifest bump. A new version on
+`main` also triggers the direct-download release and the ordinary TestFlight
+pipeline. Select the App Store build number deliberately and verify both
+archives before attaching them to their App Store versions.
+
+- In App Store Connect, verify the Paid Apps Agreement is active. Create
+  `app.backupduck.pro.monthly` (one month) and
+  `app.backupduck.pro.annual` (one year) in the same group at the same service
+  level. Set availability and actual storefront prices. Confirm both Apple hosts
+  resolve the same products and restore access for the purchasing Apple Account.
+  Leave introductory offers unset because the app provides the welcome week.
+- Publish and verify the [privacy policy](https://backupduck.app/privacy.html)
+  and [Pro subscription terms](https://backupduck.app/subscription-terms.html).
+  Set the Privacy Policy URL to the policy. When using the Apple Standard EULA,
+  include its URL in each localized App Store description. Use the billing
+  summary below and its equivalent from the localized Pro terms.
+- Verify the iPhone archive contains `PrivacyInfo.xcprivacy`. Its required-reason
+  entries cover app-owned preferences and file metadata, plus local space checks
+  that protect writes. Diagnostic exports omit device free-space measurements
+  and the write allowance derived from them.
+- Submit the first subscriptions alongside the app version. In review notes,
+  give the Settings → BackupDuck Pro path, the two billing periods, and
+  explain that the app grants welcome access before any purchase. Include
+  the pairing and receiver instructions needed to exercise backup.
+- Before submission, verify that App Review can see, buy and restore both
+  plans in Apple's sandbox using the dedicated submission configuration.
+  Verify ordinary TestFlight and Mac direct-download builds still allow backup
+  without Pro.
+
+**English App Store description**
+
+> BackupDuck Pro offers monthly and annual subscriptions. Apple charges the full
+> price for the selected billing period. Your plan renews automatically unless
+> cancelled in your Apple Account settings. The complimentary seven-day welcome
+> period ends without a charge or automatic subscription.
+>
+> Privacy Policy: https://backupduck.app/privacy.html
+>
+> Pro Subscription Terms: https://backupduck.app/subscription-terms.html
+>
+> Terms of Use (Apple Standard EULA):
+> https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+References: [subscription disclosures](https://developer.apple.com/app-store/subscriptions/),
+[review in the sandbox](https://developer.apple.com/help/app-review/before-submitting-for-review/configure-in-app-purchases),
+[first in-app purchase submission](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-in-app-purchase).
+
+### Local purchase development
+
+`BackupDuckStoreKitTest` is an independently installed development host with
+bundle identifier `app.backupduck.storekittest`. It reuses the native application
+and Rust sender with separate storage. Build it in Release for device review;
+it does not replace the production application or establish release acceptance.
+Its explicit `BACKUPDUCK_SUBSCRIPTION_TESTING` condition is absent from ordinary
+store, TestFlight and direct-download targets. Never archive or distribute this
+host.
+
+Run its scheme from Xcode with `apps/apple/StoreKit/BackupDuck.storekit` selected
+as the StoreKit configuration. A command-line installation or ordinary launch
+alone does not establish that purchase testing is active. The host refuses
+purchase when the expected local environment is unavailable. Confirm that a
+successful transaction is verified and has the Xcode environment before treating
+it as a test result. The configuration contains monthly and annual subscriptions with
+no introductory offer; complimentary welcome access is maintained by the app.
+
+Local welcome controls exist only in this development host. Apple's transaction
+manager and StoreKitTest under XCTest control transaction renewal, cancellation,
+expiry and refund cases. Do not initialize `SKTestSession` inside the ordinary
+application process. Record native UI, automated store tests and physical-device
+observations separately; simulated purchase is not a production charge or App
+Store availability check.
+
+References: [App transaction verification](https://developer.apple.com/documentation/storekit/verificationresult),
+[Store environments](https://developer.apple.com/documentation/storekit/appstore/environment),
+[TestFlight sandbox behavior](https://developer.apple.com/documentation/storekit/testing-in-app-purchases-with-sandbox).
+
 ## Cloud workflows
 
 Configure the first workflow through Xcode with the public distribution

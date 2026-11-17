@@ -41,6 +41,13 @@ atomically before export; the shared queue deduplicates the exported asset.
 BGProcessingTask provides opportunistic discovery and retry wakes, not a timer or
 an assurance of immediate work while the app is closed.
 
+Apple hosts verify store access and supply a durable execution allowance and
+optional deadline to Rust. The engine combines it with the user's separate pause
+intent when admitting preparation and transfer work; it does not know products,
+purchases or billing accounts. Closing access preserves pending work and confirmed
+receiver facts. See the [host access gate](sender-host-contract.md#host-access-gate)
+for cancellation, renewal and suspended-app limits.
+
 ## Receiver durability
 
 The receiver has a single writer lock for its root. SQLite stores assets and

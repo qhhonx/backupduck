@@ -54,3 +54,27 @@ original export. Background updates preserve list identity and selection.
 This contract applies to future hosts as well as current Apple hosts. Android and
 Windows sender completion, background execution and cross-device coverage must
 be established independently; a shared API or matching prototype is not proof.
+
+## Host access gate
+
+`set_sender_access` persists host-verified `allowed` and optional `valid_until`
+(Unix seconds). It is independent of the saved user pause and discovery settings.
+The default is unrestricted; Apple store distribution supplies verified access,
+while unrestricted distributions explicitly clear the deadline. `sender_status`
+returns the stored `access_allowed`, stored `access_valid_until`, and effective
+`execution_blocked` (user pause, denied access, or reached deadline).
+
+Rust checks this gate before transfer claims, native task binding and eligible
+preparation queries. Folder preparation rechecks access around resource copies
+and atomically at queue handoff; interruption removes only its own staging copy.
+Hosts also stop discovery, source preparation and active OS requests when access
+closes, and recheck after suspension before resuming work.
+Pending membership, attempts, confirmed progress and receipts remain durable.
+Renewal removes only the access hold; explicit user pause and discovery choices
+still apply. Result reconciliation remains available while execution is held.
+An authenticated late receipt is recorded even when access has already ended.
+
+OS-owned requests may finish while the app is suspended or cancellation is in
+flight. The local gate cannot revoke a request at an exact wall-clock instant
+without the app running. It does not reverse receipt, Pixel gallery publication,
+or Google Photos activity, and none of these facts proves cloud backup.

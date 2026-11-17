@@ -340,7 +340,20 @@ impl SenderHost {
         sources: BTreeMap<String, String>,
         request: Option<&str>,
     ) -> Result<Job> {
+        self.enqueue_prepared_with_gate(receiver, asset, sources, request, false)
+    }
+    fn enqueue_prepared_with_gate(
+        &self,
+        receiver: &str,
+        asset: Asset,
+        sources: BTreeMap<String, String>,
+        request: Option<&str>,
+        require_access: bool,
+    ) -> Result<Job> {
         let mut sender = self.sender.lock().map_err(lock)?;
+        if require_access && sender.execution_blocked(now())? {
+            return Err(Error::Cancelled);
+        }
         let maintenance = self.maintenance.lock().map_err(lock)?;
         let preparation = maintenance.preparation_link(
             receiver,
@@ -362,12 +375,59 @@ impl SenderHost {
         let mut sender = self.sender.lock().map_err(lock)?;
         let mut cancelled = self.cancelled.lock().map_err(lock)?;
         sender.set_paused(paused)?;
-        if paused {
+        if sender.execution_blocked(now())? {
             cancelled.store(true, Ordering::SeqCst);
         } else if cancelled.load(Ordering::SeqCst) {
             *cancelled = Arc::new(AtomicBool::new(false));
         }
         Ok(())
+    }
+    /// Persist a host-verified execution gate without changing saved user intent.
+    /// Active OS transfers must be cancelled by the host after access closes.
+    pub fn set_access(&self, allowed: bool, valid_until: Option<i64>) -> Result<()> {
+        let mut sender = self.sender.lock().map_err(lock)?;
+        let mut cancelled = self.cancelled.lock().map_err(lock)?;
+        sender.set_access_policy(allowed, valid_until)?;
+        if sender.execution_blocked(now())? {
+            cancelled.store(true, Ordering::SeqCst);
+        } else if cancelled.load(Ordering::SeqCst) {
+            *cancelled = Arc::new(AtomicBool::new(false));
+        }
+        Ok(())
+    }
+    pub fn execution_status(&self) -> Result<serde_json::Value> {
+        let sender = self.sender.lock().map_err(lock)?;
+        let (allowed, valid_until) = sender.access_policy()?;
+        Ok(
+            json!({"paused":sender.paused()?, "concurrent_uploads":sender.concurrent_uploads()?,
+            "access_allowed":allowed, "access_valid_until":valid_until,
+            "execution_blocked":sender.execution_blocked(now())?}),
+        )
+    }
+    pub fn source_preparations(
+        &self,
+        receiver: Option<&str>,
+        ready: bool,
+        limit: u32,
+    ) -> Result<serde_json::Value> {
+        let sender = self.sender.lock().map_err(lock)?;
+        if ready && sender.execution_blocked(now())? {
+            return Ok(json!([]));
+        }
+        self.maintenance
+            .lock()
+            .map_err(lock)?
+            .preparations(receiver, ready, limit)
+    }
+    pub fn pending_sources(&self, receiver: &str) -> Result<serde_json::Value> {
+        let sender = self.sender.lock().map_err(lock)?;
+        let mut pending = self.maintenance.lock().map_err(lock)?.pending(receiver)?;
+        if sender.execution_blocked(now())? {
+            for key in ["sources", "unordered", "preparations"] {
+                pending[key] = json!([]);
+            }
+        }
+        Ok(pending)
     }
     pub fn set_concurrent_uploads(&self, limit: u32) -> Result<()> {
         self.sender
@@ -455,7 +515,10 @@ impl SenderHost {
         let result = tokio::select! {
             result = transfer => result,
             _ = async {
-                loop { if cancelled.load(Ordering::SeqCst) {break;}
+                loop {
+                    let blocked = self.sender.lock().map_err(lock)
+                        .and_then(|sender| sender.execution_blocked(now())).unwrap_or(true);
+                    if cancelled.load(Ordering::SeqCst) || blocked { break; }
                     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
             } => Err(Error::Cancelled),
@@ -783,6 +846,11 @@ enum Command {
         source_filter: Option<String>,
     },
     SenderStatus,
+    SetSenderAccess {
+        allowed: bool,
+        #[serde(default)]
+        valid_until: Option<i64>,
+    },
     SetTransferConcurrency {
         limit: u32,
     },
@@ -1295,11 +1363,7 @@ fn dispatch(command: Command) -> Result<Value> {
             receiver_id,
             ready,
             limit,
-        } => sender()?.maintenance.lock().map_err(lock)?.preparations(
-            receiver_id.as_deref(),
-            ready,
-            limit,
-        ),
+        } => sender()?.source_preparations(receiver_id.as_deref(), ready, limit),
         Command::RetrySource {
             receiver_id,
             source,
@@ -1322,11 +1386,7 @@ fn dispatch(command: Command) -> Result<Value> {
                 .retry_sources(&receiver_id, space_only)?;
             Ok(json!({}))
         }
-        Command::PendingSources { receiver_id } => sender()?
-            .maintenance
-            .lock()
-            .map_err(lock)?
-            .pending(&receiver_id),
+        Command::PendingSources { receiver_id } => sender()?.pending_sources(&receiver_id),
         Command::SourceDates { receiver_id, dates } => {
             sender()?
                 .maintenance
@@ -1588,12 +1648,14 @@ fn dispatch(command: Command) -> Result<Value> {
             .lock()
             .map_err(lock)?
             .summary_source(&receiver_id, source_filter.as_deref()),
-        Command::SenderStatus => {
+        Command::SenderStatus => sender()?.execution_status(),
+        Command::SetSenderAccess {
+            allowed,
+            valid_until,
+        } => {
             let host = sender()?;
-            let sender = host.sender.lock().map_err(lock)?;
-            Ok(
-                json!({"paused":sender.paused()?, "concurrent_uploads":sender.concurrent_uploads()?}),
-            )
+            host.set_access(allowed, valid_until)?;
+            host.execution_status()
         }
         Command::SetTransferConcurrency { limit } => {
             sender()?
@@ -2336,3 +2398,6 @@ mod burst_error_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod access_gate_tests;

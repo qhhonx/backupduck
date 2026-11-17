@@ -12,6 +12,9 @@ struct MacHub: View {
   var pair: () -> Void
   var sources: () -> Void
   var showTransfers: (String) -> Void
+  @Environment(\.duckSubscriptionBackup) private var subscription
+  @Environment(\.duckProEnabled) private var proEnabled
+  @State private var showingSubscription = false
   @State private var offlineHelp = false
   @State private var livePhotoHelp = false
   @State private var deliveryRequest: FolderDeliveryRequest?
@@ -22,6 +25,7 @@ struct MacHub: View {
 
   private var receiverName: String { model.peerDevice?.name ?? "Pixel" }
   private var connected: Bool { model.pairing != nil && model.ready }
+  private var executionBlocked: Bool { proEnabled && connected && subscription != nil }
 
   var body: some View {
     let hubStatus = folders.hubStatus
@@ -45,6 +49,10 @@ struct MacHub: View {
       .frame(maxWidth: .infinity)
     }
     .background(DuckRole.background)
+    .onChange(of: executionBlocked) { _, blocked in if !blocked { showingSubscription = false } }
+    .sheet(isPresented: $showingSubscription) {
+      if proEnabled, let subscription { subscription.offer { showingSubscription = false } }
+    }
     .sheet(isPresented: $offlineHelp) { offlineHelpSheet }
     .sheet(isPresented: $livePhotoHelp) { LivePhotoHelpSheet() }
     .task(id: model.ready) { if model.ready { await model.refreshHistoricalImport() } }
@@ -59,6 +67,12 @@ struct MacHub: View {
   // MARK: - Status (I3: one state at a time)
 
   @ViewBuilder private func status(_ hubStatus: BackupHubStatus) -> some View {
+    if executionBlocked {
+      DuckBackupSubscriptionCard { showingSubscription = true }
+    } else { normalStatus(hubStatus) }
+  }
+
+  @ViewBuilder private func normalStatus(_ hubStatus: BackupHubStatus) -> some View {
     switch hubStatus {
     case .notPaired:
       DuckEmptyState(pose: .pairing, title: "hub_not_paired", note: "hub_not_paired_note_mac") {
@@ -108,7 +122,8 @@ struct MacHub: View {
   }
 
   private func deliveryObservationRequest(_ status: BackupHubStatus) -> FolderDeliveryRequest? {
-    switch status {
+    guard !executionBlocked else { return nil }
+    return switch status {
     case .backingUp, .backingUpWithoutTotal: folders.hubDeliveryRequest
     default: nil
     }
@@ -202,7 +217,7 @@ struct MacHub: View {
   // MARK: - Earlier photos, evidence and summaries
 
   private func earlier(_ history: HistoricalImportStatus) -> some View {
-    DuckEarlierPhotosCard(history: history, changing: model.changingHistory) { command in
+    DuckEarlierPhotosCard(history: history, changing: model.changingHistory, executionBlocked: executionBlocked) { command in
       Task { await model.controlHistoricalImport(command) }
     }
   }

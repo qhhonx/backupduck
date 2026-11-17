@@ -10,7 +10,7 @@ struct MacSettingsMediaViewerKey: PreferenceKey {
 /// Settings uses: a list column (identity header, category rows
 /// with values, help last, quiet footer) and a detail pane with a grouped form.
 struct MacSettings: View {
-  enum Page: Hashable { case devices, folders, autoBackup, appearance, language, help, about, diagnostics, advanced }
+  enum Page: Hashable { case devices, folders, autoBackup, appearance, language, help, about, diagnostics, advanced, subscription }
 
   @Environment(\.macWorkspaceActive) private var active
   @ObservedObject var model: BackupModel
@@ -23,6 +23,8 @@ struct MacSettings: View {
   var initialDiagnosticsPage: String?
   var openInitialDetail: ((DuckSettingsNavigator) -> Void)?
   var updateSection: MacUpdateSection?
+  @Environment(\.duckSubscriptionSettings) private var subscription
+  @Environment(\.duckProEnabled) private var proEnabled
   @State private var openedInitialDetail = false
   @AppStorage("duckAppearance") private var appearance = "system"
   @State private var page: Page? = .autoBackup
@@ -91,6 +93,15 @@ struct MacSettings: View {
     List(selection: $page) {
       header.selectionDisabled()
       if model.message != nil && !model.ready { openFailedCard.selectionDisabled() }
+      if proEnabled, let subscription {
+        Section {
+          LabeledContent {
+            Text(subscription.presentation.entrySummary).fixedSize(horizontal: false, vertical: true)
+          } label: {
+            DuckProSettingsLabel().fixedSize(horizontal: true, vertical: false).layoutPriority(1)
+          }.tag(Page.subscription).accessibilityIdentifier("subscription.settings.entry")
+        }
+      }
       Section {
         // Devices live in Settings (design/navigation.md, D3).
         row(.devices, "settings_devices", "smartphone", DuckGlyph.green,
@@ -202,6 +213,7 @@ struct MacSettings: View {
     case .about: "about_title"
     case .diagnostics: "settings_diagnostics"
     case .advanced: "settings_advanced"
+    case .subscription: "subscription_pro_short"
     case nil: "nav_settings"
     }
   }
@@ -220,6 +232,7 @@ struct MacSettings: View {
     case .about: MacAboutSettings(updateSection: updateSection)
     case .diagnostics: DiagnosticsView(model: model, initialPage: initialDiagnosticsPage)
     case .advanced: MacAdvancedSettings(model: model)
+    case .subscription: if proEnabled { subscription?.detail }
     case nil: Color.clear
     }
   }

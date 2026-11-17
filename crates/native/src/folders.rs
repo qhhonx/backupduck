@@ -564,6 +564,13 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
             mut metadata,
             paired,
         } => {
+            let require_access = || -> Result<()> {
+                if host.sender.lock().map_err(lock)?.execution_blocked(now())? {
+                    return Err(Error::Cancelled);
+                }
+                Ok(())
+            };
+            require_access()?;
             // Identity/revision must come from this index, never a caller-forged asset ID.
             let candidate = index.entry(&source, &relative)?;
             if candidate.source_id != source_id || candidate.revision != expected {
@@ -654,6 +661,7 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
                 let result = (|| {
                     let mut resources = Vec::new();
                     for (i, path) in paths.iter().enumerate() {
+                        require_access()?;
                         if revision(path)? != originals[i].1 {
                             return Err(Error::Conflict("folder source changed".into()));
                         }
@@ -664,6 +672,7 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
                             .to_owned();
                         let output = folder.join(format!("{i}-{filename}"));
                         fs::copy(path, &output)?;
+                        require_access()?;
                         if revision(path)? != originals[i].1
                             || backupduck_folder_source::current_source_id(
                                 &source,
@@ -701,8 +710,11 @@ fn call_with_index(host: &SenderHost, index: &mut Index, command: Command) -> Re
                     } else {
                         AssetKind::Photo
                     };
+                    require_access()?;
                     let (asset, files) = manifest(source_id, combined, kind, metadata, resources)?;
-                    let job = host.enqueue(&receiver, asset, files)?;
+                    // Fence the final handoff under the same lock as access updates.
+                    let job =
+                        host.enqueue_prepared_with_gate(&receiver, asset, files, None, true)?;
                     if let Ok(maintenance) = host.maintenance.lock() {
                         let _ = maintenance.log("transfer_queued", Some(job.id), None);
                     }

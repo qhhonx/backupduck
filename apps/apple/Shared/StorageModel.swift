@@ -25,8 +25,8 @@ struct StorageSnapshot: Decodable, Equatable {
       ? "local_cache_budget" : "local_free_space"
   }
 }
-/// The recent-activity preview only projects the fields it displays. Export keeps
-/// the complete core snapshot, including fields unknown to this host.
+/// The recent-activity preview only projects the fields it displays. Export retains
+/// other core fields except device capacity measurements.
 struct ActivityEntry: Decodable, Identifiable, Equatable {
   let id: Int64
   let timestamp: Int64
@@ -130,7 +130,8 @@ struct ActivityLogUpdate: Decodable {
   private let write: (Data) async throws -> URL
   init(
     snapshot: @escaping () async throws -> Data = {
-      try await Bridge.call(["op": "activity_log", "receiver": false])
+      let data = try await Bridge.call(["op": "activity_log", "receiver": false])
+      return try ActivityLogExportModel.removingDeviceCapacity(from: data)
     },
     write: @escaping (Data) async throws -> URL = { data in
       try await Task.detached(priority: .utility) {
@@ -143,6 +144,22 @@ struct ActivityLogUpdate: Decodable {
       }.value
     }
   ) { self.snapshot = snapshot; self.write = write }
+
+  static func removingDeviceCapacity(from data: Data) throws -> Data {
+    guard var entries = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+      throw Bridge.Failure(code: "invalid_response")
+    }
+    var changed = false
+    for index in entries.indices {
+      guard var context = entries[index]["context"] as? [String: Any] else { continue }
+      let free = context.removeValue(forKey: "free_bytes")
+      let allowance = context.removeValue(forKey: "export_allowance")
+      guard free != nil || allowance != nil else { continue }
+      entries[index]["context"] = context
+      changed = true
+    }
+    return changed ? try JSONSerialization.data(withJSONObject: entries, options: .sortedKeys) : data
+  }
 
   func prepare() async {
     guard !preparing else { return }

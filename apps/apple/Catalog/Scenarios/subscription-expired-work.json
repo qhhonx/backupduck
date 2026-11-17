@@ -1,0 +1,15 @@
+{
+  "id": "subscription.expired-work",
+  "page": "settings",
+  "step": "subscription",
+  "title": "Pro expiry \u00b7 unfinished batch paused",
+  "extends": "base",
+  "expect": [
+    "Production Pro supporting views use the existing premium duck and synthetic price, date and eligibility facts.",
+    "Purchase, restoration, management and legal actions are explicitly simulated; no StoreKit, real library or account is accessed.",
+    "The monthly and annual offers have no Apple introductory trial. Welcome is a separate synthetic state.",
+    "Welcome expiry pauses the 500 unfinished items in a synthetic 1,000-item batch; completed results and task progress remain.",
+    "Subscribe is the route to resuming existing work. Submitting the batch during welcome does not grant continuation beyond expiry.",
+    "This access-required state is not the user queue-pause preference and does not switch Auto Backup off; production enforcement is not connected."
+  ]
+}

@@ -44,8 +44,7 @@ enum BackupHubStatus: Equatable {
   static func derive(_ input: Inputs) -> BackupHubStatus {
     guard input.paired else { return .notPaired }
     guard input.ready else { return .opening }
-    // Pausing is the user's choice: while paused nothing is checked, so a stale
-    // connection reading must not read as a problem.
+    // Execution holds suppress stale connection problems while no new work runs.
     if input.paused { return .paused }
     if input.connection == .authentication || input.summary.waiting_reason == "authentication" { return .problem(.receiverRejected) }
     if input.connection == .localNetworkDenied { return .problem(.localNetworkBlocked) }
@@ -123,7 +122,7 @@ extension BackupModel {
   }
   @MainActor var hubStatus: BackupHubStatus {
     BackupHubStatus.derive(.init(
-      paired: pairing != nil, ready: ready, paused: paused, connection: receiverConnection,
+      paired: pairing != nil, ready: ready, paused: executionBlocked, connection: receiverConnection,
       receiverUnavailable: receiverUnavailable, summary: summary,
       phoneSpaceShort: storage?.reason == "local_free_space",
       photoAccess: photoAccess, photoLibraryInScope: photoLibraryInScope,
