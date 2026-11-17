@@ -1,3 +1,12 @@
+# 0.7.0 — build 92
+
+- App Store editions offer monthly and annual BackupDuck Pro subscriptions
+  after a complimentary seven-day welcome period.
+- Pro enables original-quality transfer without a photo-count or transfer
+  allowance limit. Unfinished backup pauses on expiry and retains its progress.
+- App Store privacy declarations cover local preferences, file metadata and
+  storage checks. Diagnostic exports omit device-capacity measurements.
+
 # 0.6.1 — build 91
 
 - Mac folders open from their saved index. Scrolling and returning to a folder
