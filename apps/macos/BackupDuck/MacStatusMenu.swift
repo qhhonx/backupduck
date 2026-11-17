@@ -130,9 +130,10 @@ struct MacStatusMenu: View {
 
   var body: some View {
     MacStatusMenuItems(status: MacMenuStatus(model: model, folders: folders), paused: model.paused,
-      pauseEnabled: model.ready && model.pairing != nil && !changingPause && !model.changingPause,
+      pauseEnabled: model.ready && model.pairing != nil && !changingPause && !model.changingPause
+        && !model.subscriptionExecutionBlocked,
       togglePause: {
-        guard !changingPause, !model.changingPause else { return }
+        guard !changingPause, !model.changingPause, !model.subscriptionExecutionBlocked else { return }
         let paused = !model.paused
         changingPause = true
         Task {

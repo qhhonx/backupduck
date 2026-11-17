@@ -1228,3 +1228,109 @@
 
 
 "notifications_requesting" = "Requesting Notification Permission";
+/* Subscription supporting views. Store prices and dates are injected. */
+"subscription_title" = "Subscription";
+"subscription_offer_headline" = "Keep New Photos Backed Up";
+"subscription_offer_benefit" = "Back up original photos and videos automatically, with no item limit.";
+"subscription_subscribe" = "Subscribe";
+"subscription_monthly_price" = "%@ per month";
+"subscription_renewal_note" = "Apple bills the full price shown. Renews automatically unless canceled in Apple Account settings.";
+"subscription_restore" = "Restore Purchases";
+"subscription_privacy" = "Privacy Policy";
+"subscription_terms" = "Terms of Use";
+"subscription_retry" = "Try Again";
+"subscription_price_unavailable" = "The subscription price is unavailable.";
+"subscription_price_retry_note" = "Try again to see the current price before subscribing.";
+"subscription_state_active" = "Pro Is Active";
+"subscription_state_renewalOff" = "Automatic Renewal Is Off";
+"subscription_state_expired" = "Pro Has Expired";
+"subscription_state_unavailable" = "Subscription Status Is Unavailable";
+"subscription_state_pending" = "Your Purchase Is Pending";
+"subscription_state_error" = "Your Purchase Didn’t Complete";
+"subscription_note_active" = "Keep backing up original photos and videos with no item limit.";
+"subscription_note_renewalOff" = "You can keep backing up until the end of your current subscription period.";
+"subscription_note_expired" = "Subscribe to resume your unfinished backups.";
+"subscription_note_unavailable" = "Your subscription couldn’t be checked. Try again when you’re connected.";
+"subscription_note_pending" = "Apple is still confirming your purchase. You can check again later.";
+"subscription_note_error" = "The purchase couldn’t be completed. Try again or restore an existing purchase.";
+"subscription_manage" = "Manage Subscription";
+"subscription_view_offer" = "View Subscription";
+"subscription_check_status" = "Check Status";
+"subscription_access_until" = "Access Ends";
+"subscription_renews_on" = "Renews On";
+"subscription_monthly_plan" = "Monthly Plan";
+"subscription_expired_continuity" = "Backup is paused. Backed-up content and progress are kept.";
+"subscription_catalog_title" = "Catalog Simulation";
+"subscription_catalog_purchase" = "This is a visual review. No Apple purchase is opened and no subscription is created.";
+"subscription_catalog_restore" = "This is a simulated restoration. No Apple account or purchase history is accessed.";
+"subscription_catalog_status" = "This is a simulated status action. Apple account settings are not opened.";
+"subscription_catalog_legal" = "This is a visual review. Legal destinations will be supplied by the app host.";
+"subscription_summary_checking" = "Checking";
+"subscription_summary_active" = "Active";
+"subscription_summary_renewalOff" = "Renewal Off";
+"subscription_summary_expired" = "Expired";
+"subscription_summary_unavailable" = "Unavailable";
+"subscription_summary_pending" = "Pending";
+"subscription_summary_error" = "Not Completed";
+"subscription_state_checking" = "Checking Your Subscription";
+"subscription_note_checking" = "Your current subscription details will appear here when they’re confirmed.";
+"subscription_starting_purchase" = "Purchasing";
+"subscription_restoring" = "Restoring purchases…";
+"subscription_restore_empty" = "No active subscription was found. You can try another Apple account or subscribe.";
+"subscription_restore_failed" = "Purchases couldn’t be restored. Check your connection and try Restore Purchases again.";
+"subscription_catalog_reload" = "This is a simulated price reload. No Apple purchase is opened.";
+
+/* Pro identity and its canonical Settings entry. */
+"subscription_pro_title" = "BackupDuck Pro";
+"subscription_pro_short" = "Pro";
+"subscription_view_pro" = "View Pro";
+"subscription_settings_value" = "Automatic backup for original photos and videos, with no item limit.";
+"subscription_benefit_automatic" = "New Photos Back Up Quietly";
+"subscription_state_notSubscribed" = "Not Subscribed";
+"subscription_summary_notSubscribed" = "Not Subscribed";
+"subscription_note_notSubscribed" = "Choose a monthly or annual plan when you’re ready.";
+"subscription_access_ended" = "Access Ended";
+"subscription_state_welcome" = "Your Free Period Is Active";
+"subscription_summary_welcome" = "Free Access";
+"subscription_note_welcome" = "Your first 7 days are free. When they end, you won’t be charged.";
+"subscription_welcome_until" = "Welcome Week Ends";
+"subscription_subscribe_continue" = "Subscribe & Continue";
+
+"subscription_benefit_live" = "Keep Live Photos Moving";
+
+"subscription_benefit_live_note" = "Back up originals and motion clips together to Pixel.";
+
+"subscription_benefit_automatic_note" = "Choose what to back up once. No need to repeat the steps every day.";
+
+"subscription_benefit_earlier" = "Back Up Your Whole Photo Library";
+
+"subscription_benefit_earlier_note" = "No item limit. Transfer in batches and continue after interruptions.";
+
+"subscription_benefit_folders" = "Import from Folders, Drives and NAS";
+
+"subscription_benefit_folders_note" = "On Mac, import photos and videos from folders, external drives, SD cards and mounted NAS storage.";
+
+"subscription_plan_includes" = "Original-quality transfers · No item or transfer quota";
+
+
+"subscription_benefit_background" = "Transfer While You Do Other Things";
+
+"subscription_benefit_background_note" = "You can leave the backup page and spend your time elsewhere.";
+
+"subscription_entry_upgrade" = "Upgrade";
+
+"hub_earlier_count_retained" = "%@ items counted";
+
+"subscription_testing_title" = "StoreKit Testing";
+"subscription_testing_note" = "This isolated app uses local StoreKit testing. Start it from the configured Xcode scheme. Transactions are managed in Xcode; these controls only change complimentary access.";
+"subscription_testing_environment" = "Local purchasing";
+"subscription_testing_ready" = "Available";
+"subscription_testing_missing" = "Unavailable — run from Xcode";
+"subscription_testing_welcome" = "Start 7-day complimentary access";
+"subscription_testing_expired" = "Expire complimentary access";
+"subscription_testing_reset" = "Reset complimentary access";
+
+"subscription_annual_plan" = "Annual Plan";
+"subscription_annual_price" = "%@ per year";
+"subscription_annual_equivalent" = "Equivalent to %@ per month";
+"subscription_annual_savings" = "Recommended · Save %@";

@@ -10,8 +10,9 @@ and in which words. Each platform draws it in its own dialect (P2).
    Edit renames the device.
 2. **Card (contextual).** At most one, only when something needs the user.
    It says the cause and offers one action. The only card is "BackupDuck
-   couldn't open its data" with Retry. Photo access and Pro will use the same
-   slot. While the engine is opening, values show "—" rather than guesses.
+   couldn't open its data" with Retry. Photo access uses the same slot.
+   Pro has one separate entry, never a duplicate promotion in this slot. While
+   the engine is opening, values show "—" rather than guesses.
 3. **Category rows.** Short nouns with their current value. Details live one
    level down. Only a choice that needs no explanation (appearance) is edited
    in place. Problems are marked on the row they belong to.
@@ -64,6 +65,7 @@ so they have no rows.
 
 | Row | Value | Opens |
 | --- | --- | --- |
+| Pro (verified production App Store hosts, separate entry below identity) | Upgrade or current access state | Welcome access or subscription facts; see [subscription](subscription.md) |
 | Auto Backup | On / Off / Pair First | Switch; Includes (media types, all by default; albums as a secondary entry) |
 | Folders (Mac) | "2 folders" | Folder preferences in the Settings detail pane; each folder opens below it |
 | Appearance | System / Light / Dark | In place |
@@ -211,9 +213,14 @@ Experiments page.
 - Footers under a switch say in one sentence what changes. Engineering detail
   goes to Help.
 
-Paid features have no row or card while every capability is available to
-everyone (`product-brief.md`). A paid surface uses the contextual card slot and
-a row of its own.
+Verified production App Store hosts have one quiet Pro navigation row below device identity in every
+access state. Its shared crown icon tile retains the same symbol and geometry
+when selected; do not replace it with a different brand silhouette. There is no
+additional promotion card or nested button. An unsubscribed entry uses a concise
+Upgrade action; other entries show the relevant access summary. Device identity
+stays about the device.
+TestFlight, development and direct-download hosts retain their existing settings
+structure without a Pro row, regardless of retained subscription data.
 
 ## Apple help, vocabulary and bundled notices
 

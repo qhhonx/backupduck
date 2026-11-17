@@ -32,6 +32,7 @@ behaves. Design process, decisions and history are not part of the public source
   [iPhone calendar grid](iphone-calendar-grid.md).
 - [Settings](settings.md), [Mac Folders](mac-folders.md),
   [Mac: connect a Pixel](mac-connect.md), [Pixel: connect a device](pixel-connect.md).
+- [Apple subscription experience](subscription.md).
 - [Apple notifications](apple-notifications.md) and
   [Live Activity](apple-live-activity.md).
 - [Copy glossary (zh-Hans)](copy-glossary.zh.md).

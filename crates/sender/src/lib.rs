@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions},
     path::Path,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 mod library;
@@ -146,6 +147,8 @@ impl Sender {
             CREATE TABLE IF NOT EXISTS receiver_features(receiver_id TEXT PRIMARY KEY,bundle_upload INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value INTEGER NOT NULL);
             INSERT OR IGNORE INTO settings VALUES('paused',0);
+            INSERT OR IGNORE INTO settings VALUES('access_allowed',1);
+            INSERT OR IGNORE INTO settings VALUES('access_valid_until',-1);
             INSERT OR IGNORE INTO settings VALUES('concurrent_uploads',4);
             INSERT OR IGNORE INTO settings VALUES('revision',0);
             CREATE TRIGGER IF NOT EXISTS jobs_insert_revision AFTER INSERT ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
@@ -584,6 +587,51 @@ impl Sender {
             })
             .map_err(db)
     }
+    /// Host-verified access is separate from the user's saved pause intent.
+    /// A missing deadline means unrestricted access; deadlines use Unix seconds.
+    pub fn access_policy(&self) -> Result<(bool, Option<i64>)> {
+        let allowed = self
+            .conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='access_allowed'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(db)?;
+        let deadline: i64 = self
+            .conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='access_valid_until'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(db)?;
+        Ok((allowed, (deadline >= 0).then_some(deadline)))
+    }
+    pub fn set_access_policy(&mut self, allowed: bool, valid_until: Option<i64>) -> Result<()> {
+        if valid_until.is_some_and(|deadline| deadline < 0) {
+            return Err(Error::Invalid("access deadline".into()));
+        }
+        let tx = self.conn.transaction().map_err(db)?;
+        tx.execute(
+            "UPDATE settings SET value=?1 WHERE key='access_allowed'",
+            [allowed],
+        )
+        .map_err(db)?;
+        tx.execute(
+            "UPDATE settings SET value=?1 WHERE key='access_valid_until'",
+            [valid_until.unwrap_or(-1)],
+        )
+        .map_err(db)?;
+        tx.commit().map_err(db)
+    }
+    pub fn execution_blocked(&self, now: i64) -> Result<bool> {
+        if now < 0 {
+            return Err(Error::Invalid("time".into()));
+        }
+        let (allowed, deadline) = self.access_policy()?;
+        Ok(self.paused()? || !allowed || deadline.is_some_and(|until| now >= until))
+    }
     /// Global pause retains attempt bindings so late completion can be reconciled.
     /// The executor must cancel/suspend active network operations when this returns.
     pub fn set_paused(&mut self, paused: bool) -> Result<()> {
@@ -596,7 +644,7 @@ impl Sender {
         if now < 0 {
             return Err(Error::Invalid("time".into()));
         }
-        if self.paused()? {
+        if self.execution_blocked(now)? {
             return Ok(None);
         }
         let tx = self.conn.transaction().map_err(db)?;
@@ -615,8 +663,16 @@ impl Sender {
         Ok(job)
     }
     pub fn bind_native_task(&mut self, a: &Attempt, task_id: &str) -> Result<()> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .min(i64::MAX as u64) as i64;
+        self.bind_native_task_at(a, task_id, now)
+    }
+    pub fn bind_native_task_at(&mut self, a: &Attempt, task_id: &str, now: i64) -> Result<()> {
         let job = self.current(a)?;
-        if self.paused()?
+        if self.execution_blocked(now)?
             || job
                 .native_task_id
                 .as_deref()

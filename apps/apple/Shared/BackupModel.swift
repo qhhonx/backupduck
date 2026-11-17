@@ -208,8 +208,8 @@ enum OriginalPreparationFailure {
     Task { await self.checkConnection() }
   })
   func canPrepareForReceiver() async -> Bool {
-    guard networkingStarted, !paused, let target = pairing else { return false }
-    return await checkReceiverConnection(target) && !paused
+    guard networkingStarted, !executionBlocked, let target = pairing else { return false }
+    return await checkReceiverConnection(target) && !executionBlocked
   }
   private func checkReceiverConnection(_ target: Pairing, force: Bool = false) async -> Bool {
     let result = await availability.diagnose(target, force: force)
@@ -227,18 +227,18 @@ enum OriginalPreparationFailure {
       _ = try? await Bridge.call(["op": "recover_connection", "receiver_id": target.receiverID])
     }
     if !available { activeExport?.cancel() }
-    return available && !paused
+    return available && !executionBlocked
   }
   func checkConnection() async {
     guard networkingStarted, let target = pairing, !checkingConnection else { return }
     checkingConnection = true
     defer { checkingConnection = false }
     _ = await checkReceiverConnection(target, force: true)
-    if receiverConnection == .ready && !paused { await BackgroundTransfer.shared.kick() }
+    if receiverConnection == .ready && !executionBlocked { await BackgroundTransfer.shared.kick() }
   }
   #if os(iOS)
     func recoverBackgroundReceiverRoute() async {
-      guard networkingStarted, !paused, let saved = pairing, !(await canPrepareForReceiver()) else { return }
+      guard networkingStarted, !executionBlocked, let saved = pairing, !(await canPrepareForReceiver()) else { return }
       let discovery = ReceiverDiscovery(model: self)
       if await discovery.recoverInBackground(saved) {
         _ = await canPrepareForReceiver()
@@ -296,6 +296,67 @@ enum OriginalPreparationFailure {
   @Published var jobs: [BackupJob] = [] { didSet { updateHubBatch() } }
   @Published var message: String?
   @Published var paused = true { didSet { updateHubBatch() } }
+  @Published private(set) var subscriptionAccessAllowed = true
+  @Published private(set) var subscriptionAccessValidUntil: Date?
+  private var subscriptionAccessConfigured = false
+  private var subscriptionAccessRevision = 0
+  private var subscriptionDeadlineTask: Task<Void, Never>?
+  private var subscriptionAccessWriteTask: Task<Void, Error>?
+  var subscriptionExecutionBlocked: Bool {
+    !subscriptionAccessAllowed || subscriptionAccessValidUntil.map { $0 <= Date() } == true
+  }
+  var executionBlocked: Bool { paused || subscriptionExecutionBlocked }
+
+  /// Access constrains execution without rewriting the person's pause or scope.
+  /// Hosts must explicitly clear it when entering an unrestricted distribution.
+  func setSubscriptionAccess(allowed: Bool, validUntil: Date? = nil) async {
+    subscriptionAccessConfigured = true
+    subscriptionAccessAllowed = allowed
+    subscriptionAccessValidUntil = validUntil
+    subscriptionAccessRevision += 1
+    let revision = subscriptionAccessRevision
+    subscriptionDeadlineTask?.cancel()
+    subscriptionDeadlineTask = nil
+    if allowed, let validUntil, validUntil > Date() {
+      subscriptionDeadlineTask = Task { [weak self] in
+        let interval = max(0, validUntil.timeIntervalSinceNow)
+        do { try await Task.sleep(for: .seconds(interval)) } catch { return }
+        guard let self, self.subscriptionAccessRevision == revision else { return }
+        await self.setSubscriptionAccess(allowed: allowed, validUntil: validUntil)
+      }
+    }
+    if subscriptionExecutionBlocked { activeExport?.cancel() }
+    guard queueOpened else { return }
+    if executionBlocked, networkingStarted {
+      await BackgroundTransfer.shared.cancelAll()
+      guard revision == subscriptionAccessRevision else { return }
+    }
+    do {
+      try await persistSubscriptionAccess()
+      guard revision == subscriptionAccessRevision else { return }
+      if !executionBlocked {
+        startWorker()
+        await discoverPhotos()
+        await scanHistoricalImport()
+        await processPendingImports()
+      }
+      scheduleBackgroundWork()
+    } catch { message = error.localizedDescription }
+  }
+  private func persistSubscriptionAccess() async throws {
+    var command: [String: Any] = ["op": "set_sender_access", "allowed": subscriptionAccessAllowed]
+    if let deadline = subscriptionAccessValidUntil {
+      command["valid_until"] = Int64(deadline.timeIntervalSince1970.rounded(.down))
+    }
+    let previous = subscriptionAccessWriteTask
+    let write = Task {
+      // A failed older write does not discard a newer verified access update.
+      _ = try? await previous?.value
+      _ = try await Bridge.call(command)
+    }
+    subscriptionAccessWriteTask = write
+    try await write.value
+  }
   @Published var importing = false
   @Published var ready = false { didSet { updateHubBatch() } }
   private var opened = false
@@ -306,9 +367,15 @@ enum OriginalPreparationFailure {
   let root: URL
   init(root: URL? = nil) {
     photoAccess = BackupEnvironment.photoAccess()
+    var directoryName = "BackupDuck"
+    #if BACKUPDUCK_SUBSCRIPTION_TESTING
+      if Bundle.main.bundleIdentifier == "app.backupduck.storekittest" {
+        directoryName = "BackupDuckStoreKitTest"
+      }
+    #endif
     self.root = root ?? FileManager.default.urls(
       for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(
-        "BackupDuck", isDirectory: true)
+        directoryName, isDirectory: true)
     #if os(iOS)
       let activeNotification = UIApplication.didBecomeActiveNotification
     #else
@@ -354,6 +421,8 @@ enum OriginalPreparationFailure {
         ])
         queueOpened = true
       }
+      if subscriptionAccessConfigured { try await persistSubscriptionAccess() }
+      message = NSLocalizedString("pairing_unlock_wait", comment: "")
       if reinstalled { try? BackupEnvironment.credentials.discardLeftover() }
       if let data = try await Keychain.readAsync() {
         pairing = try JSONDecoder().decode(Pairing.self, from: data)
@@ -389,7 +458,7 @@ enum OriginalPreparationFailure {
           if Self.canPoll {
             Task { await self.syncDeviceProfile() }
             await refresh()
-            if !paused { _ = await canPrepareForReceiver() }
+            if !executionBlocked { _ = await canPrepareForReceiver() }
             await BackgroundTransfer.shared.kick()
             await discoverPhotos()
             await scanHistoricalImport()
@@ -399,7 +468,7 @@ enum OriginalPreparationFailure {
         }
       }
       startProcessingEvents()
-      if !paused { startWorker() }
+      if !executionBlocked { startWorker() }
       scheduleBackgroundWork()
     } catch {
       opened = false
@@ -452,7 +521,7 @@ enum OriginalPreparationFailure {
       Task { await self.syncDeviceProfile(force: true) }
       queueRevision = -1
       await refresh()
-      if !paused { startWorker() }
+      if !executionBlocked { startWorker() }
       return true
     } catch {
       pairingCodeInvalid = error is DecodingError || ["invalid_input", "authentication", "expired"].contains((error as? Bridge.Failure)?.code ?? "")
@@ -486,7 +555,7 @@ enum OriginalPreparationFailure {
     do {
       _ = try await Bridge.call(["op": "set_transfer_concurrency", "limit": limit])
       concurrentUploads = limit
-      if !paused { await BackgroundTransfer.shared.kick() }
+      if !executionBlocked { await BackgroundTransfer.shared.kick() }
     } catch { concurrencyError = error.localizedDescription; message = concurrencyError }
   }
   @discardableResult func setPaused(_ value: Bool, discoverAfterResume: Bool = true) async -> Bool {
@@ -508,7 +577,7 @@ enum OriginalPreparationFailure {
     } catch { pauseError = error.localizedDescription; message = pauseError; return false }
   }
   private func startWorker() {
-    guard networkingStarted, pairing != nil, ready else { return }
+    guard networkingStarted, pairing != nil, ready, !executionBlocked else { return }
     Task { await BackgroundTransfer.shared.kick() }
   }
   func updateDiscoveryStatus() {
@@ -529,7 +598,7 @@ enum OriginalPreparationFailure {
       try await discovery?.setEnabled(enabled, receiverID: pairing?.receiverID)
       updateDiscoveryStatus()
       scheduleBackgroundWork()
-      if !paused { await discoverPhotos() }
+      if !executionBlocked { await discoverPhotos() }
     } catch { autoBackupError = error.localizedDescription; message = autoBackupError }
   }
   func discoverPhotos() async {
@@ -549,7 +618,7 @@ enum OriginalPreparationFailure {
   func scheduleBackgroundWork() {
     #if os(iOS)
       BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: AppDelegate.processingIdentifier)
-      guard networkingStarted, ready, !paused, pairing != nil,
+      guard networkingStarted, ready, !executionBlocked, pairing != nil,
         autoBackup || discoveryPending > 0 || discovery?.state.closingToken != nil
           || historicalImport?.state == "scanning" || pendingImports > 0
           || jobs.contains(where: { ["queued", "running", "waiting"].contains($0.state) })
@@ -710,7 +779,7 @@ enum OriginalPreparationFailure {
     do {
       _ = try await Bridge.call(["op": "retry", "id": id])
       await refresh()
-      if !paused { startWorker() }
+      if !executionBlocked { startWorker() }
       return true
     } catch { message = error.localizedDescription; return false }
   }
@@ -882,7 +951,7 @@ enum OriginalPreparationFailure {
     }
     for index in 0..<assets.count {
       guard !Task.isCancelled, pairing?.receiverID == target.receiverID else { return false }
-      if paused && !requestAuthorization { return false }
+      if executionBlocked && !requestAuthorization { return false }
       guard await canPrepareForReceiver() else { return false }
       let sourceID = orderedAssets[index].localIdentifier
       let requestID = preparation?.request_id ?? sourceID
@@ -975,8 +1044,11 @@ enum OriginalPreparationFailure {
         preparationReason = nil
         message = nil
         await refresh()
-        if !paused { startWorker() }
+        if !executionBlocked { startWorker() }
       } catch {
+        // An access hold interrupts export without turning durable preparation
+        // into a failed source that would need a manual retry after renewal.
+        if subscriptionExecutionBlocked { return false }
         succeeded = false
         message = error.localizedDescription
         if preparationFailure == nil { preparationFailure = message }
@@ -997,7 +1069,7 @@ enum OriginalPreparationFailure {
     {
       pendingImports = pending["count"] as? Int ?? 0
     }
-    if !paused { startWorker() }
+    if !executionBlocked { startWorker() }
     scheduleBackgroundWork()
     if !succeeded, let preparationFailure { message = preparationFailure }
     return succeeded
@@ -1086,7 +1158,7 @@ enum OriginalPreparationFailure {
         guard self.pairing?.receiverID == pairing.receiverID else { return }
         result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         pendingImports = result?["count"] as? Int ?? 0
-        guard !paused, photoAccess == .full || photoAccess == .limited else { return }
+        guard !executionBlocked, photoAccess == .full || photoAccess == .limited else { return }
         guard await canPrepareForReceiver() else { return }
         let unordered = result?["unordered"] as? [String] ?? []
         if unordered.isEmpty { break }
@@ -1100,11 +1172,11 @@ enum OriginalPreparationFailure {
         preparationReason = storage.reason
         return
       }
-      if !paused, let entries = result?["preparations"] as? [[String: Any]] {
+      if !executionBlocked, let entries = result?["preparations"] as? [[String: Any]] {
         let requests = try JSONDecoder().decode([SourcePreparation].self,
           from: JSONSerialization.data(withJSONObject: entries))
         for request in requests {
-          guard !Task.isCancelled, self.pairing?.receiverID == pairing.receiverID, !paused else { return }
+          guard !Task.isCancelled, self.pairing?.receiverID == pairing.receiverID, !executionBlocked else { return }
           // Legacy source-only membership retains its existing batching path;
           // registered requests preserve the exact revision and repeat identity.
           _ = await importAssets([request.source], requestAuthorization: false,
@@ -1114,7 +1186,7 @@ enum OriginalPreparationFailure {
     } catch { message = error.localizedDescription }
   }
   var waitingReason: String? {
-    if paused { return nil }
+    if executionBlocked { return nil }
     if receiverUnavailable { return "receiver_unavailable" }
     if let preparationReason { return preparationReason }
     if waitingForNetwork { return "network" }
@@ -1124,7 +1196,7 @@ enum OriginalPreparationFailure {
   /// The compact footer describes the whole backup. Preparation can wait for
   /// cache space while transfers continue; full details retain that reason.
   var compactWaitingReason: String? {
-    if paused { return nil }
+    if executionBlocked { return nil }
     if receiverUnavailable { return "receiver_unavailable" }
     if waitingForNetwork { return "network" }
     if importing || summary.running > 0 { return nil }
@@ -1187,10 +1259,16 @@ enum Keychain {
 
 /// The pairing record in the system keychain.
 struct SystemKeychain: CredentialStore {
-  private static let query: [String: Any] = [
-    kSecClass as String: kSecClassGenericPassword,
-    kSecAttrService as String: "app.backupduck.pairing", kSecAttrAccount as String: "receiver",
-  ]
+  private static var query: [String: Any] {
+    var service = "app.backupduck.pairing"
+    #if BACKUPDUCK_SUBSCRIPTION_TESTING
+      if Bundle.main.bundleIdentifier == "app.backupduck.storekittest" {
+        service = "app.backupduck.storekittest.pairing"
+      }
+    #endif
+    return [kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service, kSecAttrAccount as String: "receiver"]
+  }
   func read() throws -> Data? {
     var q = Self.query
     q[kSecReturnData as String] = true

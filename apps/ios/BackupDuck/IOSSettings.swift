@@ -20,14 +20,24 @@ private struct IOSSettingsContent: View {
   @AppStorage("duckAppearance") private var appearance = "system"
   @Environment(\.openURL) private var openURL
   @Environment(\.duckSettingsNavigator) private var navigator
+  @Environment(\.duckSubscriptionSettings) private var subscription
+  @Environment(\.duckProEnabled) private var proEnabled
   @State private var editingName = false
   @State private var retrying = false
+  @State private var openedInitialPro = false
   private var values: DuckSettingsValues { DuckSettingsValues(model: model) }
   var body: some View {
       ScrollViewReader { proxy in
       Form {
         header
         if model.message != nil && !model.ready { openFailedCard }
+        if proEnabled, let subscription {
+          Section {
+            DuckSubscriptionSettingsRow(presentation: subscription.presentation) {
+              navigator?.open(DuckSettingsPage(title: Text("subscription_pro_short"), content: subscription.detail))
+            }
+          }
+        }
         Section {
           // Devices live in Settings (design/navigation.md, D3).
           DuckSettingsLink(title: Text("settings_devices")) { IOSDevicePage(model: model) } label: {
@@ -85,6 +95,11 @@ private struct IOSSettingsContent: View {
         }
       }
       .task { if model.deviceSnapshot == nil { await model.refreshDeviceStatus() } }
+      .task(id: model.ready) {
+        guard proEnabled, model.ready, !openedInitialPro, let subscription, subscription.openDetailInitially, let navigator else { return }
+        openedInitialPro = true
+        navigator.open(DuckSettingsPage(title: Text("subscription_pro_short"), content: subscription.detail))
+      }
       .onAppear { if showBottom { proxy.scrollTo("settings.bottom", anchor: .bottom) } }
       }
     .sheet(isPresented: $editingName) {

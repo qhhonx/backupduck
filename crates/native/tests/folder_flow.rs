@@ -88,6 +88,28 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
     index.begin("source", &source, now - 20000).unwrap();
     while index.step(now - 20000, 100).unwrap().scanning {}
     drop(index);
+    let before_hold = folder(json!({"action":"facts","source":"source","receiver":receiver}));
+    ok(json!({"op":"set_sender_access","allowed":true,"valid_until":0}));
+    let held = call(json!({"op":"folder","command":prepare.clone()}));
+    assert_eq!(held["ok"], false);
+    assert_eq!(held["error"], "cancelled");
+    assert_eq!(
+        folder(json!({"action":"facts","source":"source","receiver":receiver})),
+        before_hold
+    );
+    assert!(ok(json!({"op":"jobs","receiver_id":receiver}))
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        fs::read(source.join("original.jpg")).unwrap(),
+        b"original image"
+    );
+    assert_eq!(
+        fs::read(source.join("original.mov")).unwrap(),
+        b"original video"
+    );
+    ok(json!({"op":"set_sender_access","allowed":true}));
     folder(prepare.clone());
     folder(prepare.clone());
     let facts = folder(json!({"action":"facts","source":"source","receiver":receiver}));

@@ -142,7 +142,8 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     if model.deviceSnapshot == nil { await model.refreshDeviceStatus() }
     await model.refreshPendingImportCount()
     var context: [String: Any] = ["execution": observedExecution ?? execution,
-      "paused": model.paused, "pending_imports": model.pendingImports,
+      "paused": model.paused, "access_blocked": model.subscriptionExecutionBlocked,
+      "pending_imports": model.pendingImports,
       "discovery_pending": model.discoveryPending]
     if let storage = model.storage {
       context["cache_used_bytes"] = storage.used_bytes
@@ -266,14 +267,14 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
         reconciled = true
       }
       for task in tasks {
-        if orphans.contains(String(task.taskIdentifier)) || model.paused {
+        if orphans.contains(String(task.taskIdentifier)) || model.executionBlocked {
           task.cancel()
         } else if task.state == .suspended {
           task.resume()
         }
       }
-      guard !model.paused else {
-        await recordDecision("paused", tasks: tasks)
+      guard !model.executionBlocked else {
+        await recordDecision(model.subscriptionExecutionBlocked ? "access_expired" : "paused", tasks: tasks)
         return
       }
       guard let pairing = model.pairing else {
@@ -292,7 +293,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
       }
       // Rust limits prepared jobs to a small window; the OS can execute these
       // file uploads consecutively without waking us between assets.
-      while !model.paused {
+      while !model.executionBlocked {
         let plan = try await Bridge.call(["op": "prepare_native", "receiver_id": pairing.receiverID])
         guard let request = try JSONDecoder().decode(NativeRequest?.self, from: plan) else {
           await recordDecision("no_eligible_job", tasks: await session.allTasks)
@@ -336,6 +337,11 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
               "op": "bind_native", "attempt": request.attempt.object,
               "task_id": String(task.taskIdentifier),
             ])
+            guard !model.executionBlocked else {
+              task.cancel()
+              _ = try? await Bridge.call(["op": "abandon_native", "attempt": request.attempt.object])
+              return
+            }
             let stage = request.path == "/v2/bundles" ? "bundle_submitted" : request.method == "PUT" ? "upload_submitted" : request.path.hasSuffix("/commit") ? "commit_submitted" : "manifest_submitted"
             var submissionContext = taskContext(task, attempt: descriptor)
             submissionContext["transfer_mode"] = request.transferMode
@@ -343,6 +349,11 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
               bytes: (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value,
               context: submissionContext)
             lastDecision = nil
+            guard !model.executionBlocked else {
+              task.cancel()
+              _ = try? await Bridge.call(["op": "abandon_native", "attempt": request.attempt.object])
+              return
+            }
             task.resume()
           } catch {
             task.cancel()

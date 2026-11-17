@@ -112,6 +112,7 @@ pub struct EventContext {
     pub pending_imports: Option<u64>,
     pub discovery_pending: Option<u64>,
     pub paused: Option<bool>,
+    pub access_blocked: Option<bool>,
     pub active_requests: Option<u32>,
     pub next_retry_at: Option<i64>,
     pub http_status: Option<u16>,
@@ -274,6 +275,7 @@ pub enum RequestPhase {
 #[serde(rename_all = "snake_case")]
 pub enum DispatchReason {
     Paused,
+    AccessExpired,
     Unpaired,
     ReceiverUnavailable,
     ActiveRequest,
@@ -1010,6 +1012,7 @@ mod tests {
         let maintenance = Maintenance::open(&root.0).unwrap();
         let context: EventContext = serde_json::from_value(json!({
             "queued":12,"running":1,"waiting":3,"failed":0,"paused":false,
+            "access_blocked":true,"reason":"access_expired",
             "active_requests":1,"execution":"background","phase":"upload",
             "bytes_sent":4096,"bytes_expected":8192,"next_retry_at":now()+60,
             "request_id":123,"task_id":7,"generation":4,"charging":false,
@@ -1025,6 +1028,8 @@ mod tests {
         let entries = Maintenance::open(&root.0).unwrap().events().unwrap();
         assert_eq!(entries.as_array().unwrap().len(), 2);
         assert_eq!(entries[0]["context"]["queued"], 12);
+        assert_eq!(entries[0]["context"]["access_blocked"], true);
+        assert_eq!(entries[0]["context"]["reason"], "access_expired");
         assert_eq!(entries[0]["context"]["bytes_expected"], 8192);
         assert_eq!(entries[0]["context"]["request_id"], 123);
         assert_eq!(entries[0]["context"]["charging"], false);

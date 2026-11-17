@@ -320,6 +320,7 @@ struct DuckConfirmedProgress: View {
 struct DuckEarlierPhotosCard: View {
   let history: HistoricalImportStatus
   var changing: Bool
+  var executionBlocked = false
   var control: (String) -> Void
   private var notStarted: Bool { !history.hasStarted }
   private var paused: Bool { history.state == "paused" }
@@ -333,6 +334,12 @@ struct DuckEarlierPhotosCard: View {
       return Text(String(format: NSLocalizedString("hub_earlier_saved_progress", comment: ""), published.formatted(), history.checked.formatted()))
     }
     if history.state == "scanned" { return Text("hub_earlier_waiting_confirmation") }
+    if executionBlocked {
+      if history.checked > 0 {
+        return Text(String(format: NSLocalizedString("hub_earlier_count_retained", comment: ""), history.checked.formatted()))
+      }
+      return Text("hub_earlier_paused")
+    }
     if !paused, history.checked > 0 {
       return Text(String(format: NSLocalizedString("hub_earlier_counted", comment: ""), history.checked.formatted()))
     }
@@ -354,9 +361,11 @@ struct DuckEarlierPhotosCard: View {
         #endif
       })
       .accessibilityIdentifier("hub.earlier_summary")
+      .transaction { if executionBlocked { $0.disablesAnimations = true } }
   }
   @ViewBuilder private var scanControl: some View {
-    if notStarted {
+    if executionBlocked { EmptyView() }
+    else if notStarted {
       DuckTintedButton("hub_earlier_start") { control("start") }.disabled(changing)
     } else if ["scanning", "paused"].contains(history.state) {
       DuckTintedButton(paused ? "hub_earlier_resume" : "hub_pause") { control(paused ? "resume" : "pause") }

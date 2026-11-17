@@ -1,0 +1,12 @@
+{
+  "id": "subscription.error",
+  "page": "settings",
+  "step": "subscription",
+  "title": "Subscription \u00b7 error",
+  "extends": "base",
+  "expect": [
+    "Production Pro supporting views use the existing premium duck and synthetic price, date and eligibility facts.",
+    "Purchase, restoration, management and legal actions are explicitly simulated; no StoreKit, real library or account is accessed.",
+    "The monthly and annual offers have no Apple introductory trial. Welcome is a separate synthetic state."
+  ]
+}

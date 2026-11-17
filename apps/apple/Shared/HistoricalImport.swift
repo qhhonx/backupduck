@@ -177,7 +177,7 @@ extension BackupModel {
     scanningHistory = true
     defer { scanningHistory = false }
     await refreshHistoricalImport()
-    guard !paused, let status = historicalImport, status.state == "scanning" else { return }
+    guard !executionBlocked, let status = historicalImport, status.state == "scanning" else { return }
     guard photoAccess == .full || photoAccess == .limited else {
       historyError = NSLocalizedString("photos_permission_needed", comment: "")
       historicalCursor = nil
@@ -189,7 +189,7 @@ extension BackupModel {
       if historicalCursor?.receiver != target.receiverID || historicalCursor?.run != status.run {
         let snapshot = try await HistoricalScanCursor.load(root: root,
           receiver: target.receiverID, run: status.run, snapshotID: status.snapshot_id)
-        guard !Task.isCancelled, !paused, version == historyControlRevision,
+        guard !Task.isCancelled, !executionBlocked, version == historyControlRevision,
           pairing?.receiverID == target.receiverID else { return }
         historicalCursor = snapshot
       }
@@ -206,7 +206,7 @@ extension BackupModel {
         }
         return ids.compactMap { id -> [String]? in revisions[id].map { [id, $0] } }
       }.value
-      guard !Task.isCancelled, !paused, version == historyControlRevision,
+      guard !Task.isCancelled, !executionBlocked, version == historyControlRevision,
         pairing?.receiverID == target.receiverID else { return }
       var command: [String: Any] = ["op": "history_batch", "receiver_id": target.receiverID,
         "run": status.run, "sources": sources, "finished": end == cursor.ids.count]

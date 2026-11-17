@@ -160,8 +160,13 @@ The hub answers "are my photos safe?" in one line, then shows only what is
 happening or needs the user.
 
 Apple hubs order their content as overall state, earlier-photo state, recent
-photos and Backup History. The two states remain separate cards. The
-earlier-photo card exposes only its start, pause or resume controls; the card
+photos and Backup History. The two states remain separate cards. Expired access
+in a verified production App Store installation replaces the overall
+state with one paused-backup explanation and Subscribe & Continue action; see
+[subscription](subscription.md#backup-task-entry). Known task progress and read-only
+records remain visible, and backup execution controls yield to that access
+constraint. The
+earlier-photo card otherwise exposes only its start, pause or resume controls; the card
 itself does not open records. Confirmed completion removes both the progress
 bar and its reserved slot, leaving the completed state as an ordinary card.
 

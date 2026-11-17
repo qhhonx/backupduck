@@ -1,0 +1,13 @@
+{
+  "id": "subscription.settings",
+  "page": "settings",
+  "title": "Pro in complete Settings \u00b7 welcome",
+  "extends": "base-paired",
+  "expect": [
+    "Complete production Settings keeps device identity, a separate canonical Pro entry and all existing categories.",
+    "Synthetic welcome status opens Pro management; no StoreKit, real account, business gate or onboarding change occurs.",
+    "The Pro entry is one stable crown-icon settings row in every access state, with no introduction card or selection-dependent artwork.",
+    "Pro detail uses one compact identity, current-access facts when applicable, four explanatory benefit rows on iPhone or five on Mac and a single adjacent plan/purchase section.",
+    "Welcome has no subscription renewal facts. The optional offer product price is injected separately; expired access offers a direct paid Subscribe & Continue action."
+  ]
+}

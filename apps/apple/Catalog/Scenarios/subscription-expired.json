@@ -1,0 +1,14 @@
+{
+  "id": "subscription.expired",
+  "page": "settings",
+  "step": "subscription",
+  "title": "Subscription \u00b7 expired",
+  "extends": "base",
+  "expect": [
+    "Production Pro supporting views use the existing premium duck and synthetic price, date and eligibility facts.",
+    "Purchase, restoration, management and legal actions are explicitly simulated; no StoreKit, real library or account is accessed.",
+    "The monthly and annual offers have no Apple introductory trial. Welcome is a separate synthetic state.",
+    "Expiry pauses unfinished work while preserving completed photos, pending tasks and progress; subscription resumes existing work. No grandfathered batch/file allowance is promised.",
+    "User queue pause and Auto Backup preferences are unchanged; this Catalog does not implement production access enforcement."
+  ]
+}

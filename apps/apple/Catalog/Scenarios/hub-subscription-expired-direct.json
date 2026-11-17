@@ -1,0 +1,10 @@
+{
+  "id": "hub.subscription-expired-direct",
+  "extends": "hub.subscription-expired",
+  "page": "backup",
+  "title": "Non-store channel keeps ordinary backup: direct",
+  "expect": [
+    "Both Pro contexts are supplied, but explicit non-store distribution hides Settings Pro and access-expiry UI.",
+    "The normal production backup state and its usual controls remain available; no entitlement condition changes execution."
+  ]
+}

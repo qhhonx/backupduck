@@ -54,8 +54,10 @@ photos, your Pixel, Photos and Wi‑Fi (`copy-glossary.zh.md`).
 
 - A new user is paired and backing up within five minutes.
 - Day to day, nothing needs doing.
-- Settings holds at most eight rows. Everything else is automatic or in
-  Advanced.
+- Settings keeps the existing eight-row budget for ordinary categories. Verified
+  production App Store hosts add one canonical Pro entry below device identity, separate from device
+  and backup settings, without a duplicate promotion. Everything else is automatic or
+  in Advanced.
 
 ## Not in this version
 
@@ -63,8 +65,13 @@ Accounts and cloud storage, photos hosted by us, a rule editor for backups.
 
 ## Paid features
 
-There is no membership surface yet. Everyone gets every capability, Advanced
-included. Build anything that may later become paid behind an entitlement check
-that is always granted today and that a hidden test switch can turn off, so its
-effect can be tried before anything is shown to users. Advanced means "for
-fewer people", not "paid".
+The [Apple subscription experience](subscription.md) offers monthly and annual plans in
+verified production App Store installations after a complimentary seven-day welcome period. Welcome access does not start
+a subscription or charge automatically. Welcome and paid access include all
+backup capabilities without a transfer quota. Browsing, existing saved results,
+export and necessary recovery remain available when access ends. Unfinished
+backups pause with their tasks and progress retained for resumption after
+subscription. Advanced means "for fewer people", not a separate
+paid tier. Purchase support is an explicit host capability; TestFlight,
+development, direct-distribution Mac hosts and the Android receiver retain
+their existing backup access without Pro or welcome-period expiry.
