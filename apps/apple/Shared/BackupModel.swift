@@ -422,7 +422,6 @@ enum OriginalPreparationFailure {
         queueOpened = true
       }
       if subscriptionAccessConfigured { try await persistSubscriptionAccess() }
-      message = NSLocalizedString("pairing_unlock_wait", comment: "")
       if reinstalled { try? BackupEnvironment.credentials.discardLeftover() }
       if let data = try await Keychain.readAsync() {
         pairing = try JSONDecoder().decode(Pairing.self, from: data)

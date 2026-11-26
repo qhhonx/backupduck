@@ -37,6 +37,20 @@ private actor ChangingReceiverFixture {
     }
   }
 
+  func testStartupFailureClearsAfterRetry() async throws {
+    try await withModel("settings.start-failed") { model, core in
+      await model.open()
+      XCTAssertFalse(model.ready)
+      XCTAssertEqual(model.message, Bridge.Failure(code: "storage").localizedDescription)
+
+      await model.open()
+      XCTAssertTrue(model.ready)
+      XCTAssertNotNil(model.pairing)
+      XCTAssertNil(model.message)
+      XCTAssertEqual(operations(core).filter { $0 == "open_sender" }.count, 2)
+    }
+  }
+
   func testDiagnosticsReadsLocalEventsBeforeForegroundEnvironmentArrives() async throws {
     try await withModel("diagnostics.root") { model, core in
       await model.open()
