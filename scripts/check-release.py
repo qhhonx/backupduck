@@ -27,18 +27,25 @@ assert p['SURequireSignedFeed'] and p['SUVerifyUpdateBeforeExtraction']
 assert p['CFBundleIdentifier']=='app.backupduck'
 ios=plistlib.loads((r/'apps/ios/BackupDuck/Info.plist').read_bytes())
 assert ios['CFBundleIdentifier']=='app.backupduck'
+inhouse=plistlib.loads((r/'apps/ios/InHouse/Info.plist').read_bytes())
+assert inhouse['CFBundleIdentifier']=='app.backupduck.inhouse'
+widget=plistlib.loads((r/'apps/ios/LiveActivity/Info.plist').read_bytes())
 store=plistlib.loads((r/'apps/macos/BackupDuck/StoreInfo.plist').read_bytes())
 assert store['CFBundleIdentifier']=='app.backupduck'
 assert not any(key.startswith('SU') for key in store), 'Store build must not advertise Sparkle'
 for metadata in [ios,store]:
  assert metadata.get('ITSAppUsesNonExemptEncryption') is False, 'Recheck Apple encryption declaration and distribution scope'
-for metadata in [p,ios,store]:
+for metadata in [p,ios,inhouse,widget,store]:
  assert metadata['CFBundleShortVersionString']==i['version'].split('-')[0]
  assert int(metadata['CFBundleVersion'])==i['build']
 assert ios['BackupDuckReleaseVersion']==i['version']
+assert inhouse['BackupDuckReleaseVersion']==i['version']
 identifier='app.backupduck.backup.processing'
 assert identifier in ios['BGTaskSchedulerPermittedIdentifiers']
 assert identifier in (r/'apps/ios/BackupDuck/BackgroundLifecycle.swift').read_text()
+inhouse_identifier='app.backupduck.inhouse.backup.processing'
+assert inhouse['BGTaskSchedulerPermittedIdentifiers']==[inhouse_identifier]
+assert inhouse_identifier in (r/'apps/ios/BackupDuck/BackgroundLifecycle.swift').read_text()
 gradle=(r/'apps/android/app/build.gradle').read_text()
 assert "namespace 'app.backupduck'" in gradle and "applicationId 'app.backupduck'" in gradle
 assert 'Java_app_backupduck_NativeBridge_call' in (r/'crates/native/src/lib.rs').read_text()

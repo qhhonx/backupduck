@@ -1,6 +1,25 @@
 import XCTest
 
 final class SettingsTests: XCTestCase {
+  #if BACKUPDUCK_TESTFLIGHT
+  @MainActor func testTestFlightShowsIncludedProWithoutPurchase() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-firstRunDone", "YES", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    launchIsolated(app)
+    let settings = app.tabBars.buttons["Settings"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 20))
+    settings.tap()
+    let pro = app.buttons["subscription.settings.entry"]
+    XCTAssertTrue(pro.waitForExistence(timeout: 10))
+    pro.tap()
+    XCTAssertTrue(app.staticTexts["Pro is included"].waitForExistence(timeout: 10))
+    XCTAssertFalse(app.buttons["subscription.status.action"].exists)
+    XCTAssertFalse(app.buttons["subscription.purchase"].exists)
+    XCTAssertFalse(app.buttons["Restore Purchases"].exists)
+  }
+  #endif
+
   @MainActor func testNativeTabRoundTripRetainsVisibleLibraryAnchor() throws {
     continueAfterFailure = false
     let app = XCUIApplication(bundleIdentifier: "app.backupduck.catalog")

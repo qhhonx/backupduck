@@ -95,7 +95,7 @@ import SwiftUI
         }
         .onChange(of: notifier.route, initial: true) { _, _ in consumeNotification() }
         .onOpenURL { url in
-          guard url.scheme == "backupduck", url.host == "backup",
+          guard url.scheme == BackupActivityAttributes.urlScheme, url.host == "backup",
             let receiver = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "receiver" })?.value else { return }
           activityReceiver = receiver
           consumeActivityLink()

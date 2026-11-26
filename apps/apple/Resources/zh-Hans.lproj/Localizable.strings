@@ -1338,3 +1338,6 @@
 "subscription_annual_price" = "每年 %@";
 "subscription_annual_equivalent" = "折合每月 %@";
 "subscription_annual_savings" = "推荐 · 省 %@";
+"subscription_state_testAccess" = "已启用 Pro";
+"subscription_summary_testAccess" = "已启用";
+"subscription_note_testAccess" = "测试版可直接使用 Pro，无需订阅。";

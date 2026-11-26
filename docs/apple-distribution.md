@@ -6,7 +6,8 @@ are never committed. The website and GitHub release channels remain independent.
 
 ## Projects and signing
 
-- iOS: `apps/ios/BackupDuck.xcodeproj`, shared scheme `BackupDuck`.
+- iOS: `apps/ios/BackupDuck.xcodeproj`. Use the channel schemes below for
+  device development, external testing and App Store review.
 - Mac direct download: `apps/macos/BackupDuck.xcodeproj`, scheme `BackupDuck`,
   with the signed Sparkle update feed.
 - Mac TestFlight/App Store: the same project, scheme `BackupDuckStore`. This
@@ -26,23 +27,34 @@ its original-artwork-derived template. The store target has its own Info.plist
 without direct-download updater keys. Keep its product version aligned with
 `release.json`; increment actual uploaded build numbers when submitting again.
 
-## Pro availability
+## iPhone packages and Pro availability
 
-Pro entry points, purchases and welcome-period expiry require verified App Store
-distribution. Ordinary TestFlight and direct-download hosts keep backup
-available without Pro. The signed `AppTransaction` must match the app bundle.
-Production installations accept production purchases. Xcode, missing and
-unverified evidence leaves Pro disabled in distribution builds. Unresolved
-checks retry on foreground entry without blocking backup.
+| Package | Xcode scheme | Identity | Pro access |
+| --- | --- | --- | --- |
+| InHouse | `BackupDuckInHouse`, run with `InHouse` | `app.backupduck.inhouse` | Included for development testing |
+| TestFlight | `BackupDuckTestFlight`, archive with `TestFlight` | `app.backupduck` | Included for external testing |
+| App Store | `BackupDuckAppStoreSubmission`, archive with `AppStoreSubmission` | `app.backupduck` | Welcome access and verified subscriptions |
+
+InHouse uses Apple Development signing on registered devices. It installs next
+to the production app with its own sandbox, pairing credential, background jobs
+and Live Activity route. The iPhone TestFlight package shares the production
+identity so an in-place channel change can keep the person's data. Its Settings
+page shows that Pro is included. Both test packages run backup without a trial,
+purchase, renewal check or access deadline.
+
+Only the App Store package enables purchase. The signed `AppTransaction` must
+match the app bundle. Production installations accept production purchases.
+Unresolved checks retry on foreground entry without blocking backup. Mac
+TestFlight and direct downloads retain the existing unrestricted backup behavior.
 
 The `BackupDuckAppStoreSubmission` scheme on each platform archives the ordinary
 store target with the `AppStoreSubmission` configuration. This configuration
 also accepts a verified matching sandbox app transaction and sandbox purchases
 for App Review. Apple reviews the same archive that goes to customers.
-Upload the submission archive to App Store Connect for App Review only, with
-manual App Store release. Verify that no internal group has automatic access
-to every build and keep the submission archive out of all TestFlight groups.
-Use the ordinary `BackupDuck` and `BackupDuckStore` Release schemes for TestFlight.
+Upload the submission archive to App Store Connect for App Review only. Keep it
+out of TestFlight groups, including automatic internal groups. Select the iOS
+TestFlight scheme for beta archives and never attach a TestFlight archive to
+an App Store version. Use `BackupDuckStore` for Mac external testing.
 
 Distribution detection uses `AppTransaction.shared` without an explicit receipt
 refresh or account-authentication fallback and requires no application server.
@@ -83,8 +95,8 @@ archives before attaching them to their App Store versions.
   the pairing and receiver instructions needed to exercise backup.
 - Before submission, verify that App Review can see, buy and restore both
   plans in Apple's sandbox using the dedicated submission configuration.
-  Verify ordinary TestFlight and Mac direct-download builds still allow backup
-  without Pro.
+  Verify iPhone TestFlight and InHouse include Pro and omit purchase controls.
+  Verify Mac direct-download builds still allow backup without a subscription.
 
 **English App Store description**
 
@@ -154,7 +166,9 @@ Keep Cloud test actions, scheduled builds and
 branch/pull-request triggers disabled to limit compute use.
 Run the existing tests locally or in GitHub Actions before starting a release;
 Cloud is reserved for distribution signing, archive and upload.
-The Mac workflow must select `BackupDuckStore`, not the direct-download scheme.
+The iOS external workflow can use its existing `BackupDuck` scheme, whose
+archive action selects the same configuration as `BackupDuckTestFlight`.
+The Mac external workflow selects `BackupDuckStore`.
 
 The `Start TestFlight release` GitHub workflow runs only after successful `Checks`
 on the current public `main` commit. It creates `testflight/v<version>` once per

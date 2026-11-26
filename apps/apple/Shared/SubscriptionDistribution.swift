@@ -2,9 +2,13 @@ import Foundation
 import StoreKit
 import SwiftUI
 
-/// Distribution evidence controls commerce presentation, not backup ownership.
+#if (BACKUPDUCK_IN_HOUSE && BACKUPDUCK_TESTFLIGHT) || (BACKUPDUCK_APP_STORE_SUBMISSION && (BACKUPDUCK_IN_HOUSE || BACKUPDUCK_TESTFLIGHT))
+#error("Select exactly one BackupDuck package configuration.")
+#endif
+
+/// Distribution controls Pro presentation and the source of access.
 enum DuckProDistributionChannel: Equatable {
-  case unknown, directDownload, development, sandbox, submissionSandbox, appStore
+  case unknown, directDownload, development, sandbox, inHouse, testFlight, submissionSandbox, appStore
 
   enum TransactionEnvironment {
     case production, sandbox, xcode, unknown
@@ -22,7 +26,9 @@ enum DuckProDistributionChannel: Equatable {
     case verified(environment: TransactionEnvironment, bundleID: String)
   }
 
-  var allowsPro: Bool { self == .appStore || self == .submissionSandbox }
+  var includesTestAccess: Bool { self == .inHouse || self == .testFlight }
+  var allowsPurchases: Bool { self == .appStore || self == .submissionSandbox }
+  var allowsPro: Bool { includesTestAccess || allowsPurchases }
 
   func acceptsPurchase(in environment: TransactionEnvironment) -> Bool {
     switch (self, environment) {
@@ -45,9 +51,7 @@ enum DuckProDistributionChannel: Equatable {
   }
 }
 
-/// Verified App Store installations can use Pro. A separate submission archive
-/// also allows Apple to review Pro against signed sandbox transactions.
-/// Unresolved distribution preserves ordinary backup and can be checked again later.
+/// Test packages include Pro at launch. Store builds use verified app transactions.
 @MainActor final class DuckProDistribution: ObservableObject {
   static let shared = DuckProDistribution()
   @Published private(set) var channel: DuckProDistributionChannel
@@ -63,7 +67,11 @@ enum DuckProDistributionChannel: Equatable {
   }
 
   private init() {
-    #if os(macOS) && !BACKUPDUCK_APP_STORE
+    #if BACKUPDUCK_IN_HOUSE
+    channel = .inHouse
+    #elseif BACKUPDUCK_TESTFLIGHT
+    channel = .testFlight
+    #elseif os(macOS) && !BACKUPDUCK_APP_STORE
     channel = .directDownload
     #elseif targetEnvironment(simulator)
     channel = .development
@@ -100,7 +108,7 @@ private struct DuckProEnabledKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-  /// Catalog supplies its explicit preview value; production hosts use verified distribution.
+  /// Catalog supplies its preview value; app hosts apply their distribution policy.
   var duckProEnabled: Bool {
     get { self[DuckProEnabledKey.self] }
     set { self[DuckProEnabledKey.self] = newValue }

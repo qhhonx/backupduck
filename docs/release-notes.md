@@ -1,3 +1,9 @@
+# 0.7.1 — build 93
+
+- iPhone keeps the launch background while restoring the saved Pixel connection.
+  Retry appears if opening local data fails.
+- iPhone TestFlight and InHouse builds include Pro during testing.
+
 # 0.7.0 — build 92
 
 - App Store editions offer monthly and annual BackupDuck Pro subscriptions

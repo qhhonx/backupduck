@@ -2,7 +2,11 @@ import BackgroundTasks
 import UIKit
 
 @MainActor final class AppDelegate: NSObject, UIApplicationDelegate {
+  #if BACKUPDUCK_IN_HOUSE
+  static let processingIdentifier = "app.backupduck.inhouse.backup.processing"
+  #else
   static let processingIdentifier = "app.backupduck.backup.processing"
+  #endif
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil

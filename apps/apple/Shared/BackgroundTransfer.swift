@@ -44,7 +44,11 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   @preconcurrency URLSessionTaskDelegate
 {
   static let shared = BackgroundTransfer()
+  #if BACKUPDUCK_IN_HOUSE
+  static let identifier = "app.backupduck.inhouse.uploads.v1"
+  #else
   static let identifier = "app.backupduck.uploads.v1"
+  #endif
   var eventsCompletion: (() -> Void)?
   var waitingForNetwork = false
   private var requestMetrics: [Int: [String: Any]] = [:]

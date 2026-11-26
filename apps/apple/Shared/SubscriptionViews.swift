@@ -164,7 +164,9 @@ struct DuckSubscriptionOverviewPage: View {
 }
 
 struct DuckSubscriptionStatusPresentation {
-  enum State: String { case notSubscribed, checking, welcome, active, renewalOff, expired, unavailable, pending, error }
+  enum State: String {
+    case notSubscribed, checking, welcome, active, renewalOff, expired, unavailable, pending, error, testAccess
+  }
   var state: State
   /// Current access facts, not the price of an optional new product offer.
   var date: String?
@@ -177,13 +179,14 @@ struct DuckSubscriptionStatusPresentation {
   var note: LocalizedStringKey { LocalizedStringKey("subscription_note_" + state.rawValue) }
   var isPaid: Bool { state == .active || state == .renewalOff }
   var maySubscribe: Bool { [.notSubscribed, .welcome, .expired].contains(state) }
-  var action: LocalizedStringKey {
+  var action: LocalizedStringKey? {
     switch state {
     case .active, .renewalOff: "subscription_manage"
     case .expired: "subscription_subscribe_continue"
     case .notSubscribed, .welcome: "subscription_subscribe"
     case .unavailable, .error: "subscription_retry"
     case .checking, .pending: "subscription_check_status"
+    case .testAccess: nil
     }
   }
   var dateLabel: LocalizedStringKey {
@@ -229,7 +232,7 @@ struct DuckSubscriptionStatusPage: View {
   var offer: DuckSubscriptionOfferPresentation? = nil
   var purchaseActions: DuckSubscriptionActions? = nil
   let action: () -> Void
-  let restore: () -> Void
+  var restore: (() -> Void)? = nil
   var body: some View {
     DuckProPageContent(access: presentation, offer: offer, actions: purchaseActions, accessAction: action, restore: restore)
   }
@@ -314,12 +317,12 @@ private struct DuckProAccessGroup: View {
       if let message = presentation.message {
         DuckNotice(title: LocalizedStringKey(message), tone: .failure, symbol: "exclamationmark.circle")
       }
-      if !presentation.maySubscribe {
+      if !presentation.maySubscribe, let title = presentation.action {
         HStack {
           #if os(macOS)
           Spacer(minLength: 0)
           #endif
-          Button(presentation.action, action: action).duckPrimaryButton().accessibilityIdentifier("subscription.status.action")
+          Button(title, action: action).duckPrimaryButton().accessibilityIdentifier("subscription.status.action")
         }
       }
     }.fixedSize(horizontal: false, vertical: true).duckCard()

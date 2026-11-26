@@ -1,6 +1,5 @@
-BackupDuck 0.6.1 requires an iPhone with iOS 18 or later.
+BackupDuck 0.7.1 requires an iPhone with iOS 18 or later.
 
-Please try:
-- Pair with the Pixel, choose what to back up, and start or pause earlier photos.
-- Browse photos from the library, an album and backup history. Zoom, open a photo, and return to the same place.
-- Open a video and a Live Photo. Check that the preview stays in place as playback starts.
+Quit and reopen BackupDuck after connecting a Pixel. Check that it opens without flashing a data error.
+In Settings, open BackupDuck Pro. Pro is included in this beta and backups work without a trial or purchase.
+Try backing up photos or Live Photos and confirm they appear in the Pixel's Photos.

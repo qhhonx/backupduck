@@ -28,10 +28,13 @@ enum DuckSubscriptionHostMode {
   private var startedCommerce = false
   private var startingCommerce = false
   var enabled: Bool { DuckSubscriptionHostMode.isLocalTesting || DuckProDistribution.shared.allowsPro }
+  var purchasesEnabled: Bool {
+    DuckSubscriptionHostMode.isLocalTesting || DuckProDistribution.shared.channel.allowsPurchases
+  }
 
   func open(_ model: BackupModel) async {
     if DuckSubscriptionHostMode.isUnitTestHost { await model.setSubscriptionAccess(allowed: false); return }
-    if enabled {
+    if purchasesEnabled {
       if startedCommerce { await apply(model) }
       else { await startCommerce(model) }
     } else {
@@ -41,7 +44,7 @@ enum DuckSubscriptionHostMode {
   }
   func updateChannel(_ model: BackupModel) async {
     guard !DuckSubscriptionHostMode.isUnitTestHost else { return }
-    guard enabled else {
+    guard purchasesEnabled else {
       await model.setSubscriptionAccess(allowed: true)
       return
     }
@@ -58,7 +61,7 @@ enum DuckSubscriptionHostMode {
     await apply(model)
   }
   func apply(_ model: BackupModel) async {
-    guard enabled else { await model.setSubscriptionAccess(allowed: true); return }
+    guard purchasesEnabled else { await model.setSubscriptionAccess(allowed: true); return }
     guard startedCommerce else { await model.setSubscriptionAccess(allowed: false); return }
     switch store.access {
     case .unrestricted: await model.setSubscriptionAccess(allowed: true)
@@ -80,12 +83,21 @@ struct DuckSubscriptionHostContent: ViewModifier {
       privacy: { openURL(DuckSupport.privacy) },
       terms: { openURL(URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!) })
   }
+  private var settings: DuckSubscriptionSettingsContext? {
+    if distribution.channel.includesTestAccess {
+      let presentation = DuckSubscriptionStatusPresentation(state: .testAccess)
+      return .init(presentation: presentation,
+        detail: AnyView(DuckSubscriptionStatusPage(presentation: presentation, action: {})))
+    }
+    guard host.enabled else { return nil }
+    return .init(presentation: store.statusPresentation,
+      detail: AnyView(DuckSubscriptionLiveDetail(store: store, actions: actions)))
+  }
   func body(content: Content) -> some View {
     content
       .environment(\.duckProEnabled, host.enabled)
-      .environment(\.duckSubscriptionSettings, host.enabled ? .init(presentation: store.statusPresentation,
-        detail: AnyView(DuckSubscriptionLiveDetail(store: store, actions: actions))) : nil)
-      .environment(\.duckSubscriptionBackup, host.enabled && !store.access.permitsBackup ?
+      .environment(\.duckSubscriptionSettings, settings)
+      .environment(\.duckSubscriptionBackup, host.purchasesEnabled && !store.access.permitsBackup ?
         .init(offer: { close in AnyView(DuckSubscriptionLiveOffer(store: store, actions: actions, close: close)) }) : nil)
 
   }

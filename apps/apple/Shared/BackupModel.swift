@@ -298,7 +298,8 @@ enum OriginalPreparationFailure {
   @Published var paused = true { didSet { updateHubBatch() } }
   @Published private(set) var subscriptionAccessAllowed = true
   @Published private(set) var subscriptionAccessValidUntil: Date?
-  private var subscriptionAccessConfigured = false
+  // Background wakes can open the queue before the storefront host starts.
+  private var subscriptionAccessConfigured = DuckProDistribution.shared.channel.includesTestAccess
   private var subscriptionAccessRevision = 0
   private var subscriptionDeadlineTask: Task<Void, Never>?
   private var subscriptionAccessWriteTask: Task<Void, Error>?
@@ -1259,11 +1260,15 @@ enum Keychain {
 /// The pairing record in the system keychain.
 struct SystemKeychain: CredentialStore {
   private static var query: [String: Any] {
+    #if BACKUPDUCK_IN_HOUSE
+    let service = "app.backupduck.inhouse.pairing"
+    #else
     var service = "app.backupduck.pairing"
     #if BACKUPDUCK_SUBSCRIPTION_TESTING
       if Bundle.main.bundleIdentifier == "app.backupduck.storekittest" {
         service = "app.backupduck.storekittest.pairing"
       }
+    #endif
     #endif
     return [kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service, kSecAttrAccount as String: "receiver"]

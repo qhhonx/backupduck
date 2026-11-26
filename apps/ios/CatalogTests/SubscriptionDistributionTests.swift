@@ -4,6 +4,16 @@ import XCTest
 final class SubscriptionDistributionTests: XCTestCase {
   private let bundleID = "app.backupduck"
 
+  func testTestPackagesIncludeProWithoutAcceptingPurchases() {
+    for channel in [DuckProDistributionChannel.inHouse, .testFlight] {
+      XCTAssertTrue(channel.allowsPro)
+      XCTAssertTrue(channel.includesTestAccess)
+      XCTAssertFalse(channel.allowsPurchases)
+      XCTAssertFalse(channel.acceptsPurchase(in: .production))
+      XCTAssertFalse(channel.acceptsPurchase(in: .sandbox))
+    }
+  }
+
   func testProductionEvidenceCannotEnableDirectDownloadCommerce() {
     let channel = DuckProDistributionChannel.resolve(storeTarget: false, bundleID: bundleID,
       evidence: .verified(environment: .production, bundleID: bundleID))

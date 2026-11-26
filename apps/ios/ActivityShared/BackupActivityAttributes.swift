@@ -38,9 +38,16 @@ struct BackupActivityAttributes: ActivityAttributes {
   let session: String
   let baselinePublished: Int
   let initialRemaining: Int
+  static var urlScheme: String {
+    #if BACKUPDUCK_IN_HOUSE
+    "backupduck-inhouse"
+    #else
+    "backupduck"
+    #endif
+  }
   var url: URL {
     var value = URLComponents()
-    value.scheme = "backupduck"; value.host = "backup"
+    value.scheme = Self.urlScheme; value.host = "backup"
     value.queryItems = [URLQueryItem(name: "receiver", value: receiver)]
     return value.url!
   }

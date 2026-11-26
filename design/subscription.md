@@ -6,19 +6,17 @@ The subscription page answers what a person receives, what they will pay, when
 payment starts, and how to restore or manage the purchase. It is a supporting
 guided decision, not a new navigation position or an account system.
 
-Only production App Store distribution enables Pro entry points, purchasing and
-the seven-day access constraint. TestFlight, Xcode/development and direct-download
-hosts retain their existing backup capabilities without Pro entry points or
-welcome-period enforcement. A store-target build flag alone is insufficient:
-TestFlight and production can use the same uploaded build.
+The iPhone InHouse and TestFlight packages include Pro during testing. Their
+Settings entry opens the usual Pro benefits and an included-access state. It
+offers no price, purchase, restore or renewal controls and has no welcome
+deadline. Ordinary development builds and Mac direct downloads keep backup
+available without a Pro entry.
 
-The host enables Pro only after StoreKit verifies an app transaction belonging
-to this bundle in the production environment. Sandbox, Xcode, unverified and
-missing transaction data do not enable Pro. Resolve distribution asynchronously
-on each application launch; retry an unresolved result on foreground entry.
-Unresolved distribution never pauses backup, opens a purchase page or starts an
-expiry clock. Do not persist distribution as a permanent preference or reuse
-old store welcome state to restrict a TestFlight/direct-download installation.
+The App Store package uses the seven-day welcome period and verified
+subscriptions. StoreKit must verify an app transaction matching the bundle.
+App Review can use verified sandbox transactions in the submission package.
+An unresolved lookup retries on foreground entry and leaves backup available.
+Test and direct-download packages do not apply saved App Store access limits.
 Receipt absence is not evidence of production distribution. Detection uses
 `AppTransaction.shared` without an explicit receipt-refresh or authentication
 fallback. The direct-download Mac
@@ -241,9 +239,10 @@ perform a real purchase. Record synthetic dates and prices with the evidence;
 they are not production readings. Inspect iPhone and Mac in light and dark,
 narrow widths, the first larger text size and long localized content.
 Catalog preview injection is separate from runtime distribution verification.
-Include TestFlight and direct-download fixtures with subscription data present
-but Pro disabled: ordinary backup remains available, Settings has no Pro entry
-and the hub has no subscription pause or offer. Sandbox purchase success is not
+Check iPhone test packages for included Pro in Settings and no purchase or
+welcome deadline. A Mac direct-download fixture with subscription data present
+keeps backup available without a Pro entry or a subscription offer.
+Sandbox purchase success is not
 production-distribution evidence.
 
 ## Local purchase testing

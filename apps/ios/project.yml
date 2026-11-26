@@ -8,6 +8,8 @@ configs:
   Release: release
   ScanValidation: release
   AppStoreSubmission: release
+  TestFlight: release
+  InHouse: release
 settings:
   base:
     SWIFT_VERSION: '5.0'
@@ -23,6 +25,8 @@ configFiles:
   Debug: ../apple/Signing.xcconfig
   Release: ../apple/Signing.xcconfig
   AppStoreSubmission: ../apple/Signing.xcconfig
+  TestFlight: ../apple/Signing.xcconfig
+  InHouse: ../apple/Signing.xcconfig
   ScanValidation: ScanValidation.xcconfig
 targets:
   BackupDuck:
@@ -63,6 +67,8 @@ targets:
       configs:
         AppStoreSubmission:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_APP_STORE_SUBMISSION
+        TestFlight:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_TESTFLIGHT
         ScanValidation:
           PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.validation
           INFOPLIST_FILE: ScanValidation/Info.plist
@@ -87,6 +93,34 @@ targets:
           cargo build --locked --release -p backupduck-native --no-default-features --target "$rust_target"
           cp "target/$rust_target/release/libbackupduck_native.a" "$BUILT_PRODUCTS_DIR/"
           python3 apps/apple/Scripts/generate-third-party-licenses.py --platform ios --check
+  BackupDuckInHouse:
+    type: application
+    platform: iOS
+    sources:
+      - path: ../apple/Shared
+      - path: ../apple/Resources
+        excludes: ["*.lproj/InfoPlist.strings", "ThirdPartyNotices-mac*.txt"]
+      - path: BackupDuck
+        excludes: [Info.plist]
+      - path: ActivityShared
+      - path: InHouse/Resources
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - target: BackupDuckLiveActivity
+        embed: true
+    settings:
+      base:
+        SKIP_INSTALL: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.inhouse
+        INFOPLIST_FILE: InHouse/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]: InHouse/Simulator.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: ../../crates/native/include/backupduck.h
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_IN_HOUSE
+        OTHER_LDFLAGS: *native_link
+    preBuildScripts: *native_engine
   BackupDuckStoreKitTest:
     type: application
     platform: iOS
@@ -178,6 +212,9 @@ targets:
         TARGETED_DEVICE_FAMILY: '1'
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_WIDGET
       configs:
+        InHouse:
+          PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.inhouse.LiveActivity
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_WIDGET BACKUPDUCK_IN_HOUSE
         ScanValidation:
           PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.validation.LiveActivity
           INFOPLIST_FILE: ScanValidation/LiveActivityInfo.plist
@@ -217,6 +254,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.backupduck.uitests
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: '1'
+      configs:
+        TestFlight:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BACKUPDUCK_TESTFLIGHT
   BackupDuckCatalogUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -237,12 +277,26 @@ schemes:
       config: Release
     test:
       targets: [BackupDuckTests]
+    archive:
+      config: TestFlight
   BackupDuckAppStoreSubmission:
     build:
       targets:
         BackupDuck: [archive]
     archive:
       config: AppStoreSubmission
+  BackupDuckTestFlight:
+    build:
+      targets:
+        BackupDuck: [archive]
+    archive:
+      config: TestFlight
+  BackupDuckInHouse:
+    build:
+      targets:
+        BackupDuckInHouse: [run]
+    run:
+      config: InHouse
   BackupDuckUI:
     build:
       targets:

@@ -1334,3 +1334,6 @@
 "subscription_annual_price" = "%@ per year";
 "subscription_annual_equivalent" = "Equivalent to %@ per month";
 "subscription_annual_savings" = "Recommended · Save %@";
+"subscription_state_testAccess" = "Pro is included";
+"subscription_summary_testAccess" = "Included";
+"subscription_note_testAccess" = "This test build includes Pro without a subscription.";
