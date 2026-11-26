@@ -43,6 +43,23 @@ class ReleaseMarkerTests(unittest.TestCase):
         api = self.run_trigger([{"object": {"sha": "newer"}}])
         self.assertEqual(api.call_count, 1)
 
+    def test_ios_version_creates_only_the_ios_marker(self):
+        self.metadata.write_text(json.dumps({"version": "0.3.1", "distribution_scope": "ios"}))
+        api = self.run_trigger([{"object": {"sha": "tested"}}, [], {}])
+        self.assertEqual(api.call_args.args, (
+            "repos/example/backupduck/git/refs", "--method", "POST",
+            "-f", "ref=refs/tags/testflight-ios/v0.3.1", "-f", "sha=tested"))
+
+    def test_marker_from_other_scope_prevents_duplicate_upload(self):
+        api = self.run_trigger([{"object": {"sha": "tested"}},
+                                [{"ref": "refs/tags/testflight-ios/v0.3.1"}]])
+        self.assertEqual(api.call_count, 2)
+
+    def test_invalid_scope_cannot_create_a_marker(self):
+        self.metadata.write_text(json.dumps({"version": "0.3.1", "distribution_scope": "invalid"}))
+        with self.assertRaisesRegex(ValueError, "Invalid distribution scope"):
+            self.run_trigger([{"object": {"sha": "tested"}}])
+
     def test_existing_version_never_moves_marker_or_restarts_cloud(self):
         api = self.run_trigger([{"object": {"sha": "tested"}},
                                 [{"ref": "refs/tags/testflight/v0.3.1"}]])

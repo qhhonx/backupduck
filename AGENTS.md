@@ -145,7 +145,9 @@ Preserve installed-client trust anchors and legacy update endpoints; consult
 For Apple store/test distribution, follow `docs/apple-distribution.md`. Keep
 the Mac store target sandboxed and free of Sparkle, inject the signing team via
 local/Cloud configuration, and distinguish upload from tester availability.
-GitHub `Checks` gates new `testflight/v<version>` markers on current `main`.
+GitHub `Checks` gates new TestFlight markers on current `main`. Use
+`testflight/v<version>` for shared releases and `testflight-ios/v<version>`
+for iOS-only releases, as selected by `release.json`.
 Cloud archives/uploads only; keep ordinary push, scheduled and test actions off.
 Release workflows also attach source-controlled testing notes and deliver their
 own archive through the external TestFlight post-action. Verify the intended

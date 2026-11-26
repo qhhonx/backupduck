@@ -28,14 +28,22 @@ def main():
     if current != tested_sha:
         report("A newer main commit exists; wait for its checks before distribution.")
         return
-    version = json.loads(Path("release.json").read_text())["version"]
+    release = json.loads(Path("release.json").read_text())
+    version = release["version"]
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?", version):
         raise ValueError("Invalid release version")
-    tag = f"testflight/v{version}"
-    refs = api(f"repos/{repository}/git/matching-refs/tags/testflight/")
-    if any(item["ref"] == f"refs/tags/{tag}" for item in refs):
-        report(f"{tag} already exists; ordinary commits do not repeat distribution.")
-        return
+    scope = release.get("distribution_scope", "all")
+    if scope not in ("all", "ios"):
+        raise ValueError("Invalid distribution scope")
+    shared_tag = f"testflight/v{version}"
+    ios_tag = f"testflight-ios/v{version}"
+    tag = ios_tag if scope == "ios" else shared_tag
+    refs = api(f"repos/{repository}/git/matching-refs/tags/testflight")
+    existing = {item["ref"].removeprefix("refs/tags/") for item in refs}
+    for marker in (shared_tag, ios_tag):
+        if marker in existing:
+            report(f"{marker} already exists; ordinary commits do not repeat distribution.")
+            return
     api(f"repos/{repository}/git/refs", "--method", "POST",
         "-f", f"ref=refs/tags/{tag}", "-f", f"sha={tested_sha}")
     report(f"Created {tag} at the tested commit. Xcode Cloud handles signing and TestFlight delivery.")

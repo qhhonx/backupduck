@@ -159,7 +159,7 @@ The Cloud checkout uses a directory override for the installed Rust version so
 archive phases do not install development-only formatter/linter components.
 
 Use separate iOS and Mac workflows with manual start and a tag-change condition
-matching `testflight/*`, one clean Release archive action and TestFlight internal
+matching `testflight/*`, one clean archive action and TestFlight internal
 and external testing post-actions for the existing test groups. External testing
 requires a clean archive; enable no-cache mode for these release-only workflows.
 Keep Cloud test actions, scheduled builds and
@@ -168,11 +168,20 @@ Run the existing tests locally or in GitHub Actions before starting a release;
 Cloud is reserved for distribution signing, archive and upload.
 The iOS external workflow can use its existing `BackupDuck` scheme, whose
 archive action selects the same configuration as `BackupDuckTestFlight`.
-The Mac external workflow selects `BackupDuckStore`.
+It also matches `testflight-ios/*` for iPhone-only releases. The Mac external
+workflow selects `BackupDuckStore` and uses the shared tag prefix.
+
+The iOS App Store Review workflow runs on manual selection of `main` with the
+`BackupDuckAppStoreSubmission` scheme. Its only action is the App Store-eligible
+archive. Submitting the resulting build to App Review is a separate step in
+App Store Connect.
 
 The `Start TestFlight release` GitHub workflow runs only after successful `Checks`
-on the current public `main` commit. It creates `testflight/v<version>` once per
-version from `release.json`; existing markers are never moved. Ordinary commits
+on the current public `main` commit. It creates a tag once per version from
+`release.json`. The `all` scope defaults to `testflight/v<version>` for both
+Apple platforms and enables direct distribution. The `ios` scope creates
+`testflight-ios/v<version>` and skips Mac and Android direct publishing.
+Existing markers are never moved. Ordinary commits
 and failed or superseded checks do not trigger another Cloud build. PR code never
 runs with the release workflow's write token. Set an initial marker for a version
 already uploaded before enabling Cloud tag triggers, to avoid a duplicate upload.

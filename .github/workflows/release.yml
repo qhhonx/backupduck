@@ -28,9 +28,9 @@ jobs:
         run: |
           gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
           python3 scripts/check-release.py "$RUNNER_TEMP/releases.json" >> "$GITHUB_OUTPUT"
-      - name: Keep published versions immutable
+      - name: Skip versions outside direct distribution
         if: steps.version.outputs.publish != 'true'
-        run: echo 'Version already published. Increase version and build in release.json to publish another update.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'This version is scoped to iOS or has already been published.' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         if: steps.version.outputs.publish == 'true'
         with:

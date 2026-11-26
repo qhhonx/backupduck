@@ -8,6 +8,8 @@ except ModuleNotFoundError:
  import tomli as tomllib
 r=Path(__file__).resolve().parent.parent
 i=json.loads((r/'release.json').read_text())
+scope=i.get('distribution_scope','all')
+assert scope in ('all','ios'), 'Invalid distribution scope'
 assert re.fullmatch(r'\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?',i['version'])
 assert type(i['build']) is int and 0<i['build']<2100000000
 assert i['distribution_repository']=='qhhonx/backupduck'
@@ -51,6 +53,9 @@ assert "namespace 'app.backupduck'" in gradle and "applicationId 'app.backupduck
 assert 'Java_app_backupduck_NativeBridge_call' in (r/'crates/native/src/lib.rs').read_text()
 assert (r/'apps/android/app/src/main/java/app/backupduck/NativeBridge.kt').exists()
 if len(sys.argv)>1:
+ if scope=='ios':
+  print('publish=false')
+  sys.exit(0)
  releases=json.loads(Path(sys.argv[1]).read_text())
  for release in releases:
   if release['tag_name']=='v'+i['version'] and not release['draft']:

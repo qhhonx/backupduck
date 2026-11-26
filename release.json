@@ -1,6 +1,7 @@
 {
   "version": "0.7.1",
   "build": 93,
+  "distribution_scope": "ios",
   "website": "https://backupduck.app",
   "repository": "qhhonx/backupduck",
   "distribution_repository": "qhhonx/backupduck"
